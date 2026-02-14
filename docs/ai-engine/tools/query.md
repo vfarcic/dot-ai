@@ -1,6 +1,6 @@
 # Cluster Query Guide
 
-**Complete guide for using natural language to query your Kubernetes cluster through MCP (Model Context Protocol).**
+**Complete guide for using natural language to query your Kubernetes cluster with the DevOps AI Toolkit.**
 
 ![Cluster Query Infographic](../img/query.jpeg)
 
@@ -10,10 +10,10 @@ These tools are also available through the [Web Dashboard](https://devopstoolkit
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md).
+Before using this guide, complete the [Deployment Guide](../setup/deployment.md).
 
 **Optional but strongly recommended:**
-- Scanned capabilities - see [Capability Management](mcp-capability-management-guide.md)
+- Scanned capabilities - see [Capability Management](capability-management.md)
 - Resources synced to Vector DB - automatically handled by the [dot-ai-controller](https://devopstoolkit.ai/docs/controller)
 
 > **Note**: While the query tool technically works without capabilities and resources in the Vector DB (falling back to raw kubectl commands), AI performance and accuracy will be severely reduced. Capabilities provide semantic understanding (knowing that "database" relates to StatefulSet, CNPG, etc.), and resources provide fast inventory lookups. Without these, the AI loses its ability to answer concept-based queries and must rely solely on kubectl, resulting in slower and less intelligent responses.
@@ -57,7 +57,7 @@ This combination enables natural language queries while providing accurate, live
 
 ## Complete Workflow Examples
 
-> **Tip**: If your MCP client doesn't automatically use the query tool, add "use dot-ai MCP" to your query (e.g., "What databases are running? Use dot-ai MCP").
+> **Tip**: If your AI coding agent doesn't automatically use the query tool, add "use dot-ai" to your query (e.g., "What databases are running? Use dot-ai").
 
 This section demonstrates common query patterns:
 
@@ -77,7 +77,7 @@ Semantic queries let you find resources by concept rather than exact resource ty
 What dot-ai components are running in the cluster?
 ```
 
-**Response:**
+**Response** (sample output — versions and ports vary by deployment):
 
 ```text
 The cluster has the following dot-ai components running in the dot-ai namespace:
@@ -86,8 +86,8 @@ Deployments (4)
 
 | Component                 | Version  | Port | Description                                              |
 |---------------------------|----------|------|----------------------------------------------------------|
-| dot-ai                    | v0.178.0 | 3456 | MCP Server - AI-powered model context protocol server using Anthropic Haiku, connects to<br>Qdrant for embeddings |
-| dot-ai-ui                 | v0.4.0   | 3000 | Web UI for interacting with the MCP server               |
+| dot-ai                    | v0.178.0 | 3456 | AI Engine - AI-powered server using Anthropic Haiku, connects to<br>Qdrant for embeddings |
+| dot-ai-ui                 | v0.4.0   | 3000 | Web UI for interacting with the AI Engine               |
 | dot-ai-website            | v0.3.22  | 8080 | Marketing/documentation website                          |
 | dot-ai-controller-manager | v0.38.0  | -    | Kubernetes operator for managing dot-ai custom resources |
 
@@ -119,7 +119,7 @@ The visualization URL opens an interactive topology view in the Web UI:
 ![Query Visualization Example](../img/query-example-01.png)
 
 > **Note**: Visualization URLs require additional setup:
-> - Configure `webUI.baseUrl` in your Helm values (see [MCP Setup - Web UI Visualization](../setup/mcp-setup.md#web-ui-visualization))
+> - Configure `webUI.baseUrl` in your Helm values (see [Deployment Guide - Web UI Visualization](../setup/deployment.md#web-ui-visualization))
 > - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 ---

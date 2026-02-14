@@ -1,6 +1,6 @@
 # Remediate Guide
 
-**Complete guide for using AI-powered Kubernetes issue analysis and remediation through MCP (Model Context Protocol).**
+**Complete guide for AI-powered Kubernetes issue analysis and remediation with the DevOps AI Toolkit.**
 
 ![Issue Remediation Infographic](../img/remediation.jpeg)
 
@@ -10,9 +10,9 @@ These tools are also available through the [Web Dashboard](https://devopstoolkit
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:
-- DevOps AI Toolkit MCP server running  
-- AI model API key configured (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for supported models and setup)
+Before using this guide, complete the [Deployment Guide](../setup/deployment.md) to set up:
+- DevOps AI Toolkit deployed
+- AI model API key configured (see [AI Model Configuration](../setup/deployment.md#ai-model-configuration) for supported models and setup)
 - `KUBECONFIG` pointing to your Kubernetes cluster (optional for pure analysis)
 - kubectl command-line tool installed
 
@@ -34,7 +34,7 @@ The DevOps AI Toolkit remediate feature provides:
 
 ## Related Projects
 
-**[dot-ai-controller](https://devopstoolkit.ai/docs/controller/remediation-guide/)** - A Kubernetes controller that transforms reactive infrastructure management into proactive, AI-enhanced operations. The controller monitors Kubernetes cluster events and automatically triggers this project's remediation MCP tool for intelligent analysis and resolution. It supports both automatic remediation (where AI directly implements solutions) and manual remediation (where AI provides recommendations for human review), with configurable filtering, rate limiting, Slack notifications, and confidence/risk thresholds. This enables continuous cluster health monitoring with intelligent auto-healing capabilities.
+**[dot-ai-controller](https://devopstoolkit.ai/docs/controller/remediation-guide/)** - A Kubernetes controller that transforms reactive infrastructure management into proactive, AI-enhanced operations. The controller monitors Kubernetes cluster events and automatically triggers this project's remediation tool for intelligent analysis and resolution. It supports both automatic remediation (where AI directly implements solutions) and manual remediation (where AI provides recommendations for human review), with configurable filtering, rate limiting, Slack notifications, and confidence/risk thresholds. This enables continuous cluster health monitoring with intelligent auto-healing capabilities.
 
 ### How AI-Driven Investigation Works
 
@@ -141,7 +141,7 @@ EOF
 
 **How would you like to proceed?**
 
-1. **Execute automatically via MCP** - Run the kubectl commands automatically (LOW RISK)
+1. **Execute automatically** - Run the commands automatically (LOW RISK)
 2. **Execute via agent** - Execute the kubectl commands using your Bash tool, then validate (LOW RISK)
 
 📊 View visualization: http://localhost:3000/v/rem-1767465086590-11029192
@@ -154,7 +154,7 @@ The visualization URL opens an interactive analysis view in the Web UI:
 ![Remediate Visualization Example](../img/remediate-example-01.png)
 
 > **Note**: Visualization URLs require additional setup:
-> - Configure `webUI.baseUrl` in your Helm values (see [MCP Setup - Web UI Visualization](../setup/mcp-setup.md#web-ui-visualization))
+> - Configure `webUI.baseUrl` in your Helm values (see [Deployment Guide - Web UI Visualization](../setup/deployment.md#web-ui-visualization))
 > - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 **What happened behind the scenes:**
@@ -168,21 +168,21 @@ The visualization URL opens an interactive analysis view in the Web UI:
 
 At this point, we have two execution paths available. We'll explore both options to show the complete workflow:
 
-- **[Option 1: Automatic MCP Execution](#option-1-automatic-mcp-execution)** - MCP tool executes commands internally and returns complete results
+- **[Option 1: Automatic Execution](#option-1-automatic-execution)** - Tool executes commands internally and returns complete results
 - **[Option 2: Manual Agent Execution](#option-2-manual-agent-execution)** - Agent executes commands manually, then calls for validation
 
 ---
 
-### Option 1: Automatic MCP Execution
+### Option 1: Automatic Execution
 
-**User selects Choice 1** - MCP tool executes commands internally and returns complete results
+**User selects Choice 1** - Tool executes commands internally and returns complete results
 
-```
+```text
 User: 1
 ```
 
-```
-Agent: I'll execute the remediation automatically via MCP and validate the results.
+```text
+Agent: I'll execute the remediation automatically and validate the results.
 
 [Uses remediate tool with executeChoice: 1, sessionId: "rem_2025-09-20T1653_818d80901b10ce62", mode: "manual"]
 
@@ -216,11 +216,11 @@ Your postgres-demo namespace database is now working correctly!
 ```
 
 **What happened behind the scenes:**
-- MCP tool executed the kubectl apply command internally
+- Tool executed the apply command internally
 - Post-execution validation ran automatically (4 iterations, 6 data sources)
 - AI confirmed PVC creation and binding to persistent volume
 - AI verified PostgreSQL pod transition from Pending to Running state
-- Complete end-to-end resolution in single MCP call
+- Complete end-to-end resolution in a single tool call
 
 #### Post-Remediation Visualization
 
@@ -267,7 +267,7 @@ Your PostgreSQL database is now operational and healthy!
 
 **What happened behind the scenes:**
 - Agent executed kubectl apply command via Bash tool
-- MCP tool returned instructions for validation call
+- Tool returned instructions for validation call
 - Agent made fresh remediate call with `executedCommands` parameter for validation
 - AI performed 4-iteration validation investigation (6 data sources)
 - AI confirmed PVC binding and pod transition to Running state
@@ -325,8 +325,8 @@ Recommended Action:
 
 Choose execution method:
 
-1. Execute automatically via MCP (Recommended)
-- Run the kubectl command automatically via MCP
+1. Execute automatically (Recommended)
+- Run the command automatically
 - Risk: Low
 
 2. Execute via agent  
@@ -392,7 +392,7 @@ Maximum risk level allowed for automatic execution (automatic mode only).
 
 #### `executeChoice` (number, optional)
 Execute a previously generated choice from manual mode workflow.
-- **Values**: `1` (Execute via MCP) | `2` (Execute via agent)  
+- **Values**: `1` (Execute automatically) | `2` (Execute via agent)  
 - **User selects**: User responds with `"1"` or `"2"` to execution choice prompts
 - **Requires**: `sessionId` parameter from previous tool response
 

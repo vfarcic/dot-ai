@@ -4,7 +4,7 @@
 
 ## Overview
 
-Knowledge Base provides semantic search over organizational documentation. Documents are ingested, chunked, and stored in a vector database. Users can then search this knowledge base using natural language queries through the `manageKnowledge` MCP tool.
+Knowledge Base provides semantic search over organizational documentation. Documents are ingested, chunked, and stored in a vector database. Users can then search this knowledge base using natural language queries through the `manageKnowledge` tool.
 
 ### What is Knowledge Base?
 
@@ -31,14 +31,14 @@ Knowledge Base allows you to:
 
 Before using Knowledge Base, ensure you have completed one of the following setups:
 
-- **[Stack Installation](https://devopstoolkit.ai/docs/stack)** (recommended) - Installs all components including the controller, MCP server, and Qdrant
-- **[MCP Setup Guide](../setup/mcp-setup.md)** - Individual component installation with integrated Qdrant
+- **[Stack Installation](https://devopstoolkit.ai/docs/stack)** (recommended) - Installs all components including the controller, AI Engine, and Qdrant
+- **[Deployment Guide](../setup/deployment.md)** - Individual component installation with integrated Qdrant
 
-Both setups include the required Vector DB (Qdrant). You also need an embedding provider API key - see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration).
+Both setups include the required Vector DB (Qdrant). You also need an embedding provider API key - see [Embedding Provider Configuration](../setup/deployment.md#embedding-provider-configuration).
 
 ## Knowledge Base Operations
 
-The `manageKnowledge` MCP tool supports three operations: `ingest`, `search`, and `deleteByUri`.
+The `manageKnowledge` tool supports three operations: `ingest`, `search`, and `deleteByUri`.
 
 ### Ingesting Documents
 
@@ -55,7 +55,7 @@ This is "set and forget" - once configured, your Git documentation stays in sync
 
 #### Option 2: Via AI Agent (For Ad-Hoc Ingestion)
 
-For documents outside Git, or when you need to quickly add something, use your MCP-enabled AI assistant (Claude Code, Cursor, etc.). Simply ask it to ingest content in natural language.
+For documents outside Git, or when you need to quickly add something, use your AI coding agent (Claude Code, Cursor, etc.). Simply ask it to ingest content in natural language.
 
 **What you can ingest:**
 - **Local files**: Point to files in your project or filesystem
@@ -76,7 +76,7 @@ https://github.com/vfarcic/dot-ai/blob/main/docs/guides/mcp-recommendation-guide
 ```
 
 **What happened behind the scenes:**
-- AI assistant read the file content
+- AI coding agent read the file content
 - Constructed the full URI from the file path
 - Called `manageKnowledge` with `operation: "ingest"`
 - Document was chunked (~1000 characters per chunk) and stored with embeddings
@@ -190,6 +190,6 @@ A: Yes. All ingested documents are stored in the same knowledge base regardless 
 
 ## See Also
 
-- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial installation and configuration
+- **[Deployment Guide](../setup/deployment.md)** - Server deployment and configuration
 - **[Controller Knowledge Source Guide](https://devopstoolkit.ai/docs/controller/knowledge-source-guide)** - Automated Git repository ingestion
-- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools
+- **[Tools and Features Overview](overview.md)** - Browse all available tools

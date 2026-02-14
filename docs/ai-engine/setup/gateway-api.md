@@ -1,6 +1,6 @@
 # Gateway API Deployment Guide
 
-**Deploy DevOps AI Toolkit MCP server using Kubernetes Gateway API v1 with production-ready reference pattern or development/testing creation pattern.**
+**Deploy DevOps AI Toolkit using Kubernetes Gateway API v1 with production-ready reference pattern or development/testing creation pattern.**
 
 ## When to Use Gateway API
 
@@ -977,4 +977,4 @@ kubectl get httproute,svc,pod -n dot-ai
 - [external-dns Gateway API Support](https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/gateway-api.md)
 
 **dot-ai Documentation:**
-- [MCP Setup Guide](mcp-setup.md)
+- [Deployment Guide](deployment.md)

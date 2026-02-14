@@ -1,6 +1,6 @@
 # Recommendation Guide
 
-**Complete guide for using Kubernetes deployment recommendations through MCP (Model Context Protocol).**
+**Complete guide for AI-powered Kubernetes deployment recommendations with the DevOps AI Toolkit.**
 
 ![Resource Provisioning Intelligence Infographic](../img/recommendation.jpeg)
 
@@ -16,18 +16,18 @@ These tools are also available through the [Web Dashboard](https://devopstoolkit
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:
-- DevOps AI Toolkit MCP server running
-- AI model API key configured (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for supported models and setup)
+Before using this guide, complete the [Deployment Guide](../setup/deployment.md) to set up:
+- DevOps AI Toolkit deployed
+- AI model API key configured (see [AI Model Configuration](../setup/deployment.md#ai-model-configuration) for supported models and setup)
 - `KUBECONFIG` pointing to your Kubernetes cluster (optional but recommended)
 
 **Required - Capability Management:**
 - Vector DB service (Qdrant) for capability storage
-- Cluster capabilities discovered via [Capability Management Guide](mcp-capability-management-guide.md)
+- Cluster capabilities discovered via [Capability Management Guide](capability-management.md)
 - **Note**: Recommendations will fail without capabilities - the system requires semantic understanding of your cluster resources
 
 **Optional - Enhanced with Organizational Patterns:**
-- Organizational patterns created via [Pattern Management Guide](pattern-management-guide.md)
+- Organizational patterns created via [Pattern Management Guide](../organizational-data/patterns.md)
 - When configured, recommendations automatically include organizational best practices
 
 ## Overview
@@ -143,10 +143,10 @@ The visualization URL opens an interactive view in the Web UI showing all soluti
 ![Recommendation Visualization Example](../img/recommendation-example-01.png)
 
 > **Note**: Visualization URLs require additional setup:
-> - Configure `webUI.baseUrl` in your Helm values (see [MCP Setup - Web UI Visualization](../setup/mcp-setup.md#web-ui-visualization))
+> - Configure `webUI.baseUrl` in your Helm values (see [Deployment Guide - Web UI Visualization](../setup/deployment.md#web-ui-visualization))
 > - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
-**Note:** Requires capability scanning via [Capability Management Guide](mcp-capability-management-guide.md) and optionally organizational patterns via [Pattern Management](pattern-management-guide.md). Policy requirements shown require active policy intents created via [Policy Management Guide](policy-management-guide.md).
+**Note:** Requires capability scanning via [Capability Management Guide](capability-management.md) and optionally organizational patterns via [Pattern Management](../organizational-data/patterns.md). Policy requirements shown require active policy intents created via [Policy Management Guide](../organizational-data/policies.md).
 
 ```md
 User: I'll go with option 1
@@ -443,7 +443,7 @@ The visualization URL opens an interactive view with multiple tabs including mon
 ![Recommendation Visualization - Helm Chart](../img/recommendation-example-03.png)
 
 > **Note**: Visualization URLs require additional setup:
-> - Configure `webUI.baseUrl` in your Helm values (see [MCP Setup - Web UI Visualization](../setup/mcp-setup.md#web-ui-visualization))
+> - Configure `webUI.baseUrl` in your Helm values (see [Deployment Guide - Web UI Visualization](../setup/deployment.md#web-ui-visualization))
 > - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 ```md
@@ -581,5 +581,5 @@ After deployment, return to the Web UI visualization and click **Reload** to see
 
 ## See Also
 
-- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial MCP server configuration
-- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features
+- **[Deployment Guide](../setup/deployment.md)** - Server deployment and configuration
+- **[Tools and Features Overview](overview.md)** - Browse all available tools and features

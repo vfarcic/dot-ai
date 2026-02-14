@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server.
+Before using this guide, complete the [Deployment Guide](../setup/deployment.md).
 
 ## Overview
 
@@ -67,7 +67,7 @@ The visualization URL opens an interactive dashboard showing system health, comp
 ![Version Visualization Example](../img/version-example.png)
 
 > **Note**: Visualization URLs require additional setup:
-> - Configure `webUI.baseUrl` in your Helm values (see [MCP Setup - Web UI Visualization](../setup/mcp-setup.md#web-ui-visualization))
+> - Configure `webUI.baseUrl` in your Helm values (see [Deployment Guide - Web UI Visualization](../setup/deployment.md#web-ui-visualization))
 > - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 ## Troubleshooting Common Issues
@@ -86,7 +86,7 @@ The visualization URL opens an interactive dashboard showing system health, comp
 **Solutions:**
 1. Verify kubeconfig exists: `ls $KUBECONFIG`
 2. Test connectivity: `kubectl cluster-info`
-3. Check MCP server has access to kubeconfig file
+3. Check the server has access to kubeconfig file
 
 ### Vector DB Not Connected
 
@@ -115,9 +115,9 @@ The visualization URL opens an interactive dashboard showing system health, comp
 - Vector DB connectivity issues
 
 **Solutions:**
-1. Run capability scan: See [Capability Management Guide](mcp-capability-management-guide.md)
-2. For patterns: See [Pattern Management Guide](pattern-management-guide.md)
-3. For policies: See [Policy Management Guide](policy-management-guide.md)
+1. Run capability scan: See [Capability Management Guide](capability-management.md)
+2. For patterns: See [Pattern Management Guide](../organizational-data/patterns.md)
+3. For policies: See [Policy Management Guide](../organizational-data/policies.md)
 
 ### AI Provider Issues
 
@@ -133,10 +133,10 @@ The visualization URL opens an interactive dashboard showing system health, comp
 **Solutions:**
 1. Verify API key is set in environment or Helm values
 2. Test API key validity with provider's API
-3. Check [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration)
+3. Check [AI Model Configuration](../setup/deployment.md#ai-model-configuration)
 
 ## See Also
 
-- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial installation and configuration
-- **[Capability Management Guide](mcp-capability-management-guide.md)** - Scan cluster capabilities
-- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools
+- **[Deployment Guide](../setup/deployment.md)** - Server deployment and configuration
+- **[Capability Management Guide](capability-management.md)** - Scan cluster capabilities
+- **[Tools and Features Overview](overview.md)** - Browse all available tools

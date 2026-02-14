@@ -1,6 +1,6 @@
 # Operate Guide
 
-**Complete guide for using AI-powered Kubernetes operations through MCP (Model Context Protocol).**
+**Complete guide for AI-powered Kubernetes operations with the DevOps AI Toolkit.**
 
 ![Day 2 Operations Infographic](../img/operations.jpeg)
 
@@ -10,19 +10,19 @@ These tools are also available through the [Web Dashboard](https://devopstoolkit
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:
-- DevOps AI Toolkit MCP server running
-- AI model API key configured (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for supported models and setup)
+Before using this guide, complete the [Deployment Guide](../setup/deployment.md) to set up:
+- DevOps AI Toolkit deployed
+- AI model API key configured (see [AI Model Configuration](../setup/deployment.md#ai-model-configuration) for supported models and setup)
 - `KUBECONFIG` pointing to your Kubernetes cluster
 
 **Required - Capability Management:**
 - Vector DB service (Qdrant) for capability storage
-- Cluster capabilities discovered via [Capability Management Guide](mcp-capability-management-guide.md)
+- Cluster capabilities discovered via [Capability Management Guide](capability-management.md)
 - **Note**: Operations will fail without capabilities - the system requires semantic understanding of your cluster resources
 
 **Optional - Enhanced with Organizational Context:**
-- Organizational patterns created via [Pattern Management Guide](pattern-management-guide.md)
-- Policy intents created via [Policy Management Guide](policy-management-guide.md)
+- Organizational patterns created via [Pattern Management Guide](../organizational-data/patterns.md)
+- Policy intents created via [Policy Management Guide](../organizational-data/policies.md)
 - When configured, operations automatically follow organizational best practices and governance rules
 
 ## Overview
@@ -182,7 +182,7 @@ The visualization URL opens an interactive analysis view in the Web UI:
 ![Operate Visualization Example](../img/operate-example-01.png)
 
 > **Note**: Visualization URLs require additional setup:
-> - Configure `webUI.baseUrl` in your Helm values (see [MCP Setup - Web UI Visualization](../setup/mcp-setup.md#web-ui-visualization))
+> - Configure `webUI.baseUrl` in your Helm values (see [Deployment Guide - Web UI Visualization](../setup/deployment.md#web-ui-visualization))
 > - Install the Web UI (see [Web UI Documentation](https://devopstoolkit.ai/docs/ui))
 
 **What happened behind the scenes:**
@@ -355,7 +355,7 @@ HPA successfully created and reconciled. The controller scaled the deployment fr
 ~~~
 
 **What happened behind the scenes:**
-- MCP server executed the approved kubectl command exactly as shown
+- Server executed the approved command exactly as shown
 - HPA resource created in cluster
 - HPA controller detected new HPA and reconciled deployment
 - Deployment scaled from 2 to 4 replicas automatically
@@ -377,8 +377,8 @@ This example demonstrated:
 **Key Takeaway:** Organizational patterns transform operations from "what works" to "what's best for your organization" - automatically enforcing governance without manual intervention.
 
 **Learn More:**
-- See [Pattern Management Guide](pattern-management-guide.md) for detailed information on creating and managing organizational patterns
-- Explore [Policy Management Guide](policy-management-guide.md) for governance and compliance enforcement
+- See [Pattern Management Guide](../organizational-data/patterns.md) for detailed information on creating and managing organizational patterns
+- Explore [Policy Management Guide](../organizational-data/policies.md) for governance and compliance enforcement
 
 ---
 
@@ -442,7 +442,7 @@ operate(intent="add Prometheus monitoring to my-api")
 
 **Problem:** Operate tool requires cluster capabilities for semantic resource matching.
 
-**Solution:** Use the controller for automatic capability scanning (recommended), or scan manually if the controller cannot reach MCP:
+**Solution:** Use the controller for automatic capability scanning (recommended), or scan manually if the controller cannot reach the server:
 ```md
 # Manual scan (only if controller not available)
 User: Scan my cluster capabilities
@@ -450,7 +450,7 @@ User: Scan my cluster capabilities
 [Uses mcp__dot-ai__manageOrgData with dataType: "capabilities", operation: "scan"]
 ```
 
-See [Capability Management Guide](mcp-capability-management-guide.md) for controller setup and manual scanning options.
+See [Capability Management Guide](capability-management.md) for controller setup and manual scanning options.
 
 ### Pattern Not Applied to Operation
 
@@ -482,8 +482,8 @@ If validation still fails after iterations, AI will report the specific issue fo
 
 ## Related Guides
 
-- **[MCP Recommendation Guide](mcp-recommendation-guide.md)** - Initial application deployment with capability-enhanced recommendations
-- **[MCP Remediate Guide](mcp-remediate-guide.md)** - AI-powered troubleshooting and issue resolution
-- **[Pattern Management Guide](pattern-management-guide.md)** - Creating and managing organizational patterns
-- **[Policy Management Guide](policy-management-guide.md)** - Defining and enforcing governance policies
-- **[Capability Management Guide](mcp-capability-management-guide.md)** - Cluster resource discovery and semantic capabilities
+- **[Recommendation Guide](recommend.md)** - Initial application deployment with capability-enhanced recommendations
+- **[Remediate Guide](remediate.md)** - AI-powered troubleshooting and issue resolution
+- **[Pattern Management Guide](../organizational-data/patterns.md)** - Creating and managing organizational patterns
+- **[Policy Management Guide](../organizational-data/policies.md)** - Defining and enforcing governance policies
+- **[Capability Management Guide](capability-management.md)** - Cluster resource discovery and semantic capabilities

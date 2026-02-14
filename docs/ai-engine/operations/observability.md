@@ -1,6 +1,6 @@
 # Observability Guide
 
-**Complete guide for distributed tracing and observability in the DevOps AI Toolkit MCP server.**
+**Complete guide for distributed tracing and observability in the DevOps AI Toolkit.**
 
 ## Overview
 
@@ -20,7 +20,7 @@ This guide focuses on DevOps AI Toolkit-specific tracing implementation, configu
 
 ## Prerequisites
 
-- DevOps AI Toolkit MCP server configured (see [MCP Setup](../setup/mcp-setup.md))
+- DevOps AI Toolkit deployed (see [Deployment Guide](../setup/deployment.md))
 - Basic understanding of distributed tracing concepts (optional but helpful)
 - Backend for viewing traces (Jaeger, Grafana Tempo, vendor service) or use console output
 
@@ -28,7 +28,7 @@ This guide focuses on DevOps AI Toolkit-specific tracing implementation, configu
 
 ### Environment Variables
 
-Add tracing environment variables to your MCP client configuration (see [MCP Setup](../setup/mcp-setup.md) for how to configure environment variables).
+Add tracing environment variables to your deployment configuration (see [Deployment Guide](../setup/deployment.md) for how to configure environment variables).
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
@@ -41,7 +41,7 @@ Add tracing environment variables to your MCP client configuration (see [MCP Set
 
 ### Verify Tracing Status
 
-After configuring and restarting your MCP client, verify tracing status:
+After configuring, verify tracing status:
 
 ```md
 User: Show me the system status
@@ -62,8 +62,8 @@ The agent will report tracing configuration as part of the system status.
 
 The DevOps AI Toolkit automatically traces all operations without requiring code changes:
 
-### MCP Tool Execution
-- All MCP tools (recommendations, remediation, capability management, etc.)
+### Tool Execution
+- All tools (recommendations, remediation, capability management, etc.)
 - Tool parameters and execution duration
 - Success/failure status
 - Session IDs for workflow correlation
@@ -99,7 +99,7 @@ docker run -d --name jaeger \
   jaegertracing/all-in-one:latest
 ```
 
-Configure the MCP server to send traces to Jaeger:
+Configure the server to send traces to Jaeger:
 
 ```bash
 OTEL_TRACING_ENABLED=true

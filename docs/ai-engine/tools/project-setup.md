@@ -1,13 +1,13 @@
 # GitHub Repository Setup & Governance Guide
 
-**Complete guide for using AI-powered repository setup and governance through MCP (Model Context Protocol).**
+**Complete guide for AI-powered repository setup and governance with the DevOps AI Toolkit.**
 
 ![Project Setup & Governance Infographic](../img/github.jpeg)
 
 ## Prerequisites
 
-Before using this guide, complete the [MCP Setup](../setup/mcp-setup.md) to configure your MCP server with:
-- DevOps AI Toolkit MCP server running
+Before using this guide, complete the [Deployment Guide](../setup/deployment.md) to set up:
+- DevOps AI Toolkit deployed
 - No additional dependencies required (tool does not need Kubernetes or AI model access)
 
 **Note**: This tool does NOT require:
@@ -34,7 +34,7 @@ The tool can generate files across these scopes:
 - **governance**: CODE_OF_CONDUCT.md, CONTRIBUTING.md, SECURITY.md
 - **community**: SUPPORT.md, GOVERNANCE.md, CODEOWNERS
 - **github-issues**: Bug report, feature request, and question templates (.github/ISSUE_TEMPLATE/)
-- **pr-template**: Pull request template (.github/PULL_REQUEST_TEMPLATE.md) - automatically detected and used by the [`prd-done` workflow](mcp-prompts-guide.md#available-prompts) for intelligent PR creation
+- **pr-template**: Pull request template (.github/PULL_REQUEST_TEMPLATE.md) - automatically detected and used by the [`prd-done` workflow](prompts.md#available-prompts) for intelligent PR creation
 - **github-community**: FUNDING.yml, AUTHORS, CONTRIBUTORS, CHANGELOG, release.yml
 - **github-security**: OpenSSF Scorecard workflow (.github/workflows/scorecard.yml)
 - **github-automation**: Renovate, GitHub Labeler, Stale Bot configurations
@@ -227,6 +227,6 @@ User: Add security scanning and policies
 
 ## See Also
 
-- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial MCP server configuration
-- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features
+- **[Deployment Guide](../setup/deployment.md)** - Server deployment and configuration
+- **[Tools and Features Overview](overview.md)** - Browse all available tools and features
 
