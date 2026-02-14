@@ -439,6 +439,14 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Trigger CLI Release
+      uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
+      with:
+        token: ${{ secrets.CLI_DISPATCH_TOKEN }}
+        repository: vfarcic/dot-ai-cli
+        event-type: server-release
+        client-payload: '{"version": "${{ needs.prepare.outputs.version }}"}'
+
     - name: Check if docs changed since last release
       id: docs-check
       run: |
