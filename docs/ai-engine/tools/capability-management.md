@@ -54,33 +54,33 @@ Capability Management provides the foundation for other organizational intellige
 - **Patterns**: What resources to deploy together (organizational preferences)
 - **Policies**: How resources should be configured (governance requirements)
 
-**Used by**: Capabilities power semantic understanding in [Cluster Query](mcp-query-guide.md), [Deployment Recommendations](mcp-recommendation-guide.md), and [Operations](mcp-operate-guide.md).
+**Used by**: Capabilities power semantic understanding in [Cluster Query](query.md), [Deployment Recommendations](recommend.md), and [Operations](operate.md).
 
-For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](organizational-data-concepts.md)**.
+For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](../organizational-data/concepts.md)**.
 
 ## Prerequisites
 
 Before using Capability Management, ensure you have:
 
 ### Required Setup
-- **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](../setup/mcp-setup.md))
+- **DevOps AI Toolkit deployed** (see [Deployment Guide](../setup/deployment.md))
 - **Vector DB service** (Qdrant) for capability storage and semantic search
-- **AI integration** for capability inference (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration) for supported models and API keys)
+- **AI integration** for capability inference (see [AI Model Configuration](../setup/deployment.md#ai-model-configuration) for supported models and API keys)
 - **Kubernetes cluster access** for resource discovery and schema analysis
 
-### Optional Enhancements  
-- **Embedding provider** configured for semantic search (see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration) for options)
-- **Organizational patterns** for enhanced recommendations (see [Pattern Management Guide](pattern-management-guide.md))
+### Optional Enhancements
+- **Embedding provider** configured for semantic search (see [Embedding Provider Configuration](../setup/deployment.md#embedding-provider-configuration) for options)
+- **Organizational patterns** for enhanced recommendations (see [Pattern Management Guide](../organizational-data/patterns.md))
 
-For complete setup instructions, see the [MCP Setup Guide](../setup/mcp-setup.md).
+For complete setup instructions, see the [Deployment Guide](../setup/deployment.md).
 
 ## Scanning Methods
 
-There are two ways to scan cluster capabilities. Choose based on whether your MCP server is accessible from within the Kubernetes cluster.
+There are two ways to scan cluster capabilities. Choose based on whether your server is accessible from within the Kubernetes cluster.
 
 ### Method 1: Controller-Based Scanning (Recommended)
 
-**Use when**: MCP server is deployed in Kubernetes or accessible via a URL from within the cluster.
+**Use when**: Server is deployed in Kubernetes or accessible via a URL from within the cluster.
 
 The dot-ai-controller provides autonomous, event-driven capability scanning. Once configured, it automatically:
 - Scans all cluster resources on startup
@@ -128,11 +128,11 @@ kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai-controller --tail=100
 
 For complete controller documentation, see the [Capability Scan Guide](https://devopstoolkit.ai/docs/controller/capability-scan-guide).
 
-### Method 2: Manual Scanning via MCP
+### Method 2: Manual Scanning via AI Agent
 
-**Use when**: MCP server is NOT accessible from within the cluster (e.g., running locally on your laptop, Docker Desktop, or behind NAT).
+**Use when**: Server is NOT accessible from within the cluster (e.g., running locally on your laptop, Docker Desktop, or behind NAT).
 
-When the controller cannot reach your MCP server, use the interactive scanning workflow through your MCP client. This approach requires you to manually trigger scans when cluster resources change.
+When the controller cannot reach your server, use the interactive scanning workflow through your AI coding agent. This approach requires you to manually trigger scans when cluster resources change.
 
 Discover and analyze all resources in your Kubernetes cluster through a complete workflow:
 
@@ -252,7 +252,7 @@ Agent: ✅ Stored capability for persistentvolumeclaims
 
 ## Working with Capabilities
 
-Regardless of which scanning method you use, all capability operations (monitoring progress, listing, searching, etc.) are done through the MCP client.
+Regardless of which scanning method you use, all capability operations (monitoring progress, listing, searching, etc.) are done through your AI coding agent.
 
 ### Monitor Scanning Progress
 
@@ -369,7 +369,7 @@ This resource is ideal for teams wanting database solutions without managing und
 
 Once capabilities are discovered and stored, they automatically enhance deployment recommendations by providing semantic context about each resource's purpose and complexity. This enables the AI to make smarter, more informed suggestions tailored to your specific cluster capabilities.
 
-**For complete examples and workflows**, see the [Recommendation Guide](mcp-recommendation-guide.md).
+**For complete examples and workflows**, see the [Recommendation Guide](recommend.md).
 
 ## Capability Management Operations
 
@@ -420,4 +420,4 @@ Agent: [Shows progress, completion estimates, and any errors during processing]
 Once your cluster capabilities are discovered and managed:
 
 1. **Enhanced Recommendations**: Use deployment recommendations to get intelligent suggestions based on your discovered capabilities
-2. **Explore Other Tools**: See the [Tools and Features Overview](mcp-tools-overview.md) to browse all available tools including pattern management, policy governance, and issue remediation
+2. **Explore Other Tools**: See the [Tools and Features Overview](overview.md) to browse all available tools including pattern management, policy governance, and issue remediation

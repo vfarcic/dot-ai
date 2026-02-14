@@ -25,7 +25,7 @@ Pattern Management works alongside Capability Management and Policy Management t
 - **Patterns**: What resources to deploy together (organizational preferences)  
 - **Policies**: How resources should be configured (governance requirements)
 
-For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](organizational-data-concepts.md)**.
+For a complete understanding of how these three types work together, see the **[Organizational Data Concepts Guide](concepts.md)**.
 
 ### How It Works
 
@@ -41,11 +41,11 @@ For a complete understanding of how these three types work together, see the **[
 Before using Pattern Management, ensure you have:
 
 ### Required Setup
-- **DevOps AI Toolkit MCP server** configured (see [MCP Setup Guide](../setup/mcp-setup.md))
+- **DevOps AI Toolkit deployed** (see [Deployment Guide](../setup/deployment.md))
 - **Vector DB service** (Qdrant) for pattern storage
-- **API keys** for AI models and embedding providers (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration)) can be set as environment variables or in `.mcp.json`
+- **API keys** for AI models and embedding providers (see [AI Model Configuration](../setup/deployment.md#ai-model-configuration)) can be set as environment variables or in your deployment configuration
 
-For complete setup instructions, see the [MCP Setup Guide](../setup/mcp-setup.md).
+For complete setup instructions, see the [Deployment Guide](../setup/deployment.md).
 
 ## Configuration
 
@@ -90,7 +90,7 @@ For semantic pattern matching, configure an embedding provider:
 
 The toolkit supports multiple embedding providers (OpenAI, Google, Amazon Bedrock) for enhanced semantic search.
 
-📖 **[Complete Embedding Provider Setup Guide](../setup/mcp-setup.md#embedding-provider-configuration)** - Choose your provider, set API keys, and configure dimensions.
+📖 **[Complete Embedding Provider Setup Guide](../setup/deployment.md#embedding-provider-configuration)** - Choose your provider, set API keys, and configure dimensions.
 
 **Note**: An embedding provider is **required** for pattern management. The system cannot store or search patterns without embedding generation capabilities.
 
@@ -268,7 +268,7 @@ The assistant will confirm the deletion and remove the pattern from storage.
 
 ## AI Integration
 
-Patterns automatically enhance deployment recommendations when users request deployments. For complete examples of how patterns influence recommendations, see the [MCP Recommendation Guide](mcp-recommendation-guide.md).
+Patterns automatically enhance deployment recommendations when users request deployments. For complete examples of how patterns influence recommendations, see the [Recommendation Guide](../tools/recommend.md).
 
 The recommendation system automatically:
 - Searches for relevant patterns using semantic matching
@@ -485,9 +485,9 @@ These are manual best practices for creating effective patterns. The system perf
    - Check Qdrant cluster status in dashboard
 
 3. **Validate environment variables**:
-   - Check that your AI model API key is configured (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration))
+   - Check that your AI model API key is configured (see [AI Model Configuration](../setup/deployment.md#ai-model-configuration))
    - Verify `QDRANT_URL` and `QDRANT_API_KEY` are properly set
-   - Confirm all required environment variables are loaded in your MCP client
+   - Confirm all required environment variables are loaded in your configuration
 
 #### Patterns Not Found During Search
 
@@ -510,7 +510,7 @@ These are manual best practices for creating effective patterns. The system perf
    ```
 
 3. **Verify embedding service**:
-   - Confirm embedding provider API key is set (see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration))
+   - Confirm embedding provider API key is set (see [Embedding Provider Configuration](../setup/deployment.md#embedding-provider-configuration))
    - Test that embedding service is responding
    - Check if patterns have embeddings stored
 
@@ -525,7 +525,7 @@ These are manual best practices for creating effective patterns. The system perf
 
 **Solutions**:
 1. **Verify OpenAI configuration**:
-   - Confirm valid embedding provider API key is set (see [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration))
+   - Confirm valid embedding provider API key is set (see [Embedding Provider Configuration](../setup/deployment.md#embedding-provider-configuration))
    - Test OpenAI API accessibility
    - Check API key permissions and usage limits
 
@@ -615,7 +615,7 @@ List all organizational patterns
 A: No! The system uses OpenAI to generate embeddings and stores them in Qdrant. The free Qdrant tier works perfectly for pattern storage and search.
 
 **Q: Can I use pattern management without an embedding service?**  
-A: No. Pattern management requires an embedding provider. See [Embedding Provider Configuration](../setup/mcp-setup.md#embedding-provider-configuration) for setup options.
+A: No. Pattern management requires an embedding provider. See [Embedding Provider Configuration](../setup/deployment.md#embedding-provider-configuration) for setup options.
 
 **Q: How many patterns should I create?**  
 A: Start with 3-5 core patterns covering your most common deployment types. Expand based on team feedback and usage patterns.
@@ -653,7 +653,7 @@ A: The system is tested with 100+ patterns. Qdrant can scale to much larger volu
 ### Getting Help
 
 **For setup issues**:
-- Review the [MCP Setup Guide](../setup/mcp-setup.md) for foundational configuration
+- Review the [Deployment Guide](../setup/deployment.md) for foundational configuration
 - Check environment variable configuration in `.mcp.json`
 - Verify Vector DB connectivity and credentials
 
@@ -674,8 +674,8 @@ A: The system is tested with 100+ patterns. Qdrant can scale to much larger volu
 
 ## See Also
 
-- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial MCP server configuration
-- **[Tools and Features Overview](mcp-tools-overview.md)** - Browse all available tools and features
+- **[Deployment Guide](../setup/deployment.md)** - Server deployment and configuration
+- **[Tools and Features Overview](../tools/overview.md)** - Browse all available tools and features
 
 ---
 

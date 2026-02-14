@@ -124,15 +124,15 @@ All with policy-compliant configurations and organizational best practices
 ### Capabilities (Start Here - Required)
 **Always required** for intelligent recommendations.
 
-**Preferred: Use the controller** for automatic, event-driven scanning. See [Capability Management Guide](mcp-capability-management-guide.md#method-1-controller-based-scanning-recommended).
+**Preferred: Use the controller** for automatic, event-driven scanning. See [Capability Management Guide](../tools/capability-management.md#method-1-controller-based-scanning-recommended).
 
-**Alternative: Manual scanning** when controller cannot reach MCP:
+**Alternative: Manual scanning** when controller cannot reach the server:
 ```
 "Scan my cluster capabilities"
 ```
 
 **Manual scanning use cases**:
-- MCP running locally (not accessible from cluster)
+- Server running locally (not accessible from cluster)
 - One-time scanning without controller setup
 
 ### Patterns (Optional but Recommended)
@@ -192,9 +192,9 @@ All with policy-compliant configurations and organizational best practices
 ### Prerequisites for Each Type
 
 **All types require**:
-- DevOps AI Toolkit MCP server configured
+- DevOps AI Toolkit deployed
 - Vector DB service (Qdrant) for semantic storage
-- API keys for AI models and embedding providers (see [AI Model Configuration](../setup/mcp-setup.md#ai-model-configuration))
+- API keys for AI models and embedding providers (see [AI Model Configuration](../setup/deployment.md#ai-model-configuration))
 
 **Additionally for Policies**:
 - Kyverno installed (optional - only needed for cluster enforcement)
@@ -236,10 +236,10 @@ A: No, all three types require Vector DB for semantic storage and retrieval. Thi
 
 ## See Also
 
-- **[Capability Management Guide](mcp-capability-management-guide.md)** - Cluster resource discovery and understanding
-- **[Pattern Management Guide](pattern-management-guide.md)** - Creating organizational deployment standards  
-- **[Policy Management Guide](policy-management-guide.md)** - Implementing governance and compliance requirements
-- **[MCP Setup Guide](../setup/mcp-setup.md)** - Initial configuration for all organizational data features
+- **[Capability Management Guide](../tools/capability-management.md)** - Cluster resource discovery and understanding
+- **[Pattern Management Guide](patterns.md)** - Creating organizational deployment standards
+- **[Policy Management Guide](policies.md)** - Implementing governance and compliance requirements
+- **[Deployment Guide](../setup/deployment.md)** - Server deployment and configuration
 
 ---
 

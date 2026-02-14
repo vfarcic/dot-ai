@@ -12,7 +12,7 @@ The REST API Gateway provides HTTP access to all DevOps AI Toolkit capabilities 
 - **Kubernetes Controller Developers**: Access AI tools via familiar REST patterns
 
 ### What it provides:
-- **Universal Tool Access**: All 9 MCP tools available via `POST /api/v1/tools/{toolName}` endpoints
+- **Universal Tool Access**: All 9 tools available via `POST /api/v1/tools/{toolName}` endpoints
 - **Auto-Generated Documentation**: OpenAPI 3.0 specification with interactive documentation
 - **Zero Maintenance**: Automatically stays current when new tools are added
 - **Standard HTTP**: JSON request/response with proper status codes
@@ -20,9 +20,9 @@ The REST API Gateway provides HTTP access to all DevOps AI Toolkit capabilities 
 
 ## Setup
 
-The REST API is automatically available when you deploy the DevOps AI Toolkit MCP server. **No special configuration is needed** - the same server provides both MCP protocol and REST API endpoints simultaneously.
+The REST API is automatically available when you deploy the DevOps AI Toolkit. **No special configuration is needed** - the same server provides MCP protocol, CLI, and REST API access simultaneously.
 
-**🎯 Follow the [MCP Setup Guide](../setup/mcp-setup.md) to deploy the server.**
+**🎯 Follow the [Deployment Guide](../setup/deployment.md) to deploy the server.**
 
 The Kubernetes deployment automatically provides:
 - ✅ **REST API endpoints** on the configured ingress URL  
@@ -109,7 +109,7 @@ curl -s http://localhost:3456/api/v1/openapi | jq '.info'
 ```json
 {
   "title": "DevOps AI Toolkit REST API",
-  "description": "REST API gateway for DevOps AI Toolkit MCP tools",
+  "description": "REST API gateway for DevOps AI Toolkit tools",
   "version": "1.0.0",
   "contact": {
     "name": "Viktor Farcic",
@@ -246,23 +246,20 @@ curl http://your-ingress-url/api/v1/openapi | jq '.paths'
 
 ## Workflows and Use Cases
 
-The REST API provides the same workflows as the MCP protocol. The only difference is using HTTP POST requests instead of MCP protocol calls.
+The REST API provides the same workflows as MCP and CLI. The only difference is using HTTP POST requests.
 
 **For complete workflow patterns and use cases, see the tool-specific guides:**
-- **Deployment Workflows**: [Kubernetes Deployment Recommendations](mcp-recommendation-guide.md)
-- **Troubleshooting Workflows**: [AI-Powered Issue Remediation](mcp-remediate-guide.md) 
-- **Capability Management**: [Capability Management Guide](mcp-capability-management-guide.md)
-- **Pattern Management**: [Pattern Management Guide](pattern-management-guide.md)
+- **Deployment Workflows**: [Kubernetes Deployment Recommendations](../tools/recommend.md)
+- **Troubleshooting Workflows**: [AI-Powered Issue Remediation](../tools/remediate.md)
+- **Capability Management**: [Capability Management Guide](../tools/capability-management.md)
+- **Pattern Management**: [Pattern Management Guide](../organizational-data/patterns.md)
 
-**Example: Converting MCP workflow to REST**
+**Example: REST API call**
 ```bash
-# Instead of MCP tool call:
-# mcp__dot-ai__recommend with {"intent": "deploy PostgreSQL database"}
-
-# Use REST API:
+# REST API:
 curl -X POST http://your-ingress-url/api/v1/tools/recommend \
   -H "Content-Type: application/json" \
   -d '{"intent": "deploy PostgreSQL database"}'
 ```
 
-The business logic, parameters, responses, and multi-step workflows are identical between both protocols.
+The business logic, parameters, responses, and multi-step workflows are identical across all access methods.
