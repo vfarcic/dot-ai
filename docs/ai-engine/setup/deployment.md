@@ -1,6 +1,6 @@
-# MCP Server Setup Guide
+# AI Engine Deployment
 
-**Deploy DevOps AI Toolkit MCP Server to Kubernetes using Helm chart - production-ready deployment with HTTP transport.**
+**Deploy the DevOps AI Toolkit Engine to Kubernetes using Helm chart — production-ready deployment.**
 
 > **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
 >
@@ -8,25 +8,26 @@
 
 ## Overview
 
-The DevOps AI Toolkit provides main capabilities through MCP (Model Context Protocol):
+The DevOps AI Toolkit Engine provides:
 
-1. **Kubernetes Deployment Recommendations** - AI-powered application deployment assistance with enhanced semantic understanding
-2. **Cluster Query** - Natural language interface for querying cluster resources, status, and health
-3. **Capability Management** - Discover and store semantic resource capabilities for intelligent recommendation matching
-4. **Pattern Management** - Organizational deployment patterns that enhance AI recommendations
-5. **Policy Management** - Governance policies that guide users toward compliant configurations with optional Kyverno enforcement
-6. **Kubernetes Issue Remediation** - AI-powered root cause analysis and automated remediation
-7. **Shared Prompts Library** - Centralized prompt sharing via native slash commands
-8. **REST API Gateway** - HTTP endpoints for all toolkit capabilities
+1. **Kubernetes Deployment Recommendations** — AI-powered application deployment assistance with enhanced semantic understanding
+2. **Cluster Query** — Natural language interface for querying cluster resources, status, and health
+3. **Capability Management** — Discover and store semantic resource capabilities for intelligent recommendation matching
+4. **Pattern Management** — Organizational deployment patterns that enhance AI recommendations
+5. **Policy Management** — Governance policies that guide users toward compliant configurations with optional Kyverno enforcement
+6. **Kubernetes Issue Remediation** — AI-powered root cause analysis and automated remediation
+7. **Shared Prompts Library** — Centralized prompt sharing via native slash commands
+8. **REST API Gateway** — HTTP endpoints for all toolkit capabilities
+
+Access these tools through [MCP clients](../../mcp/index.md) or the [CLI](https://devopstoolkit.ai/docs/cli).
 
 ## What You Get
 
-- **HTTP Transport MCP Server** - Direct HTTP/SSE access for MCP clients
-- **Production Kubernetes Deployment** - Scalable deployment with proper resource management
-- **Integrated Qdrant Database** - Vector database for capability and pattern management
-- **External Access** - Ingress configuration for team collaboration
-- **Resource Management** - Proper CPU/memory limits and requests
-- **Security** - RBAC and ServiceAccount configuration
+- **Production Kubernetes Deployment** — Scalable deployment with proper resource management
+- **Integrated Qdrant Database** — Vector database for capability and pattern management
+- **External Access** — Ingress configuration for team collaboration
+- **Resource Management** — Proper CPU/memory limits and requests
+- **Security** — RBAC and ServiceAccount configuration
 
 ## Prerequisites
 
@@ -70,9 +71,9 @@ helm install dot-ai-controller \
 
 The controller provides CRDs for autonomous cluster operations. Create Custom Resources like CapabilityScanConfig, Solution, RemediationPolicy, or ResourceSyncConfig to enable features such as capability scanning, solution tracking, and more. See the [Controller Setup Guide](https://devopstoolkit.ai/docs/controller/setup-guide) for complete details.
 
-### Step 3: Install the MCP Server
+### Step 3: Install the Server
 
-Install the MCP server using the published Helm chart:
+Install the server using the published Helm chart:
 
 ```bash
 # Set the version from https://github.com/vfarcic/dot-ai/pkgs/container/dot-ai%2Fcharts%2Fdot-ai
@@ -96,49 +97,15 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
 - **Global annotations**: Add annotations to all Kubernetes resources using `annotations` in your values file (e.g., for [Reloader](https://github.com/stakater/Reloader) integration: `reloader.stakater.com/auto: "true"`).
 - **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
-- **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../guides/observability-guide.md) for complete configuration.
-- **User-Defined Prompts**: Load custom prompts from your git repository via `extraEnv`. See [User-Defined Prompts](../guides/mcp-prompts-guide.md#user-defined-prompts) for configuration.
+- **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../operations/observability.md) for complete configuration.
+- **User-Defined Prompts**: Load custom prompts from your git repository via `extraEnv`. See [User-Defined Prompts](../tools/prompts.md#user-defined-prompts) for configuration.
 
-### Step 4: Configure MCP Client
+### Step 4: Connect a Client
 
-Create an `.mcp.json` file in your project root:
+With the server running, connect using your preferred access method:
 
-```json
-{
-  "mcpServers": {
-    "dot-ai": {
-      "type": "http",
-      "url": "http://dot-ai.127.0.0.1.nip.io",
-      "headers": {
-        "Authorization": "Bearer <your-auth-token>"
-      }
-    }
-  }
-}
-```
-
-Replace `<your-auth-token>` with the token from Step 1 (run `echo $DOT_AI_AUTH_TOKEN` to view it).
-
-**Save this configuration:**
-- **Claude Code**: Save as `.mcp.json` in your project directory
-- **Other clients**: See [MCP Client Compatibility](#mcp-client-compatibility) for filename and location
-
-**Notes**:
-- Replace the URL with your actual hostname if you changed `ingress.host`.
-- For production deployments with TLS, see [TLS Configuration](#tls-configuration) below.
-
-### Step 5: Start Your MCP Client
-
-Start your MCP client (e.g., `claude` for Claude Code). The client will automatically connect to your Kubernetes-deployed MCP server.
-
-### Step 6: Verify Everything Works
-
-In your MCP client, ask:
-```
-Show dot-ai status
-```
-
-You should see comprehensive system status including Kubernetes connectivity, vector database, and all available features.
+- **[MCP Client Setup](../../mcp/index.md)** — Connect via MCP protocol from Claude Code, Cursor, or other MCP clients
+- **[CLI](https://devopstoolkit.ai/docs/cli)** — Use the command-line interface for terminal and CI/CD pipelines
 
 ## Capability Scanning for AI Recommendations
 
@@ -472,38 +439,15 @@ See **[Gateway API Deployment Guide](gateway-api.md)** for:
 - Troubleshooting and verification
 - Migration from Ingress
 
-## MCP Client Compatibility
-
-The DevOps AI Toolkit works with any MCP-compatible coding agent or development tool.
-
-### Popular MCP Clients
-
-**Claude Code**
-- Create `.mcp.json` in your project root with the configuration from [Step 4](#step-4-configure-mcp-client)
-- Start with `claude` - MCP tools automatically available
-
-**Cursor**
-- Settings -> "MCP Servers" -> Add configuration -> Restart
-
-**Cline (VS Code Extension)**
-- Configure in VS Code settings or extension preferences
-
-**VS Code (with MCP Extension)**
-- Add configuration to `settings.json` under `mcp.servers`
-
-**Other MCP Clients**
-- Any client supporting the Model Context Protocol standard
-- Use the HTTP configuration pattern shown in [Step 4](#step-4-configure-mcp-client)
-
 ## Next Steps
 
-Once your MCP server is running:
+Once the server is running:
 
-### 1. Explore Available Tools and Features
-- **[Tools and Features Overview](../guides/mcp-tools-overview.md)** - Complete guide to all available tools, how they work together, and recommended usage flow
+### 1. Explore Tools
+- **[Tools Overview](../tools/overview.md)** — Complete guide to all available tools, how they work together, and recommended usage flow
 
 ### 2. Enable Observability (Optional)
-- **[Observability Guide](../guides/observability-guide.md)** - Distributed tracing with OpenTelemetry for debugging workflows, measuring AI performance, and monitoring Kubernetes operations
+- **[Observability Guide](../operations/observability.md)** — Distributed tracing with OpenTelemetry for debugging workflows, measuring AI performance, and monitoring Kubernetes operations
 
 ### 3. Production Considerations
 - Consider backup strategies for vector database content (organizational patterns and capabilities)
