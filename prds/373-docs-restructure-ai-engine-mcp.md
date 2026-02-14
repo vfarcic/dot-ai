@@ -127,7 +127,7 @@ Beyond moving files:
 - [x] **M3: Update content — remove MCP-centric language** — Go through each capability doc and replace MCP-specific framing with access-method-agnostic language.
 - [x] **M4: Update all internal cross-references** — Fix every internal link across all docs to reflect new paths.
 - [x] **M5: Update entry points and meta docs** — Rewrite `ai-engine/index.md` and `ai-engine/quick-start.md` for new structure. Update `docs/CLAUDE.md` and root `README.md`.
-- [ ] **M6: Send feature requests to sibling projects** — Send the path mapping table and restructure description to `dot-ai-website` and other `dot-ai*` projects via `tmp/feature-request.md`. The website request should specify replacing the single "MCP" top-level nav with two peer sections: "AI Engine" and "MCP".
+- [x] **M6: Send feature requests to sibling projects** — Send the path mapping table and restructure description to `dot-ai-website` and other `dot-ai*` projects via `tmp/feature-request.md`. The website request should specify replacing the single "MCP" top-level nav with two peer sections: "AI Engine" and "MCP".
 
 ## Success Criteria
 
