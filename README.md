@@ -22,7 +22,7 @@
 
 <div align="center">
 
-## [Read the Documentation](https://devopstoolkit.ai/docs/mcp/)
+## [AI Engine Docs](https://devopstoolkit.ai/docs/ai-engine/) | [MCP Setup](https://devopstoolkit.ai/docs/mcp/)
 
 </div>
 
@@ -30,9 +30,9 @@
 
 ## Overview
 
-DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubernetes operations, and development workflows. Built on the Model Context Protocol (MCP), it integrates seamlessly with Claude Code, Cursor, and VS Code.
+DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubernetes operations, and development workflows. Access it through [MCP](https://devopstoolkit.ai/docs/mcp/) for AI coding assistants or the [CLI](https://devopstoolkit.ai/docs/cli) for direct agent integration.
 
-> **Why use a specialized toolkit?** Learn what makes DevOps AI Toolkit different from general-purpose AI assistants: [Why DevOps AI Toolkit?](https://devopstoolkit.ai/docs/mcp/why-devops-ai-toolkit/)
+> **Why use a specialized toolkit?** Learn what makes DevOps AI Toolkit different from general-purpose AI assistants: [Why DevOps AI Toolkit?](https://devopstoolkit.ai/docs/ai-engine/why-devops-ai-toolkit/)
 
 **Key capabilities:**
 - Natural language cluster querying and exploration
@@ -47,9 +47,9 @@ DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubern
 
 > **For the easiest setup**, we recommend installing the complete dot-ai stack which includes all components pre-configured. See the [Stack Installation Guide](https://devopstoolkit.ai/docs/stack).
 
-For individual component installation, see the **[MCP Setup Guide](https://devopstoolkit.ai/docs/mcp/setup/mcp-setup/)**.
+For individual component installation, see the **[Deployment Guide](https://devopstoolkit.ai/docs/ai-engine/setup/deployment/)**.
 
-[Read the Documentation](https://devopstoolkit.ai/docs/mcp/)
+[AI Engine Docs](https://devopstoolkit.ai/docs/ai-engine/) | [MCP Setup](https://devopstoolkit.ai/docs/mcp/)
 
 ## Support
 
@@ -74,7 +74,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Telemetry
 
-This project collects anonymous usage analytics to improve the product. [Learn more or opt out](https://devopstoolkit.ai/docs/mcp/guides/telemetry-guide/).
+This project collects anonymous usage analytics to improve the product. [Learn more or opt out](https://devopstoolkit.ai/docs/ai-engine/operations/telemetry/).
 
 ## Acknowledgments
 

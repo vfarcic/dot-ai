@@ -114,11 +114,11 @@ Beyond moving files:
 1. **Strip MCP-centric language** from tool docs — replace "MCP tool" with "tool", remove assumptions that the user is using an MCP client
 2. ~~**Split `setup/mcp-setup.md`**~~ — Done in M2: server deployment in `ai-engine/setup/deployment.md`; MCP client config merged into `mcp/index.md`
 3. ~~**Create `mcp/index.md`**~~ — Done in M2: combined landing + client setup
-4. **Rewrite `ai-engine/index.md`** — present the AI Engine as the product, list access methods as peers
-5. **Update `ai-engine/quick-start.md`** — access-method-agnostic getting started
-6. **Update all internal cross-references** — every link between docs needs updating
-7. **Update `docs/CLAUDE.md`** — adjust naming conventions for new structure
-8. **Update root `README.md`** — update doc links if present
+4. ~~**Rewrite `ai-engine/index.md`**~~ — Done in M5: presents AI Engine as product, MCP/CLI as peer access methods
+5. ~~**Update `ai-engine/quick-start.md`**~~ — Done in M5: access-method-agnostic getting started
+6. ~~**Update all internal cross-references**~~ — Done in M4/M5: all links updated to new paths
+7. ~~**Update `docs/CLAUDE.md`**~~ — Done in M5: naming conventions updated for new structure
+8. ~~**Update root `README.md`**~~ — Done in M5: links both AI Engine and MCP doc sections
 
 ## Milestones
 
@@ -126,7 +126,7 @@ Beyond moving files:
 - [x] **M2: Split mcp-setup.md into deployment + MCP client config** — Extract server deployment content into `ai-engine/setup/deployment.md`, create `mcp/index.md` with MCP intro + client configuration (merged landing page and setup into one file).
 - [x] **M3: Update content — remove MCP-centric language** — Go through each capability doc and replace MCP-specific framing with access-method-agnostic language.
 - [x] **M4: Update all internal cross-references** — Fix every internal link across all docs to reflect new paths.
-- [ ] **M5: Update entry points and meta docs** — Rewrite `ai-engine/index.md` and `ai-engine/quick-start.md` for new structure. Update `docs/CLAUDE.md` and root `README.md`.
+- [x] **M5: Update entry points and meta docs** — Rewrite `ai-engine/index.md` and `ai-engine/quick-start.md` for new structure. Update `docs/CLAUDE.md` and root `README.md`.
 - [ ] **M6: Send feature requests to sibling projects** — Send the path mapping table and restructure description to `dot-ai-website` and other `dot-ai*` projects via `tmp/feature-request.md`. The website request should specify replacing the single "MCP" top-level nav with two peer sections: "AI Engine" and "MCP".
 
 ## Success Criteria
