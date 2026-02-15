@@ -16,8 +16,6 @@ Access the toolkit through [MCP](/docs/mcp) (Model Context Protocol) or the [CLI
 
 ![DevOps AI Toolkit Infographic](img/index.jpeg)
 
-> **New to DevOps AI Toolkit?** Learn [Why DevOps AI Toolkit?](why-devops-ai-toolkit.md) - understand what makes specialized DevOps intelligence different from general-purpose AI assistants.
-
 ## Mission
 
 DevOps AI Toolkit democratizes platform engineering and cloud native operations by making complex workflows accessible through AI-powered automation. We eliminate the expertise barrier that prevents teams from adopting best practices in Kubernetes operations, repository governance, and standardized development workflows—making professional-grade DevOps accessible through natural language interaction.
@@ -107,7 +105,6 @@ For individual component installation:
 ## Documentation
 
 ### Getting Started
-- **[Why DevOps AI Toolkit?](why-devops-ai-toolkit.md)** - Understand the unique value proposition
 - **[Quick Start Guide](quick-start.md)** - Get started in minutes
 - **[Deployment Guide](setup/deployment.md)** - Complete configuration instructions
 - **[Tools Overview](tools/overview.md)** - All available tools and features
