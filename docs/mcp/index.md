@@ -8,7 +8,7 @@ MCP (Model Context Protocol) is an open protocol that lets AI coding assistants 
 
 ## Prerequisites
 
-- DevOps AI Toolkit Engine deployed to Kubernetes — see [AI Engine Deployment](../ai-engine/setup/deployment.md)
+- DevOps AI Toolkit Engine deployed to Kubernetes — see [AI Engine Deployment](/docs/ai-engine/setup/deployment)
 - An MCP-compatible client (Claude Code, Cursor, VS Code, Cline, etc.)
 - Your server URL and auth token from the deployment step
 
@@ -79,5 +79,5 @@ The DevOps AI Toolkit works with any MCP-compatible coding agent or development 
 
 ## Next Steps
 
-- **[Tools Overview](../ai-engine/tools/overview.md)** — Explore all available tools and how they work together
+- **[Tools Overview](/docs/ai-engine/tools/overview)** — Explore all available tools and how they work together
 

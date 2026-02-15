@@ -19,7 +19,7 @@ Shared Prompts provide a centralized way to share and discover prompts across pr
 
 Before using Shared Prompts, you need:
 - **DevOps AI Toolkit deployed** — see [Deployment Guide](../setup/deployment.md)
-- **Access via** [MCP client](../../mcp/index.md) or [CLI](https://devopstoolkit.ai/docs/cli)
+- **Access via** [MCP client](/docs/mcp) or [CLI](https://devopstoolkit.ai/docs/cli)
 
 **Note**: The Anthropic API key is only required for AI-powered tools (like deployment recommendations), not for using the shared prompts library.
 
@@ -42,7 +42,7 @@ This video demonstrates how to use the PRD (Product Requirements Document) promp
 
 ### Discovering Available Prompts
 
-1. Ensure you're connected to the DevOps AI Toolkit (see [MCP client setup](../../mcp/index.md))
+1. Ensure you're connected to the DevOps AI Toolkit (see [MCP client setup](/docs/mcp))
 2. Access prompts using your agent's interface:
    - **Claude Code**: Type `/` and look for `/dot-ai:prompt-name` commands
    - **VS Code + GitHub Copilot**: Type `/` and look for `/mcp.dot-ai.prompt-name` commands
@@ -420,7 +420,7 @@ The feature is designed for graceful degradation:
 **Prompts don't appear in command menu**
 - **Cause**: Server not connected or prompts capability not enabled
 - **Solution**: Check connection status and server configuration
-- **See**: [Deployment Guide](../setup/deployment.md) for server troubleshooting, [MCP client setup](../../mcp/index.md) for connection issues
+- **See**: [Deployment Guide](../setup/deployment.md) for server troubleshooting, [MCP client setup](/docs/mcp) for connection issues
 
 **Prompt execution fails with "not found" error**
 - **Cause**: Prompt ID mismatch or server synchronization issue

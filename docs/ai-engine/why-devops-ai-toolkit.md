@@ -738,6 +738,6 @@ The toolkit is not a replacement for AI assistants - it's a specialized enhancem
 ## Next Steps
 
 - [Quick Start Guide](quick-start.md) - Get started in minutes
-- [Tools Overview](guides/mcp-tools-overview.md) - Explore all available tools
-- [Pattern Management](guides/pattern-management-guide.md) - Codify your deployment patterns
-- [Capability Management](guides/mcp-capability-management-guide.md) - Discover cluster capabilities
+- [Tools Overview](tools/overview.md) - Explore all available tools
+- [Pattern Management](organizational-data/patterns.md) - Codify your deployment patterns
+- [Capability Management](tools/capability-management.md) - Discover cluster capabilities
