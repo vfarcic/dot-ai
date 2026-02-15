@@ -32,8 +32,6 @@
 
 DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubernetes operations, and development workflows. Access it through [MCP](https://devopstoolkit.ai/docs/mcp/) for AI coding assistants or the [CLI](https://devopstoolkit.ai/docs/cli) for direct agent integration.
 
-> **Why use a specialized toolkit?** Learn what makes DevOps AI Toolkit different from general-purpose AI assistants: [Why DevOps AI Toolkit?](https://devopstoolkit.ai/docs/ai-engine/why-devops-ai-toolkit/)
-
 **Key capabilities:**
 - Natural language cluster querying and exploration
 - Intelligent Kubernetes deployment recommendations
