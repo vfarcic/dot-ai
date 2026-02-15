@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Why DevOps AI Toolkit?
 
 **Understanding the unique value of specialized DevOps intelligence over general-purpose AI assistants.**

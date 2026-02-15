@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # DevOps AI Toolkit
 
 **AI-powered platform engineering and DevOps automation through intelligent Kubernetes operations and conversational workflows.**
