@@ -1,3 +1,7 @@
+---
+sidebar_position: 10
+---
+
 # System Status Guide
 
 **Quick diagnostics and health check for your DevOps AI Toolkit installation.**

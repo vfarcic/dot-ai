@@ -1,3 +1,7 @@
+---
+sidebar_position: 2
+---
+
 # Cluster Query Guide
 
 **Complete guide for using natural language to query your Kubernetes cluster with the DevOps AI Toolkit.**

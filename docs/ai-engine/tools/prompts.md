@@ -1,3 +1,7 @@
+---
+sidebar_position: 9
+---
+
 # Shared Prompt Library
 
 <!-- PRD-29 -->

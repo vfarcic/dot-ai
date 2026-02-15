@@ -1,3 +1,7 @@
+---
+sidebar_position: 4
+---
+
 # Operate Guide
 
 **Complete guide for AI-powered Kubernetes operations with the DevOps AI Toolkit.**
