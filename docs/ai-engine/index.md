@@ -8,7 +8,7 @@
 
 DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubernetes operations, and development workflows. It provides intelligent Kubernetes deployment recommendations through capability discovery and semantic matching, AI-powered issue remediation, semantic search over organizational documentation, automated repository setup with governance and security files, and shared prompt libraries for consistent development workflows—all through natural language conversation.
 
-Access the toolkit through [MCP](../mcp/index.md) (Model Context Protocol) or the [CLI](https://devopstoolkit.ai/docs/cli) — both designed for AI agents, with CLI offering lower token overhead and more granular endpoints.
+Access the toolkit through [MCP](/docs/mcp) (Model Context Protocol) or the [CLI](https://devopstoolkit.ai/docs/cli) — both designed for AI agents, with CLI offering lower token overhead and more granular endpoints.
 
 ![DevOps AI Toolkit Infographic](img/index.jpeg)
 
@@ -85,7 +85,7 @@ Access curated prompts as native slash commands (`/dot-ai:prompt-name`) in your 
 [Learn more](tools/prompts.md)
 
 ### AI Integration
-Works with Claude Code, Cursor, and VS Code via [MCP](../mcp/index.md), or any AI agent via the [CLI](https://devopstoolkit.ai/docs/cli). Supports multiple AI providers (Claude, GPT, Gemini, Host LLM) for flexibility and cost optimization.
+Works with Claude Code, Cursor, and VS Code via [MCP](/docs/mcp), or any AI agent via the [CLI](https://devopstoolkit.ai/docs/cli). Supports multiple AI providers (Claude, GPT, Gemini, Host LLM) for flexibility and cost optimization.
 
 [AI Model Configuration](setup/deployment.md#ai-model-configuration)
 
@@ -95,7 +95,7 @@ Works with Claude Code, Cursor, and VS Code via [MCP](../mcp/index.md), or any A
 
 For individual component installation:
 1. Deploy the AI Engine to Kubernetes
-2. Connect via [MCP](../mcp/index.md) or [CLI](https://devopstoolkit.ai/docs/cli)
+2. Connect via [MCP](/docs/mcp) or [CLI](https://devopstoolkit.ai/docs/cli)
 3. Start using conversational workflows
 
 [Quick Start Guide](quick-start.md)

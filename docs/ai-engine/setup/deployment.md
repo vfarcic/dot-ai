@@ -19,7 +19,7 @@ The DevOps AI Toolkit Engine provides:
 7. **Shared Prompts Library** — Centralized prompt sharing via native slash commands
 8. **REST API Gateway** — HTTP endpoints for all toolkit capabilities
 
-Access these tools through [MCP clients](../../mcp/index.md) or the [CLI](https://devopstoolkit.ai/docs/cli).
+Access these tools through [MCP clients](/docs/mcp) or the [CLI](https://devopstoolkit.ai/docs/cli).
 
 ## What You Get
 
@@ -104,7 +104,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 With the server running, connect using your preferred access method:
 
-- **[MCP Client Setup](../../mcp/index.md)** — Connect via MCP protocol from Claude Code, Cursor, or other MCP clients
+- **[MCP Client Setup](/docs/mcp)** — Connect via MCP protocol from Claude Code, Cursor, or other MCP clients
 - **[CLI](https://devopstoolkit.ai/docs/cli)** — Use the command-line interface for terminal and CI/CD pipelines
 
 ## Capability Scanning for AI Recommendations

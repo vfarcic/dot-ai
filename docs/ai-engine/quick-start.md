@@ -8,7 +8,7 @@
 
 ## Overview
 
-**What it does**: DevOps AI Toolkit provides AI-powered Kubernetes deployment, remediation, policy management, and capability discovery through conversational workflows via [MCP](../mcp/index.md) or the [CLI](https://devopstoolkit.ai/docs/cli).
+**What it does**: DevOps AI Toolkit provides AI-powered Kubernetes deployment, remediation, policy management, and capability discovery through conversational workflows via [MCP](/docs/mcp) or the [CLI](https://devopstoolkit.ai/docs/cli).
 
 **Use when**: You want intelligent Kubernetes operations without memorizing commands, need AI-powered troubleshooting, or want to establish governance policies across your cluster.
 
@@ -43,7 +43,7 @@
 
 ## Installation
 
-DevOps AI Toolkit runs as a server on Kubernetes. AI agents connect to it via [MCP](../mcp/index.md) or the [CLI](https://devopstoolkit.ai/docs/cli). This guide walks through server deployment and MCP client setup.
+DevOps AI Toolkit runs as a server on Kubernetes. AI agents connect to it via [MCP](/docs/mcp) or the [CLI](https://devopstoolkit.ai/docs/cli). This guide walks through server deployment and MCP client setup.
 
 ## Usage
 
