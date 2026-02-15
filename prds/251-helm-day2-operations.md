@@ -350,8 +350,8 @@ async function executeHelmCommand(command: string, dryRun: boolean): Promise<{ s
 
 ### Phase 1: Foundation
 - [ ] Shared Helm utilities: Create `src/core/helm-operations.ts` with release listing, detection, and state querying
-- [ ] Helm investigation tools: Create `src/core/helm-tools.ts` with `executeHelmTools()` following `kubectl-tools.ts` pattern
-- [ ] Add `helm_list`, `helm_status`, `helm_history`, `helm_get_values` as AI-callable investigation tools
+- [x] Helm investigation tools: Create `src/core/helm-tools.ts` with `executeHelmTools()` following `kubectl-tools.ts` pattern
+- [x] Add `helm_list`, `helm_status`, `helm_history`, `helm_get_values` as AI-callable investigation tools
 - [ ] Direct investigation tool tests: Create `tests/integration/tools/investigation-tools.test.ts`
   - [ ] Test all existing kubectl tools directly (`kubectl_get`, `kubectl_describe`, `kubectl_logs`, `kubectl_api_resources`)
   - [ ] Test all new Helm tools directly (`helm_list`, `helm_status`, `helm_history`, `helm_get_values`)
