@@ -1,3 +1,7 @@
+---
+sidebar_position: 2
+---
+
 # Quick Start
 
 **Get started with DevOps AI Toolkit in minutes — deploy applications, manage policies, and remediate issues using AI-powered Kubernetes workflows.**
