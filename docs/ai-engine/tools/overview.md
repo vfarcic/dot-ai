@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Tools and Features Overview
 
 **Quick reference to all available tools in the DevOps AI Toolkit.**

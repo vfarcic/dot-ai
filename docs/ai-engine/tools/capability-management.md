@@ -1,3 +1,7 @@
+---
+sidebar_position: 6
+---
+
 # Capability Management Guide
 
 <!-- dotai-test-hint: Test all capability management workflows using mcp__dot-ai__manageOrgData tool with dataType="capabilities" and various operations (scan, list, get, search, delete, deleteAll, progress) to verify documented examples match actual tool behavior. For scanning, use "specific" subset with 1-2 test resources, NOT "all" as full cluster scans take too long -->

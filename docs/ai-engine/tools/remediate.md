@@ -1,3 +1,7 @@
+---
+sidebar_position: 5
+---
+
 # Remediate Guide
 
 **Complete guide for AI-powered Kubernetes issue analysis and remediation with the DevOps AI Toolkit.**

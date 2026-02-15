@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Recommendation Guide
 
 **Complete guide for AI-powered Kubernetes deployment recommendations with the DevOps AI Toolkit.**

@@ -1,3 +1,7 @@
+---
+sidebar_position: 7
+---
+
 # Knowledge Base Guide
 
 **Complete guide for ingesting and searching organizational documentation with the DevOps AI Toolkit.**

@@ -1,3 +1,7 @@
+---
+sidebar_position: 8
+---
+
 # GitHub Repository Setup & Governance Guide
 
 **Complete guide for AI-powered repository setup and governance with the DevOps AI Toolkit.**
