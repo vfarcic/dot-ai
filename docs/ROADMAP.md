@@ -20,6 +20,7 @@ This roadmap is a living document and may change based on community feedback and
 - Update OpenAI model to GPT-5.3-Codex when API available (PRD #369)
 - User authentication & access control for multi-user MCP deployments (PRD #360)
 - User-specific permissions - align AI view with user's Kubernetes RBAC (PRD #361)
+- Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
 
 ## Medium-term (3-6 Months)
 
@@ -35,6 +36,7 @@ This roadmap is a living document and may change based on community feedback and
 ## Long-term (6-12 Months)
 
 - Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
+- Retire legacy collection migration from unified knowledge base (PRD #376)
 
 
 ## How to Contribute
