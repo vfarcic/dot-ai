@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.2.4] - 2026-02-16
+
+### Bug Fixes
+
+- ## Plugin Readiness Probe Timing
+
+  The agentic-tools plugin readiness probe `initialDelaySeconds` is now 30 seconds (previously 5 seconds). The aggressive 5-second delay caused spurious readiness probe failures during pod startup, triggering unnecessary rolling restarts when the container needed more time to initialize. ([#readiness-probe](https://github.com/vfarcic/dot-ai/issues/readiness-probe))
+
+
 ## [1.2.3] - 2026-02-16
 
 ### Documentation
