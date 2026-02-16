@@ -63,6 +63,11 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
+    - name: Switch to latest main
+      run: |
+        git checkout main
+        git pull origin main
+
     - name: Setup Python (for towncrier)
       uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5
       with:
@@ -318,6 +323,11 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+
+    - name: Switch to latest main
+      run: |
+        git checkout main
+        git pull origin main
 
     - name: Download release notes artifact
       uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
