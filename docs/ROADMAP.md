@@ -31,7 +31,6 @@ This roadmap is a living document and may change based on community feedback and
 - Skills distribution via MCP - install-skills prompt and enhanced skill format (PRD #290)
 - Multi-step workflow distributed tracing (PRD #197)
 - Integrate patterns & policies into remediation tool (PRD #227)
-- Pattern & policy learning system with AI-driven suggestions (PRD #218)
 
 ## Long-term (6-12 Months)
 
