@@ -7,19 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
-## [1.2.2] - 2026-02-15
-
-### Documentation
-
-- ## Documentation Restructured into AI Engine and MCP Sections
-
-  Documentation now reflects the actual product architecture with two top-level sections instead of a single MCP-centric hierarchy. The previous structure implied MCP was the only way to use DevOps AI Toolkit — the new structure presents the AI Engine as the product and MCP as one of several access methods alongside CLI.
-
-  All tool guides (query, recommend, operate, remediate, etc.) now live under `ai-engine/tools/` with access-method-agnostic language. Setup documentation is split into server deployment (`ai-engine/setup/deployment.md`) and MCP client configuration (`mcp/index.md`). Organizational data guides (patterns, policies, concepts) are grouped under `ai-engine/organizational-data/`, and operations guides (observability, telemetry) under `ai-engine/operations/`. The old `guides/` and `setup/` directories with `mcp-` prefixed filenames are removed.
-
-  See the [AI Engine documentation](https://devopstoolkit.ai/docs/ai-engine) and [MCP setup guide](https://devopstoolkit.ai/docs/mcp). ([#373](https://github.com/vfarcic/dot-ai/issues/373))
-
-
 ## [1.2.0] - 2026-02-11
 
 ### Features
