@@ -59,7 +59,7 @@ Once investigation is complete, respond with ONLY this JSON format:
     "actions": [
       {
         "description": "Specific action to take",
-        "command": "kubectl command to execute",
+        "command": "command to execute (kubectl, helm, etc.)",
         "risk": "low|medium|high",
         "rationale": "Why this action addresses the issue"
       }
