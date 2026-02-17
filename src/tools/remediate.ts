@@ -135,7 +135,7 @@ export interface RemediateToolResponse {
   content: Array<{ type: 'text'; text: string }>;
 }
 
-/** Kubectl tool names for investigation and validation */
+/** Kubectl and Helm tool names for investigation and validation */
 const KUBECTL_INVESTIGATION_TOOL_NAMES = [
   'kubectl_get',
   'kubectl_describe',
@@ -144,6 +144,11 @@ const KUBECTL_INVESTIGATION_TOOL_NAMES = [
   'kubectl_api_resources',
   'kubectl_get_crd_schema',
   'kubectl_get_resource_json',
+  // Helm investigation tools (PRD #251: Helm Day-2 operations)
+  'helm_list',
+  'helm_status',
+  'helm_history',
+  'helm_get_values',
   // Dry-run tools for validation
   'kubectl_patch_dryrun',
   'kubectl_apply_dryrun',

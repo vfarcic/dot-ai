@@ -370,10 +370,10 @@ export const helmUpgrade: KubectlTool = {
   - [~] Validate each tool returns correct data structure and handles errors properly
 
 ### Phase 2: Remediate Tool Enhancements
-- [ ] Helm-aware investigation: Update remediate system prompt to use Helm tools when appropriate
-- [ ] Helm root cause patterns: Train AI to identify Helm-specific issues (stuck states, hook failures)
-- [ ] Helm remediation actions: Support `helm rollback` as remediation action
-- [ ] Integration tests for Helm remediation scenarios
+- [x] Helm-aware investigation: Update remediate system prompt to use Helm tools when appropriate
+- [x] Helm root cause patterns: Train AI to identify Helm-specific issues (stuck states, hook failures)
+- [x] Helm remediation actions: Support `helm rollback` as remediation action
+- [x] Integration tests for Helm remediation scenarios
 
 ### Phase 3: Operate Tool Enhancements
 - [ ] Helm release detection in operate: Detect when intent targets a Helm release
