@@ -1,9 +1,9 @@
 /**
- * helm_install tool
+ * helm_install and helm_install_dryrun tools
  *
  * Install or upgrade a Helm release.
- * Supports dry-run for validation.
  * PRD #343: Helm operations via plugin system.
+ * PRD #251: Helm Day-2 operations - dry-run variant for operate analysis.
  */
 
 import {
@@ -15,6 +15,54 @@ import {
   optionalParam,
   withValidation,
 } from './base';
+
+interface HelmInstallParams {
+  releaseName: string;
+  chart: string;
+  namespace: string;
+  version?: string;
+  values?: string;
+  dryRun: boolean;
+  wait: boolean;
+  timeout: string;
+  createNamespace: boolean;
+}
+
+function buildAndExecuteHelmInstall(params: HelmInstallParams) {
+  const { releaseName, chart, namespace, version, values, dryRun, wait, timeout, createNamespace } = params;
+
+  const cmdArgs = ['upgrade', '--install', '--reuse-values', releaseName, chart];
+
+  if (version) {
+    cmdArgs.push('--version', version);
+  }
+
+  if (dryRun) {
+    // Helm 4: --dry-run without value defaults to "none" (no dry-run!)
+    // Must explicitly use --dry-run=client for simulation
+    cmdArgs.push('--dry-run=client');
+  }
+
+  if (wait) {
+    cmdArgs.push('--wait');
+  }
+
+  cmdArgs.push('--timeout', timeout);
+
+  if (createNamespace) {
+    cmdArgs.push('--create-namespace');
+  }
+
+  if (values) {
+    cmdArgs.push('-f', '-');
+  }
+
+  return executeHelm(cmdArgs, {
+    namespace,
+    stdin: values,
+    timeout: 300000,
+  });
+}
 
 export const helmInstall: KubectlTool = {
   definition: {
@@ -69,56 +117,92 @@ export const helmInstall: KubectlTool = {
   handler: withValidation(async (args) => {
     const releaseName = requireParam<string>(args, 'releaseName', 'helm_install');
     const chart = requireParam<string>(args, 'chart', 'helm_install');
-    const namespace = optionalParam<string>(args, 'namespace', 'default');
-    const values = optionalParam<string | undefined>(args, 'values', undefined);
-    const version = optionalParam<string | undefined>(args, 'version', undefined);
     const dryRun = optionalParam<boolean>(args, 'dryRun', false);
-    const wait = optionalParam<boolean>(args, 'wait', false);
-    const timeout = optionalParam<string>(args, 'timeout', '5m');
-    const createNamespace = optionalParam<boolean>(args, 'createNamespace', true);
-
-    const cmdArgs = ['upgrade', '--install', releaseName, chart];
-
-    if (version) {
-      cmdArgs.push('--version', version);
-    }
-
-    if (dryRun) {
-      // Helm 4: --dry-run without value defaults to "none" (no dry-run!)
-      // Must explicitly use --dry-run=client for simulation
-      cmdArgs.push('--dry-run=client');
-    }
-
-    if (wait) {
-      cmdArgs.push('--wait');
-    }
-
-    cmdArgs.push('--timeout', timeout);
-
-    if (createNamespace) {
-      cmdArgs.push('--create-namespace');
-    }
-
-    // If values provided, use stdin
-    if (values) {
-      cmdArgs.push('-f', '-');
-    }
 
     try {
-      const output = await executeHelm(cmdArgs, {
-        namespace,
-        stdin: values,
-        timeout: 300000, // 5 minute timeout for helm operations
+      const output = await buildAndExecuteHelmInstall({
+        releaseName,
+        chart,
+        namespace: optionalParam<string>(args, 'namespace', 'default'),
+        version: optionalParam<string | undefined>(args, 'version', undefined),
+        values: optionalParam<string | undefined>(args, 'values', undefined),
+        dryRun,
+        wait: optionalParam<boolean>(args, 'wait', false),
+        timeout: optionalParam<string>(args, 'timeout', '5m'),
+        createNamespace: optionalParam<boolean>(args, 'createNamespace', true),
       });
 
       const action = dryRun ? 'validated (dry-run)' : 'installed/upgraded';
       return successResult(
         output,
-        `Release "${releaseName}" ${action} successfully in namespace "${namespace}"`
+        `Release "${releaseName}" ${action} successfully in namespace "${optionalParam<string>(args, 'namespace', 'default')}"`
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Helm install failed: ${message}`);
+    }
+  }),
+};
+
+export const helmInstallDryrun: KubectlTool = {
+  definition: {
+    name: 'helm_install_dryrun',
+    type: 'agentic',
+    description:
+      'Validate that a Helm install or upgrade will succeed without actually executing it. Always runs in dry-run mode. Use to verify chart versions, value overrides, and release configuration before proposing changes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        releaseName: {
+          type: 'string',
+          description: 'Name for the Helm release (e.g., "my-prometheus")',
+        },
+        chart: {
+          type: 'string',
+          description: 'Chart reference (e.g., "prometheus-community/prometheus" or path to local chart)',
+        },
+        namespace: {
+          type: 'string',
+          description: 'Kubernetes namespace for the release (default: "default")',
+        },
+        version: {
+          type: 'string',
+          description: 'Specific chart version to validate (optional, uses latest if not specified)',
+        },
+        values: {
+          type: 'string',
+          description: 'YAML content for values.yaml override (optional)',
+        },
+      },
+      required: ['releaseName', 'chart'],
+    },
+  },
+
+  handler: withValidation(async (args) => {
+    const releaseName = requireParam<string>(args, 'releaseName', 'helm_install_dryrun');
+    const chart = requireParam<string>(args, 'chart', 'helm_install_dryrun');
+    const namespace = optionalParam<string>(args, 'namespace', 'default');
+
+    try {
+      const output = await buildAndExecuteHelmInstall({
+        releaseName,
+        chart,
+        namespace,
+        version: optionalParam<string | undefined>(args, 'version', undefined),
+        values: optionalParam<string | undefined>(args, 'values', undefined),
+        dryRun: true,
+        wait: false,
+        timeout: '5m',
+        createNamespace: false,
+      });
+
+      return successResult(
+        output,
+        `Dry-run validation successful for release "${releaseName}" in namespace "${namespace}"`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return errorResult(message, `Helm dry-run validation failed: ${message}`);
     }
   }),
 };
