@@ -52,8 +52,8 @@ AI-powered issue analysis and remediation with intelligent root cause identifica
 
 ### ⚙️ Kubernetes Operations
 AI-powered Day 2 operations for any Kubernetes resources through natural language intents.
-- **What it does**: Handles updates, scaling, enhancements, rollbacks, and any operational changes to workloads, databases, infrastructure, or cloud resources with pattern-driven recommendations and dry-run validation
-- **Use when**: Performing operational changes on deployed resources - applications, databases, storage, AWS/Azure/GCP resources via operators, networking, or any Kubernetes-managed infrastructure
+- **What it does**: Handles updates, scaling, enhancements, rollbacks, and any operational changes to workloads, databases, infrastructure, cloud resources, or Helm-managed applications with pattern-driven recommendations and dry-run validation
+- **Use when**: Performing operational changes on deployed resources - applications, databases, storage, Helm releases, AWS/Azure/GCP resources via operators, networking, or any Kubernetes-managed infrastructure
 - **📖 Full Guide**: [Kubernetes Operations](operate.md)
 
 ### 📦 Project Setup & Governance
