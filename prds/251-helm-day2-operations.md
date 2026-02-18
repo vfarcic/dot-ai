@@ -356,6 +356,8 @@ export const helmUpgrade: KubectlTool = {
 | 2025-12-05 | **Direct testing for all investigation tools**: Test each tool independently, not just through AI workflows | AI adaptability masks broken tools - if one tool fails, AI uses alternatives and integration tests still pass. Direct tests catch individual tool failures immediately. |
 | 2025-12-05 | **Include kubectl tool tests in scope**: Add direct tests for existing kubectl investigation tools alongside new Helm tools | Same rationale - existing kubectl tools have no direct tests and failures could go undetected |
 | 2026-02-17 | **Helm tools in plugin layer, not MCP**: All new Helm tools go in `packages/agentic-tools/src/tools/` following the existing per-file `KubectlTool` pattern, not in `src/core/` | Aligns with architectural direction: MCP is a thin orchestration layer, all tool logic lives in plugins. Helm tools execute against an external system (Helm CLI) which is plugin responsibility. Existing helm tools (`helm-install.ts`, `helm-uninstall.ts`, `helm-template.ts`, `helm-repo-add.ts`) and shared utilities (`executeHelm`, `buildHelmCommand` in `base.ts`) already live in the plugin. |
+| 2026-02-18 | **Reuse `helm_install` for upgrades, no separate `helm_upgrade` tool**: Existing `helm_install` already runs `helm upgrade --install` which handles both install and upgrade | Avoids tool duplication. Added `--reuse-values` (always on) for safe Day-2 upgrades and created `helm_install_dryrun` with shared `buildAndExecuteHelmInstall()` for safe analysis-phase validation. |
+| 2026-02-18 | **No operate system prompt changes for Helm detection**: Helm tool descriptions are sufficient for AI to discover and use them during operate analysis | Tool descriptions already explain when/how to use each Helm tool. Avoids over-engineering prompt instructions that may become stale. Can add targeted guidance later if testing shows gaps. |
 
 ---
 
@@ -376,12 +378,12 @@ export const helmUpgrade: KubectlTool = {
 - [x] Integration tests for Helm remediation scenarios
 
 ### Phase 3: Operate Tool Enhancements
-- [ ] Helm release detection in operate: Detect when intent targets a Helm release
-- [ ] Upgrade workflow: Version selection, value preservation, ArtifactHub integration
-- [ ] Rollback workflow: History display, revision selection
-- [ ] Uninstall workflow: CRD warnings, confirmation flow
-- [ ] Value modification workflow: Current values display, targeted changes
-- [ ] Integration tests for each operate workflow
+- [x] Helm release detection in operate: Added Helm investigation tools (`helm_list`, `helm_status`, `helm_history`, `helm_get_values`) and `helm_install_dryrun` to operate analysis tool filter
+- [x] Upgrade workflow: Refactored `helm-install.ts` with shared `buildAndExecuteHelmInstall()`, always uses `--reuse-values`, `helm_install_dryrun` for safe validation
+- [x] Rollback workflow: Created `helm-rollback.ts` plugin tool with revision selection
+- [x] Uninstall workflow: `helm_uninstall` already existed, now available to operate AI via tool filter
+- [x] Value modification workflow: Covered by `helm_install` with `values` YAML param + `--reuse-values` preserves existing config
+- [x] Integration tests for Helm operate workflow
 
 ### Phase 4: Polish
 - [ ] Documentation updates: Update MCP guides with Helm Day-2 operations
