@@ -1,10 +1,11 @@
 # PRD: User Authentication & Access Control
 
-**Status**: Planning
+**Status**: No Longer Needed
 **Priority**: High
 **GitHub Issue**: [#360](https://github.com/vfarcic/dot-ai/issues/360)
 **Created**: 2026-01-30
-**Last Updated**: 2026-02-02
+**Last Updated**: 2026-02-18
+**Closed**: 2026-02-18
 
 ---
 
