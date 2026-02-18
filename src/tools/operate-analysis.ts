@@ -167,7 +167,7 @@ function buildUserMessage(intent: string, context: EmbeddedContext): string {
   });
 }
 
-/** Kubectl tool names for investigation and dry-run validation */
+/** Kubectl and Helm tool names for investigation and dry-run validation */
 const KUBECTL_INVESTIGATION_TOOL_NAMES = [
   'kubectl_get',
   'kubectl_describe',
@@ -179,7 +179,14 @@ const KUBECTL_INVESTIGATION_TOOL_NAMES = [
   // Dry-run tools for validation
   'kubectl_patch_dryrun',
   'kubectl_apply_dryrun',
-  'kubectl_delete_dryrun'
+  'kubectl_delete_dryrun',
+  // Helm investigation tools (PRD #251: Helm Day-2 operations)
+  'helm_list',
+  'helm_status',
+  'helm_history',
+  'helm_get_values',
+  // Helm dry-run validation (PRD #251)
+  'helm_install_dryrun'
 ];
 
 /**

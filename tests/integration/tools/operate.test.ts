@@ -391,6 +391,86 @@ EOF`);
     }, 300000); // 5 minute timeout for full workflow
   });
 
+  describe('Helm Release Operations', () => {
+    const helmNamespace = 'operate-helm-test';
+
+    test('should detect Helm release and propose helm commands for upgrade', async () => {
+      const { execSync } = await import('child_process');
+      const kubeconfig = process.env.KUBECONFIG || './kubeconfig-test.yaml';
+      const testId = Date.now();
+
+      // SETUP: Create namespace and a test Helm chart
+      await integrationTest.kubectl(`create namespace ${helmNamespace}`);
+      execSync('rm -rf ./tmp/helm-operate-test-chart', { encoding: 'utf8' });
+      execSync('helm create ./tmp/helm-operate-test-chart', { encoding: 'utf8', timeout: 30000 });
+
+      // Install chart with nginx:alpine
+      execSync(
+        `helm --kubeconfig=${kubeconfig} install test-app ./tmp/helm-operate-test-chart -n ${helmNamespace} --set image.tag=alpine --wait --timeout=120s`,
+        { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 180000 }
+      );
+
+      // Verify Helm release exists
+      const releaseJson = execSync(
+        `helm --kubeconfig=${kubeconfig} list -n ${helmNamespace} -o json`,
+        { encoding: 'utf8', timeout: 30000 }
+      );
+      const releases = JSON.parse(releaseJson);
+      expect(releases.length).toBe(1);
+      expect(releases[0].name).toBe('test-app');
+
+      // PHASE 1: AI Analysis - Request upgrade of Helm release
+      const analysisResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/operate',
+        {
+          intent: `upgrade the test-app helm release in ${helmNamespace} namespace to use image tag latest`,
+          interaction_id: `operate_helm_test_${testId}`
+        }
+      );
+
+      // Validate analysis response
+      const expectedAnalysisResponse = {
+        success: true,
+        data: {
+          result: {
+            status: 'awaiting_user_approval',
+            sessionId: expect.stringMatching(/^opr-\d+-[a-f0-9]{8}$/),
+            analysis: {
+              summary: expect.any(String),
+              proposedChanges: expect.any(Object),
+              commands: expect.arrayContaining([
+                expect.stringContaining('helm')
+              ]),
+              dryRunValidation: {
+                status: expect.stringMatching(/success|failed/),
+                details: expect.any(String)
+              },
+              risks: {
+                level: expect.stringMatching(/low|medium|high/),
+                description: expect.any(String)
+              }
+            },
+            message: expect.stringContaining('proposal')
+          }
+        }
+      };
+
+      expect(analysisResponse).toMatchObject(expectedAnalysisResponse);
+
+      // KEY VALIDATION: Commands should use helm, not raw kubectl for the upgrade
+      const commands: string[] = analysisResponse.data.result.analysis.commands;
+      const helmCommands = commands.filter((cmd: string) => cmd.includes('helm'));
+      expect(helmCommands.length).toBeGreaterThan(0);
+
+      // Commands should NOT use kubectl to modify Helm-managed resources directly
+      const rawKubectlModify = commands.filter((cmd: string) =>
+        cmd.includes('kubectl set image') || cmd.includes('kubectl patch')
+      );
+      expect(rawKubectlModify.length).toBe(0);
+
+    }, 300000);
+  });
+
   describe('Error Handling', () => {
     test('should handle missing intent parameter', async () => {
       const errorResponse = await integrationTest.httpClient.post(
