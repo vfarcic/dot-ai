@@ -358,6 +358,7 @@ export const helmUpgrade: KubectlTool = {
 | 2026-02-17 | **Helm tools in plugin layer, not MCP**: All new Helm tools go in `packages/agentic-tools/src/tools/` following the existing per-file `KubectlTool` pattern, not in `src/core/` | Aligns with architectural direction: MCP is a thin orchestration layer, all tool logic lives in plugins. Helm tools execute against an external system (Helm CLI) which is plugin responsibility. Existing helm tools (`helm-install.ts`, `helm-uninstall.ts`, `helm-template.ts`, `helm-repo-add.ts`) and shared utilities (`executeHelm`, `buildHelmCommand` in `base.ts`) already live in the plugin. |
 | 2026-02-18 | **Reuse `helm_install` for upgrades, no separate `helm_upgrade` tool**: Existing `helm_install` already runs `helm upgrade --install` which handles both install and upgrade | Avoids tool duplication. Added `--reuse-values` (always on) for safe Day-2 upgrades and created `helm_install_dryrun` with shared `buildAndExecuteHelmInstall()` for safe analysis-phase validation. |
 | 2026-02-18 | **No operate system prompt changes for Helm detection**: Helm tool descriptions are sufficient for AI to discover and use them during operate analysis | Tool descriptions already explain when/how to use each Helm tool. Avoids over-engineering prompt instructions that may become stale. Can add targeted guidance later if testing shows gaps. |
+| 2026-02-18 | **No custom error handling or edge case polishing for Helm tools**: AI agent is the primary consumer of plugin tools, not humans. Raw Helm CLI errors are already descriptive enough for the AI to interpret and explain to users. | Adding error parsing layers (release not found, permission denied, namespace issues) in the tool code is unnecessary overhead — the AI naturally translates CLI errors into user-friendly explanations. Eliminates Phase 4 error handling and edge case tasks. |
 
 ---
 
@@ -386,7 +387,7 @@ export const helmUpgrade: KubectlTool = {
 - [x] Integration tests for Helm operate workflow
 
 ### Phase 4: Polish
-- [ ] Documentation updates: Update MCP guides with Helm Day-2 operations
-- [ ] Error handling: Graceful handling of Helm CLI failures
-- [ ] Edge cases: Handle missing releases, permission errors, namespace issues
+- [x] Documentation updates: Update MCP guides with Helm Day-2 operations
+- [~] Error handling: Not needed — AI agent consumes tool output and naturally translates Helm CLI errors into user-friendly explanations
+- [~] Edge cases: Not needed — same rationale; missing releases, permission errors, namespace issues all produce descriptive Helm CLI errors that the AI interprets correctly
 
