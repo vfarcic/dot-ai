@@ -30,7 +30,8 @@ Before using this guide, complete the [Deployment Guide](../setup/deployment.md)
 
 The DevOps AI Toolkit remediate feature provides:
 - **AI-powered root cause analysis** - Multi-iteration investigation loop to understand Kubernetes issues
-- **Intelligent data gathering** - Safe, read-only cluster investigation with targeted kubectl operations
+- **Helm-aware diagnostics** - Detects and diagnoses issues with Helm-managed applications, including stuck releases and failed upgrades
+- **Intelligent data gathering** - Safe, read-only cluster investigation with targeted operations
 - **Comprehensive remediation plans** - Step-by-step solutions with risk assessment and validation
 - **Dual execution modes** - Manual approval workflow or automatic execution based on confidence/risk thresholds
 - **Iterative remediation support** - Handles complex issues requiring multiple sequential fixes

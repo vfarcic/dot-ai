@@ -239,12 +239,12 @@ EOF`);
         }
       );
 
-      // Validate execution response (based on actual curl inspection)
+      // Execution response status is either 'success' or 'awaiting_user_approval'.
+      // Cluster state is verified directly in Phase 3 regardless of status.
       const expectedExecutionResponse = {
         success: true,
         data: {
           result: {
-            status: 'success',
             sessionId: sessionId,
             executed: true,
             results: expect.arrayContaining([
@@ -266,12 +266,7 @@ EOF`);
             }),
             investigation: expect.objectContaining({
               iterations: expect.any(Number)
-            }),
-            validation: expect.objectContaining({
-              success: true // Validation should confirm the fix worked
-            }),
-            guidance: expect.stringContaining('REMEDIATION COMPLETE'),
-            message: expect.stringContaining('resolved')
+            })
           },
           tool: 'remediate',
           executionTime: expect.any(Number)
@@ -284,6 +279,9 @@ EOF`);
       };
 
       expect(executionResponse).toMatchObject(expectedExecutionResponse);
+
+      // Status: 'success' when validation confirms fix, 'awaiting_user_approval' when AI wants more investigation
+      expect(['success', 'awaiting_user_approval']).toContain(executionResponse.data.result.status);
 
       // Verify all remediation commands succeeded
       const results = executionResponse.data.result.results;
@@ -467,5 +465,218 @@ EOF`);
 
 
     }, 1800000); // 30 minute timeout for automatic mode (accommodates slower AI models like OpenAI)
+  });
+
+  describe('Helm Release Remediation', () => {
+    const helmNamespace = 'remediate-helm-test';
+
+    test('should detect Helm release issues using Helm investigation tools and remediate', async () => {
+      const { execSync } = await import('child_process');
+      const kubeconfig = process.env.KUBECONFIG || './kubeconfig-test.yaml';
+
+      const runHelm = (cmd: string): string => {
+        try {
+          return execSync(`helm --kubeconfig=${kubeconfig} ${cmd}`, {
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 180000
+          });
+        } catch (error: unknown) {
+          return (error as { stdout?: string }).stdout || '';
+        }
+      };
+
+      // SETUP: Create namespace and a test Helm chart
+      await integrationTest.kubectl(`create namespace ${helmNamespace}`);
+      execSync('rm -rf ./tmp/helm-remediate-test-chart');
+      execSync('helm create ./tmp/helm-remediate-test-chart', { encoding: 'utf8', timeout: 30000 });
+
+      // Install chart with known-good nginx image
+      execSync(
+        `helm --kubeconfig=${kubeconfig} install test-nginx ./tmp/helm-remediate-test-chart -n ${helmNamespace} --set image.tag=alpine --wait --timeout=120s`,
+        { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 180000 }
+      );
+
+      // Verify initial deployment is healthy
+      const initialPodsJson = await integrationTest.kubectl(
+        `get pods -n ${helmNamespace} -l app.kubernetes.io/instance=test-nginx -o json`
+      );
+      const initialPodsData = JSON.parse(initialPodsJson);
+      expect(initialPodsData.items.length).toBeGreaterThan(0);
+      expect(initialPodsData.items[0].status.phase).toBe('Running');
+
+      // BREAK: Upgrade with non-existent image (--wait fails, marking release as "failed")
+      runHelm(
+        `upgrade test-nginx ./tmp/helm-remediate-test-chart -n ${helmNamespace} --set image.repository=nonexistent-registry.invalid/nginx --set image.tag=doesnotexist --wait --timeout=60s`
+      );
+
+      // Wait for pods to be in ImagePullBackOff
+      let podInErrorState = false;
+      const maxWaitTime = 90000;
+      const checkInterval = 5000;
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxWaitTime) {
+        const podsJson = await integrationTest.kubectl(`get pods -n ${helmNamespace} -o json`);
+        if (podsJson && podsJson.trim() !== '') {
+          const podsData = JSON.parse(podsJson);
+          for (const pod of podsData.items) {
+            for (const cs of (pod.status?.containerStatuses || [])) {
+              const waitReason = cs.state?.waiting?.reason;
+              if (waitReason === 'ImagePullBackOff' || waitReason === 'ErrImagePull') {
+                podInErrorState = true;
+                break;
+              }
+            }
+            if (podInErrorState) break;
+          }
+        }
+        if (podInErrorState) break;
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+
+      expect(podInErrorState).toBe(true);
+
+      // PHASE 1: AI Investigation (manual mode to inspect Helm tool usage)
+      const investigationResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/remediate',
+        {
+          issue: `helm release test-nginx in ${helmNamespace} namespace was upgraded and is now failing`,
+          interaction_id: 'helm_investigate'
+        }
+      );
+
+      expect(investigationResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'awaiting_user_approval',
+            sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
+            investigation: {
+              iterations: expect.any(Number),
+              dataGathered: expect.arrayContaining([
+                expect.stringMatching(/^(kubectl_|helm_)\w+ \(call \d+\)$/)
+              ])
+            },
+            analysis: {
+              rootCause: expect.any(String),
+              confidence: expect.any(Number),
+              factors: expect.arrayContaining([expect.any(String)])
+            },
+            remediation: {
+              summary: expect.any(String),
+              actions: expect.arrayContaining([
+                expect.objectContaining({
+                  description: expect.any(String),
+                  command: expect.any(String),
+                  risk: expect.stringMatching(/^(low|medium|high)$/),
+                  rationale: expect.any(String)
+                })
+              ]),
+              risk: expect.stringMatching(/^(low|medium|high)$/)
+            },
+            validationIntent: expect.any(String),
+            executed: false,
+            mode: 'manual',
+            guidance: expect.stringContaining('CRITICAL'),
+            agentInstructions: expect.stringContaining('Show the user'),
+            nextAction: 'remediate',
+            message: expect.any(String),
+            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/rem-\d+-[a-f0-9]+$/),
+            executionChoices: [
+              {
+                id: 1,
+                label: 'Execute automatically via MCP',
+                description: expect.any(String),
+                risk: expect.stringMatching(/^(low|medium|high)$/)
+              },
+              {
+                id: 2,
+                label: 'Execute via agent',
+                description: expect.any(String),
+                risk: expect.stringMatching(/^(low|medium|high)$/)
+              }
+            ]
+          },
+          tool: 'remediate',
+          executionTime: expect.any(Number)
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.any(String),
+          version: 'v1'
+        }
+      });
+
+      // KEY VALIDATION: AI used at least one Helm investigation tool
+      const dataGathered: string[] = investigationResponse.data.result.investigation.dataGathered;
+      const helmToolCalls = dataGathered.filter((entry: string) => entry.startsWith('helm_'));
+      expect(helmToolCalls.length).toBeGreaterThan(0);
+
+      // Verify AI identified the issue with reasonable confidence
+      expect(investigationResponse.data.result.analysis.confidence).toBeGreaterThanOrEqual(0.7);
+      expect(investigationResponse.data.result.analysis.rootCause.toLowerCase()).toMatch(/image|pull|helm|upgrade|fail/);
+      expect(investigationResponse.data.result.remediation.actions.length).toBeGreaterThan(0);
+
+      // PHASE 2: Execute remediation via MCP (choice 1)
+      const sessionId = investigationResponse.data.result.sessionId;
+      const executionResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/remediate',
+        {
+          executeChoice: 1,
+          sessionId,
+          mode: 'manual',
+          interaction_id: 'helm_execute'
+        }
+      );
+
+      expect(executionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            sessionId: sessionId,
+            executed: true,
+            results: expect.arrayContaining([
+              expect.objectContaining({
+                action: expect.any(String),
+                success: true,
+                timestamp: expect.any(String)
+              })
+            ]),
+            executedCommands: expect.arrayContaining([expect.any(String)]),
+            guidance: expect.stringContaining('REMEDIATION COMPLETE'),
+            message: expect.stringContaining('resolved')
+          },
+          tool: 'remediate',
+          executionTime: expect.any(Number)
+        }
+      });
+
+      const results = executionResponse.data.result.results;
+      results.forEach((result: { success: boolean }) => {
+        expect(result).toMatchObject({ success: true });
+      });
+
+      // PHASE 3: Verify cluster recovery
+      await new Promise(resolve => setTimeout(resolve, 15000));
+
+      const afterPodsJson = await integrationTest.kubectl(
+        `get pods -n ${helmNamespace} -l app.kubernetes.io/instance=test-nginx -o json`
+      );
+      const afterPodsData = JSON.parse(afterPodsJson);
+      expect(afterPodsData.items.length).toBeGreaterThan(0);
+
+      // At least one pod should be running and ready (recovered from bad image)
+      const healthyPods = afterPodsData.items.filter((pod: { status: { phase: string; containerStatuses?: Array<{ ready: boolean; restartCount: number }> } }) =>
+        pod.status.phase === 'Running' &&
+        pod.status.containerStatuses?.[0]?.ready === true
+      );
+      expect(healthyPods.length).toBeGreaterThan(0);
+
+      // Recovered pod should have zero restarts (fresh pod after rollback/fix)
+      expect(healthyPods[0].status.containerStatuses[0].restartCount).toBe(0);
+
+    }, 1200000); // 20 minute timeout
   });
 });

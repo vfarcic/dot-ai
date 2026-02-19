@@ -30,9 +30,17 @@ import { shellExec } from './shell-exec';
 
 // PRD #343: Helm tools via plugin system
 import { helmRepoAdd } from './helm-repo-add';
-import { helmInstall } from './helm-install';
+import { helmInstall, helmInstallDryrun } from './helm-install';
 import { helmTemplate } from './helm-template';
 import { helmUninstall } from './helm-uninstall';
+
+// PRD #251: Helm Day-2 investigation tools
+import { helmList } from './helm-list';
+import { helmStatus } from './helm-status';
+import { helmHistory } from './helm-history';
+import { helmGetValues } from './helm-get-values';
+// PRD #251: Helm Day-2 operation tools
+import { helmRollback } from './helm-rollback';
 
 // PRD #359: Vector database tools (Qdrant operations)
 import { VECTOR_TOOLS } from './vector';
@@ -68,6 +76,14 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
   helmInstall,
   helmTemplate,
   helmUninstall,
+  // PRD #251: Helm Day-2 investigation tools
+  helmList,
+  helmStatus,
+  helmHistory,
+  helmGetValues,
+  helmInstallDryrun,
+  // PRD #251: Helm Day-2 operation tools
+  helmRollback,
 ];
 
 /**

@@ -42,6 +42,7 @@ Before using this guide, complete the [Deployment Guide](../setup/deployment.md)
 The DevOps AI Toolkit operate feature provides:
 - **Natural language operations** - Describe what you want, AI figures out how to do it
 - **Cluster-aware decisions** - Leverages installed operators and custom resources automatically
+- **Helm release support** - Works with Helm-managed applications (upgrades, rollbacks, uninstalls) in addition to raw Kubernetes resources
 - **Pattern-driven operations** - Applies organizational best practices to every change
 - **Policy enforcement** - Validates operations against governance rules before execution
 - **Dry-run validation** - All changes tested before proposing to ensure they'll work
