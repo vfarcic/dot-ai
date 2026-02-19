@@ -81,8 +81,8 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
   helmStatus,
   helmHistory,
   helmGetValues,
-  // PRD #251: Helm Day-2 operation tools
   helmInstallDryrun,
+  // PRD #251: Helm Day-2 operation tools
   helmRollback,
 ];
 

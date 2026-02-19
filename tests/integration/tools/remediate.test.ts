@@ -239,10 +239,8 @@ EOF`);
         }
       );
 
-      // Validate execution response - commands were executed successfully
-      // Note: Post-execution validation AI may return 'success' or 'awaiting_user_approval'
-      // depending on its assessment. Both are valid when commands executed successfully.
-      // Phase 3 below validates actual cluster state regardless.
+      // Execution response status is either 'success' or 'awaiting_user_approval'.
+      // Cluster state is verified directly in Phase 3 regardless of status.
       const expectedExecutionResponse = {
         success: true,
         data: {
@@ -483,8 +481,8 @@ EOF`);
             stdio: ['pipe', 'pipe', 'pipe'],
             timeout: 180000
           });
-        } catch (error: any) {
-          return error.stdout || '';
+        } catch (error: unknown) {
+          return (error as { stdout?: string }).stdout || '';
         }
       };
 
@@ -656,8 +654,8 @@ EOF`);
       });
 
       const results = executionResponse.data.result.results;
-      results.forEach((result: any) => {
-        expect(result.success).toBe(true);
+      results.forEach((result: { success: boolean }) => {
+        expect(result).toMatchObject({ success: true });
       });
 
       // PHASE 3: Verify cluster recovery
@@ -670,7 +668,7 @@ EOF`);
       expect(afterPodsData.items.length).toBeGreaterThan(0);
 
       // At least one pod should be running and ready (recovered from bad image)
-      const healthyPods = afterPodsData.items.filter((pod: any) =>
+      const healthyPods = afterPodsData.items.filter((pod: { status: { phase: string; containerStatuses?: Array<{ ready: boolean; restartCount: number }> } }) =>
         pod.status.phase === 'Running' &&
         pod.status.containerStatuses?.[0]?.ready === true
       );

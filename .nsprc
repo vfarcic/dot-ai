@@ -1,6 +1,14 @@
 {
-  "1112952": {
+  "1113080": {
     "active": true,
     "notes": "MCP SDK 1.26.0 breaks HTTP transport. Tracking issue: #368"
+  },
+  "1113214": {
+    "active": true,
+    "notes": "ajv ReDoS via eslint transitive dep. Fix requires eslint 10 (breaking change)"
+  },
+  "1113296": {
+    "active": true,
+    "notes": "minimatch ReDoS via eslint transitive dep. Fix requires eslint 10 (breaking change)"
   }
 }

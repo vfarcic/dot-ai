@@ -462,9 +462,6 @@ EOF`);
       const helmCommands = commands.filter((cmd: string) => cmd.includes('helm'));
       expect(helmCommands.length).toBeGreaterThan(0);
 
-      // Helm commands should be the primary mechanism (AI may include supplementary kubectl commands)
-      expect(helmCommands.length).toBeGreaterThanOrEqual(1);
-
     }, 300000);
   });
 
