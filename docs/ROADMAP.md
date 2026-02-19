@@ -21,6 +21,7 @@ This roadmap is a living document and may change based on community feedback and
 - Gateway-delegated authentication and built-in RBAC for enterprise multi-user deployments (PRD #380)
 - User-specific permissions - align AI view with user's Kubernetes RBAC (PRD #361)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
+- Add Alibaba Qwen 3.5 Plus AI provider (PRD #382)
 
 ## Medium-term (3-6 Months)
 
