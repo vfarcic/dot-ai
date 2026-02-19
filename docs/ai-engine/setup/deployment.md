@@ -138,9 +138,9 @@ All AI models must meet these minimum requirements:
 |----------|-------|-------------|------------------|-------------|
 | **Anthropic** | Claude Haiku 4.5 | `anthropic_haiku` | `ANTHROPIC_API_KEY` | Yes |
 | **Anthropic** | Claude Opus 4.6 | `anthropic_opus` | `ANTHROPIC_API_KEY` | Yes |
-| **Anthropic** | Claude Sonnet 4.5 | `anthropic` | `ANTHROPIC_API_KEY` | Yes |
+| **Anthropic** | Claude Sonnet 4.6 | `anthropic` | `ANTHROPIC_API_KEY` | Yes |
 | **AWS** | Amazon Bedrock | `amazon_bedrock` | AWS credentials ([see setup](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)) | Yes |
-| **Google** | Gemini 3 Pro | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes (might be slow) |
+| **Google** | Gemini 3.1 Pro | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes (might be slow) |
 | **Google** | Gemini 3 Flash | `google_flash` | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes (preview) |
 | **Host** | Host Environment LLM | `host` | None (uses host's AI) | Yes (if supported) |
 | **Moonshot AI** | Kimi K2 | `kimi` | `MOONSHOT_API_KEY` | Yes |

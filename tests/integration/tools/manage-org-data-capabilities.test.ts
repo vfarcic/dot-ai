@@ -85,7 +85,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       // This optimization reduces test time from ~6 min to ~2 min max
       let scanWorking = false;
       let progressResponse;
-      const maxAttempts = 40; // 2 minutes with 3 second intervals (allows for CI startup overhead)
+      const maxAttempts = 60; // 3 minutes with 3 second intervals (allows for CI startup overhead and slower models)
       let attempts = 0;
       const minSuccessfulResources = 5; // Proves the scan pipeline is working
 

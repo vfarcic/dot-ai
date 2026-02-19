@@ -462,7 +462,7 @@ EOF`);
       const helmCommands = commands.filter((cmd: string) => cmd.includes('helm'));
       expect(helmCommands.length).toBeGreaterThan(0);
 
-    }, 300000);
+    }, 480000);
   });
 
   describe('Error Handling', () => {
