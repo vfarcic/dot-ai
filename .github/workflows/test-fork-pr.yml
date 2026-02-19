@@ -40,7 +40,7 @@ jobs:
       run: npm ci
 
     - name: Install Devbox
-      uses: jetify-com/devbox-install-action@a03caf5813591bc882139eba6ae947930a83a427 # v0.11.0
+      uses: jetify-com/devbox-install-action@a0d2d53632934ae004f878c840055956d9f741b0 # v0.14.0
       with:
         enable-cache: true
 
