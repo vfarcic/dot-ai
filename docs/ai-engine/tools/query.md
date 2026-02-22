@@ -8,6 +8,10 @@ sidebar_position: 2
 
 ![Cluster Query Infographic](../img/query.jpeg)
 
+## See It In Action
+
+[![Why Kubernetes Querying Is Broken and How I Fixed It](https://img.youtube.com/vi/uUdbQkq5c4k/maxresdefault.jpg)](https://youtu.be/uUdbQkq5c4k)
+
 ## Using via Web UI
 
 These tools are also available through the [Web Dashboard](https://devopstoolkit.ai/docs/ui).
