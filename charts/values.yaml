@@ -217,6 +217,26 @@ qdrant:
     url: ""                         # External Qdrant URL (required when enabled=false)
     apiKey: ""                      # External Qdrant API key (optional)
 
+# Local Embedding Service (PRD #384)
+# Deploys HuggingFace Text Embeddings Inference (TEI) as an in-cluster embedding service.
+# When enabled and no embedding API keys are configured (OpenAI or custom), dot-ai
+# automatically connects to this service via CUSTOM_EMBEDDINGS_BASE_URL.
+# Existing users with OpenAI API keys or custom embedding endpoints are unaffected.
+localEmbeddings:
+  enabled: false                    # Deploy local embedding service (set true if not using cloud embedding API keys)
+  image:
+    repository: ghcr.io/huggingface/text-embeddings-inference
+    tag: "cpu-latest"
+  model: "sentence-transformers/all-MiniLM-L6-v2"  # Embedding model (384 dimensions)
+  dimensions: 384                   # Must match the model's output dimensions
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+
 # Plugin configuration (PRD #343)
 # Plugins are configured as a map, allowing users to customize defaults or add their own.
 # Two modes:

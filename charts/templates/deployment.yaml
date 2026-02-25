@@ -63,6 +63,16 @@ spec:
           value: {{ .Values.ai.customEndpoint.embeddingsDimensions | quote }}
 {{- end }}
 {{- end }}
+{{- if .Values.localEmbeddings.enabled }}
+        # Local embedding service auto-fallback (PRD #384)
+        # Placed before secretKeyRef entries so real keys from external secrets override the dummy
+        - name: CUSTOM_EMBEDDINGS_API_KEY
+          value: "local-embeddings-no-key-required"
+        - name: CUSTOM_EMBEDDINGS_BASE_URL
+          value: "http://{{ .Release.Name }}-local-embeddings.{{ .Release.Namespace }}.svc.cluster.local:80/v1"
+        - name: EMBEDDINGS_DIMENSIONS
+          value: {{ .Values.localEmbeddings.dimensions | quote }}
+{{- end }}
         # AI Provider API Keys
         - name: ANTHROPIC_API_KEY
           valueFrom:
