@@ -298,7 +298,7 @@ helm install dot-ai \
   --set gateway.namespace=gateway-system \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set localEmbeddings.enabled=true \
   --wait
 ```
 
@@ -447,7 +447,7 @@ helm install dot-ai \
   --set gateway.namespace=gateway-system \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set localEmbeddings.enabled=true \
   --wait
 ```
 
@@ -629,7 +629,7 @@ helm install dot-ai \
   --set gateway.listeners.http.hostname=dot-ai.example.com \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
+  --set localEmbeddings.enabled=true \
   --wait
 ```
 

@@ -35,14 +35,11 @@ sidebar_position: 2
 
 **For organizational pattern management:**
 - **Vector DB service** (Qdrant) for pattern storage and semantic search
-- **Embedding provider API key** - Required for semantic pattern matching:
-  - OpenAI: `OPENAI_API_KEY`
-  - Google: `GOOGLE_API_KEY`
-  - Amazon Bedrock: AWS credentials via environment variables or `~/.aws/credentials`
+- **Embeddings** - Required for semantic pattern matching (included by default via local embeddings; alternatively use a cloud provider — see [Embedding Provider Configuration](setup/deployment.md#embedding-provider-configuration))
 
 **For policy management and governance:**
 - **Vector DB service** (Qdrant) for policy storage and semantic search
-- **Embedding provider API key** - Required for semantic policy matching (same options as above)
+- **Embeddings** - Required for semantic policy matching (same as above)
 - **Optional**: Kyverno installed in cluster for active policy enforcement
 
 ## Installation
@@ -93,7 +90,6 @@ kubectl wait --namespace ingress-nginx \
 ### Step 1: Set Environment Variables
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-api03-your-key-here"
-export OPENAI_API_KEY="sk-proj-your-openai-key-here"
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
 # Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
@@ -114,8 +110,8 @@ helm install dot-ai-controller \
 # Install MCP server
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set localEmbeddings.enabled=true \
   --set ingress.enabled=true \
   --set ingress.className="$INGRESS_CLASS_NAME" \
   --set ingress.host="dot-ai.127.0.0.1.nip.io" \

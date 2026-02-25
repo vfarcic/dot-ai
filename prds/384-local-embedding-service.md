@@ -1,6 +1,6 @@
 # PRD #384: Optional Local Embedding Service in Helm Chart
 
-**Status**: Open
+**Status**: Complete
 **Priority**: Medium
 **Created**: 2026-02-25
 
@@ -105,10 +105,10 @@ The GHA workflow (`build-qdrant-test-image.yml`):
 
 ### Phase 4: Documentation + Release
 
-- [ ] Documentation updated in `docs/ai-engine/setup/deployment.md` covering local embeddings, disabling, switching providers, and running the migration endpoint
-- [ ] Quickstart and setup docs in `dot-ai` updated to include `localEmbeddings.enabled: true` in example Helm values so new users get zero-config semantic search
-- [ ] Quickstart and setup docs in `dot-ai-stack` updated to include `localEmbeddings.enabled: true` in example Helm values
-- [ ] Changelog fragment created
+- [x] Documentation updated in `docs/ai-engine/setup/deployment.md` covering local embeddings, disabling, switching providers, and running the migration endpoint
+- [x] Quickstart and setup docs in `dot-ai` updated to include `localEmbeddings.enabled: true` in example Helm values so new users get zero-config semantic search
+- [x] Quickstart and setup docs in `dot-ai-stack` updated to include `localEmbeddings.enabled: true` in example Helm values
+- [x] Changelog fragment created
 
 ## Technical Notes
 

@@ -34,19 +34,17 @@ Access these tools through [MCP clients](/docs/mcp) or the [CLI](https://devopst
 - Kubernetes cluster (1.19+) with kubectl access
 - Helm 3.x installed
 - AI model API key (default: Anthropic). See [AI Model Configuration](#ai-model-configuration) for available model options.
-- OpenAI API key (required for vector embeddings)
 - Ingress controller (any standard controller)
 
 ## Quick Start (5 Minutes)
 
 ### Step 1: Set Environment Variables
 
-Export your API keys and auth token:
+Export your API key and auth token:
 
 ```bash
 # Required
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
-export OPENAI_API_KEY="sk-proj-..."
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
 # Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
@@ -81,8 +79,8 @@ export DOT_AI_VERSION="..."
 
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set localEmbeddings.enabled=true \
   --set ingress.enabled=true \
   --set ingress.className="$INGRESS_CLASS_NAME" \
   --set ingress.host="dot-ai.127.0.0.1.nip.io" \
@@ -92,8 +90,9 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 ```
 
 **Notes**:
+- `localEmbeddings.enabled=true` deploys an in-cluster embedding service ([HuggingFace TEI](https://github.com/huggingface/text-embeddings-inference)) so semantic search works without any embedding API keys. See [Local Embeddings](#local-embeddings-zero-config) for details.
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
-- For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key`, `openai-api-key`, and `auth-token` instead of using `--set` arguments.
+- For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `auth-token` instead of using `--set` arguments.
 - For all available configuration options, see the [Helm values file](https://github.com/vfarcic/dot-ai/blob/main/charts/values.yaml).
 - **Global annotations**: Add annotations to all Kubernetes resources using `annotations` in your values file (e.g., for [Reloader](https://github.com/stakater/Reloader) integration: `reloader.stakater.com/auto: "true"`).
 - **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
@@ -185,22 +184,70 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 ## Embedding Provider Configuration
 
-The DevOps AI Toolkit supports multiple embedding providers for semantic search capabilities in pattern management, capability discovery, and policy matching.
+The DevOps AI Toolkit supports multiple embedding providers for semantic search in pattern management, capability discovery, and policy matching.
 
-### Available Embedding Providers
+### Local Embeddings (Zero-Config) {#local-embeddings-zero-config}
+
+The recommended setup for new deployments. An in-cluster [HuggingFace Text Embeddings Inference (TEI)](https://github.com/huggingface/text-embeddings-inference) service provides embeddings without any API keys.
+
+```yaml
+localEmbeddings:
+  enabled: true   # Deploys TEI with all-MiniLM-L6-v2 (384 dimensions)
+```
+
+This is already included in the [Quick Start](#quick-start-5-minutes) above. No additional configuration needed.
+
+| Property | Value |
+|----------|-------|
+| **Model** | `all-MiniLM-L6-v2` (384 dimensions) |
+| **Resource footprint** | ~256 MB RAM, 250m CPU (request) |
+| **GPU** | Not required |
+| **Architecture** | amd64 only (no ARM64/Apple Silicon — see [TEI issue #769](https://github.com/huggingface/text-embeddings-inference/issues/769)) |
+
+To customize the model or resources:
+
+```yaml
+localEmbeddings:
+  enabled: true
+  model: "sentence-transformers/all-MiniLM-L6-v2"  # Any TEI-compatible model
+  dimensions: 384          # Must match model output dimensions
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+```
+
+To disable local embeddings (e.g., if using a cloud provider instead):
+
+```yaml
+localEmbeddings:
+  enabled: false
+```
+
+### Cloud Embedding Providers
+
+Use a cloud provider if you need higher-quality embeddings or are already paying for an API key.
 
 | Provider | EMBEDDINGS_PROVIDER | Model | Dimensions | API Key Required |
 |----------|-------------------|-------|------------|------------------|
 | **Amazon Bedrock** | `amazon_bedrock` | `amazon.titan-embed-text-v2:0` | 1024 | AWS credentials |
-| **Google** | `google` | `text-embedding-004` (deprecated) | 768 | `GOOGLE_API_KEY` |
 | **Google** | `google` | `gemini-embedding-001` | 768 | `GOOGLE_API_KEY` |
-| **OpenAI** | `openai` (default) | `text-embedding-3-small` | 1536 | `OPENAI_API_KEY` |
+| **OpenAI** | `openai` | `text-embedding-3-small` | 1536 | `OPENAI_API_KEY` |
 
-### Helm Configuration
-
-Set embedding provider via `extraEnv` in your values file:
+Set the cloud embedding provider via `extraEnv` in your values file:
 
 ```yaml
+localEmbeddings:
+  enabled: false   # Disable local embeddings when using a cloud provider
+
+secrets:
+  openai:
+    apiKey: "your-openai-key"
+
+# Only needed if using a non-OpenAI embedding provider:
 extraEnv:
   - name: EMBEDDINGS_PROVIDER
     value: "google"
@@ -214,8 +261,54 @@ extraEnv:
 **Notes:**
 - **Same Provider**: If using the same provider for both AI models and embeddings (e.g., `AI_PROVIDER=google` and `EMBEDDINGS_PROVIDER=google`), you only need to set one API key
 - **Mixed Providers**: You can use different providers for AI models and embeddings (e.g., `AI_PROVIDER=anthropic` with `EMBEDDINGS_PROVIDER=google`)
-- **Embedding Support**: Not all AI model providers support embeddings. Anthropic does not provide embeddings; use OpenAI, Google, or Amazon Bedrock for embeddings
-- **Google Deprecation**: `text-embedding-004` will be discontinued on January 14, 2026. Use `gemini-embedding-001` for new deployments. When switching models, you must delete and recreate all embeddings (patterns, capabilities, policies) as vectors from different models are not compatible
+- **Embedding Support**: Not all AI model providers support embeddings. Anthropic does not provide embeddings; use OpenAI, Google, Amazon Bedrock, or local embeddings
+
+### Switching Embedding Providers (Migration)
+
+Switching between embedding providers (e.g., from OpenAI 1536-dim to local 384-dim) requires re-embedding all stored data because vector dimensions differ between models. A REST API endpoint handles this automatically.
+
+**Migrate all collections:**
+
+```bash
+curl -X POST https://your-dot-ai-host/api/v1/embeddings/migrate
+```
+
+**Migrate a single collection:**
+
+```bash
+curl -X POST https://your-dot-ai-host/api/v1/embeddings/migrate \
+  -H "Content-Type: application/json" \
+  -d '{"collection": "patterns"}'
+```
+
+The endpoint re-embeds all points using the currently configured provider. Collections where vector dimensions already match the target are skipped. The response reports per-collection results:
+
+```json
+{
+  "success": true,
+  "data": {
+    "collections": [
+      {
+        "collection": "patterns",
+        "status": "migrated",
+        "previousDimensions": 1536,
+        "newDimensions": 384,
+        "total": 42,
+        "processed": 42,
+        "failed": 0
+      }
+    ],
+    "summary": {
+      "totalCollections": 1,
+      "migrated": 1,
+      "skipped": 0,
+      "failed": 0
+    }
+  }
+}
+```
+
+The migration endpoint is also available via the auto-generated CLI (`dot-ai embeddings migrate`).
 
 ## Custom Endpoint Configuration
 
@@ -234,11 +327,12 @@ ai:
     enabled: true
     baseURL: "http://ollama-service.default.svc.cluster.local:11434/v1"
 
+localEmbeddings:
+  enabled: true   # Use local embeddings instead of OpenAI
+
 secrets:
   customLlm:
     apiKey: "ollama"  # Ollama doesn't require authentication
-  openai:
-    apiKey: "your-openai-key"  # Still needed for vector embeddings
 ```
 
 **Install with custom values:**
@@ -261,11 +355,12 @@ ai:
     enabled: true
     baseURL: "http://vllm-service:8000/v1"
 
+localEmbeddings:
+  enabled: true
+
 secrets:
   customLlm:
     apiKey: "dummy"  # vLLM may not require authentication
-  openai:
-    apiKey: "your-openai-key"
 ```
 
 **LocalAI (Self-Hosted):**
@@ -277,11 +372,12 @@ ai:
     enabled: true
     baseURL: "http://localai-service:8080/v1"
 
+localEmbeddings:
+  enabled: true
+
 secrets:
   customLlm:
     apiKey: "dummy"
-  openai:
-    apiKey: "your-openai-key"
 ```
 
 ### OpenRouter Example
@@ -296,14 +392,13 @@ ai:
     enabled: true
     baseURL: "https://openrouter.ai/api/v1"
 
+localEmbeddings:
+  enabled: true   # OpenRouter doesn't support embeddings; use local instead
+
 secrets:
   customLlm:
     apiKey: "sk-or-v1-your-key-here"
-  openai:
-    apiKey: "your-openai-key"  # Still needed for embeddings
 ```
-
-**Note**: OpenRouter does not support embedding models. Use OpenAI, Google, or Amazon Bedrock for embeddings.
 
 Get your OpenRouter API key at [https://openrouter.ai/](https://openrouter.ai/)
 
@@ -319,7 +414,7 @@ Get your OpenRouter API key at [https://openrouter.ai/](https://openrouter.ai/)
 - We need your help testing! Report results in [issue #193](https://github.com/vfarcic/dot-ai/issues/193)
 
 **Notes:**
-- OpenAI API key is still required for vector embeddings (Qdrant operations)
+- For embeddings, use `localEmbeddings.enabled=true` (recommended) or set an OpenAI/Google/Bedrock API key. See [Embedding Provider Configuration](#embedding-provider-configuration).
 - If model requirements are too high for your setup, please open an issue
 - Configuration examples are based on common patterns but not yet validated
 
@@ -403,8 +498,8 @@ Reference an existing platform-managed Gateway:
 ```bash
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.openai.apiKey="$OPENAI_API_KEY" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set localEmbeddings.enabled=true \
   --set ingress.enabled=false \
   --set gateway.name="cluster-gateway" \
   --set gateway.namespace="gateway-system" \
