@@ -70,7 +70,7 @@ Since OpenAI is the hardcoded default embedding provider in the server code (`EM
 - [x] Support migrating individual collections or all collections in one call (collection discovery via new `collection_list` plugin tool)
 - [x] Report progress (total points, processed, failed) in the response
 - [x] The endpoint is automatically picked up by the auto-generated CLI (`dot-ai-cli`) via the OpenAPI spec — no CLI changes needed
-- [ ] Migration tested end-to-end via GHA workflow (`build-qdrant-test-image.yml`) which performs real 1536→384 dim migration with TEI on amd64
+- [x] Migration tested end-to-end via GHA workflow (`build-qdrant-test-image.yml`) — 3 collections migrated 1536→384 dim, idempotency verified, image pushed to GHCR
 
 ### Phase 3: Switch CI Tests to Local Embeddings
 
@@ -98,7 +98,7 @@ The GHA workflow (`build-qdrant-test-image.yml`):
 #### Tasks
 
 - [x] Create GHA workflow (`build-qdrant-test-image.yml`) that deploys full stack on amd64, runs migration, and builds new 384-dim Qdrant test image
-- [ ] Run GHA workflow to verify migration works end-to-end and produces the 384-dim Qdrant test image
+- [x] Run GHA workflow to verify migration works end-to-end and produces the 384-dim Qdrant test image (run 22415344056)
 - [ ] Update test infrastructure (`run-integration-tests.sh`) to detect architecture and conditionally deploy TEI (amd64) or use OpenAI embeddings (arm64)
 - [ ] CI tests passing with local embeddings (no external embedding API keys required for CI)
 - [ ] Local tests still passing with OpenAI embeddings
