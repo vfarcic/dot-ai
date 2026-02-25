@@ -54,6 +54,12 @@ import {
   KnowledgeAskBadRequestErrorSchema,
   KnowledgeAskErrorSchema,
   ServiceUnavailableErrorSchema,
+  // Embeddings schemas (PRD #384)
+  EmbeddingMigrationRequestSchema,
+  EmbeddingMigrationResponseSchema,
+  EmbeddingMigrationBadRequestErrorSchema,
+  EmbeddingMigrationServiceUnavailableErrorSchema,
+  EmbeddingMigrationErrorSchema,
   // Common schemas
   NotFoundErrorSchema,
   InternalServerErrorSchema,
@@ -70,8 +76,16 @@ const ToolDiscoveryQuerySchema = z.object({
 
 const ResourceSearchQuerySchema = z.object({
   q: z.string().describe('Search query'),
-  limit: z.coerce.number().optional().default(20).describe('Maximum results to return'),
-  offset: z.coerce.number().optional().default(0).describe('Offset for pagination'),
+  limit: z.coerce
+    .number()
+    .optional()
+    .default(20)
+    .describe('Maximum results to return'),
+  offset: z.coerce
+    .number()
+    .optional()
+    .default(0)
+    .describe('Offset for pagination'),
 });
 
 const ResourceListQuerySchema = z.object({
@@ -86,7 +100,10 @@ const SingleResourceQuerySchema = z.object({
   kind: z.string().describe('Resource kind'),
   apiVersion: z.string().describe('API version'),
   name: z.string().describe('Resource name'),
-  namespace: z.string().optional().describe('Namespace (for namespaced resources)'),
+  namespace: z
+    .string()
+    .optional()
+    .describe('Namespace (for namespaced resources)'),
 });
 
 const ResourceKindsQuerySchema = z.object({
@@ -102,13 +119,22 @@ const EventsQuerySchema = z.object({
 const LogsQuerySchema = z.object({
   name: z.string().describe('Pod name'),
   namespace: z.string().describe('Pod namespace'),
-  container: z.string().optional().describe('Container name (defaults to first container)'),
+  container: z
+    .string()
+    .optional()
+    .describe('Container name (defaults to first container)'),
   tailLines: z.coerce.number().optional().describe('Number of lines from end'),
-  previous: z.coerce.boolean().optional().describe('Get logs from previous container instance'),
+  previous: z.coerce
+    .boolean()
+    .optional()
+    .describe('Get logs from previous container instance'),
 });
 
 const VisualizationQuerySchema = z.object({
-  reload: z.coerce.boolean().optional().describe('Force regeneration of visualization'),
+  reload: z.coerce
+    .boolean()
+    .optional()
+    .describe('Force regeneration of visualization'),
 });
 
 /**
@@ -127,39 +153,61 @@ const SessionIdParamsSchema = z.object({
 });
 
 const SourceIdentifierParamsSchema = z.object({
-  sourceIdentifier: z.string().describe('Source identifier (e.g., namespace/name of GitKnowledgeSource CR)'),
+  sourceIdentifier: z
+    .string()
+    .describe(
+      'Source identifier (e.g., namespace/name of GitKnowledgeSource CR)'
+    ),
 });
 
 const KnowledgeAskBodySchema = z.object({
-  query: z.string().min(1).describe('The question to answer from the knowledge base'),
-  limit: z.coerce.number().optional().default(20).describe('Maximum chunks to retrieve per search (default: 20)'),
-  uriFilter: z.string().optional().describe('Optional: filter searches to specific document URI'),
+  query: z
+    .string()
+    .min(1)
+    .describe('The question to answer from the knowledge base'),
+  limit: z.coerce
+    .number()
+    .optional()
+    .default(20)
+    .describe('Maximum chunks to retrieve per search (default: 20)'),
+  uriFilter: z
+    .string()
+    .optional()
+    .describe('Optional: filter searches to specific document URI'),
 });
 
 /**
  * OpenAPI schema placeholder - returns raw OpenAPI spec object
  */
-const OpenApiResponseSchema = z.object({
-  openapi: z.string(),
-  info: z.object({
-    title: z.string(),
-    description: z.string(),
-    version: z.string(),
-  }),
-  paths: z.record(z.string(), z.any()),
-}).passthrough();
+const OpenApiResponseSchema = z
+  .object({
+    openapi: z.string(),
+    info: z.object({
+      title: z.string(),
+      description: z.string(),
+      version: z.string(),
+    }),
+    paths: z.record(z.string(), z.any()),
+  })
+  .passthrough();
 
 /**
  * All route definitions for the REST API
  */
-export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknown>[] = [
+export const routeDefinitions: RouteDefinition<
+  unknown,
+  unknown,
+  unknown,
+  unknown
+>[] = [
   // ============================================
   // Tool Endpoints
   // ============================================
   {
     path: '/api/v1/tools',
     method: 'GET',
-    description: 'Discover available tools with optional filtering by category, tag, or search term',
+    description:
+      'Discover available tools with optional filtering by category, tag, or search term',
     tags: ['Tools'],
     query: ToolDiscoveryQuerySchema,
     response: ToolDiscoveryResponseSchema,
@@ -252,7 +300,8 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
   {
     path: '/api/v1/resource',
     method: 'GET',
-    description: 'Get a single resource with full details including live status',
+    description:
+      'Get a single resource with full details including live status',
     tags: ['Resources'],
     query: SingleResourceQuerySchema,
     response: SingleResourceResponseSchema,
@@ -360,7 +409,8 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
   {
     path: '/api/v1/sessions/:sessionId',
     method: 'GET',
-    description: 'Get raw session data for any tool type (remediate, query, recommend, etc.)',
+    description:
+      'Get raw session data for any tool type (remediate, query, recommend, etc.)',
     tags: ['Sessions'],
     params: SessionIdParamsSchema,
     response: SessionResponseSchema,
@@ -376,7 +426,8 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
   {
     path: '/api/v1/knowledge/source/:sourceIdentifier',
     method: 'DELETE',
-    description: 'Delete all knowledge base chunks for a source identifier. Used by controller for GitKnowledgeSource cleanup.',
+    description:
+      'Delete all knowledge base chunks for a source identifier. Used by controller for GitKnowledgeSource cleanup.',
     tags: ['Knowledge'],
     params: SourceIdentifierParamsSchema,
     response: DeleteBySourceResponseSchema,
@@ -388,7 +439,8 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
   {
     path: '/api/v1/knowledge/ask',
     method: 'POST',
-    description: 'Ask a question and receive an AI-synthesized answer from the knowledge base. Uses an agentic approach that can search multiple times with different phrasings for comprehensive answers.',
+    description:
+      'Ask a question and receive an AI-synthesized answer from the knowledge base. Uses an agentic approach that can search multiple times with different phrasings for comprehensive answers.',
     tags: ['Knowledge'],
     body: KnowledgeAskBodySchema,
     response: KnowledgeAskResponseSchema,
@@ -396,6 +448,24 @@ export const routeDefinitions: RouteDefinition<unknown, unknown, unknown, unknow
       400: KnowledgeAskBadRequestErrorSchema,
       503: ServiceUnavailableErrorSchema,
       500: KnowledgeAskErrorSchema,
+    },
+  },
+
+  // ============================================
+  // Embeddings Endpoint (PRD #384)
+  // ============================================
+  {
+    path: '/api/v1/embeddings/migrate',
+    method: 'POST',
+    description:
+      'Migrate embedding vectors when switching between embedding providers. Re-embeds all data using the current provider.',
+    tags: ['Embeddings'],
+    body: EmbeddingMigrationRequestSchema,
+    response: EmbeddingMigrationResponseSchema,
+    errorResponses: {
+      400: EmbeddingMigrationBadRequestErrorSchema,
+      503: EmbeddingMigrationServiceUnavailableErrorSchema,
+      500: EmbeddingMigrationErrorSchema,
     },
   },
 ];

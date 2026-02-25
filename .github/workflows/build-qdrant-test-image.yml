@@ -1,0 +1,330 @@
+name: Build Qdrant Test Image (384-dim)
+
+# Builds a new Qdrant test image with 384-dimensional embeddings (TEI/all-MiniLM-L6-v2)
+# by migrating the existing 1536-dimensional test data via the embedding migration endpoint.
+#
+# PRD #384: Optional Local Embedding Service
+#
+# Flow:
+#   1. Create Kind cluster, deploy Qdrant with current 1536-dim test image
+#   2. Build and deploy dot-ai + agentic-tools with local embeddings enabled
+#   3. Wait for TEI model download and readiness
+#   4. Call POST /api/v1/embeddings/migrate to re-embed all collections
+#   5. Verify migration succeeded (idempotency check)
+#   6. Extract Qdrant storage, build new Docker image, push to GHCR
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag for the new test image (e.g., v1.15.5-test-384-01)'
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-test-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        submodules: true
+
+    - name: Setup Node.js
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+
+    - name: Install dependencies and build
+      run: |
+        npm ci
+        npm run build
+        npm pack
+
+    # --- Kind Cluster Setup ---
+
+    - name: Create Kind cluster
+      uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1
+      with:
+        cluster_name: qdrant-migrate
+        config: tests/integration/infrastructure/kind-test.yaml
+        wait: 120s
+
+    - name: Install nginx ingress controller
+      run: |
+        kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+        kubectl wait --namespace ingress-nginx \
+          --for=condition=ready pod \
+          --selector=app.kubernetes.io/component=controller \
+          --timeout=300s
+        sleep 5
+
+    # --- Deploy Qdrant with existing 1536-dim test data ---
+
+    - name: Deploy Qdrant (1536-dim test image)
+      run: |
+        kubectl create namespace dot-ai
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: qdrant
+          namespace: dot-ai
+          labels:
+            app: qdrant
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: qdrant
+          template:
+            metadata:
+              labels:
+                app: qdrant
+            spec:
+              containers:
+              - name: qdrant
+                image: ghcr.io/vfarcic/dot-ai-demo/qdrant:v1.15.5-test-01
+                imagePullPolicy: IfNotPresent
+                ports:
+                - containerPort: 6333
+                  name: http
+                - containerPort: 6334
+                  name: grpc
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: qdrant
+          namespace: dot-ai
+        spec:
+          selector:
+            app: qdrant
+          ports:
+          - name: http
+            port: 6333
+            targetPort: 6333
+          - name: grpc
+            port: 6334
+            targetPort: 6334
+        EOF
+
+        kubectl wait --namespace dot-ai \
+          --for=condition=available deployment/qdrant \
+          --timeout=120s
+
+    # --- Build and load Docker images into Kind ---
+
+    - name: Build and load Docker images
+      run: |
+        docker build -t dot-ai:test .
+        docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools
+        kind load docker-image dot-ai:test --name qdrant-migrate
+        kind load docker-image dot-ai-agentic-tools:test --name qdrant-migrate
+        rm -f vfarcic-dot-ai-*.tgz
+
+    # --- Deploy dot-ai with local embeddings ---
+
+    - name: Create secrets
+      run: |
+        kubectl create secret generic dot-ai-secrets \
+          --namespace dot-ai \
+          --from-literal=anthropic-api-key="unused" \
+          --from-literal=openai-api-key="unused" \
+          --from-literal=google-api-key="unused" \
+          --from-literal=xai-api-key="unused" \
+          --from-literal=moonshot-api-key="unused" \
+          --from-literal=auth-token="migration-test-token" \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy dot-ai with local embeddings enabled
+      run: |
+        helm upgrade --install dot-ai ./charts \
+          --namespace dot-ai \
+          --set image.repository=dot-ai \
+          --set image.tag=test \
+          --set image.pullPolicy=Never \
+          --set ai.provider=anthropic \
+          --set controller.enabled=false \
+          --set ingress.enabled=true \
+          --set ingress.className=nginx \
+          --set ingress.host=dot-ai.127.0.0.1.nip.io \
+          --set qdrant.enabled=false \
+          --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
+          --set localEmbeddings.enabled=true \
+          --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
+          --set plugins.agentic-tools.image.tag=test \
+          --set plugins.agentic-tools.image.pullPolicy=Never \
+          --wait --timeout=300s
+
+    - name: Wait for dot-ai deployments
+      run: |
+        kubectl wait --namespace dot-ai \
+          --for=condition=available deployment \
+          --selector=app.kubernetes.io/name=dot-ai \
+          --timeout=120s
+
+        kubectl wait --namespace dot-ai \
+          --for=condition=available deployment/dot-ai-agentic-tools \
+          --timeout=120s
+
+    - name: Wait for TEI local embeddings to be ready
+      run: |
+        echo "Waiting for TEI to download model and become ready (this may take a few minutes)..."
+        kubectl wait --namespace dot-ai \
+          --for=condition=available deployment/dot-ai-local-embeddings \
+          --timeout=600s
+
+    - name: Wait for ingress to be accessible
+      run: |
+        MCP_URL="http://dot-ai.127.0.0.1.nip.io:8180"
+        MAX_WAIT=60
+        WAITED=0
+        while [ $WAITED -lt $MAX_WAIT ]; do
+          if curl -sf "${MCP_URL}/api/v1/tools" \
+            -H "Authorization: Bearer migration-test-token" > /dev/null 2>&1; then
+            echo "dot-ai is accessible at ${MCP_URL}"
+            break
+          fi
+          sleep 2
+          WAITED=$((WAITED + 2))
+        done
+
+        if [ $WAITED -ge $MAX_WAIT ]; then
+          echo "ERROR: Ingress not accessible within ${MAX_WAIT}s"
+          kubectl get ingress -n dot-ai
+          kubectl get pods -n dot-ai
+          kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+          exit 1
+        fi
+
+    # --- Run migration ---
+
+    - name: Call embedding migration endpoint
+      run: |
+        MCP_URL="http://dot-ai.127.0.0.1.nip.io:8180"
+
+        echo "Calling POST /api/v1/embeddings/migrate ..."
+        RESPONSE=$(curl -sf "${MCP_URL}/api/v1/embeddings/migrate" \
+          -X POST \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer migration-test-token" \
+          -d '{}' \
+          --max-time 600)
+
+        echo "Migration response:"
+        echo "$RESPONSE" | jq .
+
+        # Validate success
+        SUCCESS=$(echo "$RESPONSE" | jq -r '.success')
+        if [ "$SUCCESS" != "true" ]; then
+          echo "ERROR: Migration failed!"
+          echo "$RESPONSE" | jq '.error'
+          exit 1
+        fi
+
+        # Validate at least one collection was migrated
+        MIGRATED=$(echo "$RESPONSE" | jq -r '.data.summary.migrated')
+        FAILED=$(echo "$RESPONSE" | jq -r '.data.summary.failed')
+        echo "Summary: migrated=$MIGRATED, failed=$FAILED"
+
+        if [ "$MIGRATED" -eq 0 ]; then
+          echo "ERROR: No collections were migrated!"
+          exit 1
+        fi
+
+        if [ "$FAILED" -gt 0 ]; then
+          echo "WARNING: $FAILED collections failed migration"
+          echo "$RESPONSE" | jq '.data.collections[] | select(.status == "failed")'
+          exit 1
+        fi
+
+        echo "Migration succeeded: $MIGRATED collections migrated to 384 dimensions"
+
+    - name: Verify migration (idempotency check)
+      run: |
+        MCP_URL="http://dot-ai.127.0.0.1.nip.io:8180"
+
+        RESPONSE=$(curl -sf "${MCP_URL}/api/v1/embeddings/migrate" \
+          -X POST \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer migration-test-token" \
+          -d '{}' \
+          --max-time 120)
+
+        echo "Second migration response:"
+        echo "$RESPONSE" | jq .
+
+        # All collections should be skipped (dimensions already match)
+        SKIPPED=$(echo "$RESPONSE" | jq -r '.data.summary.skipped')
+        MIGRATED=$(echo "$RESPONSE" | jq -r '.data.summary.migrated')
+
+        echo "Idempotency check: skipped=$SKIPPED, migrated=$MIGRATED"
+
+        if [ "$MIGRATED" -gt 0 ]; then
+          echo "ERROR: Expected all collections to be skipped on second run, but $MIGRATED were migrated"
+          exit 1
+        fi
+
+        echo "Idempotency verified: all $SKIPPED collections correctly skipped"
+
+    # --- Extract Qdrant storage and build new image ---
+
+    - name: Extract Qdrant storage from pod
+      run: |
+        QDRANT_POD=$(kubectl get pods -n dot-ai -l app=qdrant -o jsonpath='{.items[0].metadata.name}')
+        echo "Extracting storage from pod: $QDRANT_POD"
+
+        mkdir -p qdrant_storage
+        kubectl cp "dot-ai/${QDRANT_POD}:/qdrant/storage" ./qdrant_storage/
+
+        echo "Extracted storage contents:"
+        ls -la qdrant_storage/
+        du -sh qdrant_storage/
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+
+    - name: Build and push Qdrant test image (384-dim)
+      uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+      with:
+        context: .
+        file: Dockerfile-qdrant
+        push: true
+        build-args: |
+          VERSION=${{ inputs.image_tag }}
+        tags: |
+          ghcr.io/vfarcic/dot-ai-demo/qdrant:${{ inputs.image_tag }}
+        labels: |
+          org.opencontainers.image.source=https://github.com/vfarcic/dot-ai
+          org.opencontainers.image.description=Qdrant with pre-loaded 384-dim embeddings (TEI all-MiniLM-L6-v2)
+          org.opencontainers.image.licenses=MIT
+          org.opencontainers.image.version=${{ inputs.image_tag }}
+        platforms: linux/amd64
+
+    - name: Summary
+      run: |
+        echo "## Qdrant Test Image Built" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Image**: \`ghcr.io/vfarcic/dot-ai-demo/qdrant:${{ inputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Embeddings**: 384-dim (TEI / sentence-transformers/all-MiniLM-L6-v2)" >> $GITHUB_STEP_SUMMARY
+        echo "**Migrated from**: 1536-dim (OpenAI)" >> $GITHUB_STEP_SUMMARY
+
+    # --- Cleanup ---
+
+    - name: Delete Kind cluster
+      if: always()
+      run: kind delete cluster --name qdrant-migrate 2>/dev/null || true

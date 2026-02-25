@@ -77,7 +77,7 @@ export async function search(
     ...(options.filter && { filter: options.filter }),
   });
 
-  return searchResult.map((result) => ({
+  return searchResult.map(result => ({
     id: result.id.toString(),
     score: result.score,
     payload: (result.payload as Record<string, unknown>) || {},
@@ -107,7 +107,7 @@ export async function query(
     with_vector: false,
   });
 
-  return scrollResult.points.map((point) => ({
+  return scrollResult.points.map(point => ({
     id: point.id.toString(),
     payload: (point.payload as Record<string, unknown>) || {},
   }));
@@ -120,7 +120,10 @@ export async function query(
  * @param id - Document ID
  * @returns Document or null if not found
  */
-export async function get(collection: string, id: string): Promise<VectorDocument | null> {
+export async function get(
+  collection: string,
+  id: string
+): Promise<VectorDocument | null> {
   const client = getQdrantClient();
 
   const result = await client.retrieve(collection, {
@@ -157,7 +160,7 @@ export async function remove(collection: string, id: string): Promise<void> {
 
   // Brief delay for Qdrant internal segment synchronization
   // Ensures consistency for immediate read-after-delete operations
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await new Promise(resolve => setTimeout(resolve, 100));
 }
 
 /**
@@ -170,7 +173,9 @@ export async function removeAll(collection: string): Promise<void> {
 
   // Check if collection exists first
   const collections = await client.getCollections();
-  const collectionExists = collections.collections.some((col) => col.name === collection);
+  const collectionExists = collections.collections.some(
+    col => col.name === collection
+  );
 
   if (!collectionExists) {
     return; // Nothing to delete
@@ -192,16 +197,23 @@ export async function removeAll(collection: string): Promise<void> {
  * @param options - List options
  * @returns Array of documents
  */
-export async function list(collection: string, options: ListOptions = {}): Promise<VectorDocument[]> {
+export async function list(
+  collection: string,
+  options: ListOptions = {}
+): Promise<VectorDocument[]> {
   const client = getQdrantClient();
   const limit = options.limit ?? 10000;
 
   // Check if collection exists first
   const collections = await client.getCollections();
-  const collectionExists = collections.collections.some((col) => col.name === collection);
+  const collectionExists = collections.collections.some(
+    col => col.name === collection
+  );
 
   if (!collectionExists) {
-    throw new Error(`Collection '${collection}' does not exist. No data has been stored yet.`);
+    throw new Error(
+      `Collection '${collection}' does not exist. No data has been stored yet.`
+    );
   }
 
   const scrollResult = await client.scroll(collection, {
@@ -211,7 +223,7 @@ export async function list(collection: string, options: ListOptions = {}): Promi
     ...(options.filter && { filter: options.filter }),
   });
 
-  return scrollResult.points.map((point) => ({
+  return scrollResult.points.map(point => ({
     id: point.id.toString(),
     payload: (point.payload as Record<string, unknown>) || {},
   }));
@@ -232,7 +244,9 @@ export async function initializeCollection(
 
   // Check if collection exists
   const collections = await client.getCollections();
-  const collectionExists = collections.collections.some((col) => col.name === collection);
+  const collectionExists = collections.collections.some(
+    col => col.name === collection
+  );
 
   if (collectionExists) {
     // Verify existing collection has correct vector dimensions
@@ -241,7 +255,11 @@ export async function initializeCollection(
     let existingVectorSize: number | undefined;
     if (typeof vectorsConfig === 'number') {
       existingVectorSize = vectorsConfig;
-    } else if (vectorsConfig && typeof vectorsConfig === 'object' && 'size' in vectorsConfig) {
+    } else if (
+      vectorsConfig &&
+      typeof vectorsConfig === 'object' &&
+      'size' in vectorsConfig
+    ) {
       existingVectorSize = (vectorsConfig as { size: number }).size;
     }
 
@@ -249,7 +267,7 @@ export async function initializeCollection(
       // Dimension mismatch - recreate collection (embedding model likely changed)
       console.warn(
         `Collection '${collection}' has vector size ${existingVectorSize}, but ${vectorSize} requested. ` +
-        `Recreating collection (embedding model likely changed).`
+          `Recreating collection (embedding model likely changed).`
       );
       await client.deleteCollection(collection);
       await createCollection(collection, vectorSize, createTextIndex);
@@ -291,7 +309,10 @@ async function createCollection(
   } catch (error) {
     // Handle race condition where collection was created between check and create
     const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.toLowerCase().includes('conflict') || errorMessage.toLowerCase().includes('already exists')) {
+    if (
+      errorMessage.toLowerCase().includes('conflict') ||
+      errorMessage.toLowerCase().includes('already exists')
+    ) {
       // Collection exists - this is fine (race condition or restart)
       if (createTextIndex) {
         await ensureTextIndex(collection);
@@ -327,10 +348,13 @@ async function ensureTextIndex(collection: string): Promise<void> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const isAlreadyExists =
-      errorMessage.toLowerCase().includes('already exists') || errorMessage.toLowerCase().includes('conflict');
+      errorMessage.toLowerCase().includes('already exists') ||
+      errorMessage.toLowerCase().includes('conflict');
     if (!isAlreadyExists) {
       // Log but don't throw - text index is an optimization, not critical
-      console.warn(`Failed to create text index on ${collection}: ${errorMessage}`);
+      console.warn(
+        `Failed to create text index on ${collection}: ${errorMessage}`
+      );
     }
   }
 }
@@ -341,13 +365,17 @@ async function ensureTextIndex(collection: string): Promise<void> {
  * @param collection - Collection name
  * @returns Collection statistics
  */
-export async function getCollectionStats(collection: string): Promise<CollectionStats> {
+export async function getCollectionStats(
+  collection: string
+): Promise<CollectionStats> {
   const client = getQdrantClient();
   const { url } = getQdrantConfig();
 
   // Check if collection exists
   const collections = await client.getCollections();
-  const collectionExists = collections.collections.some((col) => col.name === collection);
+  const collectionExists = collections.collections.some(
+    col => col.name === collection
+  );
 
   if (!collectionExists) {
     return {
@@ -366,7 +394,11 @@ export async function getCollectionStats(collection: string): Promise<Collection
   let vectorSize = 0;
   if (typeof vectorsConfig === 'number') {
     vectorSize = vectorsConfig;
-  } else if (vectorsConfig && typeof vectorsConfig === 'object' && 'size' in vectorsConfig) {
+  } else if (
+    vectorsConfig &&
+    typeof vectorsConfig === 'object' &&
+    'size' in vectorsConfig
+  ) {
     vectorSize = (vectorsConfig as { size: number }).size || 0;
   }
 
@@ -452,7 +484,9 @@ export async function searchByKeywords(
     const userFilter = options.filter as Record<string, unknown>;
     // Merge must conditions
     if (userFilter.must) {
-      filter.must = Array.isArray(userFilter.must) ? userFilter.must : [userFilter.must];
+      filter.must = Array.isArray(userFilter.must)
+        ? userFilter.must
+        : [userFilter.must];
     }
     // Preserve must_not conditions
     if (userFilter.must_not) {
@@ -460,7 +494,10 @@ export async function searchByKeywords(
     }
     // If user filter has should conditions, wrap in must to AND with keyword should
     if (userFilter.should) {
-      filter.must = [...((filter.must as unknown[]) || []), { should: userFilter.should }];
+      filter.must = [
+        ...((filter.must as unknown[]) || []),
+        { should: userFilter.should },
+      ];
     }
   }
 
@@ -474,12 +511,14 @@ export async function searchByKeywords(
 
   // Score the filtered results
   const scoredPoints = scrollResult.points
-    .map((point) => {
+    .map(point => {
       if (!point.payload) return null;
 
-      const searchText = ((point.payload.searchText as string) || '').toLowerCase();
+      const searchText = (
+        (point.payload.searchText as string) || ''
+      ).toLowerCase();
       const triggers = Array.isArray(point.payload.triggers)
-        ? (point.payload.triggers as string[]).map((t) => t.toLowerCase())
+        ? (point.payload.triggers as string[]).map(t => t.toLowerCase())
         : [];
 
       // Count keyword matches for scoring
@@ -499,7 +538,7 @@ export async function searchByKeywords(
         }
 
         // Check triggers
-        if (triggers.some((t) => t.includes(kw) || kw.includes(t))) {
+        if (triggers.some(t => t.includes(kw) || kw.includes(t))) {
           matchCount++;
         }
       }
@@ -511,7 +550,12 @@ export async function searchByKeywords(
 
       return { point, score };
     })
-    .filter((item): item is { point: (typeof scrollResult.points)[0]; score: number } => item !== null)
+    .filter(
+      (
+        item
+      ): item is { point: (typeof scrollResult.points)[0]; score: number } =>
+        item !== null
+    )
     .sort((a, b) => b.score - a.score);
 
   const limitedResults = scoredPoints.slice(0, limit);
@@ -533,8 +577,29 @@ export async function collectionExists(collection: string): Promise<boolean> {
   try {
     const client = getQdrantClient();
     const collections = await client.getCollections();
-    return collections.collections.some((col) => col.name === collection);
+    return collections.collections.some(col => col.name === collection);
   } catch {
     return false;
   }
+}
+
+/**
+ * List all collection names in Qdrant
+ *
+ * @returns Array of collection names
+ */
+export async function listCollections(): Promise<string[]> {
+  const client = getQdrantClient();
+  const collections = await client.getCollections();
+  return collections.collections.map(col => col.name);
+}
+
+/**
+ * Delete a collection entirely (not just its points)
+ *
+ * @param collection - Collection name to delete
+ */
+export async function deleteCollection(collection: string): Promise<void> {
+  const client = getQdrantClient();
+  await client.deleteCollection(collection);
 }

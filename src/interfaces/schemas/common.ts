@@ -128,6 +128,7 @@ export const InternalServerErrorSchema = ErrorResponseSchema.extend({
       'PROMPT_GET_ERROR',
       'VISUALIZATION_ERROR',
       'SESSION_RETRIEVAL_ERROR',
+      'MIGRATION_ERROR',
     ]),
   }),
 });

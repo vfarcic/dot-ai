@@ -211,3 +211,18 @@ export {
   type KnowledgeAskData,
   type KnowledgeAskResponse,
 } from './knowledge';
+
+// Embeddings schemas (PRD #384)
+export {
+  EmbeddingMigrationRequestSchema,
+  CollectionMigrationResultSchema,
+  EmbeddingMigrationDataSchema,
+  EmbeddingMigrationResponseSchema,
+  EmbeddingMigrationBadRequestErrorSchema,
+  EmbeddingMigrationServiceUnavailableErrorSchema,
+  EmbeddingMigrationErrorSchema,
+  type EmbeddingMigrationRequest,
+  type CollectionMigrationResult,
+  type EmbeddingMigrationData,
+  type EmbeddingMigrationResponse,
+} from './embeddings';

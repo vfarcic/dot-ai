@@ -64,11 +64,13 @@ Since OpenAI is the hardcoded default embedding provider in the server code (`EM
 
 ### Phase 2: Embedding Migration Endpoint
 
-- [ ] Add REST API endpoint (not an MCP tool) for re-embedding collections when switching providers (e.g., `POST /api/v1/embeddings/migrate`)
-- [ ] Migration reads all points from a collection, extracts stored `searchText` from payloads, re-embeds with the current provider, and writes to a new collection with correct dimensions
-- [ ] Support migrating individual collections or all collections in one call
-- [ ] Report progress (total points, processed, failed) in the response
-- [ ] The endpoint is automatically picked up by the auto-generated CLI (`dot-ai-cli`) via the OpenAPI spec — no CLI changes needed
+- [x] Add `collection_list` and `collection_delete` plugin tools to `agentic-tools` (needed for collection discovery and migration swap)
+- [x] Add REST API endpoint (not an MCP tool) for re-embedding collections when switching providers (e.g., `POST /api/v1/embeddings/migrate`)
+- [x] Migration reads all points from a collection, extracts stored `searchText` from payloads, re-embeds with the current provider, then uses `collection_initialize` (which auto-deletes mismatched dimensions and recreates) and stores re-embedded points
+- [x] Support migrating individual collections or all collections in one call (collection discovery via new `collection_list` plugin tool)
+- [x] Report progress (total points, processed, failed) in the response
+- [x] The endpoint is automatically picked up by the auto-generated CLI (`dot-ai-cli`) via the OpenAPI spec — no CLI changes needed
+- [ ] Migration tested end-to-end via GHA workflow (`build-qdrant-test-image.yml`) which performs real 1536→384 dim migration with TEI on amd64
 
 ### Phase 3: Switch CI Tests to Local Embeddings
 
@@ -79,20 +81,24 @@ TEI images are amd64 only (no ARM64 support — see [TEI issue #769](https://git
 
 This gives test coverage for both embedding paths.
 
-#### Qdrant Test Image Rebuild
+#### Qdrant Test Image Rebuild via GHA Migration Workflow
 
-The pre-populated Qdrant test image needs 384-dim vectors for CI. Since TEI is amd64 only, generate vectors locally on Mac using [FastEmbed](https://github.com/qdrant/fastembed) (ONNX-based, runs natively on ARM). Same model weights (`all-MiniLM-L6-v2`) = identical vectors to what TEI produces at runtime in CI.
+~~The pre-populated Qdrant test image needs 384-dim vectors for CI. Since TEI is amd64 only, generate vectors locally on Mac using FastEmbed (ONNX-based, runs natively on ARM).~~
 
-```python
-from fastembed import TextEmbedding
-model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
-vectors = list(model.embed(["test texts..."]))
-# populate Qdrant → build image → push to ghcr.io
-```
+**Decision (2026-02-25):** Instead of using FastEmbed locally, a GitHub Actions workflow uses the Phase 2 migration endpoint itself to rebuild the test image. This is more robust because: (1) it tests the migration endpoint in a real amd64 environment with TEI, (2) it eliminates the need for a separate Python/FastEmbed toolchain, and (3) the migration code path is the same one users will actually use.
+
+The GHA workflow (`build-qdrant-test-image.yml`):
+1. Deploys Qdrant with the current 1536-dim test image
+2. Deploys TEI local embedding service (amd64)
+3. Deploys dot-ai configured with local embeddings
+4. Calls `POST /api/v1/embeddings/migrate` to migrate all collections from 1536→384 dim
+5. Verifies migration succeeded
+6. Extracts Qdrant storage data → builds new Docker image → pushes to `ghcr.io`
 
 #### Tasks
 
-- [ ] Rebuild pre-populated Qdrant test image (`Dockerfile-qdrant`) with 384-dimension vectors generated locally via FastEmbed (replaces current 1536-dimension OpenAI vectors in `capabilities-policies` collection)
+- [x] Create GHA workflow (`build-qdrant-test-image.yml`) that deploys full stack on amd64, runs migration, and builds new 384-dim Qdrant test image
+- [ ] Run GHA workflow to verify migration works end-to-end and produces the 384-dim Qdrant test image
 - [ ] Update test infrastructure (`run-integration-tests.sh`) to detect architecture and conditionally deploy TEI (amd64) or use OpenAI embeddings (arm64)
 - [ ] CI tests passing with local embeddings (no external embedding API keys required for CI)
 - [ ] Local tests still passing with OpenAI embeddings
@@ -110,6 +116,20 @@ vectors = list(model.embed(["test texts..."]))
 - The `all-MiniLM-L6-v2` model produces 384-dimensional embeddings vs 1536 for OpenAI. Switching providers on an existing deployment requires re-embedding all data (vector dimensions must match). The migration endpoint handles this automatically
 - TEI supports model preloading at container startup — no runtime download needed if the image bundles the model or uses an init container
 - The Helm chart already has a pattern for optional deployments (see `plugins` in `plugin-deployment.yaml` and `qdrant` subchart)
+
+### Migration Endpoint Architecture
+
+The migration uses the existing `initializeCollection()` behavior in `operations.ts` which auto-detects dimension mismatches and recreates the collection. The flow per collection:
+
+1. List all points (payload only, no vectors — `vector_list`)
+2. Extract `searchText` from each point's payload
+3. Batch re-embed via `EmbeddingService.generateEmbeddings()` (batches of 50)
+4. Call `collection_initialize` with new dimensions — this deletes the old collection and creates a fresh one
+5. Store all re-embedded points in the new collection
+
+There is a brief window where the collection is empty during step 4-5. This is acceptable since migration is an explicit, deliberate user action. The response reports per-collection results (migrated/skipped/failed) with point counts.
+
+Collections are discovered dynamically via a `collection_list` plugin tool (calls `getQdrantClient().getCollections()`). Collections where `vectorSize` already matches the target dimensions are skipped.
 
 ### Helm Values Structure
 

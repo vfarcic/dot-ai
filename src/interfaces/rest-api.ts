@@ -1,6 +1,6 @@
 /**
  * REST API Router for MCP Tools
- * 
+ *
  * Provides HTTP REST endpoints for all registered MCP tools.
  * Handles routing, validation, execution, and response formatting.
  */
@@ -14,7 +14,11 @@ import { registerAllRoutes } from './routes';
 import { Logger } from '../core/error-handling';
 import { DotAI } from '../core/index';
 import { handleResourceSync } from './resource-sync-handler';
-import { handlePromptsListRequest, handlePromptsGetRequest } from '../tools/prompts';
+import { handleEmbeddingMigration } from './embedding-migration-handler';
+import {
+  handlePromptsListRequest,
+  handlePromptsGetRequest,
+} from '../tools/prompts';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { QuerySessionData } from '../tools/query';
 import { loadPrompt } from '../core/shared-prompt-loader';
@@ -22,10 +26,13 @@ import {
   extractPrefixFromSessionId,
   getPromptForTool,
   BaseVisualizationData,
-  parseVisualizationResponse
+  parseVisualizationResponse,
 } from '../core/visualization';
 import { createAIProvider } from '../core/ai-provider-factory';
-import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
+import {
+  CAPABILITY_TOOLS,
+  executeCapabilityTools,
+} from '../core/capability-tools';
 import {
   RESOURCE_TOOLS,
   executeResourceTools,
@@ -33,12 +40,19 @@ import {
   listResources,
   getNamespaces,
   type SearchResourcesInput,
-  type QueryResourcesInput
+  type QueryResourcesInput,
 } from '../core/resource-tools';
-import { MERMAID_TOOLS, executeMermaidTools, type MermaidToolInput } from '../core/mermaid-tools';
+import {
+  MERMAID_TOOLS,
+  executeMermaidTools,
+  type MermaidToolInput,
+} from '../core/mermaid-tools';
 import { PluginManager } from '../core/plugin-manager';
 import { invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
-import { searchKnowledgeBase, type SearchKnowledgeBaseResult } from '../tools/manage-knowledge';
+import {
+  searchKnowledgeBase,
+  type SearchKnowledgeBaseResult,
+} from '../tools/manage-knowledge';
 import type { AITool } from '../core/ai-provider.interface';
 
 /**
@@ -51,7 +65,7 @@ export enum HttpStatus {
   METHOD_NOT_ALLOWED = 405,
   INTERNAL_SERVER_ERROR = 500,
   BAD_GATEWAY = 502,
-  SERVICE_UNAVAILABLE = 503
+  SERVICE_UNAVAILABLE = 503,
 }
 
 /**
@@ -100,7 +114,13 @@ export interface ToolDiscoveryResponse extends RestApiResponse {
  * PRD #320: Added 'diff' type for before/after comparisons
  * PRD #328: Added 'bar-chart' type for metrics visualization
  */
-export type VisualizationType = 'mermaid' | 'cards' | 'code' | 'table' | 'diff' | 'bar-chart';
+export type VisualizationType =
+  | 'mermaid'
+  | 'cards'
+  | 'code'
+  | 'table'
+  | 'diff'
+  | 'bar-chart';
 
 /**
  * Diff visualization content (PRD #320)
@@ -114,10 +134,10 @@ export interface DiffVisualizationContent {
  * Bar chart data item (PRD #328)
  */
 export interface BarChartDataItem {
-  label: string;       // e.g., "node-1", "kube-system"
-  value: number;       // e.g., 8.5
-  max?: number;        // e.g., 10 (for percentage calculation)
-  status?: 'error' | 'warning' | 'ok';  // for color-coding
+  label: string; // e.g., "node-1", "kube-system"
+  value: number; // e.g., 8.5
+  max?: number; // e.g., 10 (for percentage calculation)
+  status?: 'error' | 'warning' | 'ok'; // for color-coding
 }
 
 /**
@@ -125,8 +145,8 @@ export interface BarChartDataItem {
  */
 export interface BarChartVisualizationContent {
   data: BarChartDataItem[];
-  unit?: string;       // e.g., "Gi", "cores", "%"
-  orientation?: 'horizontal' | 'vertical';  // default: horizontal
+  unit?: string; // e.g., "Gi", "cores", "%"
+  orientation?: 'horizontal' | 'vertical'; // default: horizontal
 }
 
 /**
@@ -140,7 +160,12 @@ export interface Visualization {
     | string // mermaid
     | { language: string; code: string } // code
     | { headers: string[]; rows: string[][] } // table
-    | Array<{ id: string; title: string; description?: string; tags?: string[] }> // cards
+    | Array<{
+        id: string;
+        title: string;
+        description?: string;
+        tags?: string[];
+      }> // cards
     | DiffVisualizationContent // diff
     | BarChartVisualizationContent; // bar-chart
 }
@@ -153,7 +178,7 @@ export interface VisualizationResponse {
   title: string;
   visualizations: Visualization[];
   insights: string[];
-  toolsUsed?: string[];  // Tools called during visualization generation
+  toolsUsed?: string[]; // Tools called during visualization generation
 }
 
 /**
@@ -195,7 +220,7 @@ export class RestApiRouter {
       version: 'v1',
       enableCors: true,
       requestTimeout: 1800000, // 30 minutes for long-running operations (capability scan with slower AI providers)
-      ...config
+      ...config,
     };
 
     // Initialize route registry and register all routes (PRD #354)
@@ -223,7 +248,11 @@ export class RestApiRouter {
    *
    * PRD #354: Uses route registry for matching, dispatches to handlers based on route path.
    */
-  async handleRequest(req: IncomingMessage, res: ServerResponse, body?: unknown): Promise<void> {
+  async handleRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    body?: unknown
+  ): Promise<void> {
     const requestId = this.generateRequestId();
     const startTime = Date.now();
 
@@ -232,7 +261,7 @@ export class RestApiRouter {
         requestId,
         method: req.method,
         url: req.url,
-        hasBody: !!body
+        hasBody: !!body,
       });
 
       // Handle CORS preflight
@@ -261,30 +290,56 @@ export class RestApiRouter {
         });
 
         // Dispatch to handler based on route path
-        await this.dispatchRoute(req, res, requestId, routeMatch, url.searchParams, body, startTime);
+        await this.dispatchRoute(
+          req,
+          res,
+          requestId,
+          routeMatch,
+          url.searchParams,
+          body,
+          startTime
+        );
         return;
       }
 
       // Check if path matches but method is wrong (HTTP 405 per RFC 7231)
-      const allowedMethods = this.routeRegistry.findAllowedMethods(url.pathname);
+      const allowedMethods = this.routeRegistry.findAllowedMethods(
+        url.pathname
+      );
       if (allowedMethods.length > 0) {
         res.setHeader('Allow', allowedMethods.join(', '));
         const methodList = allowedMethods.join(', ');
-        const message = allowedMethods.length === 1
-          ? `Only ${methodList} method allowed`
-          : `Only ${methodList} methods allowed`;
-        await this.sendErrorResponse(res, requestId, HttpStatus.METHOD_NOT_ALLOWED, 'METHOD_NOT_ALLOWED', message);
+        const message =
+          allowedMethods.length === 1
+            ? `Only ${methodList} method allowed`
+            : `Only ${methodList} methods allowed`;
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.METHOD_NOT_ALLOWED,
+          'METHOD_NOT_ALLOWED',
+          message
+        );
         return;
       }
 
       // No match found
-      await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'API endpoint not found');
-
-    } catch (error) {
-      this.logger.error('REST API request failed', error instanceof Error ? error : new Error(String(error)), {
+      await this.sendErrorResponse(
+        res,
         requestId,
-        errorMessage: error instanceof Error ? error.message : String(error)
-      });
+        HttpStatus.NOT_FOUND,
+        'NOT_FOUND',
+        'API endpoint not found'
+      );
+    } catch (error) {
+      this.logger.error(
+        'REST API request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -314,31 +369,82 @@ export class RestApiRouter {
 
     // Handler map: route key -> handler function
     const handlers: Record<string, () => Promise<void>> = {
-      'GET:/api/v1/tools': () => this.handleToolDiscovery(req, res, requestId, searchParams),
-      'POST:/api/v1/tools/:toolName': () => this.handleToolExecution(req, res, requestId, params.toolName, body, startTime),
+      'GET:/api/v1/tools': () =>
+        this.handleToolDiscovery(req, res, requestId, searchParams),
+      'POST:/api/v1/tools/:toolName': () =>
+        this.handleToolExecution(
+          req,
+          res,
+          requestId,
+          params.toolName,
+          body,
+          startTime
+        ),
       'GET:/api/v1/openapi': () => this.handleOpenApiSpec(req, res, requestId),
-      'GET:/api/v1/resources': () => this.handleListResources(req, res, requestId, searchParams),
-      'GET:/api/v1/resources/kinds': () => this.handleGetResourceKinds(req, res, requestId, searchParams),
-      'GET:/api/v1/resources/search': () => this.handleSearchResources(req, res, requestId, searchParams),
-      'POST:/api/v1/resources/sync': () => this.handleResourceSyncRequest(req, res, requestId, body),
-      'GET:/api/v1/resource': () => this.handleGetResource(req, res, requestId, searchParams),
-      'GET:/api/v1/namespaces': () => this.handleGetNamespaces(req, res, requestId),
-      'GET:/api/v1/events': () => this.handleGetEvents(req, res, requestId, searchParams),
-      'GET:/api/v1/logs': () => this.handleGetLogs(req, res, requestId, searchParams),
-      'GET:/api/v1/prompts': () => this.handlePromptsListRequest(req, res, requestId),
-      'POST:/api/v1/prompts/:promptName': () => this.handlePromptsGetRequest(req, res, requestId, params.promptName, body),
-      'GET:/api/v1/visualize/:sessionId': () => this.handleVisualize(req, res, requestId, params.sessionId, searchParams),
-      'GET:/api/v1/sessions/:sessionId': () => this.handleSessionRetrieval(req, res, requestId, params.sessionId),
-      'DELETE:/api/v1/knowledge/source/:sourceIdentifier': () => this.handleDeleteKnowledgeSource(req, res, requestId, params.sourceIdentifier),
-      'POST:/api/v1/knowledge/ask': () => this.handleKnowledgeAsk(req, res, requestId, body),
+      'GET:/api/v1/resources': () =>
+        this.handleListResources(req, res, requestId, searchParams),
+      'GET:/api/v1/resources/kinds': () =>
+        this.handleGetResourceKinds(req, res, requestId, searchParams),
+      'GET:/api/v1/resources/search': () =>
+        this.handleSearchResources(req, res, requestId, searchParams),
+      'POST:/api/v1/resources/sync': () =>
+        this.handleResourceSyncRequest(req, res, requestId, body),
+      'GET:/api/v1/resource': () =>
+        this.handleGetResource(req, res, requestId, searchParams),
+      'GET:/api/v1/namespaces': () =>
+        this.handleGetNamespaces(req, res, requestId),
+      'GET:/api/v1/events': () =>
+        this.handleGetEvents(req, res, requestId, searchParams),
+      'GET:/api/v1/logs': () =>
+        this.handleGetLogs(req, res, requestId, searchParams),
+      'GET:/api/v1/prompts': () =>
+        this.handlePromptsListRequest(req, res, requestId),
+      'POST:/api/v1/prompts/:promptName': () =>
+        this.handlePromptsGetRequest(
+          req,
+          res,
+          requestId,
+          params.promptName,
+          body
+        ),
+      'GET:/api/v1/visualize/:sessionId': () =>
+        this.handleVisualize(
+          req,
+          res,
+          requestId,
+          params.sessionId,
+          searchParams
+        ),
+      'GET:/api/v1/sessions/:sessionId': () =>
+        this.handleSessionRetrieval(req, res, requestId, params.sessionId),
+      'DELETE:/api/v1/knowledge/source/:sourceIdentifier': () =>
+        this.handleDeleteKnowledgeSource(
+          req,
+          res,
+          requestId,
+          params.sourceIdentifier
+        ),
+      'POST:/api/v1/knowledge/ask': () =>
+        this.handleKnowledgeAsk(req, res, requestId, body),
+      'POST:/api/v1/embeddings/migrate': () =>
+        this.handleEmbeddingMigrationRequest(req, res, requestId, body),
     };
 
     const handler = handlers[routeKey];
     if (handler) {
       await handler();
     } else {
-      this.logger.warn('Route matched but no handler found', { requestId, routeKey });
-      await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Handler not found for route');
+      this.logger.warn('Route matched but no handler found', {
+        requestId,
+        routeKey,
+      });
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.NOT_FOUND,
+        'NOT_FOUND',
+        'Handler not found for route'
+      );
     }
   }
 
@@ -346,8 +452,8 @@ export class RestApiRouter {
    * Handle tool discovery requests
    */
   private async handleToolDiscovery(
-    req: IncomingMessage, 
-    res: ServerResponse, 
+    req: IncomingMessage,
+    res: ServerResponse,
     requestId: string,
     searchParams: URLSearchParams
   ): Promise<void> {
@@ -366,13 +472,13 @@ export class RestApiRouter {
           tools,
           total: tools.length,
           categories,
-          tags
+          tags,
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -380,11 +486,16 @@ export class RestApiRouter {
       this.logger.info('Tool discovery request completed', {
         requestId,
         totalTools: tools.length,
-        filters: { category, tag, search }
+        filters: { category, tag, search },
       });
-
     } catch {
-      await this.sendErrorResponse(res, requestId, HttpStatus.INTERNAL_SERVER_ERROR, 'DISCOVERY_ERROR', 'Failed to retrieve tool information');
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'DISCOVERY_ERROR',
+        'Failed to retrieve tool information'
+      );
     }
   }
 
@@ -403,34 +514,56 @@ export class RestApiRouter {
       // Check if tool exists
       const toolMetadata = this.registry.getTool(toolName);
       if (!toolMetadata) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.NOT_FOUND, 'TOOL_NOT_FOUND', `Tool '${toolName}' not found`);
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.NOT_FOUND,
+          'TOOL_NOT_FOUND',
+          `Tool '${toolName}' not found`
+        );
         return;
       }
 
       // Validate request body
       if (!body || typeof body !== 'object') {
-        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'INVALID_REQUEST', 'Request body must be a JSON object');
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST',
+          'Request body must be a JSON object'
+        );
         return;
       }
-
 
       this.logger.info('Executing tool via REST API', {
         requestId,
         toolName,
-        parameters: Object.keys(body)
+        parameters: Object.keys(body),
       });
 
       // Execute the tool handler with timeout
       // Note: Tool handlers expect the same format as MCP calls
       // PRD #343: Pass pluginManager for kubectl operations via plugin system
       const timeoutMs = this.config.requestTimeout;
-      const toolPromise = toolMetadata.handler(body, this.dotAI, this.logger, requestId, this.pluginManager);
+      const toolPromise = toolMetadata.handler(
+        body,
+        this.dotAI,
+        this.logger,
+        requestId,
+        this.pluginManager
+      );
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Request timeout exceeded')), timeoutMs)
+        setTimeout(
+          () => reject(new Error('Request timeout exceeded')),
+          timeoutMs
+        )
       );
       // Prevent unhandled rejection if toolPromise resolves after timeout
       toolPromise.catch(() => {});
-      const mcpResult = await Promise.race([toolPromise, timeoutPromise]) as { content?: Array<{ type: string; text: string }> };
+      const mcpResult = (await Promise.race([toolPromise, timeoutPromise])) as {
+        content?: Array<{ type: string; text: string }>;
+      };
 
       // Transform MCP format to proper REST JSON
       // All MCP tools return JSON.stringify() in content[0].text, so parse it back to proper JSON
@@ -439,18 +572,24 @@ export class RestApiRouter {
         try {
           transformedResult = JSON.parse(mcpResult.content[0].text);
         } catch (parseError) {
-          this.logger.warn('Failed to parse MCP tool result as JSON, returning as text', {
-            requestId,
-            toolName,
-            error: parseError instanceof Error ? parseError.message : String(parseError)
-          });
+          this.logger.warn(
+            'Failed to parse MCP tool result as JSON, returning as text',
+            {
+              requestId,
+              toolName,
+              error:
+                parseError instanceof Error
+                  ? parseError.message
+                  : String(parseError),
+            }
+          );
           transformedResult = mcpResult.content[0].text;
         }
       } else {
         // Fallback for unexpected format
         transformedResult = mcpResult;
       }
-      
+
       const executionTime = Date.now() - startTime;
 
       const response: ToolExecutionResponse = {
@@ -458,13 +597,13 @@ export class RestApiRouter {
         data: {
           result: transformedResult,
           tool: toolName,
-          executionTime
+          executionTime,
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -473,44 +612,61 @@ export class RestApiRouter {
         requestId,
         toolName,
         executionTime,
-        success: true
+        success: true,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Tool execution failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        toolName,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Tool execution failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          toolName,
+          errorMessage,
+        }
+      );
 
-      await this.sendErrorResponse(res, requestId, HttpStatus.INTERNAL_SERVER_ERROR, 'EXECUTION_ERROR', errorMessage);
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'EXECUTION_ERROR',
+        errorMessage
+      );
     }
   }
 
   /**
    * Handle OpenAPI specification requests
    */
-  private async handleOpenApiSpec(req: IncomingMessage, res: ServerResponse, requestId: string): Promise<void> {
+  private async handleOpenApiSpec(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
     try {
       this.logger.debug('Generating OpenAPI specification', { requestId });
-      
+
       const spec = this.openApiGenerator.generateSpec();
-      
+
       await this.sendJsonResponse(res, HttpStatus.OK, spec);
-      
+
       this.logger.info('OpenAPI specification served successfully', {
         requestId,
         pathCount: Object.keys(spec.paths).length,
-        componentCount: Object.keys(spec.components?.schemas || {}).length
+        componentCount: Object.keys(spec.components?.schemas || {}).length,
       });
-      
     } catch (error) {
-      this.logger.error('Failed to generate OpenAPI specification', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage: error instanceof Error ? error.message : String(error)
-      });
-      
+      this.logger.error(
+        'Failed to generate OpenAPI specification',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }
+      );
+
       await this.sendErrorResponse(
         res,
         requestId,
@@ -552,9 +708,16 @@ export class RestApiRouter {
       let httpStatus = HttpStatus.OK;
       if (!response.success) {
         const errorCode = response.error?.code;
-        if (errorCode === 'VECTOR_DB_UNAVAILABLE' || errorCode === 'HEALTH_CHECK_FAILED') {
+        if (
+          errorCode === 'VECTOR_DB_UNAVAILABLE' ||
+          errorCode === 'HEALTH_CHECK_FAILED'
+        ) {
           httpStatus = HttpStatus.SERVICE_UNAVAILABLE;
-        } else if (errorCode === 'SERVICE_INIT_FAILED' || errorCode === 'COLLECTION_INIT_FAILED' || errorCode === 'RESYNC_FAILED') {
+        } else if (
+          errorCode === 'SERVICE_INIT_FAILED' ||
+          errorCode === 'COLLECTION_INIT_FAILED' ||
+          errorCode === 'RESYNC_FAILED'
+        ) {
           httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
         } else {
           httpStatus = HttpStatus.BAD_REQUEST;
@@ -567,15 +730,19 @@ export class RestApiRouter {
         requestId,
         success: response.success,
         upserted: (response.data as Record<string, unknown>)?.upserted,
-        deleted: (response.data as Record<string, unknown>)?.deleted
+        deleted: (response.data as Record<string, unknown>)?.deleted,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Resource sync request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Resource sync request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -602,35 +769,42 @@ export class RestApiRouter {
     try {
       const namespace = searchParams.get('namespace') || undefined;
 
-      this.logger.info('Processing get resource kinds request', { requestId, namespace });
+      this.logger.info('Processing get resource kinds request', {
+        requestId,
+        namespace,
+      });
 
       const kinds = await getResourceKinds(namespace);
 
       const response: RestApiResponse = {
         success: true,
         data: {
-          kinds
+          kinds,
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
 
       this.logger.info('Get resource kinds request completed', {
         requestId,
-        kindCount: kinds.length
+        kindCount: kinds.length,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Get resource kinds request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Get resource kinds request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -702,7 +876,10 @@ export class RestApiRouter {
         return;
       }
 
-      if (minScoreParam && (isNaN(minScore!) || minScore! < 0 || minScore! > 1)) {
+      if (
+        minScoreParam &&
+        (isNaN(minScore!) || minScore! < 0 || minScore! > 1)
+      ) {
         await this.sendErrorResponse(
           res,
           requestId,
@@ -721,11 +898,15 @@ export class RestApiRouter {
         apiVersion,
         limit,
         offset,
-        minScore
+        minScore,
       });
 
       // Build filters
-      const filters: { namespace?: string; kind?: string; apiVersion?: string } = {};
+      const filters: {
+        namespace?: string;
+        kind?: string;
+        apiVersion?: string;
+      } = {};
       if (namespace) filters.namespace = namespace;
       if (kind) filters.kind = kind;
       if (apiVersion) filters.apiVersion = apiVersion;
@@ -754,7 +935,7 @@ export class RestApiRouter {
         apiVersion: r.resource.apiVersion,
         labels: r.resource.labels || {},
         createdAt: r.resource.createdAt,
-        score: r.score
+        score: r.score,
       }));
 
       const response: RestApiResponse = {
@@ -763,13 +944,13 @@ export class RestApiRouter {
           resources,
           total: results.length,
           limit,
-          offset
+          offset,
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -778,15 +959,19 @@ export class RestApiRouter {
         requestId,
         query: q,
         resultCount: resources.length,
-        totalMatches: results.length
+        totalMatches: results.length,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Search resources request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Search resources request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -876,30 +1061,47 @@ export class RestApiRouter {
         namespace,
         includeStatus,
         limit,
-        offset
+        offset,
       });
 
       // PRD #343: Never pass includeStatus to listResources (it uses direct kubectl)
       // Fetch status via plugin separately if requested
-      const result = await listResources({ kind, apiVersion, namespace, limit, offset });
+      const result = await listResources({
+        kind,
+        apiVersion,
+        namespace,
+        limit,
+        offset,
+      });
 
       // Enrich with live status via plugin if requested
       // PRD #359: Use unified plugin registry
-      if (includeStatus && result.resources.length > 0 && isPluginInitialized()) {
-        const statusPromises = result.resources.map(async (resource) => {
+      if (
+        includeStatus &&
+        result.resources.length > 0 &&
+        isPluginInitialized()
+      ) {
+        const statusPromises = result.resources.map(async resource => {
           const resourceType = resource.apiGroup
             ? `${resource.kind.toLowerCase()}.${resource.apiGroup}`
             : resource.kind.toLowerCase();
           const resourceId = `${resourceType}/${resource.name}`;
 
-          const pluginResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
-            resource: resourceId,
-            namespace: resource.namespace,
-            field: 'status'
-          });
+          const pluginResponse = await invokePluginTool(
+            'agentic-tools',
+            'kubectl_get_resource_json',
+            {
+              resource: resourceId,
+              namespace: resource.namespace,
+              field: 'status',
+            }
+          );
 
           if (pluginResponse.success && pluginResponse.result) {
-            const pluginResult = pluginResponse.result as { success: boolean; data: string };
+            const pluginResult = pluginResponse.result as {
+              success: boolean;
+              data: string;
+            };
             if (pluginResult.success && pluginResult.data) {
               try {
                 return { ...resource, status: JSON.parse(pluginResult.data) };
@@ -920,8 +1122,8 @@ export class RestApiRouter {
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -930,15 +1132,19 @@ export class RestApiRouter {
         requestId,
         resourceCount: result.resources.length,
         total: result.total,
-        includeStatus
+        includeStatus,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('List resources request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'List resources request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -968,28 +1174,32 @@ export class RestApiRouter {
       const response: RestApiResponse = {
         success: true,
         data: {
-          namespaces
+          namespaces,
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
 
       this.logger.info('Get namespaces request completed', {
         requestId,
-        namespaceCount: namespaces.length
+        namespaceCount: namespaces.length,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Get namespaces request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Get namespaces request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -1020,19 +1230,43 @@ export class RestApiRouter {
 
       // Validate required parameters
       if (!kind) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'kind query parameter is required');
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'kind query parameter is required'
+        );
         return;
       }
       if (!apiVersion) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'apiVersion query parameter is required');
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'apiVersion query parameter is required'
+        );
         return;
       }
       if (!name) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'name query parameter is required'
+        );
         return;
       }
 
-      this.logger.info('Processing get resource request', { requestId, kind, apiVersion, name, namespace });
+      this.logger.info('Processing get resource request', {
+        requestId,
+        kind,
+        apiVersion,
+        name,
+        namespace,
+      });
 
       // Extract apiGroup from apiVersion (e.g., "apps/v1" -> "apps", "v1" -> "")
       const apiGroup = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
@@ -1050,18 +1284,25 @@ export class RestApiRouter {
       }
 
       // Build resource identifier (kind.group/name or kind/name for core resources)
-      const resourceType = apiGroup ? `${kind.toLowerCase()}.${apiGroup}` : kind.toLowerCase();
+      const resourceType = apiGroup
+        ? `${kind.toLowerCase()}.${apiGroup}`
+        : kind.toLowerCase();
       const resourceId = `${resourceType}/${name}`;
 
       // PRD #359: Use unified plugin registry for kubectl operations
-      const pluginResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
-        resource: resourceId,
-        namespace: namespace
-      });
+      const pluginResponse = await invokePluginTool(
+        'agentic-tools',
+        'kubectl_get_resource_json',
+        {
+          resource: resourceId,
+          namespace: namespace,
+        }
+      );
 
       // Check for plugin-level failures first
       if (!pluginResponse.success) {
-        const errorMsg = pluginResponse.error?.message || 'Plugin invocation failed';
+        const errorMsg =
+          pluginResponse.error?.message || 'Plugin invocation failed';
         await this.sendErrorResponse(
           res,
           requestId,
@@ -1075,7 +1316,11 @@ export class RestApiRouter {
       let resource: object | undefined;
       let pluginError: string | undefined;
       if (pluginResponse.result) {
-        const result = pluginResponse.result as { success: boolean; data: string; error?: string };
+        const result = pluginResponse.result as {
+          success: boolean;
+          data: string;
+          error?: string;
+        };
         if (result.success && result.data) {
           try {
             resource = JSON.parse(result.data);
@@ -1114,13 +1359,13 @@ export class RestApiRouter {
       const response: RestApiResponse = {
         success: true,
         data: {
-          resource
+          resource,
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -1129,15 +1374,19 @@ export class RestApiRouter {
         requestId,
         kind,
         name,
-        namespace
+        namespace,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Get resource request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Get resource request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -1168,15 +1417,33 @@ export class RestApiRouter {
 
       // Validate required parameters
       if (!name) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'name query parameter is required'
+        );
         return;
       }
       if (!kind) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'kind query parameter is required');
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'kind query parameter is required'
+        );
         return;
       }
 
-      this.logger.info('Processing get events request', { requestId, name, kind, namespace, uid });
+      this.logger.info('Processing get events request', {
+        requestId,
+        name,
+        kind,
+        namespace,
+        uid,
+      });
 
       // PRD #359: Use unified plugin registry
       if (!isPluginInitialized()) {
@@ -1193,25 +1460,40 @@ export class RestApiRouter {
       // Build field selector for involvedObject filtering
       const fieldSelectors: string[] = [
         `involvedObject.name=${name}`,
-        `involvedObject.kind=${kind}`
+        `involvedObject.kind=${kind}`,
       ];
       if (uid) {
         fieldSelectors.push(`involvedObject.uid=${uid}`);
       }
 
       // PRD #359: Use unified plugin registry for kubectl operations
-      const pluginResponse = await invokePluginTool('agentic-tools', 'kubectl_events', {
-        namespace: namespace,
-        args: [`--field-selector=${fieldSelectors.join(',')}`]
-      });
+      const pluginResponse = await invokePluginTool(
+        'agentic-tools',
+        'kubectl_events',
+        {
+          namespace: namespace,
+          args: [`--field-selector=${fieldSelectors.join(',')}`],
+        }
+      );
 
-      const events: Array<{ lastTimestamp: string; type: string; reason: string; involvedObject: { kind: string; name: string }; message: string }> = [];
+      const events: Array<{
+        lastTimestamp: string;
+        type: string;
+        reason: string;
+        involvedObject: { kind: string; name: string };
+        message: string;
+      }> = [];
       if (pluginResponse.success && pluginResponse.result) {
-        const pluginResult = pluginResponse.result as { success: boolean; data: string };
+        const pluginResult = pluginResponse.result as {
+          success: boolean;
+          data: string;
+        };
         if (pluginResult.success && pluginResult.data) {
           // Parse the table output or handle JSON if available
           // Events output is typically table format, so we need to parse it
-          const lines = pluginResult.data.split('\n').filter(line => line.trim());
+          const lines = pluginResult.data
+            .split('\n')
+            .filter(line => line.trim());
           if (lines.length > 1) {
             // Skip header line, parse remaining lines
             for (let i = 1; i < lines.length; i++) {
@@ -1222,7 +1504,7 @@ export class RestApiRouter {
                   type: parts[1],
                   reason: parts[2],
                   involvedObject: { kind, name },
-                  message: parts.slice(4).join(' ')
+                  message: parts.slice(4).join(' '),
                 });
               }
             }
@@ -1234,13 +1516,13 @@ export class RestApiRouter {
         success: true,
         data: {
           events,
-          count: events.length
+          count: events.length,
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -1250,15 +1532,19 @@ export class RestApiRouter {
         name,
         kind,
         namespace,
-        eventCount: events.length
+        eventCount: events.length,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Get events request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Get events request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -1289,11 +1575,23 @@ export class RestApiRouter {
 
       // Validate required parameters
       if (!name) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'name query parameter is required');
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'name query parameter is required'
+        );
         return;
       }
       if (!namespace) {
-        await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'namespace query parameter is required');
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'BAD_REQUEST',
+          'namespace query parameter is required'
+        );
         return;
       }
 
@@ -1302,12 +1600,24 @@ export class RestApiRouter {
       if (tailLinesParam) {
         tailLines = parseInt(tailLinesParam, 10);
         if (isNaN(tailLines) || tailLines < 1) {
-          await this.sendErrorResponse(res, requestId, HttpStatus.BAD_REQUEST, 'INVALID_PARAMETER', 'tailLines must be a positive integer');
+          await this.sendErrorResponse(
+            res,
+            requestId,
+            HttpStatus.BAD_REQUEST,
+            'INVALID_PARAMETER',
+            'tailLines must be a positive integer'
+          );
           return;
         }
       }
 
-      this.logger.info('Processing get logs request', { requestId, name, namespace, container, tailLines });
+      this.logger.info('Processing get logs request', {
+        requestId,
+        name,
+        namespace,
+        container,
+        tailLines,
+      });
 
       // PRD #359: Use unified plugin registry
       if (!isPluginInitialized()) {
@@ -1331,14 +1641,19 @@ export class RestApiRouter {
       }
 
       // PRD #359: Use unified plugin registry for kubectl operations
-      const pluginResponse = await invokePluginTool('agentic-tools', 'kubectl_logs', {
-        resource: name,
-        namespace: namespace,
-        args: args.length > 0 ? args : undefined
-      });
+      const pluginResponse = await invokePluginTool(
+        'agentic-tools',
+        'kubectl_logs',
+        {
+          resource: name,
+          namespace: namespace,
+          args: args.length > 0 ? args : undefined,
+        }
+      );
 
       if (!pluginResponse.success) {
-        const errorMsg = pluginResponse.error?.message || 'Failed to retrieve logs';
+        const errorMsg =
+          pluginResponse.error?.message || 'Failed to retrieve logs';
         await this.sendErrorResponse(
           res,
           requestId,
@@ -1350,7 +1665,11 @@ export class RestApiRouter {
         return;
       }
 
-      const result = pluginResponse.result as { success: boolean; data: string; message: string };
+      const result = pluginResponse.result as {
+        success: boolean;
+        data: string;
+        message: string;
+      };
       if (!result.success) {
         await this.sendErrorResponse(
           res,
@@ -1368,13 +1687,13 @@ export class RestApiRouter {
         data: {
           logs: result.data,
           container: container || 'default',
-          containerCount: 1
+          containerCount: 1,
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -1384,15 +1703,19 @@ export class RestApiRouter {
         name,
         namespace,
         container: container || 'default',
-        logLength: result.data.length
+        logLength: result.data.length,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Get logs request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        errorMessage
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Get logs request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          errorMessage,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -1424,21 +1747,24 @@ export class RestApiRouter {
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
 
       this.logger.info('Prompts list request completed', {
         requestId,
-        promptCount: result.prompts?.length || 0
+        promptCount: result.prompts?.length || 0,
       });
-
     } catch (error) {
-      this.logger.error('Prompts list request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId
-      });
+      this.logger.error(
+        'Prompts list request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -1461,9 +1787,14 @@ export class RestApiRouter {
     body: unknown
   ): Promise<void> {
     try {
-      this.logger.info('Processing prompt get request', { requestId, promptName });
+      this.logger.info('Processing prompt get request', {
+        requestId,
+        promptName,
+      });
 
-      const bodyObj = body as { arguments?: Record<string, string> } | undefined;
+      const bodyObj = body as
+        | { arguments?: Record<string, string> }
+        | undefined;
       const result = await handlePromptsGetRequest(
         { name: promptName, arguments: bodyObj?.arguments },
         this.logger,
@@ -1476,32 +1807,39 @@ export class RestApiRouter {
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
 
       this.logger.info('Prompt get request completed', {
         requestId,
-        promptName
+        promptName,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Prompt get request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        promptName
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Prompt get request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          promptName,
+        }
+      );
 
       // Check if it's a validation error (missing required arguments or prompt not found)
-      const isValidationError = errorMessage.includes('Missing required arguments') ||
-                                errorMessage.includes('Prompt not found');
+      const isValidationError =
+        errorMessage.includes('Missing required arguments') ||
+        errorMessage.includes('Prompt not found');
 
       await this.sendErrorResponse(
         res,
         requestId,
-        isValidationError ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR,
+        isValidationError
+          ? HttpStatus.BAD_REQUEST
+          : HttpStatus.INTERNAL_SERVER_ERROR,
         isValidationError ? 'VALIDATION_ERROR' : 'PROMPT_GET_ERROR',
         errorMessage
       );
@@ -1532,14 +1870,19 @@ export class RestApiRouter {
         requestId,
         sessionIds,
         isMultiSession,
-        reload
+        reload,
       });
 
       // Fetch all sessions
-      const sessions: Array<{ sessionId: string; data: QuerySessionData & BaseVisualizationData }> = [];
+      const sessions: Array<{
+        sessionId: string;
+        data: QuerySessionData & BaseVisualizationData;
+      }> = [];
       for (const sessionId of sessionIds) {
         const sessionPrefix = extractPrefixFromSessionId(sessionId);
-        const sessionManager = new GenericSessionManager<QuerySessionData & BaseVisualizationData>(sessionPrefix);
+        const sessionManager = new GenericSessionManager<
+          QuerySessionData & BaseVisualizationData
+        >(sessionPrefix);
         const session = sessionManager.getSession(sessionId);
 
         if (!session) {
@@ -1558,26 +1901,31 @@ export class RestApiRouter {
       // For single session, check cache (multi-session doesn't use cache yet)
       // PRD #320: Skip cache if reload=true to regenerate from current session data
       const primarySession = sessions[0];
-      if (!isMultiSession && !reload && primarySession.data.cachedVisualization) {
+      if (
+        !isMultiSession &&
+        !reload &&
+        primarySession.data.cachedVisualization
+      ) {
         this.logger.info('Returning cached visualization', {
           requestId,
           sessionId: sessionIds[0],
-          generatedAt: primarySession.data.cachedVisualization.generatedAt
+          generatedAt: primarySession.data.cachedVisualization.generatedAt,
         });
 
         const cachedResponse: RestApiResponse = {
           success: true,
           data: {
             title: primarySession.data.cachedVisualization.title,
-            visualizations: primarySession.data.cachedVisualization.visualizations,
+            visualizations:
+              primarySession.data.cachedVisualization.visualizations,
             insights: primarySession.data.cachedVisualization.insights,
-            toolsUsed: primarySession.data.cachedVisualization.toolsUsed  // PRD #320
+            toolsUsed: primarySession.data.cachedVisualization.toolsUsed, // PRD #320
           },
           meta: {
             timestamp: new Date().toISOString(),
             requestId,
-            version: this.config.version
-          }
+            version: this.config.version,
+          },
         };
 
         await this.sendJsonResponse(res, HttpStatus.OK, cachedResponse);
@@ -1602,7 +1950,12 @@ export class RestApiRouter {
       const toolName = (primarySession.data.toolName || 'query') as string;
       const promptName = getPromptForTool(toolName);
 
-      this.logger.info('Loading visualization prompt', { requestId, sessionIds, toolName, promptName });
+      this.logger.info('Loading visualization prompt', {
+        requestId,
+        sessionIds,
+        toolName,
+        promptName,
+      });
 
       // Load system prompt with session context
       // PRD #320: Unified visualization prompt with tool-aware data selection
@@ -1610,11 +1963,16 @@ export class RestApiRouter {
       let data: unknown;
 
       // Cast to allow access to tool-specific properties
-      const sessionData = primarySession.data as unknown as Record<string, unknown>;
+      const sessionData = primarySession.data as unknown as Record<
+        string,
+        unknown
+      >;
       switch (toolName) {
         case 'recommend':
           intent = (sessionData.intent as string) || '';
-          data = isMultiSession ? sessions.map(s => s.data) : primarySession.data;
+          data = isMultiSession
+            ? sessions.map(s => s.data)
+            : primarySession.data;
           break;
         case 'remediate':
           intent = (sessionData.issue as string) || '';
@@ -1638,18 +1996,33 @@ export class RestApiRouter {
       const promptData = {
         intent,
         data: JSON.stringify(data, null, 2),
-        visualizationOutput: loadPrompt('partials/visualization-output')
+        visualizationOutput: loadPrompt('partials/visualization-output'),
       };
 
       const systemPrompt = loadPrompt(promptName, promptData);
 
       // PRD #343: Local executor for non-plugin tools (capability, resource, mermaid)
-      const localToolExecutor = async (toolName: string, input: unknown): Promise<unknown> => {
-        if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
-          return executeCapabilityTools(toolName, input as Record<string, unknown>);
+      const localToolExecutor = async (
+        toolName: string,
+        input: unknown
+      ): Promise<unknown> => {
+        if (
+          toolName.startsWith('search_capabilities') ||
+          toolName.startsWith('query_capabilities')
+        ) {
+          return executeCapabilityTools(
+            toolName,
+            input as Record<string, unknown>
+          );
         }
-        if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
-          return executeResourceTools(toolName, input as SearchResourcesInput | QueryResourcesInput);
+        if (
+          toolName.startsWith('search_resources') ||
+          toolName.startsWith('query_resources')
+        ) {
+          return executeResourceTools(
+            toolName,
+            input as SearchResourcesInput | QueryResourcesInput
+          );
         }
         // PRD #320: Mermaid validation tools
         if (toolName === 'validate_mermaid') {
@@ -1658,7 +2031,7 @@ export class RestApiRouter {
         return {
           success: false,
           error: `Unknown tool: ${toolName}`,
-          message: `Tool '${toolName}' is not implemented in visualization`
+          message: `Tool '${toolName}' is not implemented in visualization`,
         };
       };
 
@@ -1674,24 +2047,36 @@ export class RestApiRouter {
         'kubectl_describe',
         'kubectl_logs',
         'kubectl_events',
-        'kubectl_get_crd_schema'
+        'kubectl_get_crd_schema',
       ];
       const pluginKubectlTools = this.pluginManager
-        ? this.pluginManager.getDiscoveredTools().filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
+        ? this.pluginManager
+            .getDiscoveredTools()
+            .filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
         : [];
 
-      this.logger.info('Starting AI visualization generation with tools', { requestId, sessionIds, toolName });
+      this.logger.info('Starting AI visualization generation with tools', {
+        requestId,
+        sessionIds,
+        toolName,
+      });
 
       // Execute tool loop - AI can gather additional data if needed
       const result = await aiProvider.toolLoop({
         systemPrompt,
-        userMessage: 'Generate visualizations based on the query results provided. Use tools if you need additional information about any resources.',
+        userMessage:
+          'Generate visualizations based on the query results provided. Use tools if you need additional information about any resources.',
         // PRD #320: Include MERMAID_TOOLS for diagram validation
         // PRD #343: kubectl tools from plugin
-        tools: [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...MERMAID_TOOLS],
+        tools: [
+          ...CAPABILITY_TOOLS,
+          ...RESOURCE_TOOLS,
+          ...pluginKubectlTools,
+          ...MERMAID_TOOLS,
+        ],
         toolExecutor: executeVisualizationTools,
-        maxIterations: 10,  // Allow enough iterations for tool calls + JSON generation
-        operation: `visualize-${toolName}`  // PRD #320: Include tool name for debugging
+        maxIterations: 10, // Allow enough iterations for tool calls + JSON generation
+        operation: `visualize-${toolName}`, // PRD #320: Include tool name for debugging
       });
 
       this.logger.info('AI visualization generation completed', {
@@ -1699,21 +2084,32 @@ export class RestApiRouter {
         sessionIds,
         toolName,
         iterations: result.iterations,
-        toolsUsed: [...new Set(result.toolCallsExecuted.map(tc => tc.tool))]
+        toolsUsed: [...new Set(result.toolCallsExecuted.map(tc => tc.tool))],
       });
 
       // Parse AI response as JSON using shared function
       let visualizationResponse: VisualizationResponse;
       let isFallbackResponse = false;
       try {
-        const toolsUsed = [...new Set(result.toolCallsExecuted.map(tc => tc.tool))];
-        visualizationResponse = parseVisualizationResponse(result.finalMessage, toolsUsed);
+        const toolsUsed = [
+          ...new Set(result.toolCallsExecuted.map(tc => tc.tool)),
+        ];
+        visualizationResponse = parseVisualizationResponse(
+          result.finalMessage,
+          toolsUsed
+        );
       } catch (parseError) {
-        this.logger.error('Failed to parse AI visualization response', parseError instanceof Error ? parseError : new Error(String(parseError)), {
-          requestId,
-          sessionIds,
-          rawResponse: result.finalMessage.substring(0, 500)
-        });
+        this.logger.error(
+          'Failed to parse AI visualization response',
+          parseError instanceof Error
+            ? parseError
+            : new Error(String(parseError)),
+          {
+            requestId,
+            sessionIds,
+            rawResponse: result.finalMessage.substring(0, 500),
+          }
+        );
 
         // Fallback to basic visualization on parse error
         // NOTE: isFallbackResponse flag prevents caching this response
@@ -1727,13 +2123,17 @@ export class RestApiRouter {
               type: 'code',
               content: {
                 language: 'json',
-                code: JSON.stringify(isMultiSession ? sessions.map(s => s.data) : primarySession.data, null, 2)
-              }
-            }
+                code: JSON.stringify(
+                  isMultiSession
+                    ? sessions.map(s => s.data)
+                    : primarySession.data,
+                  null,
+                  2
+                ),
+              },
+            },
           ],
-          insights: [
-            'AI visualization generation failed - showing raw data'
-          ]
+          insights: ['AI visualization generation failed - showing raw data'],
         };
       }
 
@@ -1741,19 +2141,27 @@ export class RestApiRouter {
       // Don't cache fallback responses - let subsequent requests retry AI generation
       if (!isMultiSession && !isFallbackResponse) {
         const sessionPrefix = extractPrefixFromSessionId(sessionIds[0]);
-        const cacheManager = new GenericSessionManager<QuerySessionData & BaseVisualizationData>(sessionPrefix);
+        const cacheManager = new GenericSessionManager<
+          QuerySessionData & BaseVisualizationData
+        >(sessionPrefix);
         cacheManager.updateSession(sessionIds[0], {
           cachedVisualization: {
             title: visualizationResponse.title,
             visualizations: visualizationResponse.visualizations,
             insights: visualizationResponse.insights,
-            toolsUsed: visualizationResponse.toolsUsed,  // PRD #320: Cache toolsUsed
-            generatedAt: new Date().toISOString()
-          }
+            toolsUsed: visualizationResponse.toolsUsed, // PRD #320: Cache toolsUsed
+            generatedAt: new Date().toISOString(),
+          },
         });
-        this.logger.info('Visualization cached in session', { requestId, sessionId: sessionIds[0] });
+        this.logger.info('Visualization cached in session', {
+          requestId,
+          sessionId: sessionIds[0],
+        });
       } else if (isFallbackResponse) {
-        this.logger.warn('Skipping cache for fallback visualization response', { requestId, sessionId: sessionIds[0] });
+        this.logger.warn('Skipping cache for fallback visualization response', {
+          requestId,
+          sessionId: sessionIds[0],
+        });
       }
 
       const response: RestApiResponse = {
@@ -1762,8 +2170,8 @@ export class RestApiRouter {
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -1773,15 +2181,19 @@ export class RestApiRouter {
         sessionIds,
         visualizationCount: visualizationResponse.visualizations.length,
         cached: !isMultiSession && !isFallbackResponse,
-        isFallback: isFallbackResponse
+        isFallback: isFallbackResponse,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Visualization request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        sessionIdParam
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Visualization request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          sessionIdParam,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -1811,10 +2223,12 @@ export class RestApiRouter {
       this.logger.info('Processing session retrieval', {
         requestId,
         sessionId,
-        sessionPrefix
+        sessionPrefix,
       });
 
-      const sessionManager = new GenericSessionManager<Record<string, unknown>>(sessionPrefix);
+      const sessionManager = new GenericSessionManager<Record<string, unknown>>(
+        sessionPrefix
+      );
       const session = sessionManager.getSession(sessionId);
 
       if (!session) {
@@ -1834,8 +2248,8 @@ export class RestApiRouter {
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: this.config.version
-        }
+          version: this.config.version,
+        },
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
@@ -1843,15 +2257,19 @@ export class RestApiRouter {
       this.logger.info('Session retrieved successfully', {
         requestId,
         sessionId,
-        toolName: session.data?.toolName || 'unknown'
+        toolName: session.data?.toolName || 'unknown',
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Session retrieval failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        sessionId
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Session retrieval failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          sessionId,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -1900,24 +2318,41 @@ export class RestApiRouter {
       const PLUGIN_NAME = 'agentic-tools';
 
       // Step 1: Query all chunks matching the sourceIdentifier in metadata
-      const queryResponse = await invokePluginTool(PLUGIN_NAME, 'vector_query', {
-        collection: KNOWLEDGE_COLLECTION,
-        filter: {
-          must: [{ key: 'metadata.sourceIdentifier', match: { value: decodedSourceIdentifier } }],
-        },
-        limit: 10000, // High limit to get all chunks for a source
-      });
+      const queryResponse = await invokePluginTool(
+        PLUGIN_NAME,
+        'vector_query',
+        {
+          collection: KNOWLEDGE_COLLECTION,
+          filter: {
+            must: [
+              {
+                key: 'metadata.sourceIdentifier',
+                match: { value: decodedSourceIdentifier },
+              },
+            ],
+          },
+          limit: 10000, // High limit to get all chunks for a source
+        }
+      );
 
       if (!queryResponse.success) {
-        const error = queryResponse.error as { message?: string; error?: string } | undefined;
+        const error = queryResponse.error as
+          | { message?: string; error?: string }
+          | undefined;
         const errorMessage = error?.message || error?.error || 'Query failed';
 
         // If collection doesn't exist (Not Found), return success with 0 deleted
-        if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-          this.logger.info('Collection not found - returning success with 0 deleted', {
-            requestId,
-            sourceIdentifier: decodedSourceIdentifier,
-          });
+        if (
+          errorMessage.includes('Not Found') ||
+          errorMessage.includes('not found')
+        ) {
+          this.logger.info(
+            'Collection not found - returning success with 0 deleted',
+            {
+              requestId,
+              sourceIdentifier: decodedSourceIdentifier,
+            }
+          );
 
           const response: RestApiResponse = {
             success: true,
@@ -1966,11 +2401,17 @@ export class RestApiRouter {
         const errorMessage = queryResult.error || queryResult.message;
 
         // If collection doesn't exist, return success with 0 deleted
-        if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-          this.logger.info('Collection not found - returning success with 0 deleted', {
-            requestId,
-            sourceIdentifier: decodedSourceIdentifier,
-          });
+        if (
+          errorMessage.includes('Not Found') ||
+          errorMessage.includes('not found')
+        ) {
+          this.logger.info(
+            'Collection not found - returning success with 0 deleted',
+            {
+              requestId,
+              sourceIdentifier: decodedSourceIdentifier,
+            }
+          );
 
           const response: RestApiResponse = {
             success: true,
@@ -2031,13 +2472,19 @@ export class RestApiRouter {
       for (const chunk of chunksToDelete) {
         this.logger.debug('Deleting chunk', { requestId, chunkId: chunk.id });
 
-        const deleteResponse = await invokePluginTool(PLUGIN_NAME, 'vector_delete', {
-          collection: KNOWLEDGE_COLLECTION,
-          id: chunk.id,
-        });
+        const deleteResponse = await invokePluginTool(
+          PLUGIN_NAME,
+          'vector_delete',
+          {
+            collection: KNOWLEDGE_COLLECTION,
+            id: chunk.id,
+          }
+        );
 
         if (!deleteResponse.success) {
-          const error = deleteResponse.error as { message?: string } | undefined;
+          const error = deleteResponse.error as
+            | { message?: string }
+            | undefined;
           const errorMessage = error?.message || 'Delete failed';
           this.logger.error('Failed to delete chunk', new Error(errorMessage), {
             requestId,
@@ -2050,7 +2497,11 @@ export class RestApiRouter {
             HttpStatus.INTERNAL_SERVER_ERROR,
             'DELETE_SOURCE_ERROR',
             'Failed to delete chunk',
-            { chunkId: chunk.id, error: errorMessage, chunksDeletedBeforeFailure: deletedCount }
+            {
+              chunkId: chunk.id,
+              error: errorMessage,
+              chunksDeletedBeforeFailure: deletedCount,
+            }
           );
           return;
         }
@@ -2078,13 +2529,17 @@ export class RestApiRouter {
       };
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Delete knowledge source request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-        sourceIdentifier,
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Delete knowledge source request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+          sourceIdentifier,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -2121,7 +2576,11 @@ export class RestApiRouter {
         return;
       }
 
-      const { query, limit = 20, uriFilter } = body as {
+      const {
+        query,
+        limit = 20,
+        uriFilter,
+      } = body as {
         query?: string;
         limit?: number;
         uriFilter?: string;
@@ -2186,7 +2645,8 @@ export class RestApiRouter {
       // Define the search tool for the AI
       const searchTool: AITool = {
         name: 'search_knowledge_base',
-        description: 'Search the knowledge base for relevant information. Returns chunks of text from documents that match the query semantically.',
+        description:
+          'Search the knowledge base for relevant information. Returns chunks of text from documents that match the query semantically.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -2208,7 +2668,10 @@ export class RestApiRouter {
       }> = [];
 
       // Tool executor that calls searchKnowledgeBase
-      const toolExecutor = async (toolName: string, input: unknown): Promise<unknown> => {
+      const toolExecutor = async (
+        toolName: string,
+        input: unknown
+      ): Promise<unknown> => {
         if (toolName !== 'search_knowledge_base') {
           return {
             success: false,
@@ -2234,7 +2697,11 @@ export class RestApiRouter {
         // Collect chunks for the response
         for (const chunk of result.chunks) {
           // Avoid duplicates (same id)
-          if (!allChunks.some(c => c.uri === chunk.uri && c.chunkIndex === chunk.chunkIndex)) {
+          if (
+            !allChunks.some(
+              c => c.uri === chunk.uri && c.chunkIndex === chunk.chunkIndex
+            )
+          ) {
             allChunks.push({
               content: chunk.content,
               uri: chunk.uri,
@@ -2321,12 +2788,16 @@ export class RestApiRouter {
         chunksReturned: allChunks.length,
         answerLength: result.finalMessage.length,
       });
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Knowledge ask request failed', error instanceof Error ? error : new Error(String(error)), {
-        requestId,
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Knowledge ask request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          requestId,
+        }
+      );
 
       await this.sendErrorResponse(
         res,
@@ -2340,19 +2811,87 @@ export class RestApiRouter {
   }
 
   /**
+   * Handle embedding migration request (PRD #384)
+   */
+  private async handleEmbeddingMigrationRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    body: unknown
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing embedding migration request', { requestId });
+
+      // Delegate to the embedding migration handler
+      const response = await handleEmbeddingMigration(
+        body,
+        this.logger,
+        requestId
+      );
+
+      // Determine HTTP status based on response
+      let httpStatus = HttpStatus.OK;
+      if (!response.success) {
+        const errorCode = response.error?.code;
+        if (
+          errorCode === 'PLUGIN_UNAVAILABLE' ||
+          errorCode === 'EMBEDDING_SERVICE_UNAVAILABLE'
+        ) {
+          httpStatus = HttpStatus.SERVICE_UNAVAILABLE;
+        } else if (errorCode === 'MIGRATION_ERROR') {
+          httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+        } else {
+          httpStatus = HttpStatus.BAD_REQUEST;
+        }
+      }
+
+      await this.sendJsonResponse(res, httpStatus, response);
+
+      this.logger.info('Embedding migration request completed', {
+        requestId,
+        success: response.success,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Embedding migration request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        { requestId }
+      );
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'MIGRATION_ERROR',
+        'Failed to process embedding migration request',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
    * Set CORS headers
    */
   private setCorsHeaders(res: ServerResponse): void {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization'
+    );
     res.setHeader('Access-Control-Max-Age', '86400');
   }
 
   /**
    * Send JSON response
    */
-  private async sendJsonResponse(res: ServerResponse, status: HttpStatus, data: unknown): Promise<void> {
+  private async sendJsonResponse(
+    res: ServerResponse,
+    status: HttpStatus,
+    data: unknown
+  ): Promise<void> {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data, null, 2));
   }
@@ -2373,13 +2912,13 @@ export class RestApiRouter {
       error: {
         code,
         message,
-        details
+        details,
       },
       meta: {
         timestamp: new Date().toISOString(),
         requestId,
-        version: this.config.version
-      }
+        version: this.config.version,
+      },
     };
 
     await this.sendJsonResponse(res, status, response);
@@ -2396,7 +2935,9 @@ export class RestApiRouter {
    * Check if the given path matches the REST API pattern
    */
   isApiRequest(pathname: string): boolean {
-    return pathname.startsWith(`${this.config.basePath}/${this.config.version}`);
+    return pathname.startsWith(
+      `${this.config.basePath}/${this.config.version}`
+    );
   }
 
   /**

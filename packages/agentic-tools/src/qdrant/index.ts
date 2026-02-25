@@ -18,7 +18,12 @@ export type {
 } from './types';
 
 // Client
-export { getQdrantClient, resetQdrantClient, isClientInitialized, getQdrantConfig } from './client';
+export {
+  getQdrantClient,
+  resetQdrantClient,
+  isClientInitialized,
+  getQdrantConfig,
+} from './client';
 
 // Operations (shared internal functions)
 export {
@@ -33,4 +38,6 @@ export {
   getCollectionStats,
   healthCheck,
   collectionExists,
+  listCollections,
+  deleteCollection,
 } from './operations';
