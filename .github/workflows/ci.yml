@@ -48,7 +48,7 @@ jobs:
     - name: Check if secrets are available
       id: secrets-check
       run: |
-        if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ] && [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+        if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
           echo "available=true" >> $GITHUB_OUTPUT
         else
           echo "available=false" >> $GITHUB_OUTPUT
@@ -61,7 +61,7 @@ jobs:
       timeout-minutes: 30
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        USE_LOCAL_EMBEDDINGS: "true"
 
     - name: Skip integration tests (fork PR)
       if: steps.secrets-check.outputs.available == 'false'

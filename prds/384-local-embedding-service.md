@@ -44,7 +44,7 @@ Since OpenAI is the hardcoded default embedding provider in the server code (`EM
 | **Resource footprint** | ~128 MB RAM, 0.5 CPU (request), no GPU required |
 | **Container image** | `ghcr.io/huggingface/text-embeddings-inference:cpu-latest` |
 | **Helm toggle** | `localEmbeddings.enabled` (default: `false`, set `true` in quickstart docs) |
-| **Server code changes** | None — uses existing `CUSTOM_EMBEDDINGS_BASE_URL` |
+| **Server code changes** | Minimal — `getStatus()` reports `provider: 'custom'` when `CUSTOM_EMBEDDINGS_BASE_URL` is set |
 
 ## Success Criteria
 
@@ -99,9 +99,9 @@ The GHA workflow (`build-qdrant-test-image.yml`):
 
 - [x] Create GHA workflow (`build-qdrant-test-image.yml`) that deploys full stack on amd64, runs migration, and builds new 384-dim Qdrant test image
 - [x] Run GHA workflow to verify migration works end-to-end and produces the 384-dim Qdrant test image (run 22415344056)
-- [ ] Update test infrastructure (`run-integration-tests.sh`) to detect architecture and conditionally deploy TEI (amd64) or use OpenAI embeddings (arm64)
-- [ ] CI tests passing with local embeddings (no external embedding API keys required for CI)
-- [ ] Local tests still passing with OpenAI embeddings
+- [x] Update test infrastructure (`run-integration-tests.sh`) with `USE_LOCAL_EMBEDDINGS` env var: conditionally deploys TEI + 384-dim Qdrant image (CI) or uses OpenAI embeddings + 1536-dim image (local dev)
+- [x] CI tests passing with local embeddings (`ci.yml` and `test-fork-pr.yml` set `USE_LOCAL_EMBEDDINGS=true`, `OPENAI_API_KEY` removed from CI)
+- [x] Local tests still passing with OpenAI embeddings (147/147 tests pass without `USE_LOCAL_EMBEDDINGS`)
 
 ### Phase 4: Documentation + Release
 

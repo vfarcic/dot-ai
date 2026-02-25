@@ -55,7 +55,7 @@ jobs:
       timeout-minutes: 30
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        USE_LOCAL_EMBEDDINGS: "true"
 
     - name: Post success comment on PR
       if: success()
