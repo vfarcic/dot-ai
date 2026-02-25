@@ -35,11 +35,11 @@ sidebar_position: 2
 
 **For organizational pattern management:**
 - **Vector DB service** (Qdrant) for pattern storage and semantic search
-- **Embeddings** - Required for semantic pattern matching (included by default via local embeddings; alternatively use a cloud provider — see [Embedding Provider Configuration](setup/deployment.md#embedding-provider-configuration))
+- **Embeddings** - Required for semantic pattern matching (in this guide, enabled via `localEmbeddings.enabled=true`; alternatively use a cloud provider — see [Embedding Provider Configuration](setup/deployment.md#embedding-provider-configuration))
 
 **For policy management and governance:**
 - **Vector DB service** (Qdrant) for policy storage and semantic search
-- **Embeddings** - Required for semantic policy matching (same as above)
+- **Embeddings** - Required for semantic policy matching (same configuration as above)
 - **Optional**: Kyverno installed in cluster for active policy enforcement
 
 ## Installation

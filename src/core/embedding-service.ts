@@ -94,11 +94,12 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
           config.model ||
           process.env.EMBEDDINGS_MODEL ||
           'text-embedding-3-small';
+        const envDimensions = process.env.EMBEDDINGS_DIMENSIONS
+          ? parseInt(process.env.EMBEDDINGS_DIMENSIONS, 10)
+          : undefined;
         this.dimensions =
           config.dimensions ||
-          (process.env.EMBEDDINGS_DIMENSIONS
-            ? parseInt(process.env.EMBEDDINGS_DIMENSIONS, 10)
-            : 1536);
+          (Number.isFinite(envDimensions) ? envDimensions! : 1536);
         break;
       case 'google':
         this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || '';
@@ -423,7 +424,8 @@ export class EmbeddingService {
       const providerName =
         (this.provider as VercelEmbeddingProvider).getProviderType?.() ||
         'unknown';
-      const isCustomEndpoint = !!process.env.CUSTOM_EMBEDDINGS_BASE_URL;
+      const isCustomEndpoint =
+        providerName === 'openai' && !!process.env.CUSTOM_EMBEDDINGS_BASE_URL;
 
       return {
         available: true,

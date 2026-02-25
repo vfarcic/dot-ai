@@ -58,19 +58,19 @@ describe.concurrent('Version Tool Integration', () => {
                 url: expect.stringContaining('qdrant'), // Service DNS in-cluster
                 collections: {
                   patterns: expect.objectContaining({
-                    exists: expect.any(Boolean),
+                    exists: true,
                   }),
                   policies: expect.objectContaining({
-                    exists: expect.any(Boolean),
+                    exists: true,
                   }),
                   capabilities: expect.objectContaining({
-                    exists: expect.any(Boolean),
+                    exists: true,
                   }),
                   resources: expect.objectContaining({
-                    exists: expect.any(Boolean),
+                    exists: true,
                   }),
                   knowledgeBase: expect.objectContaining({
-                    exists: expect.any(Boolean),
+                    exists: true,
                   }),
                 },
               },
@@ -158,7 +158,7 @@ describe.concurrent('Version Tool Integration', () => {
       const response = await integrationTest.httpClient.post(
         '/api/v1/tools/version',
         {
-          interaction_id: 'system_status',
+          interaction_id: `system_status_${Date.now()}`,
         }
       );
 
@@ -244,7 +244,7 @@ describe.concurrent('Version Tool Integration', () => {
 
       // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid diagrams present
       const hasMermaid = vizResponse.data.visualizations.some(
-        (v: any) => v.type === 'mermaid'
+        (v: { type: string }) => v.type === 'mermaid'
       );
       if (hasMermaid) {
         expect(vizResponse.data.toolsUsed).toContain('validate_mermaid');
@@ -359,7 +359,7 @@ describe.concurrent('Version Tool Integration', () => {
       const response = await integrationTest.httpClient.post(
         '/api/v1/tools/version',
         {
-          interaction_id: 'test_environment_validation',
+          interaction_id: `test_environment_validation_${Date.now()}`,
         }
       );
 

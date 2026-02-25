@@ -319,7 +319,7 @@ helm upgrade --install dot-ai ./charts \
     --set ingress.host=dot-ai.127.0.0.1.nip.io \
     --set qdrant.enabled=false \
     --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
-    ${USE_LOCAL_EMBEDDINGS:+--set localEmbeddings.enabled=true} \
+    $([[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]] && echo "--set localEmbeddings.enabled=true") \
     --set webUI.baseUrl="https://dot-ai-ui.test.local" \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
