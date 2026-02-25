@@ -22,6 +22,7 @@ This roadmap is a living document and may change based on community feedback and
 - User-specific permissions - align AI view with user's Kubernetes RBAC (PRD #361)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
 - Add Alibaba Qwen 3.5 Plus AI provider (PRD #382)
+- Optional local embedding service in Helm chart with auto-fallback (PRD #384)
 
 ## Medium-term (3-6 Months)
 
