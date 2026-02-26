@@ -3,12 +3,28 @@
     "active": true,
     "notes": "MCP SDK 1.26.0 breaks HTTP transport. Tracking issue: #368"
   },
-  "1113214": {
+  "1113428": {
     "active": true,
     "notes": "ajv ReDoS via eslint transitive dep. Fix requires eslint 10 (breaking change)"
   },
-  "1113296": {
+  "1113429": {
+    "active": true,
+    "notes": "ajv ReDoS via eslint transitive dep (duplicate advisory). Fix requires eslint 10 (breaking change)"
+  },
+  "1113459": {
     "active": true,
     "notes": "minimatch ReDoS via eslint transitive dep. Fix requires eslint 10 (breaking change)"
+  },
+  "1113465": {
+    "active": true,
+    "notes": "minimatch ReDoS via eslint transitive dep (duplicate advisory). Fix requires eslint 10 (breaking change)"
+  },
+  "1113466": {
+    "active": true,
+    "notes": "minimatch ReDoS via eslint transitive dep (duplicate advisory). Fix requires eslint 10 (breaking change)"
+  },
+  "1113515": {
+    "active": true,
+    "notes": "rollup path traversal via vitest>vite transitive dev dep. No production exposure."
   }
 }
