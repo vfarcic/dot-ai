@@ -107,7 +107,13 @@ helm upgrade --install dot-ai-controller \
 }
 
 # Deploy Qdrant separately (without PVC) to preserve pre-populated data
-log_info "Starting Qdrant deployment with pre-populated data..."
+# Use 384-dim image for local embeddings (CI), 1536-dim image for OpenAI embeddings (local dev)
+if [[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]]; then
+    QDRANT_TEST_IMAGE="ghcr.io/vfarcic/dot-ai-demo/qdrant:v1.15.5-test-384-01"
+else
+    QDRANT_TEST_IMAGE="ghcr.io/vfarcic/dot-ai-demo/qdrant:v1.15.5-test-01"
+fi
+log_info "Starting Qdrant deployment with pre-populated data (image: ${QDRANT_TEST_IMAGE})..."
 cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -128,7 +134,7 @@ spec:
     spec:
       containers:
       - name: qdrant
-        image: ghcr.io/vfarcic/dot-ai-demo/qdrant:v1.15.5-test-01
+        image: ${QDRANT_TEST_IMAGE}
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 6333
@@ -285,10 +291,15 @@ log_info "AI Provider: ${AI_PROVIDER}"
 kubectl create namespace dot-ai 2>/dev/null || true
 
 # Create secret with API keys and auth token
+# When using local embeddings, OpenAI key is not needed (TEI handles embeddings locally)
+OPENAI_KEY_VALUE="${OPENAI_API_KEY}"
+if [[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]]; then
+    OPENAI_KEY_VALUE="${OPENAI_API_KEY:-unused}"
+fi
 kubectl create secret generic dot-ai-secrets \
     --namespace dot-ai \
     --from-literal=anthropic-api-key="${DOT_AI_ANTHROPIC_API_KEY:-$ANTHROPIC_API_KEY}" \
-    --from-literal=openai-api-key="${OPENAI_API_KEY}" \
+    --from-literal=openai-api-key="${OPENAI_KEY_VALUE}" \
     --from-literal=google-api-key="${GOOGLE_GENERATIVE_AI_API_KEY:-$GOOGLE_API_KEY}" \
     --from-literal=xai-api-key="${XAI_API_KEY}" \
     --from-literal=moonshot-api-key="${MOONSHOT_API_KEY}" \
@@ -308,6 +319,7 @@ helm upgrade --install dot-ai ./charts \
     --set ingress.host=dot-ai.127.0.0.1.nip.io \
     --set qdrant.enabled=false \
     --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
+    $([[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]] && echo "--set localEmbeddings.enabled=true") \
     --set webUI.baseUrl="https://dot-ai-ui.test.local" \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
@@ -341,6 +353,19 @@ kubectl wait --namespace dot-ai \
     exit 1
 }
 
+# Wait for local embedding service (TEI) if enabled — model download can take several minutes
+if [[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]]; then
+    log_info "Waiting for local embedding service (TEI) to be ready (PRD #384)..."
+    kubectl wait --namespace dot-ai \
+        --for=condition=available deployment/dot-ai-local-embeddings \
+        --timeout=600s || {
+        log_error "Local embedding service (TEI) failed to become ready"
+        kubectl get pods -n dot-ai
+        kubectl logs -n dot-ai -l app.kubernetes.io/name=local-embeddings --tail=50
+        exit 1
+    }
+fi
+
 # Wait for ingress to be accessible (with auth header)
 log_info "Waiting for ingress to be accessible..."
 MAX_WAIT=60
@@ -372,8 +397,9 @@ export DOT_AI_AUTH_TOKEN="${TEST_AUTH_TOKEN}"
 
 # Step 5: Run integration tests
 log_info "Running integration tests..."
-# Export AI provider configuration so tests can validate server is using correct settings
+# Export configuration so tests can validate server is using correct settings
 export AI_PROVIDER
+export USE_LOCAL_EMBEDDINGS
 npx vitest run --config=vitest.integration.config.ts --test-timeout=1200000 "${TEST_ARGS[@]}"
 
 TEST_EXIT_CODE=$?

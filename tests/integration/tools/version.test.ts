@@ -17,13 +17,24 @@ describe.concurrent('Version Tool Integration', () => {
 
   // Get expected provider and model based on test environment configuration
   const aiProvider = process.env.AI_PROVIDER || 'anthropic';
-  const expectedModelName = CURRENT_MODELS[aiProvider as keyof typeof CURRENT_MODELS];
+  const expectedModelName =
+    CURRENT_MODELS[aiProvider as keyof typeof CURRENT_MODELS];
 
   // All providers use VercelProvider (PRD #238), providerType matches the configured provider
   const expectedProviderType = aiProvider;
 
-  // Integration tests always run in-cluster (MCP deployed in Kind, accessed via ingress)
+  // Embedding config depends on whether local embeddings are used (CI) or OpenAI (local dev)
+  const useLocalEmbeddings = process.env.USE_LOCAL_EMBEDDINGS === 'true';
+  const expectedEmbedding = useLocalEmbeddings
+    ? { available: true, provider: 'custom', model: 'custom', dimensions: 384 }
+    : {
+        available: true,
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        dimensions: 1536,
+      };
 
+  // Integration tests always run in-cluster (MCP deployed in Kind, accessed via ingress)
 
   describe('System Status via REST API', () => {
     test('should return comprehensive system status with correct structure', async () => {
@@ -40,79 +51,78 @@ describe.concurrent('Version Tool Integration', () => {
                 version: packageJson.version,
                 nodeVersion: expect.stringMatching(/^v\d+\.\d+\.\d+/),
                 platform: 'linux',
-                arch: expect.any(String)
+                arch: expect.any(String),
               },
               vectorDB: {
                 connected: true,
                 url: expect.stringContaining('qdrant'), // Service DNS in-cluster
                 collections: {
                   patterns: expect.objectContaining({
-                    exists: expect.any(Boolean)
+                    exists: true,
                   }),
                   policies: expect.objectContaining({
-                    exists: expect.any(Boolean)
+                    exists: true,
                   }),
                   capabilities: expect.objectContaining({
-                    exists: expect.any(Boolean)
+                    exists: true,
                   }),
                   resources: expect.objectContaining({
-                    exists: expect.any(Boolean)
+                    exists: true,
                   }),
                   knowledgeBase: expect.objectContaining({
-                    exists: expect.any(Boolean)
-                  })
-                }
+                    exists: true,
+                  }),
+                },
               },
-              embedding: {
-                available: true,
-                provider: 'openai',
-                model: 'text-embedding-3-small',
-                dimensions: 1536
-              },
+              embedding: expectedEmbedding,
               aiProvider: {
                 connected: true,
                 keyConfigured: true,
                 providerType: expectedProviderType,
-                modelName: expectedModelName
+                modelName: expectedModelName,
               },
               kubernetes: {
                 connected: true,
                 kubeconfig: 'in-cluster', // PRD #343: uses plugin
                 clusterInfo: {
                   context: 'in-cluster',
-                  version: expect.stringMatching(/^v\d+\.\d+\.\d+/)
+                  version: expect.stringMatching(/^v\d+\.\d+\.\d+/),
                   // PRD #343: endpoint not available from kubectl version
-                }
+                },
               },
               capabilities: {
                 systemReady: true,
                 vectorDBHealthy: true,
                 collectionAccessible: true,
                 storedCount: expect.any(Number),
-                lastDiagnosis: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+                lastDiagnosis: expect.stringMatching(
+                  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+                ),
               },
               kyverno: {
                 installed: true,
                 version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
                 webhookReady: true,
-                policyGenerationReady: true
+                policyGenerationReady: true,
               },
-              // PRD #343 + #251: Plugin stats (38 tools: 17 kubectl + 10 helm + 10 vector + 1 knowledge)
+              // PRD #343 + #251 + #384: Plugin stats (40 tools: 17 kubectl + 10 helm + 12 vector + 1 knowledge)
               plugins: {
                 pluginCount: 1,
-                toolCount: 38,
+                toolCount: 40,
                 plugins: [
                   {
                     name: 'agentic-tools',
                     version: '1.0.0',
-                    toolCount: 38
-                  }
-                ]
-              }
+                    toolCount: 40,
+                  },
+                ],
+              },
             },
             summary: {
               overall: 'healthy', // Specific - test environment should be healthy
-              patternSearch: expect.stringMatching(/^(semantic\+keyword|keyword|semantic)$/), // Pattern - search capabilities
+              patternSearch: expect.stringMatching(
+                /^(semantic\+keyword|keyword|semantic)$/
+              ), // Pattern - search capabilities
               capabilityScanning: 'ready', // Specific - capability scanning should be ready
               kubernetesAccess: 'connected', // Specific - should match kubernetes.connected
               policyIntentManagement: 'ready', // Specific - policy intent management should be ready (available without Kyverno)
@@ -123,25 +133,34 @@ describe.concurrent('Version Tool Integration', () => {
                 'semantic-search',
                 'ai-recommendations',
                 'kubernetes-integration',
-                'kyverno-policy-generation' // Available only when Kyverno is installed
-              ]) // Pattern - should contain all expected capabilities
+                'kyverno-policy-generation', // Available only when Kyverno is installed
+              ]), // Pattern - should contain all expected capabilities
             },
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/), // Pattern - ISO timestamp
+            timestamp: expect.stringMatching(
+              /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+            ), // Pattern - ISO timestamp
             // PRD #320: Version tool returns visualizationUrl
-            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/ver-\d+-[a-f0-9]+$/)
-          }
+            visualizationUrl: expect.stringMatching(
+              /^https:\/\/dot-ai-ui\.test\.local\/v\/ver-\d+-[a-f0-9]+$/
+            ),
+          },
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/), // Pattern - ISO timestamp
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ), // Pattern - ISO timestamp
           requestId: expect.stringMatching(/^rest_\d+_\d+$/), // Pattern - format is predictable
-          version: 'v1' // Specific - API version is fixed
-        }
+          version: 'v1', // Specific - API version is fixed
+        },
       };
 
       // Call version tool via REST API (POST request as required)
-      const response = await integrationTest.httpClient.post('/api/v1/tools/version', {
-        interaction_id: 'system_status'
-      });
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/version',
+        {
+          interaction_id: `system_status_${Date.now()}`,
+        }
+      );
 
       // PRD #343: Diagnostic assertions for plugin system
       const system = response.data?.result?.system;
@@ -150,19 +169,43 @@ describe.concurrent('Version Tool Integration', () => {
       const kyverno = system?.kyverno;
 
       // Plugin system diagnostics
-      expect(plugins, 'plugins field missing - PluginManager not passed to handleVersionTool?').toBeDefined();
-      expect(plugins?.pluginCount, `Plugin discovery failed: found ${plugins?.pluginCount} plugins. Check plugins.json mounted at /etc/dot-ai/ and plugin service reachable`).toBe(1);
-      // 38 tools in agentic-tools plugin (17 kubectl + 10 helm + 10 vector + 1 knowledge - PRD #343, #251, #359, #356)
-      expect(plugins?.toolCount, `Expected 38 tools, found ${plugins?.toolCount}. Check agentic-tools registration`).toBe(38);
-      expect(plugins?.plugins?.[0]?.name, 'agentic-tools plugin not in discovered plugins').toBe('agentic-tools');
+      expect(
+        plugins,
+        'plugins field missing - PluginManager not passed to handleVersionTool?'
+      ).toBeDefined();
+      expect(
+        plugins?.pluginCount,
+        `Plugin discovery failed: found ${plugins?.pluginCount} plugins. Check plugins.json mounted at /etc/dot-ai/ and plugin service reachable`
+      ).toBe(1);
+      // 40 tools in agentic-tools plugin (17 kubectl + 10 helm + 12 vector + 1 knowledge - PRD #343, #251, #359, #356, #384)
+      expect(
+        plugins?.toolCount,
+        `Expected 40 tools, found ${plugins?.toolCount}. Check agentic-tools registration`
+      ).toBe(40);
+      expect(
+        plugins?.plugins?.[0]?.name,
+        'agentic-tools plugin not in discovered plugins'
+      ).toBe('agentic-tools');
 
       // Kubernetes via plugin diagnostics
-      expect(kubernetes?.connected, `Kubernetes not connected: ${kubernetes?.error || 'unknown'}. kubectl_version tool failed?`).toBe(true);
-      expect(kubernetes?.clusterInfo?.version, 'K8s version missing from kubectl_version response').toBeDefined();
+      expect(
+        kubernetes?.connected,
+        `Kubernetes not connected: ${kubernetes?.error || 'unknown'}. kubectl_version tool failed?`
+      ).toBe(true);
+      expect(
+        kubernetes?.clusterInfo?.version,
+        'K8s version missing from kubectl_version response'
+      ).toBeDefined();
 
       // Kyverno via plugin diagnostics
-      expect(kyverno?.installed, `Kyverno not detected: ${kyverno?.error || kyverno?.reason || 'unknown'}`).toBe(true);
-      expect(kyverno?.policyGenerationReady, `Kyverno not ready: ${kyverno?.reason || 'unknown'}`).toBe(true);
+      expect(
+        kyverno?.installed,
+        `Kyverno not detected: ${kyverno?.error || kyverno?.reason || 'unknown'}`
+      ).toBe(true);
+      expect(
+        kyverno?.policyGenerationReady,
+        `Kyverno not ready: ${kyverno?.reason || 'unknown'}`
+      ).toBe(true);
 
       // Single comprehensive assertion using expected structure
       expect(response).toMatchObject(expectedVersionResponse);
@@ -182,21 +225,27 @@ describe.concurrent('Version Tool Integration', () => {
             expect.objectContaining({
               id: expect.any(String),
               label: expect.any(String),
-              type: expect.stringMatching(/^(mermaid|cards|table|code|diff|bar-chart)$/)
-            })
+              type: expect.stringMatching(
+                /^(mermaid|cards|table|code|diff|bar-chart)$/
+              ),
+            }),
           ]),
-          insights: expect.arrayContaining([expect.any(String)])
+          insights: expect.arrayContaining([expect.any(String)]),
           // toolsUsed is optional - only present when AI uses tools during generation
-        }
+        },
       };
 
       expect(vizResponse).toMatchObject(expectedVizResponse);
 
       // Verify visualization is not a fallback error
-      expect(vizResponse.data.insights[0]).not.toContain('AI visualization generation failed');
+      expect(vizResponse.data.insights[0]).not.toContain(
+        'AI visualization generation failed'
+      );
 
       // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid diagrams present
-      const hasMermaid = vizResponse.data.visualizations.some((v: any) => v.type === 'mermaid');
+      const hasMermaid = vizResponse.data.visualizations.some(
+        (v: { type: string }) => v.type === 'mermaid'
+      );
       if (hasMermaid) {
         expect(vizResponse.data.toolsUsed).toContain('validate_mermaid');
       }
@@ -212,16 +261,24 @@ describe.concurrent('Version Tool Integration', () => {
       // Cached response should have same structure and content
       expect(cachedVizResponse).toMatchObject(expectedVizResponse);
       expect(cachedVizResponse.data.title).toBe(vizResponse.data.title);
-      expect(cachedVizResponse.data.visualizations.length).toBe(vizResponse.data.visualizations.length);
-      expect(cachedVizResponse.data.insights.length).toBe(vizResponse.data.insights.length);
+      expect(cachedVizResponse.data.visualizations.length).toBe(
+        vizResponse.data.visualizations.length
+      );
+      expect(cachedVizResponse.data.insights.length).toBe(
+        vizResponse.data.insights.length
+      );
       // toolsUsed is optional - only compare if present in original response
       if (vizResponse.data.toolsUsed) {
-        expect(cachedVizResponse.data.toolsUsed).toEqual(vizResponse.data.toolsUsed);
+        expect(cachedVizResponse.data.toolsUsed).toEqual(
+          vizResponse.data.toolsUsed
+        );
       }
 
       // PRD #320 Milestone 2.8: Verify ?reload=true bypasses cache and regenerates
       const reloadStartTime = Date.now();
-      const reloadVizResponse = await integrationTest.httpClient.get(`${vizPath}?reload=true`);
+      const reloadVizResponse = await integrationTest.httpClient.get(
+        `${vizPath}?reload=true`
+      );
       const reloadResponseTime = Date.now() - reloadStartTime;
 
       // Reload response should take longer than cached (regenerating via AI)
@@ -249,14 +306,18 @@ describe.concurrent('Version Tool Integration', () => {
           message: expect.stringContaining('Only POST method allowed'),
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
       // Test that GET method is not allowed
-      const response = await integrationTest.httpClient.get('/api/v1/tools/version');
+      const response = await integrationTest.httpClient.get(
+        '/api/v1/tools/version'
+      );
 
       // Single comprehensive assertion using expected structure
       expect(response).toMatchObject(expectedErrorResponse);
@@ -279,23 +340,28 @@ describe.concurrent('Version Tool Integration', () => {
                 kubeconfig: 'in-cluster', // PRD #343: uses plugin
                 clusterInfo: {
                   context: 'in-cluster',
-                  version: expect.stringMatching(/^v\d+\.\d+\.\d+/)
+                  version: expect.stringMatching(/^v\d+\.\d+\.\d+/),
                   // PRD #343: endpoint not available from kubectl version
-                }
-              }
-            }
-          }
+                },
+              },
+            },
+          },
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
-      const response = await integrationTest.httpClient.post('/api/v1/tools/version', {
-        interaction_id: 'test_environment_validation'
-      });
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/version',
+        {
+          interaction_id: `test_environment_validation_${Date.now()}`,
+        }
+      );
 
       // Validate test environment configuration in API response
       expect(response).toMatchObject(expectedTestResponse);
@@ -309,16 +375,21 @@ describe.concurrent('Version Tool Integration', () => {
         success: false,
         error: {
           code: 'TOOL_NOT_FOUND',
-          message: "Tool 'nonexistent' not found"
+          message: "Tool 'nonexistent' not found",
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
-      const response = await integrationTest.httpClient.post('/api/v1/tools/nonexistent', {});
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/nonexistent',
+        {}
+      );
 
       // Single comprehensive assertion using expected structure
       expect(response).toMatchObject(expectedErrorResponse);

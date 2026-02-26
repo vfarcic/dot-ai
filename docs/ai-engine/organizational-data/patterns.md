@@ -612,7 +612,7 @@ List all organizational patterns
 ### General Questions
 
 **Q: Do I need Qdrant's paid embedding service?**  
-A: No! The system uses OpenAI to generate embeddings and stores them in Qdrant. The free Qdrant tier works perfectly for pattern storage and search.
+A: No! The system generates embeddings (via the built-in local embedding service or a cloud provider like OpenAI) and stores them in Qdrant. The free Qdrant tier works perfectly for pattern storage and search.
 
 **Q: Can I use pattern management without an embedding service?**  
 A: No. Pattern management requires an embedding provider. See [Embedding Provider Configuration](../setup/deployment.md#embedding-provider-configuration) for setup options.

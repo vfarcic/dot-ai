@@ -366,10 +366,10 @@ Deploying version: {{version}}
 Add environment variables via `extraEnv` in your Helm values:
 
 ```bash
-helm upgrade --install dot-ai oci://ghcr.io/vfarcic/helm/dot-ai \
+helm upgrade --install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
   --namespace dot-ai --create-namespace \
-  --set ai.anthropic.apiKey="${ANTHROPIC_API_KEY}" \
-  --set ai.embeddings.openai.apiKey="${OPENAI_API_KEY}" \
+  --set secrets.anthropic.apiKey="${ANTHROPIC_API_KEY}" \
+  --set localEmbeddings.enabled=true \
   --set-json 'extraEnv=[
     {"name":"DOT_AI_USER_PROMPTS_REPO","value":"https://github.com/your-org/team-prompts.git"},
     {"name":"DOT_AI_USER_PROMPTS_PATH","value":"prompts"},

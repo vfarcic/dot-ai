@@ -9,7 +9,11 @@ import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { google } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { embed, EmbeddingModel } from 'ai';
-import { CircuitBreaker, CircuitBreakerStats, CircuitOpenError } from './circuit-breaker';
+import {
+  CircuitBreaker,
+  CircuitBreakerStats,
+  CircuitOpenError,
+} from './circuit-breaker';
 import { withAITracing } from './tracing';
 
 /**
@@ -18,16 +22,20 @@ import { withAITracing } from './tracing';
  * Opens after 3 consecutive failures, blocks for 30s before testing recovery.
  */
 const embeddingCircuitBreaker = new CircuitBreaker('embedding-api', {
-  failureThreshold: 3,      // Open after 3 consecutive failures
-  cooldownPeriodMs: 30000,  // 30s cooldown before half-open
-  halfOpenMaxAttempts: 1    // Allow 1 test request in half-open
+  failureThreshold: 3, // Open after 3 consecutive failures
+  cooldownPeriodMs: 30000, // 30s cooldown before half-open
+  halfOpenMaxAttempts: 1, // Allow 1 test request in half-open
 });
 
 /**
  * Supported embedding providers - single source of truth
  */
-export const EMBEDDING_PROVIDERS = ['openai', 'google', 'amazon_bedrock'] as const;
-export type EmbeddingProviderType = typeof EMBEDDING_PROVIDERS[number];
+export const EMBEDDING_PROVIDERS = [
+  'openai',
+  'google',
+  'amazon_bedrock',
+] as const;
+export type EmbeddingProviderType = (typeof EMBEDDING_PROVIDERS)[number];
 
 export interface EmbeddingConfig {
   provider?: EmbeddingProviderType;
@@ -76,20 +84,39 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
 
     // Get API key based on provider
     switch (this.providerType) {
-      case 'openai':
-        this.apiKey = config.apiKey || process.env.CUSTOM_EMBEDDINGS_API_KEY || process.env.OPENAI_API_KEY || '';
-        this.model = config.model || process.env.EMBEDDINGS_MODEL || 'text-embedding-3-small';
-        this.dimensions = config.dimensions || (process.env.EMBEDDINGS_DIMENSIONS ? parseInt(process.env.EMBEDDINGS_DIMENSIONS, 10) : 1536);
+      case 'openai': {
+        this.apiKey =
+          config.apiKey ||
+          process.env.CUSTOM_EMBEDDINGS_API_KEY ||
+          process.env.OPENAI_API_KEY ||
+          '';
+        this.model =
+          config.model ||
+          process.env.EMBEDDINGS_MODEL ||
+          'text-embedding-3-small';
+        const envDimensions = process.env.EMBEDDINGS_DIMENSIONS
+          ? parseInt(process.env.EMBEDDINGS_DIMENSIONS, 10)
+          : undefined;
+        this.dimensions =
+          config.dimensions ||
+          (Number.isFinite(envDimensions) ? envDimensions! : 1536);
         break;
+      }
       case 'google':
         this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || '';
-        this.model = config.model || process.env.EMBEDDINGS_MODEL || 'gemini-embedding-001';
+        this.model =
+          config.model ||
+          process.env.EMBEDDINGS_MODEL ||
+          'gemini-embedding-001';
         this.dimensions = config.dimensions || 768;
         break;
       case 'amazon_bedrock':
         // AWS SDK handles credentials automatically - no API key needed
         this.apiKey = 'bedrock-uses-aws-credentials';
-        this.model = config.model || process.env.EMBEDDINGS_MODEL || 'amazon.titan-embed-text-v2:0';
+        this.model =
+          config.model ||
+          process.env.EMBEDDINGS_MODEL ||
+          'amazon.titan-embed-text-v2:0';
         this.dimensions = config.dimensions || 1024; // Titan v2 default
         break;
     }
@@ -106,7 +133,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
           const baseURL = process.env.CUSTOM_EMBEDDINGS_BASE_URL;
           const openai = createOpenAI({
             apiKey: this.apiKey,
-            ...(baseURL && { baseURL })
+            ...(baseURL && { baseURL }),
           });
           this.modelInstance = openai.textEmbedding(this.model);
           break;
@@ -148,7 +175,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
       {
         provider: this.providerType,
         model: this.model,
-        operation: 'embeddings'
+        operation: 'embeddings',
       },
       async () => {
         try {
@@ -156,7 +183,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
           return await embeddingCircuitBreaker.execute(async () => {
             const embedOptions: EmbedOptions = {
               model: this.modelInstance!,
-              value: text.trim()
+              value: text.trim(),
             };
 
             // Add Google-specific options
@@ -164,8 +191,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
               embedOptions.providerOptions = {
                 google: {
                   outputDimensionality: this.dimensions,
-                  taskType: 'SEMANTIC_SIMILARITY'
-                }
+                  taskType: 'SEMANTIC_SIMILARITY',
+                },
               };
             }
 
@@ -178,14 +205,18 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
             throw new Error(`Embedding API circuit open: ${error.message}`);
           }
           if (error instanceof Error) {
-            throw new Error(`${this.providerType} embedding failed: ${error.message}`);
+            throw new Error(
+              `${this.providerType} embedding failed: ${error.message}`
+            );
           }
-          throw new Error(`${this.providerType} embedding failed: ${String(error)}`);
+          throw new Error(
+            `${this.providerType} embedding failed: ${String(error)}`
+          );
         }
       },
-      (embedding) => ({
+      embedding => ({
         embeddingCount: 1,
-        embeddingDimensions: embedding.length
+        embeddingDimensions: embedding.length,
       })
     );
   }
@@ -199,9 +230,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
       return [];
     }
 
-    const validTexts = texts
-      .map(t => t?.trim())
-      .filter(t => t && t.length > 0);
+    const validTexts = texts.map(t => t?.trim()).filter(t => t && t.length > 0);
 
     if (validTexts.length === 0) {
       return [];
@@ -212,7 +241,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
       {
         provider: this.providerType,
         model: this.model,
-        operation: 'embeddings'
+        operation: 'embeddings',
       },
       async () => {
         try {
@@ -222,7 +251,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
               validTexts.map(text => {
                 const embedOptions: EmbedOptions = {
                   model: this.modelInstance!,
-                  value: text
+                  value: text,
                 };
 
                 // Add Google-specific options
@@ -230,8 +259,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
                   embedOptions.providerOptions = {
                     google: {
                       outputDimensionality: this.dimensions,
-                      taskType: 'SEMANTIC_SIMILARITY'
-                    }
+                      taskType: 'SEMANTIC_SIMILARITY',
+                    },
                   };
                 }
 
@@ -247,14 +276,18 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
             throw new Error(`Embedding API circuit open: ${error.message}`);
           }
           if (error instanceof Error) {
-            throw new Error(`${this.providerType} batch embedding failed: ${error.message}`);
+            throw new Error(
+              `${this.providerType} batch embedding failed: ${error.message}`
+            );
           }
-          throw new Error(`${this.providerType} batch embedding failed: ${String(error)}`);
+          throw new Error(
+            `${this.providerType} batch embedding failed: ${String(error)}`
+          );
         }
       },
-      (embeddings) => ({
+      embeddings => ({
         embeddingCount: embeddings.length,
-        embeddingDimensions: embeddings[0]?.length || this.dimensions
+        embeddingDimensions: embeddings[0]?.length || this.dimensions,
       })
     );
   }
@@ -279,23 +312,34 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
 /**
  * Factory function to create embedding provider based on configuration
  */
-function createEmbeddingProvider(config: EmbeddingConfig = {}): EmbeddingProvider | null {
-  const providerType = (config.provider || process.env.EMBEDDINGS_PROVIDER || 'openai').toLowerCase();
+function createEmbeddingProvider(
+  config: EmbeddingConfig = {}
+): EmbeddingProvider | null {
+  const providerType = (
+    config.provider ||
+    process.env.EMBEDDINGS_PROVIDER ||
+    'openai'
+  ).toLowerCase();
 
   // Validate provider type using centralized list
   if (!EMBEDDING_PROVIDERS.includes(providerType as EmbeddingProviderType)) {
-    console.warn(`Unknown embedding provider: ${providerType}, falling back to openai`);
+    console.warn(
+      `Unknown embedding provider: ${providerType}, falling back to openai`
+    );
     return createEmbeddingProvider({ ...config, provider: 'openai' });
   }
 
   try {
     const provider = new VercelEmbeddingProvider({
       ...config,
-      provider: providerType as EmbeddingProviderType
+      provider: providerType as EmbeddingProviderType,
     });
     return provider.isAvailable() ? provider : null;
   } catch (error) {
-    console.error(`Failed to create ${providerType} embedding provider:`, error);
+    console.error(
+      `Failed to create ${providerType} embedding provider:`,
+      error
+    );
     return null;
   }
 }
@@ -313,7 +357,7 @@ export class EmbeddingService {
   }
 
   /**
-   * Generate embedding for text 
+   * Generate embedding for text
    * Throws error if embeddings not available or generation fails
    */
   async generateEmbedding(text: string): Promise<number[]> {
@@ -325,7 +369,9 @@ export class EmbeddingService {
       return await this.provider!.generateEmbedding(text);
     } catch (error) {
       // Throw error immediately - no silent fallback
-      throw new Error(`Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -342,7 +388,10 @@ export class EmbeddingService {
       return await this.provider!.generateEmbeddings(texts);
     } catch (error) {
       // Log error but don't throw - allow graceful fallback
-      console.warn('Batch embedding generation failed, falling back to keyword search:', error);
+      console.warn(
+        'Batch embedding generation failed, falling back to keyword search:',
+        error
+      );
       return [];
     }
   }
@@ -373,28 +422,37 @@ export class EmbeddingService {
   } {
     if (this.isAvailable()) {
       // Get provider type from VercelEmbeddingProvider
-      const providerName = (this.provider as VercelEmbeddingProvider).getProviderType?.() || 'unknown';
+      const providerName =
+        (this.provider as VercelEmbeddingProvider).getProviderType?.() ||
+        'unknown';
+      const isCustomEndpoint =
+        providerName === 'openai' && !!process.env.CUSTOM_EMBEDDINGS_BASE_URL;
 
       return {
         available: true,
-        provider: providerName,
-        model: this.provider!.getModel(),
-        dimensions: this.provider!.getDimensions()
+        provider: isCustomEndpoint ? 'custom' : providerName,
+        model:
+          isCustomEndpoint && !process.env.EMBEDDINGS_MODEL
+            ? 'custom'
+            : this.provider!.getModel(),
+        dimensions: this.provider!.getDimensions(),
       };
     }
 
     const requestedProvider = process.env.EMBEDDINGS_PROVIDER || 'openai';
     const keyMap = {
-      'openai': 'OPENAI_API_KEY',
-      'google': 'GOOGLE_API_KEY',
-      'amazon_bedrock': 'AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)'
+      openai: 'OPENAI_API_KEY',
+      google: 'GOOGLE_API_KEY',
+      amazon_bedrock:
+        'AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)',
     };
-    const requiredKey = keyMap[requestedProvider as keyof typeof keyMap] || 'OPENAI_API_KEY';
+    const requiredKey =
+      keyMap[requestedProvider as keyof typeof keyMap] || 'OPENAI_API_KEY';
 
     return {
       available: false,
       provider: null,
-      reason: `${requiredKey} not set - vector operations will fail`
+      reason: `${requiredKey} not set - vector operations will fail`,
     };
   }
 
@@ -412,8 +470,10 @@ export class EmbeddingService {
       ...pattern.triggers,
       pattern.rationale,
       // Include resource types for better semantic matching
-      ...pattern.suggestedResources.map(r => `kubernetes ${r.toLowerCase()}`)
-    ].join(' ').trim();
+      ...pattern.suggestedResources.map(r => `kubernetes ${r.toLowerCase()}`),
+    ]
+      .join(' ')
+      .trim();
   }
 
   /**
