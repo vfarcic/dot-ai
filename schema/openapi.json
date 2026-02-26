@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.2.3",
+    "version": "1.2.4",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -1814,6 +1814,67 @@
           }
         }
       }
+    },
+    "/api/v1/embeddings/migrate": {
+      "post": {
+        "summary": "Migrate embedding vectors when switching between embedding providers. Re-embeds all data using the current provider.",
+        "description": "Migrate embedding vectors when switching between embedding providers. Re-embeds all data using the current provider.",
+        "tags": [
+          "Embeddings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsMigratePostResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsMigratePostError400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsMigratePostError500"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsMigratePostError503"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingsMigratePostRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2657,7 +2718,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -2992,7 +3054,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -3236,7 +3299,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -3437,7 +3501,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -3736,7 +3801,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -4008,7 +4074,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -4247,7 +4314,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -4424,7 +4492,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -4719,7 +4788,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -4959,7 +5029,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -5175,7 +5246,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -5405,7 +5477,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -5820,7 +5893,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -6071,7 +6145,8 @@
                   "PROMPTS_LIST_ERROR",
                   "PROMPT_GET_ERROR",
                   "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR"
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR"
                 ]
               },
               "message": {
@@ -6570,6 +6645,306 @@
           "success",
           "error"
         ]
+      },
+      "EmbeddingsMigratePostResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "collection": {
+                      "type": "string",
+                      "description": "Collection name"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "migrated",
+                        "skipped",
+                        "failed"
+                      ],
+                      "description": "Migration outcome"
+                    },
+                    "previousDimensions": {
+                      "type": "number",
+                      "description": "Vector dimensions before migration"
+                    },
+                    "newDimensions": {
+                      "type": "number",
+                      "description": "Vector dimensions after migration"
+                    },
+                    "total": {
+                      "type": "number",
+                      "description": "Total points in the collection"
+                    },
+                    "processed": {
+                      "type": "number",
+                      "description": "Points successfully re-embedded"
+                    },
+                    "failed": {
+                      "type": "number",
+                      "description": "Points that failed to re-embed"
+                    },
+                    "error": {
+                      "description": "Error message if migration failed",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "collection",
+                    "status",
+                    "previousDimensions",
+                    "newDimensions",
+                    "total",
+                    "processed",
+                    "failed"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Per-collection results"
+              },
+              "summary": {
+                "type": "object",
+                "properties": {
+                  "totalCollections": {
+                    "type": "number",
+                    "description": "Total collections processed"
+                  },
+                  "migrated": {
+                    "type": "number",
+                    "description": "Collections successfully migrated"
+                  },
+                  "skipped": {
+                    "type": "number",
+                    "description": "Collections skipped (dimensions already match)"
+                  },
+                  "failed": {
+                    "type": "number",
+                    "description": "Collections that failed to migrate"
+                  }
+                },
+                "required": [
+                  "totalCollections",
+                  "migrated",
+                  "skipped",
+                  "failed"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "collections",
+              "summary"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "EmbeddingsMigratePostRequest": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "description": "Collection name to migrate. If omitted, migrates all collections.",
+            "type": "string"
+          }
+        }
+      },
+      "EmbeddingsMigratePostError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "BAD_REQUEST"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "EmbeddingsMigratePostError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "MIGRATION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "EmbeddingsMigratePostError503": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "EMBEDDING_SERVICE_UNAVAILABLE",
+                  "PLUGIN_UNAVAILABLE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
       }
     }
   },
@@ -6617,6 +6992,10 @@
     {
       "name": "Troubleshooting",
       "description": "Troubleshooting tools and operations"
+    },
+    {
+      "name": "Embeddings",
+      "description": "Embeddings endpoints"
     },
     {
       "name": "Observability",
