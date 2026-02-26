@@ -84,7 +84,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
 
     // Get API key based on provider
     switch (this.providerType) {
-      case 'openai':
+      case 'openai': {
         this.apiKey =
           config.apiKey ||
           process.env.CUSTOM_EMBEDDINGS_API_KEY ||
@@ -101,6 +101,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
           config.dimensions ||
           (Number.isFinite(envDimensions) ? envDimensions! : 1536);
         break;
+      }
       case 'google':
         this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || '';
         this.model =
