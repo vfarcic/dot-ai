@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.3.0] - 2026-02-26
+
+### Features
+
+- ## Helm Day-2 Operations
+
+  The `operate` and `remediate` tools now understand Helm releases, closing the gap between intelligent Helm installation and ongoing management. Previously, after installing third-party applications via the `recommend` tool, users had to drop to manual `helm` CLI commands for upgrades, rollbacks, and troubleshooting.
+
+  The `operate` tool detects when a target application is a Helm release and handles upgrades (with version selection and `--reuse-values` for safe value preservation), rollbacks to specific revisions, uninstalls with CRD warnings, and value modifications — all through the same intent-driven workflow used for other Kubernetes operations. Dry-run validation runs before any change is applied. The `remediate` tool now investigates Helm-specific issues during root cause analysis: stuck `pending-upgrade` states, failed hooks, revision conflicts, and other Helm release problems. It queries release status, history, and values to suggest targeted remediation such as rolling back to the last healthy revision.
+
+  Four new investigation tools (`helm_list`, `helm_status`, `helm_history`, `helm_get_values`) and a `helm_rollback` operation tool are available to the AI agent during analysis. The existing `helm_install` tool now supports Day-2 upgrades with `--reuse-values` enabled by default, and a new `helm_install_dryrun` variant enables safe validation during the analysis phase.
+
+  See the [Operate Tool Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/tools/operate) and [Remediate Tool Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/tools/remediate) for details. ([#251](https://github.com/vfarcic/dot-ai/issues/251))
+- ## Local Embedding Service
+
+  Optional in-cluster embedding service that provides zero-config semantic search without external API keys. Previously, semantic search (patterns, policies, capabilities, knowledge base) required configuring an OpenAI, Google, or Amazon Bedrock API key for embeddings — adding setup friction for new users, blocking air-gapped deployments, and incurring per-token costs.
+
+  Setting `localEmbeddings.enabled: true` in Helm values deploys a [HuggingFace Text Embeddings Inference (TEI)](https://github.com/huggingface/text-embeddings-inference) service alongside dot-ai. The service uses the `all-MiniLM-L6-v2` model (384 dimensions, ~256 MB RAM, no GPU required) and exposes an OpenAI-compatible API that dot-ai connects to automatically. Existing users with cloud embedding API keys configured see no behavior change — their setup continues working as before.
+
+  A new REST API endpoint (`POST /api/v1/embeddings/migrate`) handles switching between embedding providers by re-embedding all stored data. It migrates individual collections or all collections at once, skips collections that already match the target dimensions, and reports per-collection progress. The endpoint is also available via the auto-generated CLI (`dot-ai embeddings migrate`).
+
+  CI tests now run with local embeddings on amd64 GitHub Actions runners, removing the `OPENAI_API_KEY` dependency from CI. Local development on ARM/Apple Silicon continues using OpenAI embeddings.
+
+  See the [Embedding Provider Configuration](https://devopstoolkit.ai/docs/mcp/setup/deployment#embedding-provider-configuration) for setup details, cloud provider options, and migration instructions. ([#384](https://github.com/vfarcic/dot-ai/issues/384))
+
+### Other Changes
+
+- ## Gemini 3.1 Pro Upgrade
+
+  The Google AI provider now uses Gemini 3.1 Pro (`gemini-3.1-pro-preview`), replacing Gemini 3 Pro. Gemini 3.1 Pro offers improved thinking, better token efficiency, and more reliable tool usage for agentic workflows.
+
+  Integration test timeouts for capability scanning and Helm operations have been increased to accommodate variance across model providers. ([#gemini-upgrade](https://github.com/vfarcic/dot-ai/issues/gemini-upgrade))
+- ## Claude Sonnet 4.6 Upgrade
+
+  The default Anthropic provider now uses Claude Sonnet 4.6 (`claude-sonnet-4-6`), replacing Claude Sonnet 4.5. Sonnet 4.6 delivers near-Opus intelligence with improved coding, long-context reasoning, and agent planning, while maintaining the same pricing tier. The Amazon Bedrock default model has also been updated to `global.anthropic.claude-sonnet-4-6`. ([#sonnet-upgrade](https://github.com/vfarcic/dot-ai/issues/sonnet-upgrade))
+
+
 ## [1.2.4] - 2026-02-16
 
 ### Bug Fixes
