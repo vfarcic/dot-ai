@@ -149,7 +149,7 @@ System crawls the site (sitemap.xml first, falls back to link following), discov
 │  │  │  Push/PR │  │           │  │           │  │         │ │   │
 │  │  └──────────┘  └───────────┘  └──────────┘  └─────────┘ │   │
 │  │                                                           │   │
-│  │  Runtimes: Node.js, Python, Go, Bash                     │   │
+│  │  Default: shell + pkg manager + git (installs runtimes)   │   │
 │  │  Tools: git, gh CLI, language parsers                     │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
@@ -227,15 +227,21 @@ System crawls the site (sitemap.xml first, falls back to link following), discov
 
 ### Container Image
 
-A multi-language "validation runner" image containing:
-- Node.js (with TypeScript)
-- Python 3
-- Go
-- Bash
+**Default image**: A minimal dot-ai-maintained image containing only:
+- Shell (bash)
+- Package manager (apt/apk)
 - Git + GitHub CLI
-- YAML/JSON parsers
 
-This image is maintained as part of the dot-ai project. Kept minimal — only runtimes and parsers, no IDEs or heavy tooling.
+The AI analyzes which languages appear in the docs' code blocks and installs the needed runtimes at session start (e.g., `apt install nodejs python3 golang`). This trades some startup time for a small, maintainable image that works with any language.
+
+**User-specified image**: Users can provide their own pre-baked image with runtimes already installed to skip the installation step. The only requirement is that the image includes `git`. This is useful for repos with many code blocks or uncommon runtimes where installation time would be significant.
+
+Image selection is specified when initiating a session:
+```
+User: "Validate docs at repo X using image my-registry/docs-validator:latest"
+```
+
+If no image is specified, the default image is used.
 
 ### RBAC Requirements
 
@@ -259,7 +265,7 @@ When a page references prerequisites:
 ## Success Criteria
 
 ### Functional Requirements
-- [ ] Spin up a validation Pod with all required runtimes
+- [ ] Spin up a validation Pod (default image or user-specified)
 - [ ] Clone git repos and discover documentation pages
 - [ ] Crawl URL-based docs sites and discover pages
 - [ ] Support page selection (individual, ranges, all)
@@ -284,7 +290,8 @@ When a page references prerequisites:
 ## Milestones
 
 ### Milestone 1: Pod Lifecycle Management
-- [ ] Container image with Node.js, Python, Go, Bash, Git, gh CLI
+- [ ] Minimal default container image (shell, package manager, git, gh CLI)
+- [ ] Support for user-specified container images
 - [ ] Pod creation with ServiceAccount, secrets, and resource limits
 - [ ] TTL-based auto-cleanup with inactivity tracking
 - [ ] Explicit finish/cleanup command
@@ -346,7 +353,7 @@ When a page references prerequisites:
 |------|------------|--------|------------|
 | Pod RBAC too permissive | Medium | High | Scoped ServiceAccount, namespace isolation |
 | AI fixes change meaning | Medium | High | Conservative fix strategy, human review via PR |
-| Container image bloat | Medium | Low | Multi-stage build, only essential runtimes |
+| Runtime installation slow | Medium | Low | Users provide pre-baked image for faster startup |
 | Pod left running (TTL failure) | Low | Medium | Kubernetes CronJob as backup cleanup |
 | Reviewer feedback misinterpreted | Medium | Medium | Session history prevents repeat mistakes, ask for clarification |
 
