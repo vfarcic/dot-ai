@@ -150,10 +150,10 @@ The core of the system. For a single page, the server:
 6. The AI returns a summary of issues found and fixes applied
 
 **AI tools:**
-- **`exec`** — Run any bash command in the Pod. Covers: reading/writing files, installing runtimes, running code, curl for URL checks, kubectl/helm for cluster commands. This is intentionally a single general-purpose tool — the AI decides what to run.
+- **`exec`** — Run any bash command. Covers: reading files, installing runtimes, running code, curl for URL checks, kubectl/helm for cluster commands. The working directory is the repository root.
+- **`patch_file`** — Targeted find-and-replace in a file. Takes `path`, `old_content`, `new_content`. Handles escaping internally via base64. The AI uses this to fix issues in the target document.
 - **`create_cluster`** — Provision a vcluster inside the host cluster. Returns kubeconfig path. The AI calls this when it encounters Kubernetes commands in the doc. Cluster lifecycle is tied to the session.
 
-The AI also honors `dotai-test-hint` and `dotai-ignore` HTML comments embedded in docs to guide or skip validation.
 
 #### 5. Git / PR Manager
 - After AI completes all page validations, deterministic code handles git operations
@@ -232,7 +232,6 @@ When a page references prerequisites:
 - [ ] AI agent validates shell commands from docs (runs them, fixes broken ones)
 - [ ] AI agent provisions vcluster via `create_cluster` tool for Kubernetes-dependent docs
 - [ ] AI agent follows cross-doc prerequisites and validates dependency chains
-- [ ] AI agent honors `dotai-test-hint` and `dotai-ignore` HTML comments in docs
 - [ ] Create PR with all fixes and descriptive summary (server-side, deterministic)
 - [ ] Accept reviewer feedback and apply corrections
 - [x] Store sessions as JSON following existing dot-ai patterns
@@ -296,7 +295,6 @@ AI checks URLs and internal cross-references.
 ### Milestone 5: UC4 — Shell Command Validation
 AI runs shell commands from docs, distinguishes doc bugs from environment issues.
 - [ ] AI runs shell commands from docs via `exec`
-- [ ] AI parses and honors `dotai-test-hint` and `dotai-ignore` HTML comments
 - [ ] AI distinguishes doc errors (wrong flags) from expected env issues (no Docker daemon)
 - [ ] Integration test: fixture doc with broken shell commands — AI fixes doc errors
 
