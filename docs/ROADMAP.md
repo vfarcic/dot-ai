@@ -14,7 +14,7 @@ This roadmap is a living document and may change based on community feedback and
 - Git operations for recommend tool - push generated manifests to Git repos (PRD #362)
 - Deployment documentation generation for knowledge base - organizational memory of deployment decisions (PRD #377)
 - Argo CD support for operate tool - detect managed resources and modify source repos (PRD #363)
-- Documentation validation system - crawling, readability, syntax validation (PRD #262)
+- Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Update to Kimi K2.5 model support (PRD #353)
 - Update OpenAI model to GPT-5.3-Codex when API available (PRD #369)
