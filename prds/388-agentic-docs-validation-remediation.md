@@ -243,11 +243,23 @@ User: "Validate docs at repo X using image my-registry/docs-validator:latest"
 
 If no image is specified, the default image is used.
 
+### Virtual Cluster for Kubernetes-Dependent Docs
+
+Some documentation includes instructions that require a Kubernetes cluster (e.g., deploying apps, running kubectl commands, installing operators). To validate these docs, the system creates a virtual cluster (vcluster) inside the existing cluster.
+
+- **How**: Uses [vcluster](https://www.vcluster.com/) to spin up a lightweight virtual cluster as regular Pods — no privileged access or Docker-in-Docker required.
+- **When**: The AI detects Kubernetes-related commands in code blocks (kubectl, helm, etc.) and provisions a vcluster at session start.
+- **Lifecycle**: The vcluster is tied to the session — created on demand, torn down at finish/TTL alongside the validation Pod.
+- **Isolation**: Docs commands run against the vcluster, not the host cluster. Destructive operations are safe.
+
+This is optional — sessions that don't involve Kubernetes commands skip vcluster creation entirely.
+
 ### RBAC Requirements
 
 The dot-ai ServiceAccount needs additional permissions:
 - `pods: create, get, delete` — to manage validation Pods
 - `secrets: get` — to mount Git credentials and AI API keys into the Pod
+- vcluster CRDs (if vcluster operator is installed) or permissions to deploy vcluster Helm chart
 
 ### Prerequisite Handling
 
@@ -272,6 +284,7 @@ When a page references prerequisites:
 - [ ] Analyze readability with AI and provide specific fixes
 - [ ] Validate syntax for: JavaScript, TypeScript, Python, Go, YAML, JSON, Bash
 - [ ] Execute code blocks and detect runtime errors
+- [ ] Provision vcluster for docs that require Kubernetes commands
 - [ ] Apply fixes automatically (AI-generated and direct)
 - [ ] Create PR with all fixes and descriptive summary
 - [ ] Accept reviewer feedback and apply corrections
@@ -307,6 +320,7 @@ When a page references prerequisites:
 - [ ] Code block extraction with language identification
 - [ ] Syntax validation for all supported languages
 - [ ] Code execution validation
+- [ ] Provision vcluster when Kubernetes commands are detected in docs
 - [ ] AI-powered readability analysis
 - [ ] Issue cataloging with locations and severity
 
