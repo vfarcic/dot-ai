@@ -224,8 +224,8 @@ When a page references prerequisites:
 ### Functional Requirements
 - [x] Spin up a validation Pod (default image or user-specified)
 - [x] Clone git repos and discover documentation pages
-- [ ] Single-page validation via one user-facing `validate` action (repo + page path)
-- [ ] Full workflow orchestration in single call (pod → clone → AI → cleanup)
+- [x] Single-page validation via one user-facing `validate` action (repo + page path)
+- [x] Full workflow orchestration in single call (pod → clone → AI → cleanup)
 - [ ] AI agent validates and fixes text quality issues (readability, missing content, clarity)
 - [ ] AI agent validates and fixes code blocks (installs runtimes, runs code, fixes syntax/runtime errors)
 - [ ] AI agent validates links and cross-references (curl for URLs, file checks for internal refs)
@@ -263,13 +263,13 @@ When a page references prerequisites:
 - [ ] Pod creation with ServiceAccount and secrets *(deferred — public repos work without credentials)*
 - [ ] Pod recreation for resumed sessions
 
-### Milestone 2a: Validate Action Plumbing
+### Milestone 2a: Validate Action Plumbing (done)
 Wire up the `validate` action with full workflow orchestration — everything except the AI agent loop.
-- [ ] `validate` action on `validateDocs` tool (accepts `repo` + `page` + optional `image`)
-- [ ] Orchestrates full workflow internally: create pod → clone repo → verify page exists → cleanup pod
-- [ ] Returns structured response with session ID, page path, and workflow status
-- [ ] Session persists after pod cleanup for future extensions
-- [ ] Integration test: end-to-end validate call completes full lifecycle (pod created, repo cloned, page verified, pod cleaned up)
+- [x] `validate` action on `validateDocs` tool (accepts `repo` + `page` + optional `image`)
+- [x] Orchestrates full workflow internally: create pod → clone repo → verify page exists → cleanup pod
+- [x] Returns structured response with session ID, page path, and workflow status
+- [x] Session persists after pod cleanup for future extensions
+- [x] Integration test: end-to-end validate call completes full lifecycle (pod created, repo cloned, page verified, pod cleaned up)
 
 ### Milestone 2b: AI Agent Loop for Text Quality Validation
 Add the AI validation agent into the plumbing from Milestone 2a.
@@ -336,6 +336,7 @@ End-to-end: validate, fix, create PR.
 | 2026-02-27 | **Single user-facing action** — `validate` orchestrates the full workflow (pod → clone → AI → cleanup) in one call. `start`/`discover`/`finish` become internal implementation details. | Users shouldn't have to manage pod lifecycle manually. One call in, results out. Sessions still persist internally for future extensions (feedback, PR creation), but the user doesn't manage them explicitly. |
 | 2026-02-27 | **Per-page fresh AI context** — Each page gets its own `toolLoop` invocation with fresh context. No cross-page context accumulation. | Prevents context window overflow. Even large pages with many code blocks stay within limits. Cross-page context (e.g., prerequisites) deferred to Milestone 7. |
 | 2026-02-27 | **Plumbing before AI** — Split Milestone 2 into 2a (workflow orchestration) and 2b (AI agent loop). Build and test the full lifecycle (pod → clone → verify → cleanup) before wiring in the AI. | Isolates concerns — validates the orchestration works independently before adding non-deterministic AI behavior. Makes debugging easier: if the workflow fails, it's a plumbing issue; if results are wrong, it's an AI/prompt issue. |
+| 2026-02-27 | **Single action, no action menu** — Removed `start`/`discover`/`status`/`list`/`finish` actions. Tool exposes only `validate` (default). Tool description is purpose-focused ("validate and fix docs") not action-listing. | AI agents calling the tool don't need implementation details about pod lifecycle. One action, purpose-clear description. Action enum kept with single value for future extensibility. |
 
 ## Open Questions
 

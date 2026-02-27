@@ -2,7 +2,7 @@
  * Integration Test: Documentation Validation Tool (PRD #388)
  *
  * Tests the validateDocs tool via REST API against a real test cluster.
- * Validates full lifecycle: start session → check status → list → finish → verify cleanup.
+ * Validates full lifecycle: validate call creates pod, clones repo, verifies page, cleans up.
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
@@ -13,421 +13,84 @@ describe.concurrent('ValidateDocs Tool Integration (PRD #388)', () => {
   const testNamespace = 'dot-ai-docs-validation';
 
   beforeAll(async () => {
-    // Verify test cluster is accessible
     const kubeconfig = process.env.KUBECONFIG;
     expect(kubeconfig).toContain('kubeconfig-test.yaml');
   });
 
-  test('should complete full lifecycle: start → status → list → finish → verify cleanup', async () => {
-    // Step 1: START — create session and pod
-    const startResponse = await integrationTest.httpClient.post(
+  test('should complete full validate lifecycle: pod created → repo cloned → page verified → pod cleaned up', async () => {
+    // Call validate with a known docs page in this repo
+    const response = await integrationTest.httpClient.post(
       '/api/v1/tools/validateDocs',
       {
-        action: 'start',
+        action: 'validate',
         repo: 'https://github.com/vfarcic/dot-ai',
+        page: 'docs/GOVERNANCE.md',
       }
     );
 
-    expect(startResponse).toMatchObject({
+    expect(response).toMatchObject({
       success: true,
       data: {
         result: expect.objectContaining({
           success: true,
           sessionId: expect.stringMatching(/^dvl-\d+-[a-f0-9]{8}$/),
-          podName: expect.stringMatching(/^dvl-[a-f0-9]{8}$/),
-          namespace: testNamespace,
           repo: 'https://github.com/vfarcic/dot-ai',
-          status: 'active',
+          page: 'docs/GOVERNANCE.md',
+          status: 'completed',
         }),
       },
     });
 
-    const sessionId = startResponse.data.result.sessionId;
-    const podName = startResponse.data.result.podName;
+    const sessionId = response.data.result.sessionId;
 
-    // Step 2: Verify pod is actually running in cluster
-    const podPhase = await integrationTest.kubectl(
-      `get pod ${podName} -n ${testNamespace} -o jsonpath="{.status.phase}"`
-    );
-    expect(podPhase.replace(/"/g, '')).toBe('Running');
-
-    // Verify pod has correct labels
-    const podLabels = await integrationTest.kubectl(
-      `get pod ${podName} -n ${testNamespace} -o jsonpath="{.metadata.labels.dot-ai/tool}"`
-    );
-    expect(podLabels.replace(/"/g, '')).toBe('docs-validation');
-
-    // Verify pod has TTL annotation
-    const ttlAnnotation = await integrationTest.kubectl(
-      `get pod ${podName} -n ${testNamespace} -o jsonpath="{.metadata.annotations.dot-ai/ttl-deadline}"`
-    );
-    expect(ttlAnnotation.replace(/"/g, '')).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-
-    // Step 3: STATUS — check session status
-    const statusResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'status',
-        sessionId,
-      }
-    );
-
-    expect(statusResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessionId,
-          repo: 'https://github.com/vfarcic/dot-ai',
-          status: 'active',
-          podName,
-          podNamespace: testNamespace,
-          podStatus: 'Running',
-        }),
-      },
-    });
-
-    // Step 4: LIST — verify session appears in list
-    const listResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'list',
-      }
-    );
-
-    expect(listResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessions: expect.arrayContaining([
-            expect.objectContaining({
-              sessionId,
-              repo: 'https://github.com/vfarcic/dot-ai',
-              status: 'active',
-              podName,
-            }),
-          ]),
-        }),
-      },
-    });
-
-    // Step 5: FINISH — end session and delete pod
-    const finishResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'finish',
-        sessionId,
-      }
-    );
-
-    expect(finishResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessionId,
-          status: 'finished',
-          podDeleted: true,
-        }),
-      },
-    });
-
-    // Step 6: Verify pod is deleted from cluster (wait for termination to complete)
+    // Wait for pod termination to complete, then verify no pods remain
     await integrationTest
       .kubectl(
-        `wait --for=delete pod/${podName} -n ${testNamespace} --timeout=60s`
+        `wait --for=delete pod -l dot-ai/session-id=${sessionId} -n ${testNamespace} --timeout=60s`
       )
       .catch(() => {
-        // Pod may already be gone, which is fine
+        // Pod may already be gone
       });
-    const podAfterFinish = await integrationTest.kubectl(
-      `get pod ${podName} -n ${testNamespace} --ignore-not-found -o jsonpath="{.metadata.name}"`
+    const pods = await integrationTest.kubectl(
+      `get pods -n ${testNamespace} -l dot-ai/session-id=${sessionId} --ignore-not-found -o jsonpath="{.items[*].metadata.name}"`
     );
-    expect(podAfterFinish.replace(/"/g, '').trim()).toBe('');
-
-    // Step 7: STATUS after finish — session persists, shows terminated
-    const statusAfterFinish = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'status',
-        sessionId,
-      }
-    );
-
-    expect(statusAfterFinish).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessionId,
-          status: 'finished',
-        }),
-      },
-    });
-
-    // Step 8: FINISH already-finished session — should be idempotent
-    const finishAgainResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'finish',
-        sessionId,
-      }
-    );
-
-    expect(finishAgainResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessionId,
-          status: 'finished',
-          podDeleted: false,
-        }),
-      },
-    });
-  }, 300000);
-
-  test('should support custom container image', async () => {
-    const startResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'start',
-        repo: 'https://github.com/vfarcic/dot-ai',
-        image: 'alpine:3.19',
-      }
-    );
-
-    expect(startResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          containerImage: 'alpine:3.19',
-          status: 'active',
-        }),
-      },
-    });
-
-    const sessionId = startResponse.data.result.sessionId;
-    const podName = startResponse.data.result.podName;
-
-    // Verify the pod uses the custom image
-    const podImage = await integrationTest.kubectl(
-      `get pod ${podName} -n ${testNamespace} -o jsonpath="{.spec.containers[0].image}"`
-    );
-    expect(podImage.replace(/"/g, '')).toBe('alpine:3.19');
-
-    // Cleanup
-    await integrationTest.httpClient.post('/api/v1/tools/validateDocs', {
-      action: 'finish',
-      sessionId,
-    });
-  }, 300000);
-
-  test('should discover documentation pages: start → discover → status → finish', async () => {
-    // Step 1: START — create session and pod
-    const startResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'start',
-        repo: 'https://github.com/vfarcic/dot-ai',
-      }
-    );
-
-    expect(startResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessionId: expect.stringMatching(/^dvl-\d+-[a-f0-9]{8}$/),
-          status: 'active',
-        }),
-      },
-    });
-
-    const sessionId = startResponse.data.result.sessionId;
-
-    // Step 2: DISCOVER — clone repo and find documentation pages
-    const discoverResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'discover',
-        sessionId,
-      }
-    );
-
-    expect(discoverResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessionId,
-          repo: 'https://github.com/vfarcic/dot-ai',
-          total: expect.any(Number),
-          pages: expect.any(Array),
-        }),
-      },
-    });
-
-    const discoverResult = discoverResponse.data.result;
-
-    // Verify pages were found (dot-ai repo has markdown files)
-    expect(discoverResult.total).toBeGreaterThan(0);
-    expect(discoverResult.pages.length).toBe(discoverResult.total);
-
-    // Verify page structure
-    const firstPage = discoverResult.pages[0];
-    expect(firstPage).toMatchObject({
-      number: 1,
-      path: expect.any(String),
-    });
-
-    // Verify paths are relative (no /workspace/ prefix)
-    for (const page of discoverResult.pages) {
-      expect(page.path).not.toMatch(/^\/workspace\//);
-      expect(page.path).toMatch(/\.(md|mdx)$/);
-    }
-
-    // Step 3: STATUS — verify session shows discovered pages
-    const statusResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'status',
-        sessionId,
-      }
-    );
-
-    expect(statusResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessionId,
-          status: 'active',
-          pagesValidated: discoverResult.total,
-        }),
-      },
-    });
-
-    // Step 4: FINISH — cleanup
-    const finishResponse = await integrationTest.httpClient.post(
-      '/api/v1/tools/validateDocs',
-      {
-        action: 'finish',
-        sessionId,
-      }
-    );
-
-    expect(finishResponse).toMatchObject({
-      success: true,
-      data: {
-        result: expect.objectContaining({
-          success: true,
-          sessionId,
-          status: 'finished',
-          podDeleted: true,
-        }),
-      },
-    });
+    expect(pods.replace(/"/g, '').trim()).toBe('');
   }, 600000);
 
-  describe('Error Handling', () => {
-    test('should return error for start without repo', async () => {
-      const response = await integrationTest.httpClient.post(
-        '/api/v1/tools/validateDocs',
-        {
-          action: 'start',
-        }
-      );
+  test('should return error for non-existent page and still clean up', async () => {
+    const response = await integrationTest.httpClient.post(
+      '/api/v1/tools/validateDocs',
+      {
+        action: 'validate',
+        repo: 'https://github.com/vfarcic/dot-ai',
+        page: 'does-not-exist/fake-page.md',
+      }
+    );
 
-      expect(response).toMatchObject({
-        success: true,
-        data: {
-          result: expect.objectContaining({
-            success: false,
-            error: expect.stringContaining('repo'),
-          }),
-        },
-      });
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        result: expect.objectContaining({
+          success: false,
+          sessionId: expect.stringMatching(/^dvl-\d+-[a-f0-9]{8}$/),
+          error: expect.stringContaining('Page not found'),
+        }),
+      },
     });
 
-    test('should return error for status with invalid session ID', async () => {
-      const response = await integrationTest.httpClient.post(
-        '/api/v1/tools/validateDocs',
-        {
-          action: 'status',
-          sessionId: 'dvl-nonexistent-12345678',
-        }
-      );
+    const sessionId = response.data.result.sessionId;
 
-      expect(response).toMatchObject({
-        success: true,
-        data: {
-          result: expect.objectContaining({
-            success: false,
-            error: expect.stringContaining('not found'),
-          }),
-        },
+    // Wait for pod termination to complete, then verify no pods remain
+    await integrationTest
+      .kubectl(
+        `wait --for=delete pod -l dot-ai/session-id=${sessionId} -n ${testNamespace} --timeout=60s`
+      )
+      .catch(() => {
+        // Pod may already be gone
       });
-    });
-
-    test('should return error for discover with invalid session ID', async () => {
-      const response = await integrationTest.httpClient.post(
-        '/api/v1/tools/validateDocs',
-        {
-          action: 'discover',
-          sessionId: 'dvl-nonexistent-12345678',
-        }
-      );
-
-      expect(response).toMatchObject({
-        success: true,
-        data: {
-          result: expect.objectContaining({
-            success: false,
-            error: expect.stringContaining('not found'),
-          }),
-        },
-      });
-    });
-
-    test('should return error for discover without session ID', async () => {
-      const response = await integrationTest.httpClient.post(
-        '/api/v1/tools/validateDocs',
-        {
-          action: 'discover',
-        }
-      );
-
-      expect(response).toMatchObject({
-        success: true,
-        data: {
-          result: expect.objectContaining({
-            success: false,
-            error: expect.stringContaining('sessionId'),
-          }),
-        },
-      });
-    });
-
-    test('should return error for finish without session ID', async () => {
-      const response = await integrationTest.httpClient.post(
-        '/api/v1/tools/validateDocs',
-        {
-          action: 'finish',
-        }
-      );
-
-      expect(response).toMatchObject({
-        success: true,
-        data: {
-          result: expect.objectContaining({
-            success: false,
-            error: expect.stringContaining('sessionId'),
-          }),
-        },
-      });
-    });
-  });
+    const pods = await integrationTest.kubectl(
+      `get pods -n ${testNamespace} -l dot-ai/session-id=${sessionId} --ignore-not-found -o jsonpath="{.items[*].metadata.name}"`
+    );
+    expect(pods.replace(/"/g, '').trim()).toBe('');
+  }, 600000);
 });

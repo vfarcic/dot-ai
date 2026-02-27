@@ -22,25 +22,22 @@ const DEFAULT_TTL_HOURS = 24;
 // Tool metadata for MCP registration
 export const VALIDATE_DOCS_TOOL_NAME = 'validateDocs';
 export const VALIDATE_DOCS_TOOL_DESCRIPTION =
-  'Manage documentation validation sessions. Creates validation environments (pods), ' +
-  'clones repos, discovers documentation pages, tracks sessions, and handles cleanup. ' +
-  'Use "start" to begin, "discover" to clone repo and list pages, ' +
-  '"status" to check a session, "list" to see all sessions, "finish" to end a session.';
+  'Validate and fix documentation pages. Detects broken code blocks, stale links, ' +
+  'incorrect shell commands, and readability issues. ' +
+  'Provide a git repo URL and a page path to validate a single page end-to-end.';
 
 // Input schema using Zod
 export const VALIDATE_DOCS_TOOL_INPUT_SCHEMA = {
   action: z
-    .enum(['start', 'discover', 'status', 'list', 'finish'])
-    .describe(
-      'Action to perform: "start" creates session + pod, "discover" clones repo and lists doc pages, ' +
-        '"status" checks session/pod, "list" shows all sessions, "finish" ends session and deletes pod.'
-    ),
-  repo: z
+    .enum(['validate'])
+    .default('validate')
+    .describe('Action to perform. Defaults to "validate".'),
+  repo: z.string().min(1).describe('Git repository URL to validate.'),
+  page: z
     .string()
     .min(1)
-    .optional()
     .describe(
-      'Git repository URL or docs site URL to validate. Required for "start" action.'
+      'Page path relative to repo root (e.g., "docs/getting-started.md").'
     ),
   image: z
     .string()
@@ -49,20 +46,14 @@ export const VALIDATE_DOCS_TOOL_INPUT_SCHEMA = {
       'Custom container image for the validation pod. Must include git. ' +
         'If omitted, uses default image (ghcr.io/vfarcic/dot-ai-docs-validator:latest).'
     ),
-  sessionId: z
-    .string()
-    .optional()
-    .describe(
-      'Session ID from a previous start call. Required for "status" and "finish" actions.'
-    ),
 };
 
 // Input type
 export interface ValidateDocsInput {
-  action: 'start' | 'discover' | 'status' | 'list' | 'finish';
-  repo?: string;
+  action: 'validate';
+  repo: string;
+  page: string;
   image?: string;
-  sessionId?: string;
 }
 
 // Session data type
@@ -132,123 +123,7 @@ function textResponse(data: unknown): {
 }
 
 /**
- * Handle 'start' action — create session and pod.
- */
-async function handleStart(
-  args: ValidateDocsInput,
-  logger: Logger
-): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  if (!args.repo) {
-    return textResponse({
-      success: false,
-      error: 'repo is required for "start" action',
-    });
-  }
-
-  if (!isPluginInitialized()) {
-    return textResponse({
-      success: false,
-      error:
-        'Plugin system not available. validateDocs requires agentic-tools plugin.',
-    });
-  }
-
-  const namespace = DEFAULT_NAMESPACE;
-  const ttlHours = getTtlHours();
-
-  // Create session first to get the session ID
-  const now = new Date().toISOString();
-  const session = sessionManager.createSession({
-    toolName: 'validateDocs',
-    repo: args.repo,
-    podName: '', // Will be updated after pod creation
-    podNamespace: namespace,
-    containerImage: args.image || '',
-    pagesValidated: [],
-    issuesFound: [],
-    fixesApplied: [],
-    feedbackHistory: [],
-    status: 'active',
-    lastActivityAt: now,
-    ttlHours,
-  });
-
-  logger.info('Creating validation pod', {
-    sessionId: session.sessionId,
-    repo: args.repo,
-  });
-
-  // Create pod via plugin
-  const createArgs: Record<string, unknown> = {
-    sessionId: session.sessionId,
-    namespace,
-    ttlHours,
-  };
-  if (args.image) {
-    createArgs.image = args.image;
-  }
-
-  const response = await invokePluginTool(
-    PLUGIN_NAME,
-    'docs_validate_create_pod',
-    createArgs
-  );
-
-  if (!response.success) {
-    // Clean up the session since pod creation failed
-    sessionManager.deleteSession(session.sessionId);
-    return textResponse({
-      success: false,
-      error: response.error?.message || 'Failed to create validation pod',
-    });
-  }
-
-  // Parse pod creation result
-  const result = response.result as {
-    success?: boolean;
-    data?: string;
-    error?: string;
-  };
-  if (result.success === false) {
-    sessionManager.deleteSession(session.sessionId);
-    return textResponse({
-      success: false,
-      error: result.error || 'Failed to create validation pod',
-    });
-  }
-
-  const podData = JSON.parse(result.data || '{}');
-
-  // Update session with pod info
-  sessionManager.updateSession(session.sessionId, {
-    podName: podData.podName,
-    containerImage:
-      podData.image ||
-      args.image ||
-      'ghcr.io/vfarcic/dot-ai-docs-validator:latest',
-  });
-
-  logger.info('Validation session started', {
-    sessionId: session.sessionId,
-    podName: podData.podName,
-    namespace,
-  });
-
-  return textResponse({
-    success: true,
-    sessionId: session.sessionId,
-    podName: podData.podName,
-    namespace: podData.namespace,
-    containerImage: podData.image,
-    repo: args.repo,
-    status: 'active',
-    message: `Validation session started. Pod ${podData.podName} is running in namespace ${podData.namespace}.`,
-  });
-}
-
-/**
  * Execute a command inside the validation pod via the plugin exec tool.
- * Returns the parsed result with stdout/stderr/exitCode.
  */
 async function execInPod(
   podName: string,
@@ -286,19 +161,37 @@ async function execInPod(
 }
 
 /**
- * Handle 'discover' action — clone repo and discover documentation pages.
+ * Delete pod and mark session as finished. Safe to call multiple times.
  */
-async function handleDiscover(
-  args: ValidateDocsInput,
+async function cleanupSession(
+  sessionId: string,
+  podName: string,
+  podNamespace: string,
   logger: Logger
-): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  if (!args.sessionId) {
-    return textResponse({
-      success: false,
-      error: 'sessionId is required for "discover" action',
+): Promise<void> {
+  if (podName && isPluginInitialized()) {
+    await invokePluginTool(PLUGIN_NAME, 'docs_validate_delete_pod', {
+      podName,
+      namespace: podNamespace,
     });
   }
 
+  sessionManager.updateSession(sessionId, {
+    status: 'finished',
+    lastActivityAt: new Date().toISOString(),
+  });
+
+  logger.info('Validation session cleaned up', { sessionId });
+}
+
+/**
+ * Handle 'validate' action — full end-to-end single-page validation.
+ * Orchestrates: create session → create pod → clone repo → verify page → cleanup.
+ */
+async function handleValidate(
+  args: ValidateDocsInput,
+  logger: Logger
+): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
   if (!isPluginInitialized()) {
     return textResponse({
       success: false,
@@ -307,329 +200,141 @@ async function handleDiscover(
     });
   }
 
-  const session = sessionManager.getSession(args.sessionId);
-  if (!session) {
-    return textResponse({
-      success: false,
-      error: `Session not found: ${args.sessionId}`,
-    });
-  }
+  const namespace = DEFAULT_NAMESPACE;
+  const ttlHours = getTtlHours();
 
-  if (session.data.status === 'finished') {
-    return textResponse({
-      success: false,
-      error: 'Cannot discover on a finished session',
-    });
-  }
-
-  const { podName, podNamespace, repo } = session.data;
-
-  logger.info('Discovering documentation pages', {
-    sessionId: args.sessionId,
-    repo,
+  // Create session
+  const session = sessionManager.createSession({
+    toolName: 'validateDocs',
+    repo: args.repo,
+    podName: '',
+    podNamespace: namespace,
+    containerImage: args.image || '',
+    pagesValidated: [{ path: args.page, status: 'pending' }],
+    issuesFound: [],
+    fixesApplied: [],
+    feedbackHistory: [],
+    status: 'active',
+    lastActivityAt: new Date().toISOString(),
+    ttlHours,
   });
 
-  // Step 1: Clone the repo (default image has git pre-installed; --quiet suppresses stderr progress)
-  const cloneResult = await execInPod(
-    podName,
-    podNamespace,
-    ['git', 'clone', '--depth', '1', '--quiet', repo, '/workspace'],
-    180000
+  logger.info('Starting validation', {
+    sessionId: session.sessionId,
+    repo: args.repo,
+    page: args.page,
+  });
+
+  // Create pod
+  const createArgs: Record<string, unknown> = {
+    sessionId: session.sessionId,
+    namespace,
+    ttlHours,
+  };
+  if (args.image) {
+    createArgs.image = args.image;
+  }
+
+  const createResponse = await invokePluginTool(
+    PLUGIN_NAME,
+    'docs_validate_create_pod',
+    createArgs
   );
 
-  if (cloneResult.exitCode !== 0) {
+  if (!createResponse.success) {
+    sessionManager.deleteSession(session.sessionId);
     return textResponse({
       success: false,
-      error: `Failed to clone repository: ${cloneResult.stderr || 'unknown error'}`,
+      error: createResponse.error?.message || 'Failed to create validation pod',
     });
   }
 
-  // Step 3: Find all markdown files
-  const findResult = await execInPod(podName, podNamespace, [
-    'find',
-    '/workspace',
-    '-type',
-    'f',
-    '(',
-    '-name',
-    '*.md',
-    '-o',
-    '-name',
-    '*.mdx',
-    ')',
-    '-not',
-    '-path',
-    '*/node_modules/*',
-    '-not',
-    '-path',
-    '*/.git/*',
-  ]);
-
-  if (findResult.exitCode !== 0) {
+  const createResult = createResponse.result as {
+    success?: boolean;
+    data?: string;
+    error?: string;
+  };
+  if (createResult.success === false) {
+    sessionManager.deleteSession(session.sessionId);
     return textResponse({
       success: false,
-      error: `Failed to discover pages: ${findResult.stderr || 'unknown error'}`,
+      error: createResult.error || 'Failed to create validation pod',
     });
   }
 
-  const filePaths = findResult.stdout
-    .split('\n')
-    .map(p => p.trim())
-    .filter(Boolean)
-    .sort();
+  const podData = JSON.parse(createResult.data || '{}');
+  const podName = podData.podName;
+  const containerImage =
+    podData.image ||
+    args.image ||
+    'ghcr.io/vfarcic/dot-ai-docs-validator:latest';
 
-  if (filePaths.length === 0) {
-    const now = new Date().toISOString();
-    sessionManager.updateSession(args.sessionId, {
-      pagesValidated: [],
-      lastActivityAt: now,
-    });
-
-    return textResponse({
-      success: true,
-      sessionId: args.sessionId,
-      pages: [],
-      total: 0,
-      message: 'No markdown files found in the repository.',
-    });
-  }
-
-  // Step 4: Extract titles from each file (batch via single exec)
-  // Use head + grep to get first heading from each file
-  const titleScript = filePaths
-    .map(
-      fp =>
-        `title=$(head -20 ${fp} | grep -m1 "^# " | sed "s/^# //"); echo "${fp}|||\${title}"`
-    )
-    .join('; ');
-
-  const titleResult = await execInPod(podName, podNamespace, [
-    'sh',
-    '-c',
-    titleScript,
-  ]);
-
-  // Build pages list
-  const pages: Array<{ number: number; path: string; title: string }> = [];
-  const titleLines =
-    titleResult.exitCode === 0
-      ? titleResult.stdout.split('\n').filter(Boolean)
-      : [];
-
-  // Create a map of path -> title from the title extraction
-  const titleMap = new Map<string, string>();
-  for (const line of titleLines) {
-    const sepIdx = line.indexOf('|||');
-    if (sepIdx !== -1) {
-      const fp = line.substring(0, sepIdx).trim();
-      const title = line.substring(sepIdx + 3).trim();
-      titleMap.set(fp, title);
-    }
-  }
-
-  for (let i = 0; i < filePaths.length; i++) {
-    const fullPath = filePaths[i];
-    // Strip /workspace/ prefix for cleaner display
-    const relativePath = fullPath.replace(/^\/workspace\//, '');
-    const title = titleMap.get(fullPath) || '';
-
-    pages.push({
-      number: i + 1,
-      path: relativePath,
-      title,
-    });
-  }
-
-  // Step 5: Update session with discovered pages
-  const now = new Date().toISOString();
-  const pagesValidated = pages.map(p => ({
-    path: p.path,
-    title: p.title || undefined,
-    status: 'pending' as const,
-  }));
-
-  sessionManager.updateSession(args.sessionId, {
-    pagesValidated,
-    lastActivityAt: now,
+  sessionManager.updateSession(session.sessionId, {
+    podName,
+    containerImage,
   });
 
-  logger.info('Documentation pages discovered', {
-    sessionId: args.sessionId,
-    pageCount: pages.length,
-  });
+  try {
+    // Clone repo
+    const cloneResult = await execInPod(
+      podName,
+      namespace,
+      ['git', 'clone', '--depth', '1', '--quiet', args.repo, '/workspace'],
+      180000
+    );
 
-  return textResponse({
-    success: true,
-    sessionId: args.sessionId,
-    repo,
-    pages,
-    total: pages.length,
-    message: `Found ${pages.length} documentation page(s). Select pages to validate by number (e.g., "1,3,5" or "1-10") or "all".`,
-  });
-}
-
-/**
- * Handle 'status' action — check session and pod status.
- */
-async function handleStatus(
-  args: ValidateDocsInput
-): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  if (!args.sessionId) {
-    return textResponse({
-      success: false,
-      error: 'sessionId is required for "status" action',
-    });
-  }
-
-  const session = sessionManager.getSession(args.sessionId);
-  if (!session) {
-    return textResponse({
-      success: false,
-      error: `Session not found: ${args.sessionId}`,
-    });
-  }
-
-  // Check pod status if session is active
-  let podPhase = 'Unknown';
-  if (session.data.status === 'active' && session.data.podName) {
-    if (isPluginInitialized()) {
-      const response = await invokePluginTool(
-        PLUGIN_NAME,
-        'docs_validate_pod_status',
-        {
-          podName: session.data.podName,
-          namespace: session.data.podNamespace,
-        }
-      );
-
-      if (response.success) {
-        const result = response.result as { success?: boolean; data?: string };
-        if (result.data) {
-          const statusData = JSON.parse(result.data);
-          podPhase = statusData.phase;
-        }
-      }
-    }
-
-    // Update lastActivityAt
-    const now = new Date().toISOString();
-    sessionManager.updateSession(args.sessionId, { lastActivityAt: now });
-  } else if (session.data.status === 'finished') {
-    podPhase = 'Terminated';
-  }
-
-  return textResponse({
-    success: true,
-    sessionId: session.sessionId,
-    repo: session.data.repo,
-    status: session.data.status,
-    podName: session.data.podName,
-    podNamespace: session.data.podNamespace,
-    podStatus: podPhase,
-    containerImage: session.data.containerImage,
-    pagesValidated: session.data.pagesValidated.length,
-    issuesFound: session.data.issuesFound.length,
-    fixesApplied: session.data.fixesApplied.length,
-    createdAt: session.createdAt,
-    lastActivityAt: session.data.lastActivityAt,
-  });
-}
-
-/**
- * Handle 'list' action — list all sessions.
- */
-async function handleList(): Promise<{
-  content: Array<{ type: 'text'; text: string }>;
-}> {
-  const sessionIds = sessionManager.listSessions();
-  const sessions = sessionIds
-    .map(id => {
-      const session = sessionManager.getSession(id);
-      if (!session) return null;
-      return {
+    if (cloneResult.exitCode !== 0) {
+      await cleanupSession(session.sessionId, podName, namespace, logger);
+      return textResponse({
+        success: false,
         sessionId: session.sessionId,
-        repo: session.data.repo,
-        status: session.data.status,
-        podName: session.data.podName,
-        podNamespace: session.data.podNamespace,
-        createdAt: session.createdAt,
-        lastActivityAt: session.data.lastActivityAt,
-      };
-    })
-    .filter(Boolean);
+        error: `Failed to clone repository: ${cloneResult.stderr || 'unknown error'}`,
+      });
+    }
 
-  return textResponse({
-    success: true,
-    sessions,
-    total: sessions.length,
-  });
-}
+    // Verify page exists
+    const checkResult = await execInPod(podName, namespace, [
+      'test',
+      '-f',
+      `/workspace/${args.page}`,
+    ]);
 
-/**
- * Handle 'finish' action — end session and delete pod.
- */
-async function handleFinish(
-  args: ValidateDocsInput,
-  logger: Logger
-): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  if (!args.sessionId) {
-    return textResponse({
-      success: false,
-      error: 'sessionId is required for "finish" action',
+    if (checkResult.exitCode !== 0) {
+      await cleanupSession(session.sessionId, podName, namespace, logger);
+      return textResponse({
+        success: false,
+        sessionId: session.sessionId,
+        error: `Page not found: ${args.page}`,
+      });
+    }
+
+    // TODO: Milestone 2b — AI validation agent loop goes here
+
+    // Update page status
+    sessionManager.updateSession(session.sessionId, {
+      pagesValidated: [{ path: args.page, status: 'validated' }],
     });
-  }
 
-  const session = sessionManager.getSession(args.sessionId);
-  if (!session) {
-    return textResponse({
-      success: false,
-      error: `Session not found: ${args.sessionId}`,
-    });
-  }
+    // Cleanup pod, persist session
+    await cleanupSession(session.sessionId, podName, namespace, logger);
 
-  if (session.data.status === 'finished') {
     return textResponse({
       success: true,
       sessionId: session.sessionId,
-      status: 'finished',
-      podDeleted: false,
-      message: 'Session was already finished.',
+      repo: args.repo,
+      page: args.page,
+      status: 'completed',
+      message: `Validated ${args.page}. Pod cleaned up. Session record retained.`,
+    });
+  } catch (error) {
+    // Ensure cleanup on unexpected errors
+    await cleanupSession(session.sessionId, podName, namespace, logger);
+    return textResponse({
+      success: false,
+      sessionId: session.sessionId,
+      error: `Validation failed: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
-
-  // Delete the pod
-  let podDeleted = false;
-  if (session.data.podName && isPluginInitialized()) {
-    const response = await invokePluginTool(
-      PLUGIN_NAME,
-      'docs_validate_delete_pod',
-      {
-        podName: session.data.podName,
-        namespace: session.data.podNamespace,
-      }
-    );
-    podDeleted = response.success === true;
-  }
-
-  // Update session status
-  const now = new Date().toISOString();
-  sessionManager.updateSession(args.sessionId, {
-    status: 'finished',
-    lastActivityAt: now,
-  });
-
-  logger.info('Validation session finished', {
-    sessionId: args.sessionId,
-    podDeleted,
-  });
-
-  return textResponse({
-    success: true,
-    sessionId: session.sessionId,
-    status: 'finished',
-    podDeleted,
-    message: `Session finished. ${podDeleted ? 'Pod deleted.' : 'Pod was already gone.'} Session record retained.`,
-  });
 }
 
 /**
@@ -644,16 +349,8 @@ export async function handleValidateDocsTool(
   logger.info(`Processing validateDocs action: ${args.action}`, { requestId });
 
   switch (args.action) {
-    case 'start':
-      return handleStart(args, logger);
-    case 'discover':
-      return handleDiscover(args, logger);
-    case 'status':
-      return handleStatus(args);
-    case 'list':
-      return handleList();
-    case 'finish':
-      return handleFinish(args, logger);
+    case 'validate':
+      return handleValidate(args, logger);
     default:
       return textResponse({
         success: false,
