@@ -462,7 +462,7 @@ export class MCPServer {
         );
       },
       'Documentation',
-      ['validation', 'docs', 'documentation', 'pod', 'lifecycle']
+      ['validation', 'docs', 'documentation', 'pod', 'lifecycle', 'discover']
     );
 
     // NOTE: Plugin tools (kubectl_*, helm_*, shell_exec) are NOT registered as MCP tools.

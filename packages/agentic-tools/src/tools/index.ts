@@ -48,6 +48,7 @@ import {
   docsValidateDeletePod,
   docsValidatePodStatus,
   docsValidateTtlSweep,
+  docsValidateExec,
 } from './docs-validate-pod';
 
 // PRD #359: Vector database tools (Qdrant operations)
@@ -97,6 +98,7 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
   docsValidateDeletePod,
   docsValidatePodStatus,
   docsValidateTtlSweep,
+  docsValidateExec,
 ];
 
 /**

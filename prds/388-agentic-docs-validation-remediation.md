@@ -149,7 +149,7 @@ System crawls the site (sitemap.xml first, falls back to link following), discov
 │  │  │  Push/PR │  │           │  │           │  │         │ │   │
 │  │  └──────────┘  └───────────┘  └──────────┘  └─────────┘ │   │
 │  │                                                           │   │
-│  │  Default: shell + pkg manager + git (installs runtimes)   │   │
+│  │  Default: debian:13-slim + git + gh CLI + curl             │   │
 │  │  Tools: git, gh CLI, language parsers                     │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
@@ -278,7 +278,7 @@ When a page references prerequisites:
 
 ### Functional Requirements
 - [x] Spin up a validation Pod (default image or user-specified)
-- [ ] Clone git repos and discover documentation pages
+- [x] Clone git repos and discover documentation pages
 - [ ] Crawl URL-based docs sites and discover pages
 - [ ] Support page selection (individual, ranges, all)
 - [ ] Analyze readability with AI and provide specific fixes
@@ -303,15 +303,19 @@ When a page references prerequisites:
 ## Milestones
 
 ### Milestone 1: Pod Lifecycle Management
-- [x] Minimal default container image (shell, package manager, git, gh CLI)
+- [x] Minimal default container image — `debian:13-slim` with bash, git, gh CLI, curl (`ghcr.io/vfarcic/dot-ai-docs-validator`)
 - [x] Support for user-specified container images
 - [ ] Pod creation with ServiceAccount, secrets, and resource limits *(resource limits done; ServiceAccount/secrets deferred — pod doesn't need k8s API access yet)*
+- [ ] Mount git credentials and AI API keys into validation Pod *(deferred — public repos work without credentials; existing `dot-ai-secrets` Secret has the pattern ready, just needs `git.token` key added and `secretKeyRef` mount in pod spec)*
 - [x] TTL-based auto-cleanup with inactivity tracking
 - [x] Explicit finish/cleanup command
 - [ ] Pod recreation for resumed sessions
 
 ### Milestone 2: Documentation Discovery & Selection
-- [ ] Git repo cloning and markdown file discovery
+- [x] Git repo cloning and markdown file discovery
+- [x] Command execution inside validation pods (`docs_validate_exec` plugin tool)
+- [x] Custom default image (`ghcr.io/vfarcic/dot-ai-docs-validator`) with git, gh CLI, curl pre-installed; GHA workflow for builds
+- [x] Page listing with titles extracted from first heading
 - [ ] URL-based crawling (sitemap + link following)
 - [ ] Interactive page selection via MCP/CLI/REST
 - [ ] Prerequisite detection and dependency ordering

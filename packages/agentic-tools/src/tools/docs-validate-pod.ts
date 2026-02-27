@@ -1,8 +1,8 @@
 /**
- * Documentation Validation Pod Lifecycle Tools
+ * Documentation Validation Pod Tools
  *
- * PRD #388: Manages validation pod creation, deletion, status checking, and TTL cleanup.
- * These tools handle all Kubernetes operations for the docs validation system.
+ * PRD #388: Manages validation pod creation, deletion, status checking, TTL cleanup,
+ * and command execution inside validation pods.
  */
 
 import {
@@ -15,10 +15,11 @@ import {
   withValidation,
 } from './base';
 
-const DEFAULT_IMAGE = 'ubuntu:24.04';
+const DEFAULT_IMAGE = 'ghcr.io/vfarcic/dot-ai-docs-validator:latest';
 const DEFAULT_NAMESPACE = 'dot-ai-docs-validation';
 const DEFAULT_TTL_HOURS = 24;
 const POD_READY_TIMEOUT_SECONDS = 120;
+const DEFAULT_EXEC_TIMEOUT_MS = 120000;
 
 /**
  * Generate a unique pod name with dvl- prefix and 8-char hex suffix.
@@ -383,6 +384,94 @@ export const docsValidateTtlSweep: KubectlTool = {
         );
       }
       return errorResult(message, `TTL sweep failed: ${message}`);
+    }
+  }),
+};
+
+/**
+ * docs_validate_exec - Execute a command inside a validation pod.
+ */
+export const docsValidateExec: KubectlTool = {
+  definition: {
+    name: 'docs_validate_exec',
+    type: 'agentic',
+    description:
+      'Execute a command inside a documentation validation pod via kubectl exec.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        podName: {
+          type: 'string',
+          description: 'Name of the validation pod',
+        },
+        namespace: {
+          type: 'string',
+          description: `Namespace of the pod (default: ${DEFAULT_NAMESPACE})`,
+        },
+        command: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Command and arguments to execute (e.g., ["git", "clone", "https://..."])',
+        },
+        timeoutMs: {
+          type: 'number',
+          description: `Timeout in milliseconds (default: ${DEFAULT_EXEC_TIMEOUT_MS})`,
+        },
+      },
+      required: ['podName', 'command'],
+    },
+  },
+
+  handler: withValidation(async args => {
+    const podName = requireParam<string>(args, 'podName', 'docs_validate_exec');
+    const command = requireParam<string[]>(
+      args,
+      'command',
+      'docs_validate_exec'
+    );
+    const namespace = optionalParam<string>(
+      args,
+      'namespace',
+      DEFAULT_NAMESPACE
+    );
+    const timeoutMs = optionalParam<number>(
+      args,
+      'timeoutMs',
+      DEFAULT_EXEC_TIMEOUT_MS
+    );
+
+    if (!Array.isArray(command) || command.length === 0) {
+      return errorResult(
+        'command must be a non-empty array of strings',
+        'docs_validate_exec requires a non-empty command array'
+      );
+    }
+
+    try {
+      const kubectlArgs = [
+        'exec',
+        `pod/${podName}`,
+        '-n',
+        namespace,
+        '-c',
+        'validator',
+        '--',
+        ...command,
+      ];
+
+      const stdout = await executeKubectl(kubectlArgs, { timeout: timeoutMs });
+      const result = JSON.stringify({ stdout, exitCode: 0 });
+      return successResult(result, `Command executed in pod ${podName}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // Return stderr/error as data rather than failing the tool,
+      // so the caller can decide how to handle non-zero exits
+      const result = JSON.stringify({ stderr: message, exitCode: 1 });
+      return successResult(
+        result,
+        `Command failed in pod ${podName}: ${message}`
+      );
     }
   }),
 };

@@ -23,16 +23,17 @@ const DEFAULT_TTL_HOURS = 24;
 export const VALIDATE_DOCS_TOOL_NAME = 'validateDocs';
 export const VALIDATE_DOCS_TOOL_DESCRIPTION =
   'Manage documentation validation sessions. Creates validation environments (pods), ' +
-  'tracks sessions, and handles cleanup. Use action "start" to begin validating a docs repo, ' +
+  'clones repos, discovers documentation pages, tracks sessions, and handles cleanup. ' +
+  'Use "start" to begin, "discover" to clone repo and list pages, ' +
   '"status" to check a session, "list" to see all sessions, "finish" to end a session.';
 
 // Input schema using Zod
 export const VALIDATE_DOCS_TOOL_INPUT_SCHEMA = {
   action: z
-    .enum(['start', 'status', 'list', 'finish'])
+    .enum(['start', 'discover', 'status', 'list', 'finish'])
     .describe(
-      'Action to perform: "start" creates session + pod, "status" checks session/pod, ' +
-        '"list" shows all sessions, "finish" ends session and deletes pod.'
+      'Action to perform: "start" creates session + pod, "discover" clones repo and lists doc pages, ' +
+        '"status" checks session/pod, "list" shows all sessions, "finish" ends session and deletes pod.'
     ),
   repo: z
     .string()
@@ -46,7 +47,7 @@ export const VALIDATE_DOCS_TOOL_INPUT_SCHEMA = {
     .optional()
     .describe(
       'Custom container image for the validation pod. Must include git. ' +
-        'If omitted, uses default image (ubuntu:24.04).'
+        'If omitted, uses default image (ghcr.io/vfarcic/dot-ai-docs-validator:latest).'
     ),
   sessionId: z
     .string()
@@ -58,7 +59,7 @@ export const VALIDATE_DOCS_TOOL_INPUT_SCHEMA = {
 
 // Input type
 export interface ValidateDocsInput {
-  action: 'start' | 'status' | 'list' | 'finish';
+  action: 'start' | 'discover' | 'status' | 'list' | 'finish';
   repo?: string;
   image?: string;
   sessionId?: string;
@@ -221,7 +222,10 @@ async function handleStart(
   // Update session with pod info
   sessionManager.updateSession(session.sessionId, {
     podName: podData.podName,
-    containerImage: podData.image || args.image || 'ubuntu:24.04',
+    containerImage:
+      podData.image ||
+      args.image ||
+      'ghcr.io/vfarcic/dot-ai-docs-validator:latest',
   });
 
   logger.info('Validation session started', {
@@ -239,6 +243,228 @@ async function handleStart(
     repo: args.repo,
     status: 'active',
     message: `Validation session started. Pod ${podData.podName} is running in namespace ${podData.namespace}.`,
+  });
+}
+
+/**
+ * Execute a command inside the validation pod via the plugin exec tool.
+ * Returns the parsed result with stdout/stderr/exitCode.
+ */
+async function execInPod(
+  podName: string,
+  namespace: string,
+  command: string[],
+  timeoutMs?: number
+): Promise<{ stdout: string; stderr?: string; exitCode: number }> {
+  const execArgs: Record<string, unknown> = {
+    podName,
+    namespace,
+    command,
+  };
+  if (timeoutMs) {
+    execArgs.timeoutMs = timeoutMs;
+  }
+
+  const response = await invokePluginTool(
+    PLUGIN_NAME,
+    'docs_validate_exec',
+    execArgs
+  );
+
+  if (!response.success) {
+    throw new Error(
+      response.error?.message || 'Failed to execute command in pod'
+    );
+  }
+
+  const result = response.result as { success?: boolean; data?: string };
+  if (!result.data) {
+    throw new Error('No data returned from exec');
+  }
+
+  return JSON.parse(result.data);
+}
+
+/**
+ * Handle 'discover' action — clone repo and discover documentation pages.
+ */
+async function handleDiscover(
+  args: ValidateDocsInput,
+  logger: Logger
+): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+  if (!args.sessionId) {
+    return textResponse({
+      success: false,
+      error: 'sessionId is required for "discover" action',
+    });
+  }
+
+  if (!isPluginInitialized()) {
+    return textResponse({
+      success: false,
+      error:
+        'Plugin system not available. validateDocs requires agentic-tools plugin.',
+    });
+  }
+
+  const session = sessionManager.getSession(args.sessionId);
+  if (!session) {
+    return textResponse({
+      success: false,
+      error: `Session not found: ${args.sessionId}`,
+    });
+  }
+
+  if (session.data.status === 'finished') {
+    return textResponse({
+      success: false,
+      error: 'Cannot discover on a finished session',
+    });
+  }
+
+  const { podName, podNamespace, repo } = session.data;
+
+  logger.info('Discovering documentation pages', {
+    sessionId: args.sessionId,
+    repo,
+  });
+
+  // Step 1: Clone the repo (default image has git pre-installed; --quiet suppresses stderr progress)
+  const cloneResult = await execInPod(
+    podName,
+    podNamespace,
+    ['git', 'clone', '--depth', '1', '--quiet', repo, '/workspace'],
+    180000
+  );
+
+  if (cloneResult.exitCode !== 0) {
+    return textResponse({
+      success: false,
+      error: `Failed to clone repository: ${cloneResult.stderr || 'unknown error'}`,
+    });
+  }
+
+  // Step 3: Find all markdown files
+  const findResult = await execInPod(podName, podNamespace, [
+    'find',
+    '/workspace',
+    '-type',
+    'f',
+    '(',
+    '-name',
+    '*.md',
+    '-o',
+    '-name',
+    '*.mdx',
+    ')',
+    '-not',
+    '-path',
+    '*/node_modules/*',
+    '-not',
+    '-path',
+    '*/.git/*',
+  ]);
+
+  if (findResult.exitCode !== 0) {
+    return textResponse({
+      success: false,
+      error: `Failed to discover pages: ${findResult.stderr || 'unknown error'}`,
+    });
+  }
+
+  const filePaths = findResult.stdout
+    .split('\n')
+    .map(p => p.trim())
+    .filter(Boolean)
+    .sort();
+
+  if (filePaths.length === 0) {
+    const now = new Date().toISOString();
+    sessionManager.updateSession(args.sessionId, {
+      pagesValidated: [],
+      lastActivityAt: now,
+    });
+
+    return textResponse({
+      success: true,
+      sessionId: args.sessionId,
+      pages: [],
+      total: 0,
+      message: 'No markdown files found in the repository.',
+    });
+  }
+
+  // Step 4: Extract titles from each file (batch via single exec)
+  // Use head + grep to get first heading from each file
+  const titleScript = filePaths
+    .map(
+      fp =>
+        `title=$(head -20 ${fp} | grep -m1 "^# " | sed "s/^# //"); echo "${fp}|||\${title}"`
+    )
+    .join('; ');
+
+  const titleResult = await execInPod(podName, podNamespace, [
+    'sh',
+    '-c',
+    titleScript,
+  ]);
+
+  // Build pages list
+  const pages: Array<{ number: number; path: string; title: string }> = [];
+  const titleLines =
+    titleResult.exitCode === 0
+      ? titleResult.stdout.split('\n').filter(Boolean)
+      : [];
+
+  // Create a map of path -> title from the title extraction
+  const titleMap = new Map<string, string>();
+  for (const line of titleLines) {
+    const sepIdx = line.indexOf('|||');
+    if (sepIdx !== -1) {
+      const fp = line.substring(0, sepIdx).trim();
+      const title = line.substring(sepIdx + 3).trim();
+      titleMap.set(fp, title);
+    }
+  }
+
+  for (let i = 0; i < filePaths.length; i++) {
+    const fullPath = filePaths[i];
+    // Strip /workspace/ prefix for cleaner display
+    const relativePath = fullPath.replace(/^\/workspace\//, '');
+    const title = titleMap.get(fullPath) || '';
+
+    pages.push({
+      number: i + 1,
+      path: relativePath,
+      title,
+    });
+  }
+
+  // Step 5: Update session with discovered pages
+  const now = new Date().toISOString();
+  const pagesValidated = pages.map(p => ({
+    path: p.path,
+    title: p.title || undefined,
+    status: 'pending' as const,
+  }));
+
+  sessionManager.updateSession(args.sessionId, {
+    pagesValidated,
+    lastActivityAt: now,
+  });
+
+  logger.info('Documentation pages discovered', {
+    sessionId: args.sessionId,
+    pageCount: pages.length,
+  });
+
+  return textResponse({
+    success: true,
+    sessionId: args.sessionId,
+    repo,
+    pages,
+    total: pages.length,
+    message: `Found ${pages.length} documentation page(s). Select pages to validate by number (e.g., "1,3,5" or "1-10") or "all".`,
   });
 }
 
@@ -420,6 +646,8 @@ export async function handleValidateDocsTool(
   switch (args.action) {
     case 'start':
       return handleStart(args, logger);
+    case 'discover':
+      return handleDiscover(args, logger);
     case 'status':
       return handleStatus(args);
     case 'list':

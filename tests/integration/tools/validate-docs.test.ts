@@ -225,6 +225,113 @@ describe.concurrent('ValidateDocs Tool Integration (PRD #388)', () => {
     });
   }, 300000);
 
+  test('should discover documentation pages: start → discover → status → finish', async () => {
+    // Step 1: START — create session and pod
+    const startResponse = await integrationTest.httpClient.post(
+      '/api/v1/tools/validateDocs',
+      {
+        action: 'start',
+        repo: 'https://github.com/vfarcic/dot-ai',
+      }
+    );
+
+    expect(startResponse).toMatchObject({
+      success: true,
+      data: {
+        result: expect.objectContaining({
+          success: true,
+          sessionId: expect.stringMatching(/^dvl-\d+-[a-f0-9]{8}$/),
+          status: 'active',
+        }),
+      },
+    });
+
+    const sessionId = startResponse.data.result.sessionId;
+
+    // Step 2: DISCOVER — clone repo and find documentation pages
+    const discoverResponse = await integrationTest.httpClient.post(
+      '/api/v1/tools/validateDocs',
+      {
+        action: 'discover',
+        sessionId,
+      }
+    );
+
+    expect(discoverResponse).toMatchObject({
+      success: true,
+      data: {
+        result: expect.objectContaining({
+          success: true,
+          sessionId,
+          repo: 'https://github.com/vfarcic/dot-ai',
+          total: expect.any(Number),
+          pages: expect.any(Array),
+        }),
+      },
+    });
+
+    const discoverResult = discoverResponse.data.result;
+
+    // Verify pages were found (dot-ai repo has markdown files)
+    expect(discoverResult.total).toBeGreaterThan(0);
+    expect(discoverResult.pages.length).toBe(discoverResult.total);
+
+    // Verify page structure
+    const firstPage = discoverResult.pages[0];
+    expect(firstPage).toMatchObject({
+      number: 1,
+      path: expect.any(String),
+    });
+
+    // Verify paths are relative (no /workspace/ prefix)
+    for (const page of discoverResult.pages) {
+      expect(page.path).not.toMatch(/^\/workspace\//);
+      expect(page.path).toMatch(/\.(md|mdx)$/);
+    }
+
+    // Step 3: STATUS — verify session shows discovered pages
+    const statusResponse = await integrationTest.httpClient.post(
+      '/api/v1/tools/validateDocs',
+      {
+        action: 'status',
+        sessionId,
+      }
+    );
+
+    expect(statusResponse).toMatchObject({
+      success: true,
+      data: {
+        result: expect.objectContaining({
+          success: true,
+          sessionId,
+          status: 'active',
+          pagesValidated: discoverResult.total,
+        }),
+      },
+    });
+
+    // Step 4: FINISH — cleanup
+    const finishResponse = await integrationTest.httpClient.post(
+      '/api/v1/tools/validateDocs',
+      {
+        action: 'finish',
+        sessionId,
+      }
+    );
+
+    expect(finishResponse).toMatchObject({
+      success: true,
+      data: {
+        result: expect.objectContaining({
+          success: true,
+          sessionId,
+          status: 'finished',
+          podDeleted: true,
+        }),
+      },
+    });
+  }, 600000);
+
   describe('Error Handling', () => {
     test('should return error for start without repo', async () => {
       const response = await integrationTest.httpClient.post(
@@ -260,6 +367,45 @@ describe.concurrent('ValidateDocs Tool Integration (PRD #388)', () => {
           result: expect.objectContaining({
             success: false,
             error: expect.stringContaining('not found'),
+          }),
+        },
+      });
+    });
+
+    test('should return error for discover with invalid session ID', async () => {
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/validateDocs',
+        {
+          action: 'discover',
+          sessionId: 'dvl-nonexistent-12345678',
+        }
+      );
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          result: expect.objectContaining({
+            success: false,
+            error: expect.stringContaining('not found'),
+          }),
+        },
+      });
+    });
+
+    test('should return error for discover without session ID', async () => {
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/validateDocs',
+        {
+          action: 'discover',
+        }
+      );
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          result: expect.objectContaining({
+            success: false,
+            error: expect.stringContaining('sessionId'),
           }),
         },
       });
