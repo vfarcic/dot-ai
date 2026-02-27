@@ -21,109 +21,55 @@ The previous approach (PRD #262) proposed a report-only validation system that w
 
 An agentic docs maintenance system that:
 
-1. **Spins up a Kubernetes Pod** as an isolated execution environment (bash, git, curl)
-2. **Clones a docs repo** and discovers pages, presenting a numbered list for selection
-3. **Hands each selected page to an AI agent** with a system prompt and tools — the AI *is* the validation engine
-4. **AI autonomously validates and fixes** — reads the doc, runs commands, installs runtimes, checks links, creates clusters if needed, edits files
-5. **Server creates a PR** with all fixes after AI completes (deterministic code, not AI)
-6. **Accepts reviewer feedback** via MCP, CLI, or REST to iteratively refine fixes
-7. **Manages Pod lifecycle** with explicit finish and inactivity-based TTL cleanup
+1. **User specifies a repo and a page path** — single call, no multi-step workflow
+2. **System orchestrates everything** — spins up Pod, clones repo, runs AI validation, cleans up Pod
+3. **AI autonomously validates and fixes** — reads the doc, runs commands, installs runtimes, checks links, creates clusters if needed, edits files
+4. **Returns validation results** — issues found, fixes applied, session ID for future reference
+5. **Future extensions** (separate tasks): reviewer feedback, PR creation, multi-page batch validation
 
 The key insight: instead of building separate code block extractors, per-language syntax validators, and readability analyzers, the AI handles all of these in a single agentic loop with two tools:
 - **`exec`** — run any command in the Pod (bash, install runtimes, read/write files, curl, kubectl)
 - **`create_cluster`** — provision a vcluster when the AI encounters Kubernetes commands
 
-The Pod is the execution environment. The AI decides what to run, interprets results, and fixes issues. The server handles orchestration (page selection, session management) and git/PR plumbing.
+The Pod is the execution environment. The AI decides what to run, interprets results, and fixes issues. The server handles orchestration (Pod lifecycle, repo cloning) and git/PR plumbing.
 
-Sessions are recorded as JSON (same pattern as other dot-ai tools), persisting beyond Pod lifetime to enable the feedback loop.
+Sessions are recorded as JSON (same pattern as other dot-ai tools), persisting beyond Pod lifetime to enable future feedback loops and PR creation.
 
 ## User Journey
 
-### Primary Flow
+### Primary Flow (Single Page)
 
-1. **User initiates validation**:
+1. **User initiates validation** — one call with repo + page path:
    ```
-   User: "Validate and fix docs at https://github.com/org/docs-repo"
+   User: "Validate and fix docs/getting-started.md in https://github.com/org/docs-repo"
    ```
 
-2. **System creates Pod and clones repo**:
+2. **System orchestrates everything and returns results**:
    ```
    Creating validation environment...
    Cloned https://github.com/org/docs-repo
-   Session ID: docs-val-abc123
+   Validating docs/getting-started.md...
 
-   Found 47 documentation pages:
-
-   1. Getting Started (getting-started.md)
-   2. Installation (installation.md)
-   3. Quick Start (quickstart.md)
-   4. Configuration (configuration.md)
-   ...
-
-   Which pages would you like to validate?
-   - Enter page numbers (e.g., "1,3,5" or "1-10")
-   - Enter "all" for all pages
-   ```
-
-3. **User selects pages**:
-   ```
-   User: "1-5, 12"
-   ```
-
-4. **System validates, fixes, and creates PR**:
-   ```
-   Validating 6 pages...
-
-   /quickstart.md:
+   docs/getting-started.md:
      Fixed: Line 45 - sentence was 78 words, split into 3 sentences
      Fixed: Lines 67-72 - JavaScript syntax error (missing comma)
      Fixed: Line 112 - passive voice replaced with direct instruction
 
-   /configuration.md:
-     Fixed: Lines 23-30 - Python code block had IndentationError
-     No readability issues found
-
-   ...
-
-   Created branch: docs-validation-abc123
-   Created PR: https://github.com/org/docs-repo/pull/42
-
-   Summary: 6 pages validated, 8 issues found and fixed
+   Session ID: dvl-1709251234567-a1b2c3d4
+   Summary: 1 page validated, 3 issues found and fixed
+   Pod cleaned up. Session record retained.
    ```
 
-5. **Reviewer reviews PR and sends feedback**:
-   ```
-   Reviewer: "The fix on line 45 of quickstart.md is wrong —
-              the original wording was correct because the command
-              really does need sudo. Also, the Python fix on
-              configuration.md changed the logic, not just formatting."
-   ```
+The user provides the page path directly — no discovery or selection step. The system handles pod creation, repo cloning, AI validation, and pod cleanup as a single workflow.
 
-6. **System loads session, applies corrections**:
-   ```
-   Loading session docs-val-abc123...
-   Reverting fix on quickstart.md:45 (restoring original wording)
-   Reverting fix on configuration.md:23-30 (restoring original logic,
-     fixing only the IndentationError)
-   Pushed corrections to PR #42
-   ```
+### Future Extensions (Separate Tasks)
 
-7. **User finishes**:
-   ```
-   User: "Finish docs validation session docs-val-abc123"
+These are planned as separate tasks to be added incrementally once single-page validation works well:
 
-   Session finished.
-   Pod deleted. Session record retained.
-   PR #42 remains open for final review/merge.
-   ```
-
-### Alternative Flow: URL-based Docs Site
-
-```
-User: "Validate and fix docs at https://docs.example.com"
-```
-
-System crawls the site (sitemap.xml first, falls back to link following), discovers pages, then follows the same flow — but writes fixes to a cloned source repo rather than the rendered site.
+- **Multi-page validation**: Discover pages, select by number/range/all, validate in batch
+- **Reviewer feedback**: Load session, apply corrections based on feedback
+- **PR creation**: Server creates branch, commits fixes, creates PR
+- **URL-based docs sites**: Crawl site, identify source repo, validate pages
 
 ## Technical Design
 
@@ -190,13 +136,12 @@ System crawls the site (sitemap.xml first, falls back to link following), discov
 - **Recreate**: When feedback arrives for a session whose Pod has been cleaned up, creates a new Pod, clones the repo, checks out the branch, and resumes work.
 - Pod spec includes: ServiceAccount with Pod create/delete permissions, Git credentials (Secret mount), AI API key (Secret mount)
 
-#### 3. Documentation Discovery
-- **Git repo mode**: Clone repo, glob for `.md` / `.mdx` files
-- **URL mode**: Fetch sitemap.xml first, fall back to link crawling. Identify source repo from docs site metadata for writing fixes.
-- **Output**: Numbered list of pages with paths and titles for user selection
+#### 3. Documentation Discovery *(deferred — user provides page path directly)*
+- **Current**: User specifies the exact page path (e.g., `docs/getting-started.md`). No discovery step.
+- **Future**: Git repo mode (clone + glob for `.md`/`.mdx`), URL mode (sitemap.xml + link crawling), page selection by number/range/all.
 
 #### 4. AI Validation Agent
-The core of the system. For each selected page, the server:
+The core of the system. For a single page, the server:
 1. Sends the page file path to an AI agent with a system prompt and tools
 2. The AI reads the doc via `exec`, autonomously decides what to validate
 3. The AI runs commands (syntax checks, code execution, link validation, etc.) via `exec`
@@ -279,7 +224,8 @@ When a page references prerequisites:
 ### Functional Requirements
 - [x] Spin up a validation Pod (default image or user-specified)
 - [x] Clone git repos and discover documentation pages
-- [ ] Support page selection (individual, ranges, all)
+- [ ] Single-page validation via one user-facing `validate` action (repo + page path)
+- [ ] Full workflow orchestration in single call (pod → clone → AI → cleanup)
 - [ ] AI agent validates and fixes text quality issues (readability, missing content, clarity)
 - [ ] AI agent validates and fixes code blocks (installs runtimes, runs code, fixes syntax/runtime errors)
 - [ ] AI agent validates links and cross-references (curl for URLs, file checks for internal refs)
@@ -293,7 +239,9 @@ When a page references prerequisites:
 - [x] Clean up Pods on explicit finish
 - [x] Auto-delete Pods after inactivity TTL (default 24h, resets on interaction)
 - [ ] Recreate Pods on demand when session resumes after timeout
-- [ ] Crawl URL-based docs sites and discover pages
+- [ ] Multi-page selection and batch validation *(deferred — separate task)*
+- [ ] Page discovery from repo *(deferred — user provides path directly)*
+- [ ] Crawl URL-based docs sites and discover pages *(deferred)*
 
 ### Non-Functional Requirements
 - [ ] Pod startup time under 60 seconds (with cached image)
@@ -315,13 +263,21 @@ When a page references prerequisites:
 - [ ] Pod creation with ServiceAccount and secrets *(deferred — public repos work without credentials)*
 - [ ] Pod recreation for resumed sessions
 
-### Milestone 2: UC1 — Text Quality Validation
-Core agentic loop: AI reads a doc, finds text quality issues, fixes them.
-- [ ] `validate` action on `validateDocs` tool (accepts sessionId + page paths)
-- [ ] AI agent agentic loop with system prompt and `exec` tool
+### Milestone 2a: Validate Action Plumbing
+Wire up the `validate` action with full workflow orchestration — everything except the AI agent loop.
+- [ ] `validate` action on `validateDocs` tool (accepts `repo` + `page` + optional `image`)
+- [ ] Orchestrates full workflow internally: create pod → clone repo → verify page exists → cleanup pod
+- [ ] Returns structured response with session ID, page path, and workflow status
+- [ ] Session persists after pod cleanup for future extensions
+- [ ] Integration test: end-to-end validate call completes full lifecycle (pod created, repo cloned, page verified, pod cleaned up)
+
+### Milestone 2b: AI Agent Loop for Text Quality Validation
+Add the AI validation agent into the plumbing from Milestone 2a.
+- [ ] AI agent agentic loop with system prompt and `exec` tool (follows `remediate.ts` pattern)
+- [ ] System prompt: `prompts/validate-docs-system.md`
 - [ ] AI reads doc via `exec`, identifies readability/correctness issues, edits file to fix
-- [ ] Validation results stored in session per page
-- [ ] Integration test: AI detects and fixes missing text in `GOVERNANCE.md`
+- [ ] Validation results (issues found, fixes applied) stored in session per page
+- [ ] Integration test: end-to-end validate call returns AI-generated validation results
 
 ### Milestone 3: UC2 — Code Syntax Validation via Execution
 AI runs code blocks to check syntax and execution, installs runtimes as needed.
@@ -375,13 +331,20 @@ End-to-end: validate, fix, create PR.
 | 2026-02-27 | **AI calls `create_cluster`, not server-side detection** — AI decides when it needs a Kubernetes cluster. | The AI reads the doc and understands context. Server-side detection would require parsing docs for kubectl patterns — duplicating what the AI already does. |
 | 2026-02-27 | **Progressive use-case-driven milestones** — Each milestone is a testable use case, building on the previous. | Enables incremental delivery and testing. Each use case adds one new capability. Regressions caught by tests from earlier use cases. |
 | 2026-02-27 | **Code execution safety delegated to AI in isolated Pod** — No allow-lists for safe code patterns. AI uses judgment, Pod provides isolation. | The Pod is an isolated environment — worst case is the Pod breaks, which is fine. vcluster provides Kubernetes isolation. No risk to host systems. |
+| 2026-02-27 | **Single-page validation first** — Start with validating one page per call. Multi-page batch and page discovery deferred to separate tasks. | Avoids context window overflow concerns (reading all pages + all exec output). Proves the core AI validation loop works before adding orchestration complexity. Multi-page can be added incrementally once single-page is solid. |
+| 2026-02-27 | **User provides page path directly** — No discovery step. User specifies `repo` + `page` (e.g., `docs/getting-started.md`). | Simplest possible UX for the initial implementation. Discovery (globbing all .md files) raises the question of what counts as "docs" vs READMEs/changelogs/governance files. Explicit path avoids this entirely. Discovery can be added as a separate task later. |
+| 2026-02-27 | **Single user-facing action** — `validate` orchestrates the full workflow (pod → clone → AI → cleanup) in one call. `start`/`discover`/`finish` become internal implementation details. | Users shouldn't have to manage pod lifecycle manually. One call in, results out. Sessions still persist internally for future extensions (feedback, PR creation), but the user doesn't manage them explicitly. |
+| 2026-02-27 | **Per-page fresh AI context** — Each page gets its own `toolLoop` invocation with fresh context. No cross-page context accumulation. | Prevents context window overflow. Even large pages with many code blocks stay within limits. Cross-page context (e.g., prerequisites) deferred to Milestone 7. |
+| 2026-02-27 | **Plumbing before AI** — Split Milestone 2 into 2a (workflow orchestration) and 2b (AI agent loop). Build and test the full lifecycle (pod → clone → verify → cleanup) before wiring in the AI. | Isolates concerns — validates the orchestration works independently before adding non-deterministic AI behavior. Makes debugging easier: if the workflow fails, it's a plumbing issue; if results are wrong, it's an AI/prompt issue. |
 
 ## Open Questions
 
-1. **Source repo discovery from URL**: When validating a URL-based docs site, how do we find the source repo to write fixes to? Require the user to provide it, or detect from site metadata?
+1. **Source repo discovery from URL**: When validating a URL-based docs site, how do we find the source repo to write fixes to? Require the user to provide it, or detect from site metadata? *(deferred — URL mode is a future task)*
 2. ~~**Code execution safety**~~: Resolved — AI uses judgment within isolated Pod/vcluster. No allow-lists needed.
 3. **Concurrent sessions**: Should a user be able to run multiple validation sessions simultaneously?
-4. **Fix granularity**: Should the system create one commit per page, one per issue, or one bulk commit?
+4. **Fix granularity**: Should the system create one commit per page, one per issue, or one bulk commit? *(deferred — PR creation is a future task)*
+5. ~~**Page discovery scope**~~: Resolved — User provides page path directly. No discovery step for now. Avoids the question of what counts as "docs" vs other markdown files.
+6. ~~**Context window limits for multi-page**~~: Resolved — Single page per call with fresh AI context. Multi-page batch deferred to separate task.
 
 ## Dependencies
 
