@@ -226,9 +226,9 @@ When a page references prerequisites:
 - [x] Clone git repos and discover documentation pages
 - [x] Single-page validation via one user-facing `validate` action (repo + page path)
 - [x] Full workflow orchestration in single call (pod → clone → AI → cleanup)
-- [ ] AI agent validates and fixes text quality issues (readability, missing content, clarity)
+- [x] AI agent validates and fixes text quality issues (readability, missing content, clarity)
 - [ ] AI agent validates and fixes code blocks (installs runtimes, runs code, fixes syntax/runtime errors)
-- [ ] AI agent validates links and cross-references (curl for URLs, file checks for internal refs)
+- [x] AI agent validates links and cross-references (curl for URLs, file checks for internal refs)
 - [ ] AI agent validates shell commands from docs (runs them, fixes broken ones)
 - [ ] AI agent provisions vcluster via `create_cluster` tool for Kubernetes-dependent docs
 - [ ] AI agent follows cross-doc prerequisites and validates dependency chains
@@ -250,7 +250,7 @@ When a page references prerequisites:
 ## Milestones
 
 ### Milestone 1: Pod Lifecycle & Discovery (done)
-- [x] Minimal default container image — `debian:13-slim` with bash, git, gh CLI, curl (`ghcr.io/vfarcic/dot-ai-docs-validator`)
+- [x] Minimal default container image — `debian:13-slim` with bash, git, gh CLI, curl, python3 (`ghcr.io/vfarcic/dot-ai-docs-validator`)
 - [x] Support for user-specified container images
 - [x] Pod creation with resource limits
 - [x] TTL-based auto-cleanup with inactivity tracking
@@ -270,13 +270,13 @@ Wire up the `validate` action with full workflow orchestration — everything ex
 - [x] Session persists after pod cleanup for future extensions
 - [x] Integration test: end-to-end validate call completes full lifecycle (pod created, repo cloned, page verified, pod cleaned up)
 
-### Milestone 2b: AI Agent Loop for Text Quality Validation
+### Milestone 2b: AI Agent Loop for Text Quality Validation (done)
 Add the AI validation agent into the plumbing from Milestone 2a.
-- [ ] AI agent agentic loop with system prompt and `exec` tool (follows `remediate.ts` pattern)
-- [ ] System prompt: `prompts/validate-docs-system.md`
-- [ ] AI reads doc via `exec`, identifies readability/correctness issues, edits file to fix
-- [ ] Validation results (issues found, fixes applied) stored in session per page
-- [ ] Integration test: end-to-end validate call returns AI-generated validation results
+- [x] AI agent agentic loop with system prompt and `exec` tool (follows `remediate.ts` pattern)
+- [x] System prompt: `prompts/validate-docs-system.md`
+- [x] AI reads doc via `exec`, identifies readability/correctness issues, edits file to fix
+- [x] Validation results (issues found, fixes applied) stored in session per page
+- [x] Integration test: end-to-end validate call returns AI-generated validation results
 
 ### Milestone 3: UC2 — Code Syntax Validation via Execution
 AI runs code blocks to check syntax and execution, installs runtimes as needed.
@@ -335,6 +335,8 @@ End-to-end: validate, fix, create PR.
 | 2026-02-27 | **Per-page fresh AI context** — Each page gets its own `toolLoop` invocation with fresh context. No cross-page context accumulation. | Prevents context window overflow. Even large pages with many code blocks stay within limits. Cross-page context (e.g., prerequisites) deferred to Milestone 7. |
 | 2026-02-27 | **Plumbing before AI** — Split Milestone 2 into 2a (workflow orchestration) and 2b (AI agent loop). Build and test the full lifecycle (pod → clone → verify → cleanup) before wiring in the AI. | Isolates concerns — validates the orchestration works independently before adding non-deterministic AI behavior. Makes debugging easier: if the workflow fails, it's a plumbing issue; if results are wrong, it's an AI/prompt issue. |
 | 2026-02-27 | **Single action, no action menu** — Removed `start`/`discover`/`status`/`list`/`finish` actions. Tool exposes only `validate` (default). Tool description is purpose-focused ("validate and fix docs") not action-listing. | AI agents calling the tool don't need implementation details about pod lifecycle. One action, purpose-clear description. Action enum kept with single value for future extensibility. |
+| 2026-02-27 | **`patch_file` tool for AI edits** — Added `patch_file` (path, old_content, new_content) alongside `exec`. AI uses `exec` for reading/commands, `patch_file` for targeted file edits. | Shell escaping through kubectl exec layers makes `sed`/`awk` unreliable. `patch_file` uses base64-encoded content + python3, avoiding all quoting issues. |
+| 2026-02-27 | **Semver image tagging (`0.x.y`)** — Container image pushed with both `:latest` and version tag (e.g., `:0.1.0`). Code defaults stay on `:latest`. Version sourced from `ARG VERSION` in Dockerfile. | Enables pinning/rollback to specific image versions. `:latest` as default means code automatically picks up new builds. Version bump is a single Dockerfile change. |
 
 ## Open Questions
 

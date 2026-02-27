@@ -86,7 +86,6 @@ export interface DocsValidationSessionData {
     description: string;
     reasoning: string;
     originalText?: string;
-    reverted: boolean;
   }>;
   feedbackHistory: Array<{
     feedback: string;
@@ -303,24 +302,27 @@ function createValidationToolExecutor(
       const filePath = patchInput.path.startsWith('/')
         ? patchInput.path
         : `/workspace/${patchInput.path}`;
-      // Base64-encode old and new content to avoid shell escaping issues.
-      // Uses only base64/sed/awk — no python3 dependency.
+      // Base64-encode old/new content + a Python script to avoid shell escaping.
       const oldB64 = Buffer.from(patchInput.old_content).toString('base64');
       const newB64 = Buffer.from(patchInput.new_content).toString('base64');
+      const pyB64 = Buffer.from(
+        [
+          'import base64, sys',
+          'old = base64.b64decode(open("/tmp/_patch_old").read()).decode()',
+          'new = base64.b64decode(open("/tmp/_patch_new").read()).decode()',
+          'f = sys.argv[1]',
+          'txt = open(f).read()',
+          'if old not in txt:',
+          '    print("ERROR: old_content not found in file", file=sys.stderr); sys.exit(1)',
+          'open(f, "w").write(txt.replace(old, new, 1))',
+          'print("OK")',
+        ].join('\n')
+      ).toString('base64');
       const script = [
-        `echo '${oldB64}' | base64 -d > /tmp/_patch_old`,
-        `echo '${newB64}' | base64 -d > /tmp/_patch_new`,
-        // awk script: read old/new from files, replace first occurrence in target
-        `awk '` +
-          `BEGIN { while ((getline line < "/tmp/_patch_old") > 0) old = old (old ? "\\n" : "") line; ` +
-          `while ((getline line < "/tmp/_patch_new") > 0) new = new (new ? "\\n" : "") line } ` +
-          `{ buf = buf (NR>1 ? "\\n" : "") $0 } ` +
-          `END { idx = index(buf, old); ` +
-          `if (idx == 0) { print "ERROR: old_content not found in file" > "/dev/stderr"; exit 1 } ` +
-          `printf "%s", substr(buf, 1, idx-1) new substr(buf, idx+length(old)); }` +
-          `' '${filePath}' > /tmp/_patch_out`,
-        `mv /tmp/_patch_out '${filePath}'`,
-        `echo OK`,
+        `echo '${oldB64}' > /tmp/_patch_old`,
+        `echo '${newB64}' > /tmp/_patch_new`,
+        `echo '${pyB64}' | base64 -d > /tmp/_patch.py`,
+        `python3 /tmp/_patch.py '${filePath}'`,
       ].join(' && ');
       try {
         return await execInPod(podName, namespace, ['sh', '-c', script]);
@@ -637,7 +639,6 @@ async function handleValidate(
       description: fix.description,
       reasoning: fix.reasoning,
       originalText: fix.originalText,
-      reverted: false,
     }));
 
     // Update session with validation results
