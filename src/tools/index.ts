@@ -68,3 +68,11 @@ export {
   handleManageKnowledgeTool,
   type ManageKnowledgeInput,
 } from './manage-knowledge';
+
+export {
+  VALIDATE_DOCS_TOOL_NAME,
+  VALIDATE_DOCS_TOOL_DESCRIPTION,
+  VALIDATE_DOCS_TOOL_INPUT_SCHEMA,
+  handleValidateDocsTool,
+  type ValidateDocsInput,
+} from './validate-docs';

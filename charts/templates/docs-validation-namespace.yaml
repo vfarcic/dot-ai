@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dot-ai-docs-validation
+  labels:
+    app.kubernetes.io/managed-by: dot-ai
+    dot-ai/purpose: docs-validation

@@ -1,7 +1,7 @@
 # PRD: Agentic Documentation Validation & Remediation System
 
 **GitHub Issue**: [#388](https://github.com/vfarcic/dot-ai/issues/388)
-**Status**: Draft
+**Status**: In Progress
 **Priority**: High
 **Created**: 2026-02-27
 **Replaces**: [#262](https://github.com/vfarcic/dot-ai/issues/262) (Documentation Validation System - Phase 1)
@@ -277,7 +277,7 @@ When a page references prerequisites:
 ## Success Criteria
 
 ### Functional Requirements
-- [ ] Spin up a validation Pod (default image or user-specified)
+- [x] Spin up a validation Pod (default image or user-specified)
 - [ ] Clone git repos and discover documentation pages
 - [ ] Crawl URL-based docs sites and discover pages
 - [ ] Support page selection (individual, ranges, all)
@@ -288,9 +288,9 @@ When a page references prerequisites:
 - [ ] Apply fixes automatically (AI-generated and direct)
 - [ ] Create PR with all fixes and descriptive summary
 - [ ] Accept reviewer feedback and apply corrections
-- [ ] Store sessions as JSON following existing dot-ai patterns
-- [ ] Clean up Pods on explicit finish
-- [ ] Auto-delete Pods after inactivity TTL (default 24h, resets on interaction)
+- [x] Store sessions as JSON following existing dot-ai patterns
+- [x] Clean up Pods on explicit finish
+- [x] Auto-delete Pods after inactivity TTL (default 24h, resets on interaction)
 - [ ] Recreate Pods on demand when session resumes after timeout
 
 ### Non-Functional Requirements
@@ -298,16 +298,16 @@ When a page references prerequisites:
 - [ ] Pod startup time under 60 seconds (with cached image)
 - [ ] No false positives on valid syntax
 - [ ] Conservative fixes that preserve original meaning
-- [ ] Session records persist beyond Pod lifetime
+- [x] Session records persist beyond Pod lifetime
 
 ## Milestones
 
 ### Milestone 1: Pod Lifecycle Management
-- [ ] Minimal default container image (shell, package manager, git, gh CLI)
-- [ ] Support for user-specified container images
-- [ ] Pod creation with ServiceAccount, secrets, and resource limits
-- [ ] TTL-based auto-cleanup with inactivity tracking
-- [ ] Explicit finish/cleanup command
+- [x] Minimal default container image (shell, package manager, git, gh CLI)
+- [x] Support for user-specified container images
+- [ ] Pod creation with ServiceAccount, secrets, and resource limits *(resource limits done; ServiceAccount/secrets deferred — pod doesn't need k8s API access yet)*
+- [x] TTL-based auto-cleanup with inactivity tracking
+- [x] Explicit finish/cleanup command
 - [ ] Pod recreation for resumed sessions
 
 ### Milestone 2: Documentation Discovery & Selection
@@ -339,15 +339,15 @@ When a page references prerequisites:
 - [ ] Additional commits pushed to existing PR
 
 ### Milestone 6: Session Management
-- [ ] JSON session storage following existing dot-ai patterns
-- [ ] Session listing, retrieval, and status queries
-- [ ] Session persistence beyond Pod lifetime
+- [x] JSON session storage following existing dot-ai patterns
+- [x] Session listing, retrieval, and status queries
+- [x] Session persistence beyond Pod lifetime
 - [ ] Session cleanup policies
 
 ### Milestone 7: Integration Testing & Documentation
 - [ ] Integration tests covering full validation-fix-PR-feedback cycle
-- [ ] Tests for Pod lifecycle (create, TTL, recreate)
-- [ ] Tests for session persistence and resumption
+- [x] Tests for Pod lifecycle (create, TTL, recreate)
+- [x] Tests for session persistence and resumption
 - [ ] User-facing documentation for the feature
 
 ## Open Questions
