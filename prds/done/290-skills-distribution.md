@@ -1,10 +1,10 @@
 # PRD #290: Skills Distribution via MCP
 
 **GitHub Issue**: [#290](https://github.com/vfarcic/dot-ai/issues/290)
-**Status**: On Hold
+**Status**: Closed (Superseded)
 **Priority**: Medium
 **Created**: 2025-12-19
-**On Hold Since**: 2025-12-23
+**Closed**: 2026-02-28
 
 ---
 
@@ -550,9 +550,9 @@ generate-dockerfile/
 
 ## Current Status
 
-**Last Updated**: 2025-12-23
+**Last Updated**: 2026-02-28
 
-**Status**: ON HOLD - Awaiting MCP spec evolution
+**Status**: CLOSED - Superseded by PRD #306 and PRD #387
 
 ### Why On Hold
 
