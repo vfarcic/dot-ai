@@ -391,6 +391,31 @@ if [ $WAITED -ge $MAX_WAIT ]; then
     exit 1
 fi
 
+# Wait for agentic-tools plugin to be registered in the MCP server
+log_info "Waiting for agentic-tools plugin to be registered..."
+WAITED=0
+while [ $WAITED -lt $MAX_WAIT ]; do
+    PLUGIN_COUNT=$(curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+        -d '{}' 2>/dev/null | grep -o '"pluginCount": *[0-9]*' | grep -o '[0-9]*')
+    if [ -n "$PLUGIN_COUNT" ] && [ "$PLUGIN_COUNT" -ge 1 ] 2>/dev/null; then
+        log_info "agentic-tools plugin registered (pluginCount: ${PLUGIN_COUNT})"
+        break
+    fi
+    sleep 2
+    WAITED=$((WAITED + 2))
+done
+
+if [ $WAITED -ge $MAX_WAIT ]; then
+    log_error "agentic-tools plugin failed to register within ${MAX_WAIT} seconds"
+    curl -s "${MCP_URL}/api/v1/tools/version" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+        -d '{}' | grep -o '"plugins":{[^}]*}'
+    exit 1
+fi
+
 # Export configuration for tests
 export MCP_BASE_URL="${MCP_URL}"
 export DOT_AI_AUTH_TOKEN="${TEST_AUTH_TOKEN}"

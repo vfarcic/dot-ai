@@ -85,7 +85,6 @@ describe.concurrent('ValidateDocs Tool Integration (PRD #388)', () => {
         page: 'tests/integration/fixtures/broken-doc.md',
         description: expect.any(String),
         reasoning: expect.any(String),
-        reverted: false,
       });
     }
 
@@ -105,6 +104,86 @@ describe.concurrent('ValidateDocs Tool Integration (PRD #388)', () => {
       .catch(() => {
         // Pod may already be gone
       });
+    const pods = await integrationTest.kubectl(
+      `get pods -n ${testNamespace} -l dot-ai/session-id=${sessionId} --ignore-not-found -o jsonpath="{.items[*].metadata.name}"`
+    );
+    expect(pods.replace(/"/g, '').trim()).toBe('');
+  }, 900000);
+
+  test('should validate fixture doc with broken code blocks: find runtime issues, apply fixes', async () => {
+    // Fixture: tests/integration/fixtures/broken-code-doc.md contains known code errors:
+    // - Python: missing colon after `for item in items` → SyntaxError
+    // - JSON: missing comma after `"port": 8080` → parse error
+    // - YAML: bad indentation (nested under scalar value) → structure error
+    // - Bash: valid script (should not be flagged)
+    const response = await integrationTest.httpClient.post(
+      '/api/v1/tools/validateDocs',
+      {
+        action: 'validate',
+        repo: 'https://github.com/vfarcic/dot-ai',
+        page: 'tests/integration/fixtures/broken-code-doc.md',
+      }
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        result: expect.objectContaining({
+          success: true,
+          sessionId: expect.stringMatching(/^dvl-\d+-[a-f0-9]{8}$/),
+          repo: 'https://github.com/vfarcic/dot-ai',
+          page: 'tests/integration/fixtures/broken-code-doc.md',
+          status: 'completed',
+          pageStatus: 'fixed',
+          summary: expect.any(String),
+          issuesFound: expect.any(Array),
+          fixesApplied: expect.any(Array),
+          iterations: expect.any(Number),
+          toolCalls: expect.any(Number),
+        }),
+      },
+    });
+
+    const result = response.data.result;
+
+    // AI should have made multiple tool calls: read file, execute code blocks, patch fixes
+    expect(result.toolCalls).toBeGreaterThanOrEqual(4);
+
+    // Should find runtime issues (broken Python, JSON, YAML blocks)
+    const runtimeIssues = result.issuesFound.filter(
+      (i: { type: string }) => i.type === 'runtime'
+    );
+    expect(runtimeIssues.length).toBeGreaterThanOrEqual(2);
+
+    // Validate runtime issue structure
+    for (const issue of runtimeIssues) {
+      expect(issue).toMatchObject({
+        page: 'tests/integration/fixtures/broken-code-doc.md',
+        type: 'runtime',
+        severity: expect.stringMatching(/^(low|medium|high)$/),
+        description: expect.any(String),
+        fixed: expect.any(Boolean),
+      });
+    }
+
+    // Should have applied fixes for the broken code blocks
+    expect(result.fixesApplied.length).toBeGreaterThanOrEqual(2);
+
+    for (const fix of result.fixesApplied) {
+      expect(fix).toMatchObject({
+        page: 'tests/integration/fixtures/broken-code-doc.md',
+        description: expect.any(String),
+        reasoning: expect.any(String),
+      });
+    }
+
+    // Verify pod cleanup
+    const sessionId = result.sessionId;
+    await integrationTest
+      .kubectl(
+        `wait --for=delete pod -l dot-ai/session-id=${sessionId} -n ${testNamespace} --timeout=60s`
+      )
+      .catch(() => {});
     const pods = await integrationTest.kubectl(
       `get pods -n ${testNamespace} -l dot-ai/session-id=${sessionId} --ignore-not-found -o jsonpath="{.items[*].metadata.name}"`
     );

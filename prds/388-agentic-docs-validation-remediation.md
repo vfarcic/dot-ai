@@ -227,7 +227,7 @@ When a page references prerequisites:
 - [x] Single-page validation via one user-facing `validate` action (repo + page path)
 - [x] Full workflow orchestration in single call (pod → clone → AI → cleanup)
 - [x] AI agent validates and fixes text quality issues (readability, missing content, clarity)
-- [ ] AI agent validates and fixes code blocks (installs runtimes, runs code, fixes syntax/runtime errors)
+- [x] AI agent validates and fixes code blocks (installs runtimes, runs code, fixes syntax/runtime errors)
 - [x] AI agent validates links and cross-references (curl for URLs, file checks for internal refs)
 - [ ] AI agent validates shell commands from docs (runs them, fixes broken ones)
 - [ ] AI agent provisions vcluster via `create_cluster` tool for Kubernetes-dependent docs
@@ -278,12 +278,12 @@ Add the AI validation agent into the plumbing from Milestone 2a.
 - [x] Validation results (issues found, fixes applied) stored in session per page
 - [x] Integration test: end-to-end validate call returns AI-generated validation results
 
-### Milestone 3: UC2 — Code Syntax Validation via Execution
+### Milestone 3: UC2 — Code Syntax Validation via Execution (done)
 AI runs code blocks to check syntax and execution, installs runtimes as needed.
-- [ ] AI installs language runtimes via `exec` (e.g., `apt install python3`)
-- [ ] AI extracts code blocks, writes to temp files, runs them, interprets errors
-- [ ] AI fixes broken code in the doc, re-runs to confirm fix works
-- [ ] Integration test: fixture doc with broken Python/JSON/YAML/Bash blocks — all fixed
+- [ ] AI installs language runtimes via `exec` (e.g., `apt install nodejs`)
+- [x] AI extracts code blocks, writes to temp files, runs them, interprets errors
+- [x] AI fixes broken code in the doc, re-runs to confirm fix works
+- [x] Integration test: fixture doc with broken Python/JSON/YAML/Bash blocks — all fixed
 
 ### Milestone 4: UC3 — Link and Cross-Reference Validation
 AI checks URLs and internal cross-references.
