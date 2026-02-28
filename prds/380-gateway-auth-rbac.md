@@ -1,473 +1,574 @@
-# PRD: Gateway-Delegated Authentication & Built-in RBAC
+# PRD: Auth-Agnostic Identity & Kubernetes RBAC
 
 **Status**: Planning
 **Priority**: High
 **GitHub Issue**: [#380](https://github.com/vfarcic/dot-ai/issues/380)
 **Created**: 2026-02-18
-**Last Updated**: 2026-02-18
+**Last Updated**: 2026-02-28
 **Supersedes**: [PRD #360 - User Authentication](./done/360-user-authentication.md) (closed)
 
 ---
 
 ## Problem Statement
 
-Enterprise deployments need user-level authentication and authorization for MCP access. The current system supports only a **single shared auth token** (`DOT_AI_AUTH_TOKEN`), which means:
+Enterprise deployments need user-level authentication and authorization. The current system supports only a **single shared auth token** (`DOT_AI_AUTH_TOKEN`), which means:
 
 - No individual user identity — all users share one token
 - No way to control what specific users can do (no authorization)
 - Audit logs cannot track who performed operations
 - No mechanism to revoke access for specific users
 
-The previous approach (PRD #360) proposed building a full OAuth 2.1 authorization server inside dot-ai. This was closed because:
-
-1. **MCP gateways already handle authN natively** — see [awesome-mcp-gateways](https://github.com/e2b-dev/awesome-mcp-gateways)
-2. **Redirect URL problem** — different MCP clients (Claude Code, Cursor, Gemini CLI) have different redirect URLs, making in-app OAuth complex
-3. **Scope creep** — building and maintaining a full auth server is orthogonal to dot-ai's core value as a Kubernetes operations tool
+Previous approaches (PRD #360, v1.0 of this PRD) proposed building auth/RBAC inside dot-ai. Both were rejected — authentication is orthogonal to dot-ai's core value, and Kubernetes already has battle-tested RBAC.
 
 ## Proposed Solution
 
-**Hybrid architecture** with clean separation of concerns:
+**Two core principles:**
 
-| Layer | Responsibility | Owner |
-|-------|---------------|-------|
-| **AuthN** (who are you?) | OAuth, SSO, token validation | MCP Gateway (external) |
-| **AuthZ/RBAC** (what can you do?) | Role-based access control | dot-ai plugin |
-| **Single token** (existing) | Shared token for simple setups | dot-ai MCP layer |
+1. **dot-ai is auth-agnostic** — it does not care how clients authenticate. A unified gateway handles authN for all access paths (MCP, HTTP/REST, Web UI).
+2. **dot-ai owns authorization via Kubernetes RBAC** — all requests converge on a `UserIdentity`, and dot-ai checks permissions using K8s [SubjectAccessReview](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/subject-access-review-v1/).
+
+### Deployment Topology
+
+All components run **inside the Kubernetes cluster**. A single gateway ([Envoy AI Gateway](https://aigateway.envoyproxy.io/) — open source, Apache 2.0, CNCF) handles both MCP and HTTP protocols with unified OAuth authentication:
+
+```
+User's laptop                              Kubernetes cluster
+                                          ┌──────────────────────────────────────────┐
+┌─────────────┐                          │                                          │
+│  MCP Client  │                          │                                          │
+│ (Claude Code)│ ── (internet) ──►        │                                          │
+└─────────────┘                           │  Envoy AI Gateway ──► dot-ai             │
+                                          │  (Ingress/LB)         (ClusterIP)        │
+┌─────────────┐                          │                                          │
+│  CLI         │ ── (internet) ──►        │  Unified authN         Extracts identity │
+└─────────────┘                           │  (OAuth/OIDC for       Checks K8s RBAC   │
+                                          │   both MCP + HTTP)                       │
+┌─────────────┐                          │                                          │
+│  Web UI      │ ── (internet) ──►        │                                          │
+│ (browser)    │                          │                                          │
+└─────────────┘                           │                                          │
+                                          │  ┌─────────────────────────────────┐     │
+                                          │  │ NetworkPolicy:                  │     │
+                                          │  │ Only gateway can reach dot-ai   │     │
+                                          │  └─────────────────────────────────┘     │
+                                          └──────────────────────────────────────────┘
+```
+
+**Key points:**
+- **One gateway for all protocols** — Envoy AI Gateway supports MCPRoute (for agents) and HTTPRoute (for CLI/Web UI) on the same instance with shared OAuth configuration
+- **dot-ai is ClusterIP only** — never exposed directly. NetworkPolicy ensures only the gateway can reach it
+- **Gateway authenticates all traffic** — whether MCP or HTTP, the same OAuth/OIDC flow applies. Gateway injects verified identity headers before forwarding to dot-ai.
+
+### Why Envoy AI Gateway
+
+| Requirement | Envoy AI Gateway |
+|-------------|-----------------|
+| MCP protocol support | Yes (MCPRoute CRD) |
+| HTTP protocol support | Yes (HTTPRoute CRD, via Envoy Gateway) |
+| Unified OAuth for both | Yes (same auth filters) |
+| Open source | Yes (Apache 2.0, CNCF) |
+| Kubernetes-native | Yes (CRDs, Helm chart) |
+| Identity header forwarding | Yes (Envoy header manipulation) |
+
+Commercial alternatives exist (Kong Enterprise, Traefik Hub, Gravitee) but require paid licenses for MCP features. Envoy AI Gateway is the only fully open source option that handles both protocols.
+
+**Note:** Envoy AI Gateway is at v0.5 (early but actively developed). MCP over Streamable HTTP is just HTTP, so even plain Envoy Gateway (stable, CNCF graduated) could work as a fallback if MCP-specific features aren't needed for auth.
+
+### MCP Client OAuth Compatibility
+
+The MCP Authorization spec defines OAuth 2.1 for client authentication. When a client connects to the gateway, the gateway should trigger a browser-based OAuth flow (e.g., Google login). Current client support:
+
+| Client | OAuth Flow | Reliability |
+|--------|-----------|-------------|
+| **ChatGPT** | Browser opens, clean flow | High |
+| **Windsurf** | Browser opens automatically | High |
+| **Gemini CLI** | Multiple auth modes | High |
+| **VS Code Copilot** | Supported (v1.101+) | Medium-High |
+| **Claude Code** | Documented, but buggy (silent failures, browser not opening) | Low |
+| **Cursor** | Partial, platform-dependent | Medium |
+
+**Claude Code specifically** has open bugs where the OAuth browser flow fails silently. Fallback options include pre-configured bearer tokens in MCP client config and manual `/mcp` → "Authenticate" flow.
+
+**This is the riskiest assumption in the entire PRD** — which is why Milestone 1 validates it before building anything else.
+
+### Identity Contract
+
+The gateway injects verified user identity as trusted HTTP headers before forwarding to dot-ai:
+
+| Header | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `X-User-Id` | Yes | Unique user identifier (OIDC `sub` claim) | `jane.doe` |
+| `X-User-Email` | No | User email address | `jane@company.com` |
+| `X-User-Groups` | No | Comma-separated group list | `platform-team,dev-team` |
+
+Header names are **configurable** to support different gateway conventions.
+
+Headers are **trusted because of the deployment topology** — dot-ai is only reachable from the gateway (enforced by NetworkPolicy). No external client can set these headers directly. This is the same trust model used by Kubernetes itself (auth proxies), Istio (sidecar identity), and standard reverse proxy architectures.
+
+### Authorization: Kubernetes RBAC
+
+dot-ai leverages Kubernetes RBAC using a **virtual API group** (`dot-ai.devopstoolkit.ai`). No CRDs are required — SubjectAccessReview evaluates RBAC rules as pure string matching.
+
+When a request arrives to use a tool (e.g., `operate` in namespace `production`):
+
+```typescript
+const review = await k8sApi.createSubjectAccessReview({
+    spec: {
+        user: identity.userId,
+        groups: identity.groups,
+        resourceAttributes: {
+            namespace: targetNamespace,
+            group: "dot-ai.devopstoolkit.ai",
+            resource: "tools",
+            name: toolName,       // e.g., "operate"
+            verb: "execute",
+        },
+    },
+});
+
+if (!review.body.status.allowed) {
+    // Reject with clear error message
+}
+```
+
+**Example: Restrict a user to `remediate` and `query` in `production` only:**
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dotai-operator
+  namespace: production
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    resourceNames: ["remediate", "query"]
+    verbs: ["execute"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: viktor-operator
+  namespace: production
+subjects:
+  - kind: User
+    name: viktor@farcic.com
+roleRef:
+  kind: Role
+  name: dotai-operator
+  apiGroup: rbac.authorization.k8s.io
+```
+
+**Namespace scoping comes for free** — same user, different permissions per namespace. **Group bindings** leverage groups from the identity provider.
+
+### Pre-built ClusterRoles
+
+The Helm chart ships pre-built ClusterRoles. Admins only need to create bindings:
+
+| ClusterRole | Tools Allowed | Use Case |
+|-------------|---------------|----------|
+| `dotai-viewer` | `query`, `version` | Read-only cluster visibility |
+| `dotai-operator` | `query`, `version`, `operate`, `remediate` | Day-2 operations |
+| `dotai-admin` | All tools (`*`) | Full access |
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dotai-viewer
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    resourceNames: ["query", "version"]
+    verbs: ["execute"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dotai-operator
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    resourceNames: ["query", "version", "operate", "remediate"]
+    verbs: ["execute"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dotai-admin
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    resourceNames: ["query", "version", "recommend", "operate", "remediate",
+                     "manageOrgData", "manageKnowledge", "projectSetup", "validateDocs"]
+    verbs: ["execute"]
+```
+
+Admins can create additional custom ClusterRoles/Roles with standard `kubectl`.
 
 ### Authentication Modes
 
 | Mode | Identity Source | RBAC | Use Case |
 |------|----------------|------|----------|
-| **Token** (existing) | Shared token, no individual identity | No RBAC | Development, simple deployments |
-| **Gateway** (new) | User identity from gateway headers/JWT | Full RBAC | Enterprise deployments |
+| **Token** (existing) | Shared token, no individual identity | No RBAC | Development, simple setups |
+| **Identity** (new) | User identity from gateway headers | Full K8s RBAC | Multi-user / enterprise |
 
 Both modes require authentication. There is no unauthenticated access.
-
-### How It Works
-
-```
-┌─────────────┐                              ┌─────────────┐
-│  MCP Client  │  1. Connect with OAuth      │  MCP Gateway │
-│ (Claude Code)│ ──────────────────────────► │  (external)  │
-│              │ ◄────────────────────────── │              │
-└──────────────┘  2. Authenticated           └──────────────┘
-                                                    │
-                                                    │ 3. Forward request with
-                                                    │    verified identity headers
-                                                    ▼
-                                             ┌──────────────────────┐
-                                             │   dot-ai MCP Server  │
-                                             │   (thin orchestrator)│
-                                             │                      │
-                                             │ 4. Extract headers   │
-                                             │ 5. Call auth plugin  │
-                                             │ 6. Enforce decision  │
-                                             └──────────────────────┘
-                                                    │
-                                              invokePluginTool()
-                                                    │
-                                                    ▼
-                                             ┌──────────────────────┐
-                                             │   Auth Plugin        │
-                                             │ (agentic-tools)      │
-                                             │                      │
-                                             │ - Validate identity  │
-                                             │ - Resolve role       │
-                                             │ - Evaluate RBAC      │
-                                             │ - Return decision    │
-                                             └──────────────────────┘
-```
-
-### Plugin Architecture
-
-Following the existing pattern where MCP orchestrates and plugins do the work (like `shell_exec`, `kubectl_apply`, `vector_store`), the auth/RBAC logic lives in the plugin layer:
-
-**MCP Layer (`src/interfaces/auth.ts`)** — thin orchestration:
-- Extract identity headers from request
-- Call auth plugin via `invokePluginTool('agentic-tools', 'auth_validate', ...)`
-- Enforce the allow/deny decision
-- Propagate `UserIdentity` to request context
-
-**Auth Plugin (`packages/agentic-tools/src/tools/auth-*.ts`)** — all logic:
-- `auth_validate`: Validate identity and resolve RBAC role
-- `auth_check`: Check if a role permits a specific tool invocation
-- Load and evaluate role definitions and bindings
-- Return structured allow/deny decisions
-
-### Identity Extraction
-
-dot-ai extracts verified user identity from gateway-provided data. Two mechanisms supported:
-
-**Option A: Trusted Headers** (simpler, common with reverse proxies)
-```
-X-User-Id: jane.doe
-X-User-Email: jane@company.com
-X-User-Groups: platform-team,dev-team
-```
-
-**Option B: Validated JWT** (more secure, self-contained)
-```
-Authorization: Bearer <jwt>
-```
-JWT claims provide user ID, email, groups/roles. dot-ai validates the JWT signature against a configured public key or JWKS endpoint (verification only — dot-ai does NOT issue tokens).
-
-### RBAC Model
-
-Roles define what a user can do. Roles are assigned to users or groups.
-
-**Built-in Roles:**
-
-| Role | Description | Allowed Tools |
-|------|-------------|---------------|
-| `viewer` | Read-only cluster visibility | `query` |
-| `operator` | Day-2 operations | `query`, `operate`, `remediate` |
-| `admin` | Full access including deployments | All tools |
-
-**Role Definition Schema:**
-```yaml
-roles:
-  - name: viewer
-    tools:
-      allow: [query]
-    namespaces:
-      allow: ["*"]
-
-  - name: operator
-    tools:
-      allow: [query, operate, remediate]
-    namespaces:
-      allow: ["dev", "staging"]
-
-  - name: deployer
-    tools:
-      allow: [query, operate, remediate, recommend]
-    namespaces:
-      allow: ["dev", "staging", "production"]
-
-  - name: admin
-    tools:
-      allow: ["*"]
-    namespaces:
-      allow: ["*"]
-```
-
-**Role Bindings:**
-```yaml
-bindings:
-  # Bind by user
-  - role: admin
-    users: ["jane.doe"]
-
-  # Bind by group (from gateway identity)
-  - role: operator
-    groups: ["platform-team"]
-
-  # Default role for authenticated users without explicit binding
-  - role: viewer
-    users: ["*"]
-```
 
 ### Configuration
 
 ```yaml
 auth:
-  mode: "gateway"  # "token" (existing) or "gateway" (new)
+  mode: "identity"  # "token" (existing) or "identity" (new)
 
-  # For mode: "token" (existing behavior)
+  # For mode: "token" (existing behavior, unchanged)
   token: "${DOT_AI_AUTH_TOKEN}"
 
-  # For mode: "gateway"
-  gateway:
-    # Identity extraction method
-    identity_source: "headers"  # "headers" or "jwt"
-
-    # For headers-based identity
+  # For mode: "identity"
+  identity:
     headers:
       user_id: "X-User-Id"
       email: "X-User-Email"
       groups: "X-User-Groups"
-
-    # For JWT-based identity
-    jwt:
-      jwks_uri: "https://gateway.company.com/.well-known/jwks.json"
-      issuer: "https://gateway.company.com"
-      audience: "dot-ai"
-      claims:
-        user_id: "sub"
-        email: "email"
-        groups: "groups"
-
-  # RBAC configuration (applies in gateway mode)
-  rbac:
-    roles: []      # Role definitions (see above)
-    bindings: []   # Role-to-user/group bindings
-    default_role: "viewer"  # Role for authenticated users without explicit binding
 ```
 
 ### Key Design Principles
 
-1. **dot-ai never handles authentication** — gateways do this better
-2. **dot-ai owns authorization** — only dot-ai knows the domain-specific permissions
-3. **Always authenticated** — both token and gateway modes require valid credentials
-4. **Plugin-based** — RBAC logic lives in `packages/agentic-tools/`, MCP orchestrates
-5. **Secure by default** — in gateway mode, unknown users get the most restrictive role
-6. **Group-based bindings** — leverage existing org structure from identity provider
-7. **Foundation for PRD #361** — provides the user identity that permission filtering needs
+1. **Auth-agnostic** — dot-ai never handles authentication; the gateway handles authN for all protocols
+2. **Single gateway** — one Envoy AI Gateway instance handles MCP + HTTP with unified OAuth
+3. **Single authorization path** — all requests converge on UserIdentity → K8s RBAC
+4. **Kubernetes-native** — K8s SubjectAccessReview, standard RBAC manifests, NetworkPolicy
+5. **Network-enforced trust** — dot-ai is ClusterIP only; only the gateway can reach it
+6. **Validate first** — prove the gateway + OAuth flow works before building RBAC
+7. **Familiar UX** — admins manage permissions with `kubectl`
+
+## Milestones
+
+### Milestone 1: Gateway Proof of Concept
+**Objective**: Validate the riskiest assumption — that an in-cluster gateway can handle OAuth for both MCP and HTTP, and that MCP clients (especially Claude Code) complete the auth flow successfully.
+
+**This milestone is a spike. No dot-ai code changes. Just gateway deployment and client testing.**
+
+**Deliverables:**
+- [ ] Deploy Envoy AI Gateway in a test cluster (KinD or remote)
+- [ ] Configure OAuth with a test identity provider (e.g., Google)
+- [ ] Configure MCPRoute pointing to dot-ai's existing MCP endpoint
+- [ ] Configure HTTPRoute pointing to dot-ai's existing REST API
+- [ ] Verify identity headers are forwarded to dot-ai for both routes
+- [ ] Test MCP OAuth flow from Claude Code — does the browser open? Does auth complete? Do tools load?
+- [ ] Test MCP OAuth flow from at least one other client (Windsurf, Gemini CLI, or VS Code)
+- [ ] Test HTTP flow — `curl` with bearer token through the gateway
+- [ ] Document findings: what works, what doesn't, what workarounds are needed
+- [ ] If Envoy AI Gateway doesn't work: test plain Envoy Gateway as fallback (MCP is just HTTP)
+
+**Success Criteria:**
+- At least one MCP client completes OAuth and can use dot-ai tools through the gateway
+- HTTP requests with bearer tokens are proxied correctly with identity headers
+- Clear documentation of Claude Code's behavior (works / needs workaround / doesn't work)
+
+**Decision Point:** Based on findings:
+- **OAuth works for key clients** → proceed to Milestone 2
+- **OAuth is unreliable** → define fallback strategy (pre-configured bearer tokens, manual auth step) and document it before proceeding
+- **Gateway doesn't forward identity properly** → evaluate alternative gateways or adjust architecture
+
+---
+
+### Milestone 2: Identity Extraction & Display
+**Objective**: dot-ai extracts identity from gateway headers and displays it in the `version` tool output. No authorization enforcement yet — just proving dot-ai receives and reads the identity.
+
+**Deliverables:**
+- [ ] `UserIdentity` type definition
+- [ ] Identity extraction from configurable trusted headers
+- [ ] Auth middleware extended to support identity mode alongside token mode
+- [ ] `version` tool updated to include identity in output (userId, email, groups, source)
+- [ ] Configuration: auth mode and header name settings in Helm values
+- [ ] Integration tests: identity extracted correctly, version shows identity, token mode unaffected
+
+**Success Criteria:**
+- `version` output shows the authenticated user's identity when headers are present
+- Missing identity headers in identity mode returns 401
+- Token mode behavior unchanged
+- End-to-end: Claude Code → gateway → dot-ai → `version` shows user identity
+
+---
+
+### Milestone 3: Kubernetes RBAC Enforcement
+**Objective**: Enforce tool-level and namespace-level permissions using K8s SubjectAccessReview.
+
+**Deliverables:**
+- [ ] SubjectAccessReview call before every tool invocation in identity mode
+- [ ] Tool name and target namespace passed to SubjectAccessReview
+- [ ] Rejected tool calls return structured error with reason
+- [ ] Pre-built ClusterRoles in Helm chart: `dotai-viewer`, `dotai-operator`, `dotai-admin`
+- [ ] ClusterRole for dot-ai's ServiceAccount to create SubjectAccessReview
+- [ ] Integration tests: authorized calls succeed, unauthorized rejected, namespace scoping, group bindings
+
+**Success Criteria:**
+- Unauthorized tool access rejected 100% of the time
+- Namespace-scoped permissions enforced correctly
+- Group-based RoleBindings work
+- SubjectAccessReview adds <10ms latency
+- Token mode unaffected (no RBAC checks)
+
+---
+
+### Milestone 4: Network Security
+**Objective**: Ensure dot-ai is only reachable from the gateway.
+
+**Deliverables:**
+- [ ] NetworkPolicy in Helm chart restricting ingress to dot-ai pods
+- [ ] Only gateway pods can reach dot-ai
+- [ ] Documentation: CNI requirements, verification steps
+- [ ] Integration tests: unauthorized pods cannot reach dot-ai
+
+**Success Criteria:**
+- Direct access to dot-ai bypassing the gateway is blocked
+- NetworkPolicy deployed automatically with Helm chart
+
+---
+
+### Milestone 5: Audit Integration
+**Objective**: Include user identity in audit logs for traceability.
+
+**Deliverables:**
+- [ ] User identity in all operation audit log entries
+- [ ] Authorization decisions logged (allowed and denied)
+- [ ] Token-mode users logged as "shared-token"
+
+**Success Criteria:**
+- All operations traceable to specific user
+- Denied access attempts logged with reason
+
+---
+
+### Milestone 6: Documentation & End-to-End Testing
+**Objective**: Validate the full stack and document setup.
+
+**Deliverables:**
+- [ ] End-to-end integration tests: gateway → auth → identity → RBAC → tool execution
+- [ ] Tests for role escalation prevention
+- [ ] Documentation: full deployment topology
+- [ ] Documentation: RBAC setup (ClusterRoles, RoleBindings, examples)
+- [ ] Documentation: gateway configuration with OAuth providers (Google, GitHub, etc.)
+- [ ] Documentation: MCP client configuration for each supported client
+
+**Success Criteria:**
+- All tests passing
+- Admins can deploy and configure the full auth stack following documentation
+
+---
+
+### Milestone 7: Client Identity PRDs
+**Objective**: Define how CLI and Web UI authenticate through the gateway.
+
+**Deliverables:**
+- [ ] Create PRD for `dot-ai-cli`: how CLI authenticates through the gateway (bearer token from kubeconfig, device flow, etc.)
+- [ ] Create PRD for `dot-ai-ui`: how Web UI authenticates users through the gateway (OAuth redirect, etc.)
+
+**Success Criteria:**
+- CLI and Web UI PRDs define their auth flow through the unified gateway
+- No changes needed in dot-ai core
+
+---
 
 ## Success Criteria
 
 ### Must Have (MVP)
 
-- [ ] Auth plugin tools (`auth_validate`, `auth_check`) in agentic-tools package
-- [ ] Extract user identity from gateway-provided trusted headers
-- [ ] RBAC engine evaluating tool-level permissions per user/group
-- [ ] Built-in roles: viewer, operator, admin
-- [ ] Role binding by user ID and group
-- [ ] Default role for authenticated users without explicit binding
-- [ ] Unauthorized tool invocations rejected with clear error message
-- [ ] User identity available for audit logging
+- [ ] Unified gateway handling MCP + HTTP with OAuth (Milestone 1)
+- [ ] Identity extraction from gateway headers (Milestone 2)
+- [ ] K8s SubjectAccessReview enforcement (Milestone 3)
+- [ ] Pre-built ClusterRoles in Helm chart (Milestone 3)
+- [ ] NetworkPolicy restricting access to dot-ai (Milestone 4)
 - [ ] Existing token mode unaffected
 - [ ] Integration tests for RBAC enforcement
 
 ### Nice to Have (Future)
 
-- [ ] JWT-based identity extraction with JWKS validation
-- [ ] Namespace-level RBAC (restrict which namespaces a role can target)
-- [ ] Custom role definitions beyond built-in roles
-- [ ] RBAC configuration via MCP tool (manage roles without restart)
-- [ ] Audit log of authorization decisions (allowed and denied)
-- [ ] Rate limiting per user/role
+- [ ] Rate limiting per user at the gateway level
+- [ ] RBAC dry-run tool ("what would happen if user X tried tool Y?")
 
 ### Success Metrics
 
 - Unauthorized tool access rejected 100% of the time
-- All authenticated operations traceable to specific user in audit logs
+- All authenticated operations traceable to specific user
 - No regression in token mode
 - RBAC evaluation adds <10ms latency per request
-- Compatible with common MCP gateways
+- dot-ai not reachable from outside the cluster without going through the gateway
 
 ## User Journey
 
 ### Current State (Token Mode)
 
-1. Admin sets `DOT_AI_AUTH_TOKEN` on MCP server
-2. All users configure MCP client with the same token
+1. Admin sets `DOT_AI_AUTH_TOKEN` on dot-ai server
+2. All users share the same token
 3. All users have full access to all tools
-4. Audit logs show operations but not who performed them
+4. No individual identity tracking
 
-### Future State (Gateway + RBAC)
+### Future State (Gateway + K8s RBAC)
 
-1. Admin deploys MCP gateway in front of dot-ai with OAuth configured
-2. Admin configures dot-ai RBAC roles and bindings
-3. User connects MCP client through gateway, authenticates via browser
-4. Gateway forwards request with verified identity headers
-5. MCP layer extracts headers, calls auth plugin to validate and resolve role
-6. Auth plugin evaluates RBAC, returns allow/deny decision
-7. MCP layer enforces decision — proceeds or rejects with clear error
+1. Admin deploys Envoy AI Gateway + dot-ai in the cluster
+2. Admin configures OAuth (e.g., Google) on the gateway
+3. Admin applies ClusterRoles and RoleBindings via `kubectl`
+4. User configures MCP client with gateway URL
+5. On first connection, browser opens for OAuth (Google login)
+6. Gateway authenticates, forwards requests to dot-ai with identity headers
+7. dot-ai extracts identity, checks K8s RBAC, allows or denies
 8. All operations logged with user identity
 
 ### User Personas
 
-**Persona 1: Enterprise Security Admin**
-- Deploys MCP gateway with company SSO
-- Configures dot-ai RBAC: devs get `operator` role, leads get `admin`
-- Monitors audit logs for compliance
+**Persona 1: Enterprise Platform Admin**
+- Deploys gateway + dot-ai via Helm
+- Configures OAuth with company IdP
+- Creates RoleBindings for teams via `kubectl`
+- One gateway, one auth config, all protocols
 
 **Persona 2: Platform Team Lead**
-- Team members auto-assigned `operator` role via group binding
-- Can use query, operate, remediate tools
-- Cannot deploy new services (no `recommend` access)
+- Team auto-assigned `dotai-operator` via Group RoleBinding
+- Can query, operate, remediate — cannot deploy
 
 **Persona 3: Developer (Existing User)**
-- Continues using token mode for local development
+- Token mode for local development (KinD)
 - Zero changes to workflow
-- May later adopt gateway mode when team grows
 
 ## Technical Scope
 
-### Plugin Components (`packages/agentic-tools/`)
+### dot-ai Changes (Milestones 2-5)
 
-**1. `auth_validate` tool**
-- Receives identity data (headers or JWT claims)
-- Resolves user to RBAC role via bindings (user match, then group match, then default)
-- Returns `UserIdentity` with resolved role
+**Identity Extraction (`src/interfaces/auth.ts`):**
+- Extend `checkBearerAuth()` to support identity mode
+- Extract configured headers, construct `UserIdentity`
+- Token mode unchanged
 
-**2. `auth_check` tool**
-- Receives user role and requested tool name
-- Evaluates whether role permits the tool invocation
-- Returns structured `RBACDecision` (allowed/denied with reason)
+**Authorization Check (new module):**
+- K8s SubjectAccessReview before tool dispatch
+- dot-ai's ServiceAccount needs `create` on `subjectaccessreviews`
 
-**3. RBAC configuration loader**
-- Load role definitions and bindings from configuration
-- Validate configuration at startup
-- Support wildcard (`*`) for tools and namespaces
-
-### MCP Components (`src/`)
-
-**4. Auth Middleware (`src/interfaces/auth.ts` — extend existing)**
-- Extend current `checkBearerAuth()` to support gateway mode
-- In gateway mode: extract headers, call `auth_validate` plugin, call `auth_check` plugin before tool dispatch
-- In token mode: existing behavior unchanged
-- Propagate `UserIdentity` to request context
-
-**5. User Context Propagation**
-- Pass `UserIdentity` through to MCP tool handlers
-- Make identity available for audit logging
-- Foundation for PRD #361 (permission-filtered queries)
-
-### Interface Changes
-
+**Interface:**
 ```typescript
 interface UserIdentity {
-  userId: string;
-  email?: string;
-  groups: string[];
-  role: string;         // resolved RBAC role
-  source: 'gateway-headers' | 'gateway-jwt' | 'token';
+    userId: string;
+    email?: string;
+    groups: string[];
+    source: 'identity-headers' | 'token';
 }
+```
 
-interface RBACRole {
-  name: string;
-  tools: {
-    allow: string[];    // tool names or ["*"]
-  };
-  namespaces?: {
-    allow: string[];    // namespace names or ["*"] (future)
-  };
-}
+### Helm Chart Changes (Milestones 3-4)
 
-interface RBACBinding {
-  role: string;
-  users?: string[];     // user IDs or ["*"] for default
-  groups?: string[];    // group names from identity provider
-}
-
-interface RBACDecision {
-  allowed: boolean;
-  role: string;
-  reason: string;       // e.g., "role 'viewer' does not permit tool 'operate'"
-}
+- Pre-built ClusterRoles: `dotai-viewer`, `dotai-operator`, `dotai-admin`
+- ClusterRole for SubjectAccessReview:
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dotai-auth-checker
+rules:
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+```
+- NetworkPolicy:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dotai-allow-gateway-only
+spec:
+  podSelector:
+    matchLabels:
+      app: dot-ai
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: envoy-ai-gateway
 ```
 
 ## Dependencies
 
-**Internal Dependencies:**
-- Plugin system (`packages/agentic-tools/`) — already exists
-- `invokePluginTool()` pattern — already established
-
 **External Dependencies:**
-- MCP gateway deployed in front of dot-ai (for gateway mode)
-- Gateway configured to forward identity headers or JWT
+- Envoy AI Gateway (or plain Envoy Gateway as fallback)
+- Kubernetes cluster with RBAC enabled
+- CNI supporting NetworkPolicy (Calico, Cilium) for production
+- OAuth identity provider (Google, GitHub, company IdP)
+
+**Internal Dependencies:**
+- `version` tool — for identity display (Milestone 2)
+- Auth middleware — extend existing (Milestone 2)
+- Helm chart — for ClusterRoles and NetworkPolicy (Milestones 3-4)
 
 **Dependent PRDs:**
-- [PRD #361 (User-Specific Permissions)](./361-user-specific-permissions.md) depends on this for user identity — PRD #361's dependency on #360 should be updated to reference #380
-
-## Milestones
-
-### Milestone 1: Auth Plugin Tools
-**Objective**: Implement RBAC logic as plugin tools in agentic-tools package
-
-**Deliverables:**
-- [ ] `auth_validate` plugin tool — resolve identity to RBAC role
-- [ ] `auth_check` plugin tool — evaluate tool-level permissions
-- [ ] RBAC configuration loader with role and binding schema
-- [ ] Built-in roles: viewer, operator, admin
-- [ ] Default role assignment for unbound authenticated users
-- [ ] Integration tests for plugin tools
-
-**Success Criteria:**
-- Plugin correctly resolves user/group to role
-- Plugin correctly evaluates tool permissions
-- Wildcard bindings and roles work as expected
-
----
-
-### Milestone 2: Gateway Identity Extraction & MCP Integration
-**Objective**: Extract identity from gateway headers and wire RBAC into MCP request flow
-
-**Deliverables:**
-- [ ] Identity extraction from trusted headers (configurable header names)
-- [ ] Auth middleware extended to support gateway mode alongside token mode
-- [ ] RBAC check via plugin before every MCP tool invocation
-- [ ] Rejected tool calls return structured error to MCP client
-- [ ] User identity propagated to request context
-- [ ] Integration tests for end-to-end enforcement
-
-**Success Criteria:**
-- User identity correctly extracted from configured headers
-- Missing identity in gateway mode returns 401
-- Unauthorized tool calls rejected before execution
-- Token mode unaffected
-- No performance regression (RBAC check <10ms)
-
----
-
-### Milestone 3: Audit Integration
-**Objective**: Include user identity in audit logs
-
-**Deliverables:**
-- [ ] User identity in all operation audit log entries
-- [ ] Authorization decisions logged (allowed and denied)
-- [ ] Audit log schema updated for user fields
-
-**Success Criteria:**
-- All operations traceable to specific user
-- Denied access attempts logged with reason
-- Token-mode users logged appropriately
-
----
-
-### Milestone 4: Integration Testing & Documentation
-**Objective**: Validate end-to-end and document setup
-
-**Deliverables:**
-- [ ] End-to-end integration tests simulating gateway + RBAC flow
-- [ ] Tests for each auth mode (token, gateway)
-- [ ] Tests for role escalation prevention
-- [ ] Documentation for gateway setup with dot-ai
-- [ ] Documentation for RBAC configuration
-
-**Success Criteria:**
-- All integration tests passing
-- No regression in token mode
-- Users can set up gateway + RBAC following documentation
-
----
+- [PRD #361 (User-Specific Permissions)](./361-user-specific-permissions.md) — depends on user identity from this PRD
+- New PRDs for `dot-ai-cli` and `dot-ai-ui` (Milestone 7)
 
 ## Security Considerations
 
 ### Trust Boundary
-- dot-ai trusts identity headers only when `auth.mode: "gateway"` is configured
-- In gateway mode, dot-ai MUST be deployed behind the gateway (not exposed directly)
-- Network policies should ensure only the gateway can reach dot-ai
+The trust boundary is the **Kubernetes network**. dot-ai trusts identity headers because only the gateway can reach it (enforced by NetworkPolicy). This is the same trust model used by Kubernetes (auth proxy → API server), Istio (sidecar identity), and standard reverse proxy architectures.
 
 ### Default Deny
-- In gateway mode, requests without identity headers are rejected (401)
-- Users without explicit role binding get the configured `default_role` (most restrictive)
+- In identity mode, requests without identity headers → 401
+- Users without RoleBindings → denied all tool access
+- No default role — access must be explicitly granted
 
 ### Header Spoofing Prevention
-- Gateway must strip and re-set identity headers on incoming requests
-- This is a gateway responsibility, documented in setup guide
+Headers cannot be spoofed because NetworkPolicy prevents external traffic from reaching dot-ai. An attacker would need to compromise the gateway pod itself.
 
-### JWT Security (Future)
-- JWT validation uses JWKS for key rotation support
-- Validate issuer, audience, and expiration
-- Reject tokens with unexpected claims
+### NetworkPolicy Requirements
+- Production: Calico or Cilium for full enforcement
+- Development (KinD): limited NetworkPolicy support, but dev uses token mode
+
+## Alternatives Considered
+
+| Alternative | Why Not |
+|-------------|---------|
+| **Custom RBAC engine** (v1.0) | Reinvents K8s RBAC |
+| **OPA / Casbin / Cerbos** | External dependency or custom config when K8s RBAC exists |
+| **Dex** (bundled for authN) | Adds auth infra to dot-ai; gateway handles this |
+| **Separate auth per protocol** | Complex; unified gateway is simpler |
+| **Kong / Traefik Hub** | MCP features require enterprise license |
+| **HMAC-signed headers** | Shared secret on user laptops defeats the purpose |
+| **TokenReview** | MCP gateways don't forward tokens upstream |
+
+## MCP Gateway Ecosystem
+
+Research (Feb 2026) — gateways supporting both MCP + HTTP with unified auth:
+
+| Gateway | MCP + HTTP | Open Source | Auth | Notes |
+|---------|-----------|-------------|------|-------|
+| **Envoy AI Gateway** | Yes (MCPRoute + HTTPRoute) | Yes (Apache 2.0) | OAuth/JWT | v0.5, CNCF |
+| **Kong 3.12+** | Yes | Enterprise only (AI plugins) | OIDC | Most mature |
+| **Traefik Hub** | Yes (MCP as middleware) | Commercial | JWT | Clean architecture |
+| **Gravitee 4.8+** | Yes (dual entrypoint) | Commercial | OAuth | Same API, two protocols |
+| **Envoy Gateway** | HTTP only (no MCPRoute) | Yes (Apache 2.0) | OAuth/JWT | Stable fallback |
+
+MCP-only gateways (IBM ContextForge, AgentGateway, Klavis) cannot serve HTTP to CLI/Web UI.
 
 ## References
 
-- [awesome-mcp-gateways](https://github.com/e2b-dev/awesome-mcp-gateways) — MCP gateway ecosystem
-- [MCP Authorization Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) — for gateway implementers
-- [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) — inspiration for role model
+- [Envoy AI Gateway](https://aigateway.envoyproxy.io/) — MCP + HTTP gateway
+- [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
+- [SubjectAccessReview API](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/subject-access-review-v1/)
+- [Kubernetes NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/)
+- [MCP Authorization Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
+- [awesome-mcp-gateways](https://github.com/e2b-dev/awesome-mcp-gateways)
 
 ## Related Resources
 
 - **GitHub Issue**: [#380](https://github.com/vfarcic/dot-ai/issues/380)
 - **Supersedes**: [PRD #360 - User Authentication](./done/360-user-authentication.md) (closed)
 - **Dependent PRD**: [PRD #361 - User-Specific Permissions](./361-user-specific-permissions.md)
+- **Follow-up PRDs**: CLI identity (`dot-ai-cli`), Web UI identity (`dot-ai-ui`)
 
 ---
 
 ## Version History
 
-- **v1.0** (2026-02-18): Initial PRD — gateway-delegated authN + plugin-based RBAC, superseding PRD #360
+- **v1.0** (2026-02-18): Initial — gateway-delegated authN + custom plugin-based RBAC
+- **v2.0** (2026-02-28): Auth-agnostic identity + K8s RBAC via SubjectAccessReview
+- **v2.1** (2026-02-28): In-cluster deployment topology, NetworkPolicy trust model
+- **v3.0** (2026-02-28): Unified gateway approach (Envoy AI Gateway for MCP + HTTP). Milestone 1 is now a gateway proof of concept — validate OAuth flow with MCP clients before building anything. Restructured milestones to validate riskiest assumption first.
