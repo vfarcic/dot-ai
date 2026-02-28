@@ -1,8 +1,8 @@
-# Working with Data Formats
+# Development Guide
 
-This guide shows how to work with common data formats.
+This guide covers setting up, validating, and working with the project.
 
-## Python Example
+## Processing Data with Python
 
 A simple script that processes a list of items:
 
@@ -16,9 +16,9 @@ def process_items(items):
 print(process_items(["hello", "world"]))
 ```
 
-## JSON Configuration
+## Project Configuration
 
-A sample configuration file:
+The project uses a JSON configuration file:
 
 ```json
 {
@@ -32,9 +32,9 @@ A sample configuration file:
 }
 ```
 
-## YAML Manifest
+## Kubernetes Manifest
 
-A simple YAML document:
+Deploy the app with this ConfigMap:
 
 ```yaml
 apiVersion: v1
@@ -47,17 +47,17 @@ data:
     nested: invalid
 ```
 
-## Linting the Project
+## Linting
 
-Run the linter to check for code quality issues:
+Before committing, run the linter to catch code quality issues:
 
 ```bash
 npm run lint
 ```
 
-## Shell Script
+## Checking System Info
 
-A helper script to check system info:
+Verify your environment is set up correctly:
 
 ```bash
 #!/bin/bash
