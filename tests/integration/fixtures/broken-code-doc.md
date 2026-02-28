@@ -47,6 +47,14 @@ data:
     nested: invalid
 ```
 
+## Linting the Project
+
+Run the linter to check for code quality issues:
+
+```bash
+npm run lint
+```
+
 ## Shell Script
 
 A helper script to check system info:

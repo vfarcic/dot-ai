@@ -115,6 +115,7 @@ describe.concurrent('ValidateDocs Tool Integration (PRD #388)', () => {
     // - Python: missing colon after `for item in items` → SyntaxError
     // - JSON: missing comma after `"port": 8080` → parse error
     // - YAML: bad indentation (nested under scalar value) → structure error
+    // - Node.js: `npm run lint` requires installing Node.js runtime (not in base image)
     // - Bash: valid script (should not be flagged)
     const response = await integrationTest.httpClient.post(
       '/api/v1/tools/validateDocs',
