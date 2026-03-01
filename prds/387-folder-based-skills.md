@@ -29,6 +29,13 @@ user-prompts-repo/
     └── create-worktree.sh         # Supporting file (included in response)
 ```
 
+## Scope
+
+**REST API + CLI only.** MCP clients receive prompt text directly through the protocol and do not materialize files on disk. The `files` field is only meaningful for REST API consumers (the CLI) that write skill folders to the user's filesystem.
+
+- **In scope**: Server-side prompt loading, REST API response, CLI skill generation
+- **Out of scope**: MCP `prompts/get` handler (continues to serve prompt text only)
+
 ## Architecture
 
 ### Data Flow
@@ -40,6 +47,8 @@ Git repo ──clone──▶ user-prompts-loader
                                                       │
                     GET /api/v1/prompts ◀──────────────┘ (list includes skills)
                     POST /api/v1/prompts/:name ◀────────┘ (response includes files)
+                                                      │
+                    CLI: dot-ai skills generate ◀──────┘ (writes SKILL.md + files to disk)
 ```
 
 ### Interface Changes
@@ -89,12 +98,17 @@ export interface Prompt {
 
 5. **No recursive scanning**: Only scan one level deep for skill folders. Nested directories within a skill folder are included as files but we don't look for nested SKILL.md files.
 
+6. **File size limit**: Individual files within a skill folder are limited to **5 MB** (before base64 encoding). Files exceeding this limit are skipped with a warning log. This prevents bloated JSON responses while covering all practical use cases (scripts, templates, manifests). For larger assets, skill authors should use a bootstrap script that downloads them at runtime.
+
+7. **File permissions are a CLI concern**: The server serves raw file content without tracking permissions. The CLI companion PRD (see Milestones) will handle setting executable permissions when writing files to disk (e.g., based on shebang or file extension).
+
 ## Success Criteria
 
 - Flat `.md` prompts continue to work identically (no regression)
 - Skill folders with `SKILL.md` are discovered and served as prompts
 - Supporting files are included in the `POST /api/v1/prompts/:name` response
-- Both MCP and REST API serve the same data
+- REST API `POST /api/v1/prompts/:name` includes `files` in response
+- MCP `prompts/get` is unchanged (serves prompt text only, no `files` field)
 - Collision detection works for skill folders (built-in takes precedence)
 
 ## Milestones
@@ -102,6 +116,9 @@ export interface Prompt {
 - [ ] Extend `Prompt` interface with optional `files` field and add `PromptFile` type
 - [ ] Extend `user-prompts-loader.ts` to scan for skill folders (directories containing `SKILL.md`) and load supporting files
 - [ ] Update prompts response schema to include optional `files` field in get response
-- [ ] Update REST API and MCP handlers to pass through files data
+- [ ] Update REST API handler to pass through files data (MCP handler unchanged)
 - [ ] Integration tests for folder-based skill loading (list, get with files, collision detection)
-- [ ] Create PRD in `dot-ai-cli` repo for CLI-side changes (skills generate writing full directory structures)
+- [ ] Create PRD in `dot-ai-cli` repo for CLI-side changes:
+  - `skills generate` fetches and writes full folder structures (SKILL.md + supporting files)
+  - Decode base64 file content and write to disk
+  - Set executable permissions on scripts (detect via shebang `#!/` or extension `.sh`, `.bash`)
