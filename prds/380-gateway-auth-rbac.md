@@ -1,10 +1,10 @@
-# PRD: Auth-Agnostic Identity & Kubernetes RBAC
+# PRD: MCP OAuth Authentication & Kubernetes RBAC
 
-**Status**: Planning
+**Status**: In Progress
 **Priority**: High
 **GitHub Issue**: [#380](https://github.com/vfarcic/dot-ai/issues/380)
 **Created**: 2026-02-18
-**Last Updated**: 2026-02-28
+**Last Updated**: 2026-03-01
 **Supersedes**: [PRD #360 - User Authentication](./done/360-user-authentication.md) (closed)
 
 ---
@@ -18,92 +18,84 @@ Enterprise deployments need user-level authentication and authorization. The cur
 - Audit logs cannot track who performed operations
 - No mechanism to revoke access for specific users
 
-Previous approaches (PRD #360, v1.0 of this PRD) proposed building auth/RBAC inside dot-ai. Both were rejected — authentication is orthogonal to dot-ai's core value, and Kubernetes already has battle-tested RBAC.
+Previous approaches (PRD #360, v1.0–v3.0 of this PRD) proposed gateway-delegated auth. These were rejected after a PoC proved that the MCP Authorization spec places OAuth responsibility on the MCP server itself, and that mandating a specific gateway is an adoption barrier.
 
 ## Proposed Solution
 
 **Two core principles:**
 
-1. **dot-ai is auth-agnostic** — it does not care how clients authenticate. A unified gateway handles authN for all access paths (MCP, HTTP/REST, Web UI).
-2. **dot-ai owns authorization via Kubernetes RBAC** — all requests converge on a `UserIdentity`, and dot-ai checks permissions using K8s [SubjectAccessReview](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/subject-access-review-v1/).
+1. **dot-ai handles OAuth directly** — following the [MCP Authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization), dot-ai serves OAuth metadata endpoints, triggers browser-based login, and validates tokens. No gateway required.
+2. **dot-ai owns authorization via Kubernetes RBAC** — all requests converge on a `UserIdentity` extracted from the OAuth token, and dot-ai checks permissions using K8s [SubjectAccessReview](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/subject-access-review-v1/).
 
-### Deployment Topology
-
-All components run **inside the Kubernetes cluster**. A single gateway ([Envoy AI Gateway](https://aigateway.envoyproxy.io/) — open source, Apache 2.0, CNCF) handles both MCP and HTTP protocols with unified OAuth authentication:
+### How It Works
 
 ```
 User's laptop                              Kubernetes cluster
-                                          ┌──────────────────────────────────────────┐
-┌─────────────┐                          │                                          │
-│  MCP Client  │                          │                                          │
-│ (Claude Code)│ ── (internet) ──►        │                                          │
-└─────────────┘                           │  Envoy AI Gateway ──► dot-ai             │
-                                          │  (Ingress/LB)         (ClusterIP)        │
-┌─────────────┐                          │                                          │
-│  CLI         │ ── (internet) ──►        │  Unified authN         Extracts identity │
-└─────────────┘                           │  (OAuth/OIDC for       Checks K8s RBAC   │
-                                          │   both MCP + HTTP)                       │
-┌─────────────┐                          │                                          │
-│  Web UI      │ ── (internet) ──►        │                                          │
-│ (browser)    │                          │                                          │
-└─────────────┘                           │                                          │
-                                          │  ┌─────────────────────────────────┐     │
-                                          │  │ NetworkPolicy:                  │     │
-                                          │  │ Only gateway can reach dot-ai   │     │
-                                          │  └─────────────────────────────────┘     │
-                                          └──────────────────────────────────────────┘
+                                          ┌──────────────────────────────┐
+┌─────────────┐                          │                              │
+│  MCP Client  │                          │  Any Ingress/Gateway         │
+│ (Claude Code)│ ── (internet) ──►        │  (NGINX, Traefik, etc.)     │
+└─────────────┘                           │         │                    │
+                                          │         ▼                    │
+┌─────────────┐                          │  dot-ai ◄──── Dex            │
+│  CLI         │ ── (internet) ──►        │  ├── OAuth endpoints    │    │
+└─────────────┘                           │  ├── MCP endpoint       │    │
+                                          │  ├── REST API      (OIDC)   │
+┌─────────────┐                          │  ├── Token validation         │
+│  Web UI      │ ── (internet) ──►        │  └── K8s RBAC check          │
+│ (browser)    │                          │                              │
+└─────────────┘                           └──────────────────────────────┘
 ```
 
 **Key points:**
-- **One gateway for all protocols** — Envoy AI Gateway supports MCPRoute (for agents) and HTTPRoute (for CLI/Web UI) on the same instance with shared OAuth configuration
-- **dot-ai is ClusterIP only** — never exposed directly. NetworkPolicy ensures only the gateway can reach it
-- **Gateway authenticates all traffic** — whether MCP or HTTP, the same OAuth/OIDC flow applies. Gateway injects verified identity headers before forwarding to dot-ai.
+- **dot-ai handles auth itself** — serves OAuth discovery metadata, authorization endpoint, token endpoint per the MCP spec
+- **Dex as default OIDC provider** — ships as a Helm subchart with a static test user out of the box. For production, admins configure Dex connectors for their IdP (Google, GitHub, LDAP, SAML, etc.)
+- **Any ingress works** — NGINX, Traefik, whatever users already have. dot-ai doesn't prescribe routing infrastructure
+- **Identity comes from the OAuth token** — no trusted headers, no NetworkPolicy dependency for auth
+- **dot-ai always talks to Dex** — one OIDC interface. Dex handles the variety of upstream IdPs via connectors
 
-### Why Envoy AI Gateway
+### MCP OAuth Flow
 
-| Requirement | Envoy AI Gateway |
-|-------------|-----------------|
-| MCP protocol support | Yes (MCPRoute CRD) |
-| HTTP protocol support | Yes (HTTPRoute CRD, via Envoy Gateway) |
-| Unified OAuth for both | Yes (same auth filters) |
-| Open source | Yes (Apache 2.0, CNCF) |
-| Kubernetes-native | Yes (CRDs, Helm chart) |
-| Identity header forwarding | Yes (Envoy header manipulation) |
+When an MCP client (e.g., Claude Code) connects:
 
-Commercial alternatives exist (Kong Enterprise, Traefik Hub, Gravitee) but require paid licenses for MCP features. Envoy AI Gateway is the only fully open source option that handles both protocols.
+1. Client sends request to dot-ai → receives **401** with `WWW-Authenticate: Bearer resource_metadata="..."`
+2. Client fetches `/.well-known/oauth-protected-resource` → learns the authorization server URL
+3. Client fetches `/.well-known/oauth-authorization-server` → discovers endpoints (authorize, token, register)
+4. Client calls `/register` for **dynamic client registration** (RFC 7591)
+5. Client opens browser to `/authorize` with PKCE challenge → dot-ai redirects to Dex → Dex shows IdP login (static user, Google, GitHub, etc.)
+6. User approves → client receives authorization code via redirect
+7. Client exchanges code for access token at `/token`
+8. Client retries MCP request with `Authorization: Bearer <token>`
 
-**Note:** Envoy AI Gateway is at v0.5 (early but actively developed). MCP over Streamable HTTP is just HTTP, so even plain Envoy Gateway (stable, CNCF graduated) could work as a fallback if MCP-specific features aren't needed for auth.
+This flow is defined by the MCP Authorization spec and supported by MCP clients.
 
 ### MCP Client OAuth Compatibility
 
-The MCP Authorization spec defines OAuth 2.1 for client authentication. When a client connects to the gateway, the gateway should trigger a browser-based OAuth flow (e.g., Google login). Current client support:
+Validated through PoC (2026-02-28):
 
-| Client | OAuth Flow | Reliability |
-|--------|-----------|-------------|
-| **ChatGPT** | Browser opens, clean flow | High |
-| **Windsurf** | Browser opens automatically | High |
-| **Gemini CLI** | Multiple auth modes | High |
-| **VS Code Copilot** | Supported (v1.101+) | Medium-High |
-| **Claude Code** | Documented, but buggy (silent failures, browser not opening) | Low |
-| **Cursor** | Partial, platform-dependent | Medium |
+| Client | OAuth Flow | Status |
+|--------|-----------|--------|
+| **Claude Code** | Works via manual `/mcp` → Authenticate. Auto-trigger on tool call is a known bug ([#11585](https://github.com/anthropics/claude-code/issues/11585), [#26917](https://github.com/anthropics/claude-code/issues/26917)). | Validated |
+| **ChatGPT** | Browser opens, clean flow | Reported working |
+| **Windsurf** | Browser opens automatically | Reported working |
+| **Gemini CLI** | Multiple auth modes | Reported working |
+| **VS Code Copilot** | Supported (v1.101+) | Reported working |
+| **Cursor** | Partial, platform-dependent | Untested |
 
-**Claude Code specifically** has open bugs where the OAuth browser flow fails silently. Fallback options include pre-configured bearer tokens in MCP client config and manual `/mcp` → "Authenticate" flow.
-
-**This is the riskiest assumption in the entire PRD** — which is why Milestone 1 validates it before building anything else.
+**Claude Code specifics:** OAuth works end-to-end but requires the user to manually authenticate via `/mcp` → select server → Authenticate. Claude Code caches tokens across sessions, so re-authentication is only needed when tokens expire or are revoked.
 
 ### Identity Contract
 
-The gateway injects verified user identity as trusted HTTP headers before forwarding to dot-ai:
+User identity is extracted from the OAuth token, not from HTTP headers:
 
-| Header | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `X-User-Id` | Yes | Unique user identifier (OIDC `sub` claim) | `jane.doe` |
-| `X-User-Email` | No | User email address | `jane@company.com` |
-| `X-User-Groups` | No | Comma-separated group list | `platform-team,dev-team` |
-
-Header names are **configurable** to support different gateway conventions.
-
-Headers are **trusted because of the deployment topology** — dot-ai is only reachable from the gateway (enforced by NetworkPolicy). No external client can set these headers directly. This is the same trust model used by Kubernetes itself (auth proxies), Istio (sidecar identity), and standard reverse proxy architectures.
+```typescript
+interface UserIdentity {
+    userId: string;      // OIDC `sub` claim from Dex
+    email?: string;      // OIDC `email` claim from Dex
+    groups: string[];    // OIDC `groups` claim (from Dex connector / upstream IdP)
+    source: 'oauth';
+}
+```
 
 ### Authorization: Kubernetes RBAC
 
@@ -202,101 +194,182 @@ rules:
     resourceNames: ["query", "version", "recommend", "operate", "remediate",
                      "manageOrgData", "manageKnowledge", "projectSetup", "validateDocs"]
     verbs: ["execute"]
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["users"]
+    verbs: ["create", "delete", "list"]
 ```
 
 Admins can create additional custom ClusterRoles/Roles with standard `kubectl`.
 
-### Authentication Modes
+### Authentication
 
-| Mode | Identity Source | RBAC | Use Case |
-|------|----------------|------|----------|
-| **Token** (existing) | Shared token, no individual identity | No RBAC | Development, simple setups |
-| **Identity** (new) | User identity from gateway headers | Full K8s RBAC | Multi-user / enterprise |
+OAuth via Dex is the **only** auth mode. The legacy token mode (`DOT_AI_AUTH_TOKEN`) is removed — all token-related code is deleted from the codebase.
 
-Both modes require authentication. There is no unauthenticated access.
+**Migration from token mode:** On first Dex setup (no Dex Secret exists yet):
+- If `DOT_AI_AUTH_TOKEN` is set → use its value as the initial admin password (bcrypt-hashed, stored in Dex Secret as `admin@dot-ai.local`)
+- If no token → auto-generate a random password
+
+Either way, credentials are output in Helm install/upgrade notes. After migration, `DOT_AI_AUTH_TOKEN` is ignored and can be removed.
+
+**Future cleanup PRD:** ~6 months after release, create a PRD to remove the token migration logic (the code that detects `DOT_AI_AUTH_TOKEN` and converts it to a Dex password). By then all users will have transitioned.
+
+### User Management
+
+dot-ai provides authenticated API endpoints for managing Dex static users. These endpoints are RBAC-protected — only users with the `dotai-admin` role can manage users.
+
+**Endpoints:**
+- `POST /users` — Create a new static user (email, password)
+- `GET /users` — List static users (emails only, no password hashes)
+- `DELETE /users/:email` — Remove a static user
+
+**How it works:**
+1. Admin calls user management endpoint (via MCP tool, CLI, or REST API)
+2. dot-ai updates the Dex configuration Secret in Kubernetes
+3. A config reloader sidecar detects the Secret change and signals Dex to reload
+4. New user can immediately authenticate
+
+**RBAC for user management:**
+```yaml
+- apiGroups: ["dot-ai.devopstoolkit.ai"]
+  resources: ["users"]
+  verbs: ["create", "delete", "list"]
+```
+
+This is included in the `dotai-admin` ClusterRole. When Dex connectors are configured, static user management becomes irrelevant — users come from the upstream IdP.
 
 ### Configuration
 
 ```yaml
 auth:
-  mode: "identity"  # "token" (existing) or "identity" (new)
+  oauth:
+    issuer: "http://dex.dot-ai.svc.cluster.local:5556"  # Dex in-cluster URL
 
-  # For mode: "token" (existing behavior, unchanged)
-  token: "${DOT_AI_AUTH_TOKEN}"
-
-  # For mode: "identity"
-  identity:
-    headers:
-      user_id: "X-User-Id"
-      email: "X-User-Email"
-      groups: "X-User-Groups"
+# Dex subchart configuration
+dex:
+  enabled: true
+  configReloader:
+    enabled: true  # Watches Secret for changes, reloads Dex config
+  # No static passwords in values — auto-generated at install time (or migrated from DOT_AI_AUTH_TOKEN)
+  # Production: add connectors for your IdP
+  # connectors:
+  #   - type: google
+  #     id: google
+  #     name: Google
+  #     config:
+  #       clientID: "xxx.apps.googleusercontent.com"
+  #       clientSecret: "xxx"
+  #       redirectURI: "https://dex.example.com/callback"
 ```
+
+### Initial Admin Bootstrap
+
+No passwords are stored in chart values. On `helm install`, the chart:
+
+1. Generates a random password for `admin@dot-ai.local`
+2. Bcrypt-hashes it and writes to the Dex Secret
+3. Outputs the credentials in Helm install notes (shown once)
+
+**Helm install notes:**
+```
+=== dot-ai installed ===
+
+Initial admin credentials:
+  Email:    admin@dot-ai.local
+  Password: <random-generated>
+
+Change the password or add users:
+  dot-ai users add --email alice@example.com
+  dot-ai users list
+  dot-ai users remove --email admin@dot-ai.local
+
+Or configure a Dex connector for your IdP:
+  https://devopstoolkit.ai/docs/auth/connectors
+```
+
+On `helm upgrade`, the existing Secret is preserved — credentials are only generated on first install.
 
 ### Key Design Principles
 
-1. **Auth-agnostic** — dot-ai never handles authentication; the gateway handles authN for all protocols
-2. **Single gateway** — one Envoy AI Gateway instance handles MCP + HTTP with unified OAuth
+1. **Server-side OAuth** — dot-ai handles OAuth per the MCP Authorization spec; no gateway dependency for auth
+2. **Dex as default IdP** — ships as a subchart with static users; admins configure connectors for production IdPs
 3. **Single authorization path** — all requests converge on UserIdentity → K8s RBAC
-4. **Kubernetes-native** — K8s SubjectAccessReview, standard RBAC manifests, NetworkPolicy
-5. **Network-enforced trust** — dot-ai is ClusterIP only; only the gateway can reach it
-6. **Validate first** — prove the gateway + OAuth flow works before building RBAC
+4. **Kubernetes-native** — K8s SubjectAccessReview, standard RBAC manifests
+5. **Infrastructure-agnostic** — works with any ingress/gateway; dot-ai doesn't prescribe routing
+6. **Validate first** — PoC proved the OAuth flow works before building RBAC
 7. **Familiar UX** — admins manage permissions with `kubectl`
 
 ## Milestones
 
-### Milestone 1: Gateway Proof of Concept
-**Objective**: Validate the riskiest assumption — that an in-cluster gateway can handle OAuth for both MCP and HTTP, and that MCP clients (especially Claude Code) complete the auth flow successfully.
+### Milestone 1: OAuth Proof of Concept (VALIDATED)
+**Objective**: Validate the riskiest assumption — that MCP clients complete the OAuth browser flow when dot-ai serves OAuth endpoints per the MCP Authorization spec.
 
-**This milestone is a spike. No dot-ai code changes. Just gateway deployment and client testing.**
+**Status**: Validated (2026-02-28)
 
-**Deliverables:**
-- [ ] Deploy Envoy AI Gateway in a test cluster (KinD or remote)
-- [ ] Configure OAuth with a test identity provider (e.g., Google)
-- [ ] Configure MCPRoute pointing to dot-ai's existing MCP endpoint
-- [ ] Configure HTTPRoute pointing to dot-ai's existing REST API
-- [ ] Verify identity headers are forwarded to dot-ai for both routes
-- [ ] Test MCP OAuth flow from Claude Code — does the browser open? Does auth complete? Do tools load?
-- [ ] Test MCP OAuth flow from at least one other client (Windsurf, Gemini CLI, or VS Code)
-- [ ] Test HTTP flow — `curl` with bearer token through the gateway
-- [ ] Document findings: what works, what doesn't, what workarounds are needed
-- [ ] If Envoy AI Gateway doesn't work: test plain Envoy Gateway as fallback (MCP is just HTTP)
+**Findings:**
+- [x] Built minimal MCP server with OAuth endpoints (~130 lines, `tmp/auth-poc-server.mjs`)
+- [x] Implemented: Protected Resource Metadata (RFC 9728), Auth Server Metadata (RFC 8414), Dynamic Client Registration (RFC 7591), Authorization with PKCE, Token exchange
+- [x] Claude Code completes the full OAuth flow: 401 → browser opens → user approves → token issued → connected
+- [x] Claude Code requires manual `/mcp` → Authenticate (auto-trigger is a known bug)
+- [x] Claude Code caches tokens across sessions
+- [x] Claude Code silently falls back to LLM responses when tools are unavailable (masks auth failures)
 
-**Success Criteria:**
-- At least one MCP client completes OAuth and can use dot-ai tools through the gateway
-- HTTP requests with bearer tokens are proxied correctly with identity headers
-- Clear documentation of Claude Code's behavior (works / needs workaround / doesn't work)
+**Decision**: Proceed with server-side OAuth. No gateway needed for auth.
 
-**Decision Point:** Based on findings:
-- **OAuth works for key clients** → proceed to Milestone 2
-- **OAuth is unreliable** → define fallback strategy (pre-configured bearer tokens, manual auth step) and document it before proceeding
-- **Gateway doesn't forward identity properly** → evaluate alternative gateways or adjust architecture
+**What was rejected:**
+- Envoy AI Gateway v0.5: MCPRoute OAuth didn't serve discovery metadata, had broken Backend IPs, returned no `WWW-Authenticate` headers
+- Gateway-based auth in general: mandating a specific gateway is an adoption barrier; the MCP spec puts OAuth on the server
 
 ---
 
-### Milestone 2: Identity Extraction & Display
-**Objective**: dot-ai extracts identity from gateway headers and displays it in the `version` tool output. No authorization enforcement yet — just proving dot-ai receives and reads the identity.
+### Milestone 2: OAuth Endpoints in dot-ai (No Dex)
+**Objective**: Port the PoC OAuth flow into the real dot-ai server. Same self-contained auth (approve button, no external IdP) — prove the OAuth endpoints work in the actual codebase before adding Dex. Remove all legacy token auth code.
+
+**Architecture:** Following the existing plugin pattern:
+- **Plugin (`packages/agentic-tools/`)** — OAuth logic, token issuance/validation, bcrypt hashing, Dex integration (later)
+- **MCP server (`src/`)** — registers OAuth endpoints as Express routes, orchestrates calls to plugin
 
 **Deliverables:**
-- [ ] `UserIdentity` type definition
-- [ ] Identity extraction from configurable trusted headers
-- [ ] Auth middleware extended to support identity mode alongside token mode
+- [ ] OAuth endpoints in dot-ai: `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/register`, `/authorize`, `/token`
+- [ ] `/authorize` shows a simple approve page (same as PoC — no Dex yet)
+- [ ] Token issuance with user identity claims
+- [ ] Token validation middleware on MCP and REST endpoints
+- [ ] `UserIdentity` type definition and extraction from validated tokens
+- [ ] Remove all legacy token auth code (`DOT_AI_AUTH_TOKEN`, token mode config, related middleware)
 - [ ] `version` tool updated to include identity in output (userId, email, groups, source)
-- [ ] Configuration: auth mode and header name settings in Helm values
-- [ ] Integration tests: identity extracted correctly, version shows identity, token mode unaffected
+- [ ] Integration tests: OAuth flow end-to-end, token validation, identity extraction
 
 **Success Criteria:**
-- `version` output shows the authenticated user's identity when headers are present
-- Missing identity headers in identity mode returns 401
-- Token mode behavior unchanged
-- End-to-end: Claude Code → gateway → dot-ai → `version` shows user identity
+- MCP clients complete OAuth and access tools through dot-ai (same flow as PoC, inside the real server)
+- `version` output shows the authenticated user's identity
+- Missing/invalid token returns 401
+- No legacy token auth code remains
 
 ---
 
-### Milestone 3: Kubernetes RBAC Enforcement
+### Milestone 3: Dex Integration & User Management
+**Objective**: Swap the self-contained approve page for Dex as the OIDC provider. Add user management API and Helm subchart.
+
+**Deliverables:**
+- [ ] Integration with Dex — `/authorize` redirects to Dex, callback verifies Dex OIDC response
+- [ ] Dex as Helm subchart — no static passwords in values
+- [ ] Auto-generate initial admin credentials on `helm install`, output in Helm notes (preserve on upgrade). If `DOT_AI_AUTH_TOKEN` exists, use as initial admin password instead of generating.
+- [ ] Config reloader sidecar for Dex — watches Secret for changes, signals Dex to reload
+- [ ] User management endpoints: `POST /users`, `GET /users`, `DELETE /users/:email` — RBAC-protected, writes to Dex Secret
+- [ ] Configuration: Dex settings in Helm values
+- [ ] Integration tests: Dex OAuth flow, user management, config reload
+
+**Success Criteria:**
+- MCP clients complete OAuth through Dex and access tools
+- Admin can create/list/delete users via API without redeploying
+- Config reloader picks up Secret changes and Dex reloads
+
+---
+
+### Milestone 4: Kubernetes RBAC Enforcement
 **Objective**: Enforce tool-level and namespace-level permissions using K8s SubjectAccessReview.
 
 **Deliverables:**
-- [ ] SubjectAccessReview call before every tool invocation in identity mode
+- [ ] SubjectAccessReview call before every tool invocation in OAuth mode
 - [ ] Tool name and target namespace passed to SubjectAccessReview
 - [ ] Rejected tool calls return structured error with reason
 - [ ] Pre-built ClusterRoles in Helm chart: `dotai-viewer`, `dotai-operator`, `dotai-admin`
@@ -308,22 +381,6 @@ auth:
 - Namespace-scoped permissions enforced correctly
 - Group-based RoleBindings work
 - SubjectAccessReview adds <10ms latency
-- Token mode unaffected (no RBAC checks)
-
----
-
-### Milestone 4: Network Security
-**Objective**: Ensure dot-ai is only reachable from the gateway.
-
-**Deliverables:**
-- [ ] NetworkPolicy in Helm chart restricting ingress to dot-ai pods
-- [ ] Only gateway pods can reach dot-ai
-- [ ] Documentation: CNI requirements, verification steps
-- [ ] Integration tests: unauthorized pods cannot reach dot-ai
-
-**Success Criteria:**
-- Direct access to dot-ai bypassing the gateway is blocked
-- NetworkPolicy deployed automatically with Helm chart
 
 ---
 
@@ -333,7 +390,6 @@ auth:
 **Deliverables:**
 - [ ] User identity in all operation audit log entries
 - [ ] Authorization decisions logged (allowed and denied)
-- [ ] Token-mode users logged as "shared-token"
 
 **Success Criteria:**
 - All operations traceable to specific user
@@ -341,33 +397,36 @@ auth:
 
 ---
 
-### Milestone 6: Documentation & End-to-End Testing
-**Objective**: Validate the full stack and document setup.
+### Milestone 6: Client Identity PRDs
+**Objective**: Define how CLI and Web UI authenticate and expose user management.
 
 **Deliverables:**
-- [ ] End-to-end integration tests: gateway → auth → identity → RBAC → tool execution
+- [ ] Create PRD for `dot-ai-cli`: how CLI authenticates (device flow, browser OAuth, etc.) and exposes user management commands (`dot-ai users add/list/remove`)
+- [ ] Create PRD for `dot-ai-ui`: how Web UI authenticates users (OAuth redirect, etc.) and provides user management UI for admins
+
+**Success Criteria:**
+- CLI and Web UI PRDs define their auth flow and user management UX
+- No changes needed in dot-ai core (CLI/UI use existing user management endpoints)
+
+---
+
+### Milestone 7: Documentation & End-to-End Testing
+**Objective**: Validate the full stack, test Dex connectors, and document the complete system (including CLI/UI).
+
+**Deliverables:**
+- [ ] End-to-end integration tests: OAuth → identity → RBAC → tool execution
 - [ ] Tests for role escalation prevention
-- [ ] Documentation: full deployment topology
+- [ ] Test and document Dex connectors: Google, GitHub (validate the connector flow works end-to-end)
+- [ ] Documentation: deployment with OAuth (default setup with auto-generated admin)
+- [ ] Documentation: user management via CLI/UI/API
 - [ ] Documentation: RBAC setup (ClusterRoles, RoleBindings, examples)
-- [ ] Documentation: gateway configuration with OAuth providers (Google, GitHub, etc.)
+- [ ] Documentation: Dex connector configuration (Google, GitHub, LDAP, SAML)
 - [ ] Documentation: MCP client configuration for each supported client
 
 **Success Criteria:**
 - All tests passing
-- Admins can deploy and configure the full auth stack following documentation
-
----
-
-### Milestone 7: Client Identity PRDs
-**Objective**: Define how CLI and Web UI authenticate through the gateway.
-
-**Deliverables:**
-- [ ] Create PRD for `dot-ai-cli`: how CLI authenticates through the gateway (bearer token from kubeconfig, device flow, etc.)
-- [ ] Create PRD for `dot-ai-ui`: how Web UI authenticates users through the gateway (OAuth redirect, etc.)
-
-**Success Criteria:**
-- CLI and Web UI PRDs define their auth flow through the unified gateway
-- No changes needed in dot-ai core
+- At least two Dex connectors tested and documented (Google, GitHub)
+- Admins can deploy and configure auth following documentation
 
 ---
 
@@ -375,88 +434,89 @@ auth:
 
 ### Must Have (MVP)
 
-- [ ] Unified gateway handling MCP + HTTP with OAuth (Milestone 1)
-- [ ] Identity extraction from gateway headers (Milestone 2)
-- [ ] K8s SubjectAccessReview enforcement (Milestone 3)
-- [ ] Pre-built ClusterRoles in Helm chart (Milestone 3)
-- [ ] NetworkPolicy restricting access to dot-ai (Milestone 4)
-- [ ] Existing token mode unaffected
-- [ ] Integration tests for RBAC enforcement
+- [ ] MCP OAuth endpoints in dot-ai (Milestone 2)
+- [ ] Identity extraction from OAuth tokens (Milestone 2)
+- [ ] Dex integration as default OIDC provider (Milestone 3)
+- [ ] User management endpoints with config reloader (Milestone 3)
+- [ ] K8s SubjectAccessReview enforcement (Milestone 4)
+- [ ] Pre-built ClusterRoles in Helm chart, including user management (Milestone 4)
+- [ ] Integration tests for auth, user management, and RBAC enforcement
 
 ### Nice to Have (Future)
 
-- [ ] Rate limiting per user at the gateway level
+- [ ] Rate limiting per user
 - [ ] RBAC dry-run tool ("what would happen if user X tried tool Y?")
+- [ ] Token refresh flow
 
 ### Success Metrics
 
 - Unauthorized tool access rejected 100% of the time
 - All authenticated operations traceable to specific user
-- No regression in token mode
 - RBAC evaluation adds <10ms latency per request
-- dot-ai not reachable from outside the cluster without going through the gateway
 
 ## User Journey
 
-### Current State (Token Mode)
+### Current State (Shared Token)
 
 1. Admin sets `DOT_AI_AUTH_TOKEN` on dot-ai server
 2. All users share the same token
 3. All users have full access to all tools
 4. No individual identity tracking
 
-### Future State (Gateway + K8s RBAC)
+### Future State (OAuth + K8s RBAC)
 
-1. Admin deploys Envoy AI Gateway + dot-ai in the cluster
-2. Admin configures OAuth (e.g., Google) on the gateway
-3. Admin applies ClusterRoles and RoleBindings via `kubectl`
-4. User configures MCP client with gateway URL
-5. On first connection, browser opens for OAuth (Google login)
-6. Gateway authenticates, forwards requests to dot-ai with identity headers
-7. dot-ai extracts identity, checks K8s RBAC, allows or denies
+1. Admin runs `helm install` — gets auto-generated admin credentials in output
+2. Admin logs in as initial admin, adds users via dot-ai API (CLI, UI, or MCP tool)
+3. Admin optionally configures Dex connectors for production IdP (Google, GitHub, LDAP, etc.)
+4. Admin applies ClusterRoles and RoleBindings via `kubectl`
+5. User configures MCP client with dot-ai URL
+6. On first connection, user authenticates via `/mcp` → Authenticate (browser opens for Dex login)
+7. dot-ai validates identity, checks K8s RBAC, allows or denies
 8. All operations logged with user identity
 
 ### User Personas
 
 **Persona 1: Enterprise Platform Admin**
-- Deploys gateway + dot-ai via Helm
-- Configures OAuth with company IdP
+- Deploys dot-ai via Helm with OAuth enabled (Dex included)
+- Configures Dex connectors for company IdP (Google, GitHub, LDAP)
 - Creates RoleBindings for teams via `kubectl`
-- One gateway, one auth config, all protocols
 
 **Persona 2: Platform Team Lead**
 - Team auto-assigned `dotai-operator` via Group RoleBinding
 - Can query, operate, remediate — cannot deploy
 
 **Persona 3: Developer (Existing User)**
-- Token mode for local development (KinD)
-- Zero changes to workflow
+- Dex static user for local development (KinD) — individual identity from day one
 
 ## Technical Scope
 
-### dot-ai Changes (Milestones 2-5)
+### dot-ai Changes (Milestones 2-4)
 
-**Identity Extraction (`src/interfaces/auth.ts`):**
-- Extend `checkBearerAuth()` to support identity mode
-- Extract configured headers, construct `UserIdentity`
-- Token mode unchanged
+**OAuth Endpoints (new module):**
+- `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728)
+- `/.well-known/oauth-authorization-server` — Auth Server Metadata (RFC 8414)
+- `/register` — Dynamic Client Registration (RFC 7591)
+- `/authorize` — Redirects to Dex for user authentication, handles callback
+- `/token` — Exchanges authorization code for access token
+
+**User Management Endpoints (new module):**
+- `POST /users` — bcrypt-hash password, add to Dex Secret, trigger reload
+- `GET /users` — read Dex Secret, return email list (no hashes)
+- `DELETE /users/:email` — remove from Dex Secret, trigger reload
+- RBAC-protected: requires `dotai-admin` role (`users` resource, `create`/`delete`/`list` verbs)
+
+**Auth Middleware (`src/interfaces/auth.ts`):**
+- Replace token validation with OAuth token validation
+- Validate Bearer tokens, extract `UserIdentity`
 
 **Authorization Check (new module):**
 - K8s SubjectAccessReview before tool dispatch
 - dot-ai's ServiceAccount needs `create` on `subjectaccessreviews`
 
-**Interface:**
-```typescript
-interface UserIdentity {
-    userId: string;
-    email?: string;
-    groups: string[];
-    source: 'identity-headers' | 'token';
-}
-```
+### Helm Chart Changes (Milestones 2-3)
 
-### Helm Chart Changes (Milestones 3-4)
-
+- Dex subchart with config reloader sidecar (watches Secret, signals Dex to reload)
+- Auto-generated initial admin on `helm install` (or migrated from `DOT_AI_AUTH_TOKEN`)
 - Pre-built ClusterRoles: `dotai-viewer`, `dotai-operator`, `dotai-admin`
 - ClusterRole for SubjectAccessReview:
 ```yaml
@@ -469,93 +529,61 @@ rules:
     resources: ["subjectaccessreviews"]
     verbs: ["create"]
 ```
-- NetworkPolicy:
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: dotai-allow-gateway-only
-spec:
-  podSelector:
-    matchLabels:
-      app: dot-ai
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: envoy-ai-gateway
-```
 
 ## Dependencies
 
 **External Dependencies:**
-- Envoy AI Gateway (or plain Envoy Gateway as fallback)
 - Kubernetes cluster with RBAC enabled
-- CNI supporting NetworkPolicy (Calico, Cilium) for production
-- OAuth identity provider (Google, GitHub, company IdP)
+- Dex (ships as Helm subchart — no separate installation)
 
 **Internal Dependencies:**
 - `version` tool — for identity display (Milestone 2)
 - Auth middleware — extend existing (Milestone 2)
-- Helm chart — for ClusterRoles and NetworkPolicy (Milestones 3-4)
+- Helm chart — for ClusterRoles (Milestone 3)
 
 **Dependent PRDs:**
 - [PRD #361 (User-Specific Permissions)](./361-user-specific-permissions.md) — depends on user identity from this PRD
-- New PRDs for `dot-ai-cli` and `dot-ai-ui` (Milestone 7)
+- New PRDs for `dot-ai-cli` and `dot-ai-ui` (Milestone 6)
 
 ## Security Considerations
 
-### Trust Boundary
-The trust boundary is the **Kubernetes network**. dot-ai trusts identity headers because only the gateway can reach it (enforced by NetworkPolicy). This is the same trust model used by Kubernetes (auth proxy → API server), Istio (sidecar identity), and standard reverse proxy architectures.
+### Token Security
+- Access tokens are short-lived (configurable expiry)
+- Tokens are cryptographically signed by dot-ai
+- Token validation happens on every request
+- Revocation via token expiry (refresh tokens for longer sessions — future)
 
 ### Default Deny
-- In identity mode, requests without identity headers → 401
+- In OAuth mode, requests without valid token → 401
 - Users without RoleBindings → denied all tool access
 - No default role — access must be explicitly granted
 
-### Header Spoofing Prevention
-Headers cannot be spoofed because NetworkPolicy prevents external traffic from reaching dot-ai. An attacker would need to compromise the gateway pod itself.
-
-### NetworkPolicy Requirements
-- Production: Calico or Cilium for full enforcement
-- Development (KinD): limited NetworkPolicy support, but dev uses token mode
+### Dex Trust
+- dot-ai trusts Dex as its OIDC provider — Dex runs in-cluster alongside dot-ai
+- Identity claims (sub, email, groups) come from the verified Dex token
+- Dex in turn trusts its configured upstream connectors (Google, GitHub, LDAP, etc.)
+- Admin is responsible for configuring Dex connectors appropriately
 
 ## Alternatives Considered
 
 | Alternative | Why Not |
 |-------------|---------|
+| **Gateway-based auth (Envoy AI Gateway)** | PoC proved Envoy AI Gateway v0.5 too immature; mandating a gateway is an adoption barrier; MCP spec puts OAuth on the server |
+| **Gateway-injected identity headers** | Requires mandatory gateway + NetworkPolicy trust; fragile trust model |
 | **Custom RBAC engine** (v1.0) | Reinvents K8s RBAC |
-| **OPA / Casbin / Cerbos** | External dependency or custom config when K8s RBAC exists |
-| **Dex** (bundled for authN) | Adds auth infra to dot-ai; gateway handles this |
-| **Separate auth per protocol** | Complex; unified gateway is simpler |
+| **OPA / Casbin / Cerbos** | External dependency when K8s RBAC exists |
 | **Kong / Traefik Hub** | MCP features require enterprise license |
 | **HMAC-signed headers** | Shared secret on user laptops defeats the purpose |
-| **TokenReview** | MCP gateways don't forward tokens upstream |
-
-## MCP Gateway Ecosystem
-
-Research (Feb 2026) — gateways supporting both MCP + HTTP with unified auth:
-
-| Gateway | MCP + HTTP | Open Source | Auth | Notes |
-|---------|-----------|-------------|------|-------|
-| **Envoy AI Gateway** | Yes (MCPRoute + HTTPRoute) | Yes (Apache 2.0) | OAuth/JWT | v0.5, CNCF |
-| **Kong 3.12+** | Yes | Enterprise only (AI plugins) | OIDC | Most mature |
-| **Traefik Hub** | Yes (MCP as middleware) | Commercial | JWT | Clean architecture |
-| **Gravitee 4.8+** | Yes (dual entrypoint) | Commercial | OAuth | Same API, two protocols |
-| **Envoy Gateway** | HTTP only (no MCPRoute) | Yes (Apache 2.0) | OAuth/JWT | Stable fallback |
-
-MCP-only gateways (IBM ContextForge, AgentGateway, Klavis) cannot serve HTTP to CLI/Web UI.
 
 ## References
 
-- [Envoy AI Gateway](https://aigateway.envoyproxy.io/) — MCP + HTTP gateway
+- [MCP Authorization Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
+- [RFC 9728 — OAuth Protected Resource Metadata](https://datatracker.ietf.org/doc/html/rfc9728)
+- [RFC 8414 — OAuth Authorization Server Metadata](https://datatracker.ietf.org/doc/html/rfc8414)
+- [RFC 7591 — OAuth Dynamic Client Registration](https://datatracker.ietf.org/doc/html/rfc7591)
 - [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
 - [SubjectAccessReview API](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/subject-access-review-v1/)
-- [Kubernetes NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/)
-- [MCP Authorization Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
-- [awesome-mcp-gateways](https://github.com/e2b-dev/awesome-mcp-gateways)
+- PoC implementation: `tmp/auth-poc-server.mjs`
 
 ## Related Resources
 
@@ -566,9 +594,33 @@ MCP-only gateways (IBM ContextForge, AgentGateway, Klavis) cannot serve HTTP to 
 
 ---
 
+## Decision Log
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2026-02-18 | Gateway-delegated auth + custom RBAC | Initial design |
+| 2026-02-28 | K8s SubjectAccessReview instead of custom RBAC | Don't reinvent K8s RBAC |
+| 2026-02-28 | Envoy AI Gateway for unified MCP+HTTP auth | Only open-source option supporting both protocols |
+| 2026-02-28 | **Reject gateway-based auth** | Envoy AI Gateway v0.5 too immature (no WWW-Authenticate, broken Backends). Mandating a gateway is an adoption barrier. |
+| 2026-02-28 | **Server-side OAuth per MCP spec** | PoC validated: dot-ai serves OAuth endpoints, Claude Code completes the flow. ~130 lines, no dependencies. |
+| 2026-02-28 | **No mandatory gateway** | Auth lives in dot-ai. Any ingress works for routing. Users keep their existing infrastructure. |
+| 2026-03-01 | **Identity from OAuth tokens, not headers** | Without a mandatory gateway, no trusted header source. Token-based identity is self-contained. |
+| 2026-03-01 | **Dex as default OIDC provider** | Ships as Helm subchart with static users (works out of the box). Admins configure Dex connectors for production IdPs. No need to bypass Dex — its `oidc` connector handles any OIDC provider. |
+| 2026-03-01 | **OAuth replaces token as sole auth mode** | Dex static passwords give individual identity from day one. Token mode removed entirely — migration logic converts existing token to Dex password on first setup. |
+| 2026-03-01 | **User management endpoints in dot-ai** | RBAC-protected API to create/list/delete Dex static users without redeploying. Config reloader sidecar watches Dex Secret for changes. CLI/UI hook into these endpoints. |
+| 2026-03-01 | **Auto-generate initial admin on install** | No passwords in chart values or Git. `helm install` generates random admin credentials, outputs them once in Helm notes. Preserved on upgrade. Same pattern as Grafana, MinIO. |
+| 2026-03-01 | **Remove token mode entirely** | OAuth via Dex is the only auth. All legacy token code (`DOT_AI_AUTH_TOKEN`, token mode config, related middleware) removed. Migration: if `DOT_AI_AUTH_TOKEN` exists on first Dex setup, use as initial admin password; otherwise auto-generate. Future cleanup PRD (~6 months) to remove migration logic. |
+| 2026-03-01 | **Plugin architecture for OAuth** | Following existing pattern: auth logic (token issuance/validation, bcrypt, Dex integration) lives in plugin (`packages/agentic-tools/`), MCP server (`src/`) orchestrates calls to plugin. |
+
 ## Version History
 
 - **v1.0** (2026-02-18): Initial — gateway-delegated authN + custom plugin-based RBAC
 - **v2.0** (2026-02-28): Auth-agnostic identity + K8s RBAC via SubjectAccessReview
 - **v2.1** (2026-02-28): In-cluster deployment topology, NetworkPolicy trust model
-- **v3.0** (2026-02-28): Unified gateway approach (Envoy AI Gateway for MCP + HTTP). Milestone 1 is now a gateway proof of concept — validate OAuth flow with MCP clients before building anything. Restructured milestones to validate riskiest assumption first.
+- **v3.0** (2026-02-28): Unified gateway approach (Envoy AI Gateway for MCP + HTTP)
+- **v4.0** (2026-03-01): **Server-side OAuth** — dot-ai handles OAuth directly per MCP spec. Gateway rejected after PoC. No mandatory gateway, no identity headers, no NetworkPolicy dependency. Identity from OAuth tokens. Milestones restructured.
+- **v4.1** (2026-03-01): **Dex as default OIDC provider** — ships as Helm subchart with static users. Admins configure Dex connectors for production IdPs. Removed "replace Dex entirely" option — Dex's `oidc` connector handles any provider.
+- **v4.2** (2026-03-01): **OAuth as default, user management endpoints** — Dex static passwords replace shared token as default auth. User management API (create/list/delete users) writes to Dex Secret with config reloader sidecar. CLI/UI expose user management via these endpoints.
+- **v4.3** (2026-03-01): **Auto-generate initial admin** — no passwords in chart values. `helm install` generates random admin credentials, outputs in Helm notes. Preserved on upgrade.
+- **v4.4** (2026-03-01): **Split Milestone 2** — Milestone 2 is now "OAuth endpoints in dot-ai (no Dex)" to prove the flow works in the real codebase first. Milestone 3 is "Dex integration & user management". Remaining milestones renumbered (4=RBAC, 5=Audit, 6=Docs, 7=Client PRDs).
+- **v4.5** (2026-03-01): **Remove token mode, plugin architecture** — OAuth via Dex is the only auth mode. All legacy token code removed. Token migration on first Dex setup (DOT_AI_AUTH_TOKEN → Dex static password). Future cleanup PRD for migration logic. Auth logic follows plugin architecture (`packages/agentic-tools/`). Milestones 6/7 swapped (Client PRDs before Docs).
