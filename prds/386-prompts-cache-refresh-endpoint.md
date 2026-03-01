@@ -43,7 +43,7 @@ A REST endpoint is the right choice because:
 - [x] Implement REST handler in `src/interfaces/rest-api.ts` that calls `loadAllPrompts` with `forceRefresh: true`
 - [x] Integration tests passing for the new endpoint
 - [ ] Notify original requester in issue #378 and close it
-- [ ] Changelog fragment created
+- [x] Changelog fragment created
 
 ## Technical Notes
 
