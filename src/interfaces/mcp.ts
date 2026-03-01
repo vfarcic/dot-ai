@@ -74,7 +74,13 @@ import {
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
-import { checkBearerAuth } from './oauth';
+import {
+  checkBearerAuth,
+  getBaseUrl,
+  handleProtectedResourceMetadata,
+  handleAuthServerMetadata,
+  handleClientRegistration,
+} from './oauth';
 import { sendErrorResponse } from './error-response';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
@@ -601,6 +607,27 @@ export class MCPServer {
           return;
         }
 
+        // OAuth discovery & registration endpoints (unauthenticated)
+        // Clients use these to discover how to authenticate before they have a token.
+        if (req.url === '/.well-known/oauth-protected-resource' && req.method === 'GET') {
+          handleProtectedResourceMetadata(req, res);
+          endSpan(200);
+          return;
+        }
+
+        if (req.url === '/.well-known/oauth-authorization-server' && req.method === 'GET') {
+          handleAuthServerMetadata(req, res);
+          endSpan(200);
+          return;
+        }
+
+        if (req.url === '/register' && req.method === 'POST') {
+          const registerBody = await this.parseRequestBody(req);
+          handleClientRegistration(req, res, registerBody);
+          endSpan(res.statusCode || 201);
+          return;
+        }
+
         // Check Bearer token authentication (only when DOT_AI_AUTH_TOKEN is set)
         // Skip authentication for OpenAPI specification endpoint (public documentation)
         const isOpenApiEndpoint = req.url?.startsWith('/api/v1/openapi');
@@ -608,7 +635,15 @@ export class MCPServer {
           const authResult = checkBearerAuth(req);
           if (!authResult.authorized) {
             this.logger.warn('Authentication failed', { message: authResult.message });
-            sendErrorResponse(res, 401, 'UNAUTHORIZED', authResult.message || 'Authentication required');
+            const resourceMetadataUrl = `${getBaseUrl(req)}/.well-known/oauth-protected-resource`;
+            sendErrorResponse(
+              res,
+              401,
+              'UNAUTHORIZED',
+              authResult.message || 'Authentication required',
+              undefined,
+              { 'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl}"` }
+            );
             endSpan(401);
             return;
           }

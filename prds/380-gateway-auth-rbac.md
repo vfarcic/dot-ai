@@ -335,12 +335,12 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] Wire new middleware into `src/interfaces/mcp.ts` replacing `checkBearerAuth`
 - [x] All existing integration tests pass unchanged (legacy token still works)
 
-#### Task 2.2: OAuth Discovery + Client Registration Endpoints
-- [ ] `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728)
-- [ ] `/.well-known/oauth-authorization-server` — Auth Server Metadata (RFC 8414)
-- [ ] `/register` — Dynamic Client Registration (RFC 7591)
-- [ ] `WWW-Authenticate` header on 401 responses per MCP spec
-- [ ] Integration tests for metadata endpoints and client registration
+#### Task 2.2: OAuth Discovery + Client Registration Endpoints ✅
+- [x] `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728)
+- [x] `/.well-known/oauth-authorization-server` — Auth Server Metadata (RFC 8414)
+- [x] `/register` — Dynamic Client Registration (RFC 7591)
+- [x] `WWW-Authenticate` header on 401 responses per MCP spec
+- [x] Integration tests for metadata endpoints and client registration
 
 #### Task 2.3: Dex Subchart + Authorize/Token Flow
 - [ ] Dex as Helm subchart — no static passwords in chart values

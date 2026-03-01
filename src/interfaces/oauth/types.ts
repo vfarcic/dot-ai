@@ -38,3 +38,41 @@ export interface JwtClaims {
   iat: number;
   exp: number;
 }
+
+/**
+ * Registered OAuth client (RFC 7591).
+ * Stored in-memory; clients re-register on server restart.
+ */
+export interface OAuthClient {
+  client_id: string;
+  client_name?: string;
+  redirect_uris: string[];
+  grant_types: string[];
+  response_types: string[];
+  token_endpoint_auth_method: string;
+  client_id_issued_at: number;
+}
+
+/**
+ * Dynamic Client Registration request body (RFC 7591).
+ */
+export interface ClientRegistrationRequest {
+  redirect_uris: string[];
+  client_name?: string;
+  grant_types?: string[];
+  response_types?: string[];
+  token_endpoint_auth_method?: string;
+}
+
+/**
+ * Dynamic Client Registration response body (RFC 7591).
+ */
+export interface ClientRegistrationResponse {
+  client_id: string;
+  client_name?: string;
+  redirect_uris: string[];
+  grant_types: string[];
+  response_types: string[];
+  token_endpoint_auth_method: string;
+  client_id_issued_at: number;
+}
