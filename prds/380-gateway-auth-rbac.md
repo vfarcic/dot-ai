@@ -328,28 +328,26 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 **Delivery approach:** 5 incremental tasks. Each is self-contained and independently testable. A dual-mode auth middleware (JWT + legacy token) keeps existing tests passing throughout the transition.
 
-#### Task 2.1: OAuth Foundation (Types + JWT + Dual-Mode Middleware) ✅
-- [x] `UserIdentity` type: `{ userId, email?, groups[], source: 'oauth' }`
-- [x] JWT signing/verification using `node:crypto` HMAC-SHA256 (no external libraries)
-- [x] Dual-mode auth middleware: validates JWT tokens, falls back to legacy `DOT_AI_AUTH_TOKEN`
-- [x] Wire new middleware into `src/interfaces/mcp.ts` replacing `checkBearerAuth`
-- [x] All existing integration tests pass unchanged (legacy token still works)
+#### Task 2.1+2.2: SDK Migration (Replace Custom OAuth with MCP SDK)
+- [x] Delete `handlers.ts` + `store.ts` (replaced by SDK's `mcpAuthRouter()`)
+- [x] Create `provider.ts` implementing SDK's `OAuthServerProvider` interface — `clientsStore` (in-memory Map), `verifyAccessToken` (JWT + legacy fallback), stub `authorize()`/`exchangeAuthorizationCode()` (no Dex yet)
+- [x] Create Express sub-app in `mcp.ts` — mount `mcpAuthRouter()`, delegate OAuth routes (`/.well-known/*`, `/register`, `/authorize`, `/token`) before body parsing
+- [x] Issuer URL defaults to `http://localhost:${port}` (SDK exempts localhost from HTTPS check — no insecure flag needed)
+- [x] Update `types.ts` — clean up types for SDK compatibility (SDK uses `OAuthClientInformationFull` for clients)
+- [x] Update `index.ts` — export provider instead of handlers/store
+- [x] Update integration tests for SDK response format (metadata fields, registration response includes `client_secret`)
+- [x] All existing integration tests pass (153/153 — legacy token still works via `verifyAccessToken` fallback)
 
-#### Task 2.2: OAuth Discovery + Client Registration Endpoints ✅
-- [x] `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728)
-- [x] `/.well-known/oauth-authorization-server` — Auth Server Metadata (RFC 8414)
-- [x] `/register` — Dynamic Client Registration (RFC 7591)
-- [x] `WWW-Authenticate` header on 401 responses per MCP spec
-- [x] Integration tests for metadata endpoints and client registration
-
-#### Task 2.3: Dex Subchart + Authorize/Token Flow
+#### Task 2.3: Dex Integration + Helm Subchart
+- [ ] Create `dex-client.ts` — Dex OIDC communication: authorize URL builder, code exchange, ID token parsing
+- [ ] Implement `provider.authorize()` — store pending auth request, redirect to Dex
+- [ ] Implement `provider.handleCallback()` — exchange Dex code, extract identity, generate dot-ai auth code, redirect to MCP client
+- [ ] Implement `provider.exchangeAuthorizationCode()` — consume auth code, issue JWT with user identity claims
+- [ ] Add `/callback` Express route for Dex OIDC callback
 - [ ] Dex as Helm subchart — no static passwords in chart values
 - [ ] Auto-generate initial admin credentials on `helm install`, output in Helm notes (preserve on upgrade). If `DOT_AI_AUTH_TOKEN` exists, use as initial admin password instead of generating.
-- [ ] `/authorize` — redirects to Dex for user authentication, handles callback
-- [ ] `/token` — exchanges authorization code for access token (PKCE verification)
-- [ ] Token issuance with user identity claims from Dex OIDC response
-- [ ] Configuration: Dex settings in Helm values
-- [ ] Integration tests: full OAuth flow end-to-end through Dex
+- [ ] Configuration: Dex settings in Helm values, deployment env vars (`DEX_ISSUER_URL`, `DEX_EXTERNAL_URL`, `DEX_CLIENT_ID`, `DEX_CLIENT_SECRET`, `DOT_AI_JWT_SECRET`)
+- [ ] Integration tests: full OAuth flow end-to-end through Dex, token endpoint error handling
 
 #### Task 2.4: Remove Legacy Auth + Identity in Version Tool
 - [ ] Remove all legacy token auth code (`DOT_AI_AUTH_TOKEN`, token mode config, `src/interfaces/auth.ts`)
@@ -501,18 +499,19 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 ### dot-ai Changes (Milestones 2-3)
 
 **OAuth Module (`src/interfaces/oauth/`):**
-- `types.ts` — `UserIdentity`, JWT claims, OAuth client/code types
+- `types.ts` — `UserIdentity`, JWT claims, pending auth request/authorization code types, `DexConfig`
 - `jwt.ts` — JWT signing/verification using `node:crypto` HMAC-SHA256
-- `handlers.ts` — OAuth endpoint handlers (metadata, register, authorize, token)
-- `middleware.ts` — JWT validation middleware, `WWW-Authenticate` challenge
-- `store.ts` — In-memory state for registered clients and authorization codes
+- `provider.ts` — `OAuthServerProvider` implementation (SDK interface): client store, authorize→Dex redirect, code exchange→JWT issuance, token verification (JWT + legacy fallback), `/callback` handler
+- `dex-client.ts` — Lightweight Dex OIDC communication using `node:http`: authorize URL builder, code exchange, ID token identity extraction
+- `middleware.ts` — JWT validation middleware for non-OAuth routes, `WWW-Authenticate` challenge
 
-**OAuth Endpoints (served by MCP server, not plugin):**
-- `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728)
-- `/.well-known/oauth-authorization-server` — Auth Server Metadata (RFC 8414)
-- `/register` — Dynamic Client Registration (RFC 7591)
-- `/authorize` — Redirects to Dex for user authentication, handles callback
-- `/token` — Exchanges authorization code for access token
+**OAuth Endpoints (SDK `mcpAuthRouter()` + Express sub-app, served by MCP server):**
+- `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728) — *SDK*
+- `/.well-known/oauth-authorization-server` — Auth Server Metadata (RFC 8414) — *SDK*
+- `/register` — Dynamic Client Registration (RFC 7591) — *SDK + provider.clientsStore*
+- `/authorize` — Validates params, calls `provider.authorize()` → redirects to Dex — *SDK + provider*
+- `/token` — PKCE verification + code exchange → JWT — *SDK + provider*
+- `/callback` — Dex OIDC callback (custom Express route, not part of OAuth spec)
 
 **User Management Endpoints (`src/interfaces/oauth/`):**
 - `POST /users` — bcrypt-hash password, add to Dex Secret, trigger reload
@@ -628,6 +627,10 @@ rules:
 | 2026-03-02 | **Merge Milestones 2 and 3** | The self-contained OAuth (approve page, token issuance) in M2 is throwaway code — replaced entirely by Dex in M3. Skip the intermediate step, go straight to Dex. Old M2+M3 become new M2. |
 | 2026-03-02 | **OAuth logic in MCP server, not plugin** | Reverses previous "plugin architecture for OAuth" decision. OAuth endpoints are HTTP routes (redirects, HTML, form bodies, WWW-Authenticate headers) — not tool invocations routed through the plugin's `POST /execute`. Token validation runs on every request and must be in-process. Dex is already an external service, playing the same role as Kubernetes/Qdrant do for the plugin. |
 | 2026-03-02 | **5 incremental tasks with dual-mode auth transition** | Break merged M2 into 5 self-contained testable tasks. Dual-mode middleware (JWT + legacy token) keeps existing tests passing throughout. Tasks: (1) types + JWT + dual-mode middleware, (2) OAuth discovery + registration, (3) Dex subchart + authorize/token, (4) remove legacy auth + identity in version, (5) user management + config reloader. |
+| 2026-03-02 | **Use MCP SDK's built-in OAuth server support** | SDK v1.25.3 includes `mcpAuthRouter()`, `OAuthServerProvider` interface, PKCE validation, rate limiting, error classes, Zod schemas. Eliminates ~500 lines of custom handler/store code. Deletes `handlers.ts` + `store.ts`, creates `provider.ts` implementing `OAuthServerProvider`. |
+| 2026-03-02 | **Express sub-app for OAuth routes** | Express v5.0.1 is already bundled as an SDK dependency — no new dep needed. SDK's `mcpAuthRouter()` returns an Express router. OAuth routes delegate to Express sub-app via `this.oauthApp(req, res)`, rest of server stays on raw `node:http`. |
+| 2026-03-02 | **Custom OAuthServerProvider, not ProxyOAuthServerProvider** | `ProxyOAuthServerProvider` passes MCP clients' `client_id`/`redirect_uri` directly to Dex, but Dex only knows dot-ai as a static client. dot-ai must act as OAuth AS to MCP clients AND as OIDC RP to Dex — requires custom provider that stores clients + auth codes in-memory, redirects to Dex on authorize, exchanges Dex codes on callback, issues its own JWTs. |
+| 2026-03-02 | **Redo Tasks 2.1+2.2 as single SDK migration step** | SDK's `mcpAuthRouter()` is all-or-nothing (discovery + registration + authorize + token endpoints). Redoing 2.1 and 2.2 as separate steps is artificial. Two-step approach: (1) SDK migration — replace custom handlers/store with SDK router + provider with stub authorize/token, (2) Dex integration — implement real authorize/token + Helm subchart. |
 
 ## Version History
 
@@ -642,3 +645,4 @@ rules:
 - **v4.4** (2026-03-01): **Split Milestone 2** — Milestone 2 is now "OAuth endpoints in dot-ai (no Dex)" to prove the flow works in the real codebase first. Milestone 3 is "Dex integration & user management". Remaining milestones renumbered (4=RBAC, 5=Audit, 6=Docs, 7=Client PRDs).
 - **v4.5** (2026-03-01): **Remove token mode, plugin architecture** — OAuth via Dex is the only auth mode. All legacy token code removed. Token migration on first Dex setup (DOT_AI_AUTH_TOKEN → Dex static password). Future cleanup PRD for migration logic. Auth logic follows plugin architecture (`packages/agentic-tools/`). Milestones 6/7 swapped (Client PRDs before Docs).
 - **v5.0** (2026-03-02): **Merge M2+M3, OAuth in server, incremental delivery** — Merged "OAuth Endpoints (no Dex)" and "Dex Integration" into single Milestone 2 to avoid throwaway code. OAuth logic moves to `src/interfaces/oauth/` (server, not plugin) — endpoints are HTTP routes, not tool invocations; Dex is an external service like K8s/Qdrant. Milestone broken into 5 incremental tasks with dual-mode auth transition. Milestones renumbered (old M4-M7 → M3-M6).
+- **v6.0** (2026-03-02): **MCP SDK OAuth support** — Replace custom `handlers.ts` + `store.ts` with SDK's `mcpAuthRouter()` + `OAuthServerProvider` interface. Express sub-app (bundled with SDK) handles OAuth routes; raw `node:http` stays for everything else. Custom provider (not `ProxyOAuthServerProvider`) because dot-ai is intermediary between MCP clients and Dex. Tasks 2.1+2.2 merged into single "SDK Migration" step; Task 2.3 narrowed to Dex-specific logic + Helm.
