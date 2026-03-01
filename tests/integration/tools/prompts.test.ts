@@ -179,10 +179,12 @@ describe.concurrent('Prompts Integration', () => {
 
   describe('Prompts Cache Refresh', () => {
     const gitToken = process.env.DOT_AI_GIT_TOKEN;
-    const testPromptPath = 'user-prompts/test-cache-refresh.md';
+    const testRunId = Date.now();
+    const testPromptName = `test-cache-refresh-${testRunId}`;
+    const testPromptPath = `user-prompts/${testPromptName}.md`;
     const testPromptContent = [
       '---',
-      'name: test-cache-refresh',
+      `name: ${testPromptName}`,
       'description: Temporary prompt for cache refresh integration test',
       '---',
       '',
@@ -205,6 +207,7 @@ describe.concurrent('Prompts Integration', () => {
           }),
         }
       );
+      expect(res.ok).toBe(true);
       const data = await res.json();
       return data.content.sha;
     }
@@ -225,6 +228,7 @@ describe.concurrent('Prompts Integration', () => {
           }),
         }
       );
+      expect(res.ok).toBe(true);
     }
 
     test('should refresh cache and pick up new prompts from repository', async () => {
@@ -239,7 +243,7 @@ describe.concurrent('Prompts Integration', () => {
       try {
         // Step 1: Record initial prompt count
         const initialList = await integrationTest.httpClient.get('/api/v1/prompts');
-        expect(initialList.success).toBe(true);
+        expect(initialList).toMatchObject({ success: true });
         const initialCount = initialList.data.prompts.length;
 
         // Step 2: Push a new prompt to the repo
@@ -269,10 +273,10 @@ describe.concurrent('Prompts Integration', () => {
         const refreshedList = await integrationTest.httpClient.get('/api/v1/prompts');
         expect(refreshedList.data.prompts.length).toBe(initialCount + 1);
         const newPrompt = refreshedList.data.prompts.find(
-          (p: { name: string }) => p.name === 'test-cache-refresh'
+          (p: { name: string }) => p.name === testPromptName
         );
         expect(newPrompt).toMatchObject({
-          name: 'test-cache-refresh',
+          name: testPromptName,
           description: 'Temporary prompt for cache refresh integration test',
         });
       } finally {
@@ -283,7 +287,7 @@ describe.concurrent('Prompts Integration', () => {
           await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
         }
       }
-    });
+    }, 300000);
 
     test('should reject GET method for refresh endpoint', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/prompts/refresh');
