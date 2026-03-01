@@ -3,28 +3,63 @@
  */
 
 import { z } from 'zod';
-import { ErrorHandler, ErrorCategory, ErrorSeverity, Logger, ConsoleLogger } from '../core/error-handling';
+import {
+  ErrorHandler,
+  ErrorCategory,
+  ErrorSeverity,
+  Logger,
+  ConsoleLogger,
+} from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { PluginManager } from '../core/plugin-manager';
 import { PatternVectorService } from '../core/pattern-vector-service';
 import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityVectorService } from '../core/capability-vector-service';
-import { OrganizationalPattern, PolicyIntent } from '../core/organizational-types';
+import {
+  OrganizationalPattern,
+  PolicyIntent,
+} from '../core/organizational-types';
 import { ResourceCapability } from '../core/capabilities';
 import { BaseVisualizationData } from '../core/visualization';
 import { buildAgentDisplayBlock } from '../core/index';
 
 // Tool metadata for direct MCP registration
 export const OPERATE_TOOL_NAME = 'operate';
-export const OPERATE_TOOL_DESCRIPTION = 'AI-powered Kubernetes application operations tool for Day 2 operations. Handles updates, scaling, enhancements, rollbacks, and deletions through natural language intents. Analyzes current state, applies organizational patterns and policies, validates changes via dry-run, and executes approved operations safely.';
+export const OPERATE_TOOL_DESCRIPTION =
+  'AI-powered Kubernetes application operations tool for Day 2 operations. Handles updates, scaling, enhancements, rollbacks, and deletions through natural language intents. Analyzes current state, applies organizational patterns and policies, validates changes via dry-run, and executes approved operations safely.';
 
 // Zod schema for MCP registration
 export const OPERATE_TOOL_INPUT_SCHEMA = {
-  intent: z.string().min(1).max(2000).optional().describe('User intent for operation: "update X to Y", "scale Z", "make W HA", etc.'),
-  sessionId: z.string().optional().describe('Session ID from previous operate call'),
-  executeChoice: z.number().min(1).max(1).optional().describe('Execute approved changes (1=execute)'),
-  refinedIntent: z.string().min(1).max(2000).optional().describe('Clarified intent if user wants to provide more details'),
-  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
+  intent: z
+    .string()
+    .min(1)
+    .max(2000)
+    .optional()
+    .describe(
+      'User intent for operation: "update X to Y", "scale Z", "make W HA", etc.'
+    ),
+  sessionId: z
+    .string()
+    .optional()
+    .describe('Session ID from previous operate call'),
+  executeChoice: z
+    .number()
+    .min(1)
+    .max(1)
+    .optional()
+    .describe('Execute approved changes (1=execute)'),
+  refinedIntent: z
+    .string()
+    .min(1)
+    .max(2000)
+    .optional()
+    .describe('Clarified intent if user wants to provide more details'),
+  interaction_id: z
+    .string()
+    .optional()
+    .describe(
+      'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
+    ),
 };
 
 // Core interfaces
@@ -39,7 +74,7 @@ export interface OperateInput {
 // Session data stored by GenericSessionManager
 // PRD #320: Extends BaseVisualizationData for visualization support
 export interface OperateSessionData extends BaseVisualizationData {
-  toolName: 'operate';  // PRD #320: Tool identifier for visualization prompt selection
+  toolName: 'operate'; // PRD #320: Tool identifier for visualization prompt selection
   intent: string;
   interaction_id?: string;
   context: EmbeddedContext;
@@ -57,7 +92,13 @@ export interface OperateSessionData extends BaseVisualizationData {
     description: string;
   };
   validationIntent: string;
-  status: 'analyzing' | 'analysis_complete' | 'executing' | 'executed_successfully' | 'executed_with_errors' | 'failed';
+  status:
+    | 'analyzing'
+    | 'analysis_complete'
+    | 'executing'
+    | 'executed_successfully'
+    | 'executed_with_errors'
+    | 'failed';
   executionResults?: ExecutionResult[];
 }
 
@@ -101,7 +142,7 @@ export interface ExecutionResult {
 export interface OperateOutput {
   status: 'success' | 'failed' | 'awaiting_user_approval';
   sessionId: string;
-  visualizationUrl?: string;  // PRD #320: URL to open visualization in Web UI
+  visualizationUrl?: string; // PRD #320: URL to open visualization in Web UI
   analysis?: {
     summary: string;
     currentState: unknown;
@@ -140,29 +181,42 @@ const logger = new ConsoleLogger('OperateTool');
  * @returns Embedded context with patterns, policies, and capabilities
  * @throws Error if capabilities are not available (mandatory)
  */
-export async function embedContext(intent: string, logger: Logger): Promise<EmbeddedContext> {
+export async function embedContext(
+  intent: string,
+  logger: Logger
+): Promise<EmbeddedContext> {
   const context: EmbeddedContext = {
     patterns: [],
     policies: [],
-    capabilities: []
+    capabilities: [],
   };
 
   // Search for relevant patterns (optional - non-blocking)
   try {
     const patternService = new PatternVectorService();
-    const patternResults = await patternService.searchPatterns(intent, { limit: 5 });
+    const patternResults = await patternService.searchPatterns(intent, {
+      limit: 5,
+    });
     context.patterns = patternResults.map(result => result.data);
-    logger.info(`Found ${context.patterns.length} relevant organizational patterns`);
+    logger.info(
+      `Found ${context.patterns.length} relevant organizational patterns`
+    );
   } catch (error) {
-    logger.warn('Pattern search failed, continuing without patterns', { error });
+    logger.warn('Pattern search failed, continuing without patterns', {
+      error,
+    });
   }
 
   // Search for relevant policies (optional - non-blocking)
   try {
     const policyService = new PolicyVectorService();
-    const policyResults = await policyService.searchPolicyIntents(intent, { limit: 5 });
+    const policyResults = await policyService.searchPolicyIntents(intent, {
+      limit: 5,
+    });
     context.policies = policyResults.map(result => result.data);
-    logger.info(`Found ${context.policies.length} relevant organizational policies`);
+    logger.info(
+      `Found ${context.policies.length} relevant organizational policies`
+    );
   } catch (error) {
     logger.warn('Policy search failed, continuing without policies', { error });
   }
@@ -172,32 +226,42 @@ export async function embedContext(intent: string, logger: Logger): Promise<Embe
     // Use QDRANT_CAPABILITIES_COLLECTION env var for collection name
     // Integration tests set this to 'capabilities-policies' (pre-populated test data)
     // Production uses default 'capabilities' collection
-    const collectionName = process.env.QDRANT_CAPABILITIES_COLLECTION || 'capabilities';
+    const collectionName =
+      process.env.QDRANT_CAPABILITIES_COLLECTION || 'capabilities';
     const capabilityService = new CapabilityVectorService(collectionName);
-    const capabilityResults = await capabilityService.searchCapabilities(intent, { limit: 50 });
+    const capabilityResults = await capabilityService.searchCapabilities(
+      intent,
+      { limit: 50 }
+    );
 
     if (capabilityResults.length === 0) {
       throw new Error(
         `No cluster capabilities found for intent "${intent}". Please scan your cluster first:\n` +
-        `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
-        `Note: Capabilities are required to understand what resources and operators are available in the cluster.`
+          `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
+          `Note: Capabilities are required to understand what resources and operators are available in the cluster.`
       );
     }
 
     context.capabilities = capabilityResults.map(result => result.data);
-    logger.info(`Found ${context.capabilities.length} relevant cluster capabilities`);
+    logger.info(
+      `Found ${context.capabilities.length} relevant cluster capabilities`
+    );
   } catch (error) {
     // If it's our specific "no capabilities" error, re-throw it
-    if (error instanceof Error && error.message.includes('No cluster capabilities found')) {
+    if (
+      error instanceof Error &&
+      error.message.includes('No cluster capabilities found')
+    ) {
       throw error;
     }
 
     // Otherwise, it's a capability service initialization or retrieval error
     throw new Error(
       `Capability service not available for intent "${intent}". Please scan your cluster first:\n` +
-      `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
-      `Note: Vector DB is required for capability-based operations.\n` +
-      `Error: ${error instanceof Error ? error.message : String(error)}`
+        `Run: manageOrgData({ dataType: "capabilities", operation: "scan" })\n` +
+        `Note: Vector DB is required for capability-based operations.\n` +
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error }
     );
   }
 
@@ -276,7 +340,10 @@ export function formatCapabilities(capabilities: ResourceCapability[]): string {
  *
  * PRD #343: pluginManager is required - all kubectl operations go through plugin.
  */
-export async function operate(args: OperateInput, pluginManager: PluginManager): Promise<OperateOutput> {
+export async function operate(
+  args: OperateInput,
+  pluginManager: PluginManager
+): Promise<OperateOutput> {
   try {
     // Route 1: Execute approved operation
     if (args.sessionId && args.executeChoice) {
@@ -289,14 +356,28 @@ export async function operate(args: OperateInput, pluginManager: PluginManager):
     if (args.sessionId && args.refinedIntent) {
       // Import and delegate to analysis workflow with refined intent
       const { analyzeIntent } = await import('./operate-analysis');
-      return await analyzeIntent(args.refinedIntent, logger, sessionManager, pluginManager, args.sessionId, args.interaction_id);
+      return await analyzeIntent(
+        args.refinedIntent,
+        logger,
+        sessionManager,
+        pluginManager,
+        args.sessionId,
+        args.interaction_id
+      );
     }
 
     // Route 3: New operation analysis
     if (args.intent) {
       // Import and delegate to analysis workflow
       const { analyzeIntent } = await import('./operate-analysis');
-      return await analyzeIntent(args.intent, logger, sessionManager, pluginManager, undefined, args.interaction_id);
+      return await analyzeIntent(
+        args.intent,
+        logger,
+        sessionManager,
+        pluginManager,
+        undefined,
+        args.interaction_id
+      );
     }
 
     // Invalid input
@@ -306,7 +387,7 @@ export async function operate(args: OperateInput, pluginManager: PluginManager):
       'Invalid input: must provide either intent (for new operation) or sessionId + executeChoice (for execution)',
       {
         operation: 'operate',
-        component: 'OperateTool'
+        component: 'OperateTool',
       }
     );
   } catch (error) {
@@ -316,7 +397,7 @@ export async function operate(args: OperateInput, pluginManager: PluginManager):
     return {
       status: 'failed',
       sessionId: args.sessionId || 'unknown',
-      message: `Operation failed: ${errorMsg}`
+      message: `Operation failed: ${errorMsg}`,
     };
   }
 }
@@ -327,18 +408,23 @@ export async function operate(args: OperateInput, pluginManager: PluginManager):
  *
  * PRD #343: pluginManager is required - all kubectl operations go through plugin.
  */
-export async function handleOperateTool(args: OperateInput, pluginManager: PluginManager): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+export async function handleOperateTool(
+  args: OperateInput,
+  pluginManager: PluginManager
+): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
   const result = await operate(args, pluginManager);
 
   // Build content blocks - JSON for REST API, agent instruction for MCP agents
-  const content: Array<{ type: 'text'; text: string }> = [{
-    type: 'text' as const,
-    text: JSON.stringify(result, null, 2)
-  }];
+  const content: Array<{ type: 'text'; text: string }> = [
+    {
+      type: 'text' as const,
+      text: JSON.stringify(result, null, 2),
+    },
+  ];
 
   // Add agent instruction block if visualization URL is present
   const agentDisplayBlock = buildAgentDisplayBlock({
-    visualizationUrl: result.visualizationUrl
+    visualizationUrl: result.visualizationUrl,
   });
   if (agentDisplayBlock) {
     content.push(agentDisplayBlock);

@@ -6,7 +6,11 @@
 import { z } from 'zod';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import {
+  ErrorHandler,
+  ErrorCategory,
+  ErrorSeverity,
+} from '../core/error-handling';
 import { DotAI, buildAgentDisplayBlock } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { ManifestValidator, ValidationResult } from '../core/schema';
@@ -61,7 +65,7 @@ function buildHelmCommandForDisplay(
     releaseName,
     `${chart.repositoryName}/${chart.chartName}`,
     `--namespace ${namespace}`,
-    '--create-namespace'
+    '--create-namespace',
   ];
 
   if (chart.version) {
@@ -79,16 +83,24 @@ const execFileAsync = promisify(execFile);
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
-export const GENERATEMANIFESTS_TOOL_DESCRIPTION = 'Generate final Kubernetes manifests from fully configured solution (ONLY after completing ALL stages: required, basic, advanced, and open)';
+export const GENERATEMANIFESTS_TOOL_DESCRIPTION =
+  'Generate final Kubernetes manifests from fully configured solution (ONLY after completing ALL stages: required, basic, advanced, and open)';
 
 // Zod schema for MCP registration
 export const GENERATEMANIFESTS_TOOL_INPUT_SCHEMA = {
-  solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/).describe('The solution ID to generate manifests for (e.g., sol-1762983784617-9ddae2b8)'),
-  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
+  solutionId: z
+    .string()
+    .regex(/^sol-\d+-[a-f0-9]{8}$/)
+    .describe(
+      'The solution ID to generate manifests for (e.g., sol-1762983784617-9ddae2b8)'
+    ),
+  interaction_id: z
+    .string()
+    .optional()
+    .describe(
+      'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
+    ),
 };
-
-
-
 
 interface ErrorContext {
   attempt: number;
@@ -134,14 +146,20 @@ type ResourceSchemas = Record<string, ResourceSchemaData>;
 /**
  * Retrieve schemas for resources specified in the solution
  */
-async function retrieveResourceSchemas(solution: Solution, dotAI: DotAI, logger: Logger): Promise<ResourceSchemas> {
+async function retrieveResourceSchemas(
+  solution: Solution,
+  dotAI: DotAI,
+  logger: Logger
+): Promise<ResourceSchemas> {
   try {
     // Extract resource references from solution
-    const resourceRefs = (solution.resources || []).map((resource: ResourceRef) => ({
-      kind: resource.kind,
-      apiVersion: resource.apiVersion,
-      group: resource.group
-    }));
+    const resourceRefs = (solution.resources || []).map(
+      (resource: ResourceRef) => ({
+        kind: resource.kind,
+        apiVersion: resource.apiVersion,
+        group: resource.group,
+      })
+    );
 
     if (resourceRefs.length === 0) {
       logger.warn('No resources found in solution for schema retrieval');
@@ -150,69 +168,80 @@ async function retrieveResourceSchemas(solution: Solution, dotAI: DotAI, logger:
 
     logger.info('Retrieving schemas for solution resources', {
       resourceCount: resourceRefs.length,
-      resources: resourceRefs.map((r: ResourceRef) => `${r.kind}@${r.apiVersion}`)
+      resources: resourceRefs.map(
+        (r: ResourceRef) => `${r.kind}@${r.apiVersion}`
+      ),
     });
 
     const schemas: ResourceSchemas = {};
-    
+
     // Retrieve schema for each resource
     for (const resourceRef of resourceRefs) {
       try {
         const resourceKey = `${resourceRef.kind}.${resourceRef.apiVersion}`;
         logger.debug('Retrieving schema', { resourceKey });
-        
+
         // Use discovery engine to explain the resource
-        const explanation = await dotAI.discovery.explainResource(resourceRef.kind);
-        
+        const explanation = await dotAI.discovery.explainResource(
+          resourceRef.kind
+        );
+
         schemas[resourceKey] = {
           kind: resourceRef.kind,
           apiVersion: resourceRef.apiVersion,
           explanation,
-          retrievedAt: new Date().toISOString()
+          retrievedAt: new Date().toISOString(),
         };
-        
-        logger.debug('Schema retrieved successfully', { 
+
+        logger.debug('Schema retrieved successfully', {
           resourceKey,
-          schemaLength: explanation.length 
+          schemaLength: explanation.length,
         });
-        
       } catch (error) {
         logger.error('Failed to retrieve schema for resource', error as Error, {
-          resource: resourceRef
+          resource: resourceRef,
         });
-        
+
         // Fail fast - if we can't get schemas, manifest generation will likely fail
-        throw new Error(`Failed to retrieve schema for ${resourceRef.kind}: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(
+          `Failed to retrieve schema for ${resourceRef.kind}: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error }
+        );
       }
     }
-    
+
     logger.info('All resource schemas retrieved successfully', {
-      schemaCount: Object.keys(schemas).length
+      schemaCount: Object.keys(schemas).length,
     });
-    
+
     return schemas;
-    
   } catch (error) {
     logger.error('Schema retrieval failed', error as Error);
-    throw new Error(`Failed to retrieve resource schemas: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `Failed to retrieve resource schemas: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error }
+    );
   }
 }
 
 /**
  * Validate YAML syntax
  */
-function validateYamlSyntax(yamlContent: string): { valid: boolean; error?: string } {
+function validateYamlSyntax(yamlContent: string): {
+  valid: boolean;
+  error?: string;
+} {
   try {
     yaml.loadAll(yamlContent);
     return { valid: true };
   } catch (error) {
-    return { 
-      valid: false, 
-      error: error instanceof Error ? error.message : 'Unknown YAML syntax error'
+    return {
+      valid: false,
+      error:
+        error instanceof Error ? error.message : 'Unknown YAML syntax error',
     };
   }
 }
-
 
 /**
  * Run helm lint on a chart directory
@@ -238,7 +267,6 @@ async function helmLint(
 
     logger.debug('helm lint passed', { warnings: warnings.length });
     return { valid: true, errors: [], warnings };
-
   } catch (error) {
     // helm lint exits with non-zero on errors
     const execError = error as { stderr?: string; message?: string };
@@ -276,7 +304,7 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
     return {
       valid: false,
       errors: [`Manifest file not found: ${yamlPath}`],
-      warnings: []
+      warnings: [],
     };
   }
 
@@ -289,7 +317,7 @@ async function validateManifests(yamlPath: string): Promise<ValidationResult> {
     return {
       valid: false,
       errors: [`YAML syntax error: ${syntaxCheck.error}`],
-      warnings: []
+      warnings: [],
     };
   }
 
@@ -311,24 +339,31 @@ async function generateManifestsWithAI(
   dotAiLabels?: Record<string, string>,
   interaction_id?: string
 ): Promise<string> {
-
   // Retrieve schemas for solution resources
-  const resourceSchemas = await retrieveResourceSchemas(solution, dotAI, logger);
+  const resourceSchemas = await retrieveResourceSchemas(
+    solution,
+    dotAI,
+    logger
+  );
 
   // Prepare template variables
   const solutionData = JSON.stringify(solution, null, 2);
-  const previousAttempt = errorContext ? `
+  const previousAttempt = errorContext
+    ? `
 ### Generated Manifests:
 \`\`\`yaml
 ${errorContext.previousManifests}
 \`\`\`
-` : 'None - this is the first attempt.';
+`
+    : 'None - this is the first attempt.';
 
-  const errorDetails = errorContext ? `
+  const errorDetails = errorContext
+    ? `
 **Attempt**: ${errorContext.attempt}
 **Validation Errors**: ${errorContext.validationResult.errors.join(', ')}
 **Validation Warnings**: ${errorContext.validationResult.warnings.join(', ')}
-` : 'None - this is the first attempt.';
+`
+    : 'None - this is the first attempt.';
 
   // Prepare template variables
   const schemasData = JSON.stringify(resourceSchemas, null, 2);
@@ -338,7 +373,7 @@ ${errorContext.previousManifests}
     schemas: schemasData,
     previous_attempt: previousAttempt,
     error_details: errorDetails,
-    labels: labelsData
+    labels: labelsData,
   });
 
   const isRetry = !!errorContext;
@@ -346,26 +381,33 @@ ${errorContext.previousManifests}
     isRetry,
     attempt: errorContext?.attempt,
     hasErrorContext: !!errorContext,
-    solutionId
+    solutionId,
   });
 
   // Get AI provider from dotAI
   const aiProvider = dotAI.ai;
 
   // Send prompt to AI
-  const response = await aiProvider.sendMessage(aiPrompt, 'recommend-manifests-generation', {
-    user_intent: solution.initialIntent || 'Kubernetes manifest generation',
-    interaction_id: interaction_id
-  });
-  
+  const response = await aiProvider.sendMessage(
+    aiPrompt,
+    'recommend-manifests-generation',
+    {
+      user_intent: solution.initialIntent || 'Kubernetes manifest generation',
+      interaction_id: interaction_id,
+    }
+  );
+
   // Extract YAML content from response
   // Use shared utility to extract from code blocks if wrapped
-  const manifestContent = extractContentFromMarkdownCodeBlocks(response.content, 'yaml');
-  
+  const manifestContent = extractContentFromMarkdownCodeBlocks(
+    response.content,
+    'yaml'
+  );
+
   logger.info('AI manifest generation completed', {
     manifestLength: manifestContent.length,
     isRetry,
-    solutionId
+    solutionId,
   });
 
   return manifestContent;
@@ -405,24 +447,28 @@ async function generateHelmValuesWithAI(
 
   // Prepare template variables
   const solutionData = JSON.stringify(solution, null, 2);
-  const previousAttempt = errorContext ? `
+  const previousAttempt = errorContext
+    ? `
 ### Generated Values:
 \`\`\`yaml
 ${errorContext.previousValues}
 \`\`\`
-` : 'None - this is the first attempt.';
+`
+    : 'None - this is the first attempt.';
 
-  const errorDetails = errorContext ? `
+  const errorDetails = errorContext
+    ? `
 **Attempt**: ${errorContext.attempt}
 **Validation Errors**: ${errorContext.validationResult.errors.join(', ')}
 **Validation Warnings**: ${errorContext.validationResult.warnings.join(', ')}
-` : 'None - this is the first attempt.';
+`
+    : 'None - this is the first attempt.';
 
   const aiPrompt = loadPrompt('helm-generation', {
     solution: solutionData,
     chart_values: valuesYaml || '# No default values available',
     previous_attempt: previousAttempt,
-    error_details: errorDetails
+    error_details: errorDetails,
   });
 
   const isRetry = !!errorContext;
@@ -431,25 +477,32 @@ ${errorContext.previousValues}
     attempt: errorContext?.attempt,
     hasErrorContext: !!errorContext,
     solutionId,
-    chart: `${chart.repositoryName}/${chart.chartName}`
+    chart: `${chart.repositoryName}/${chart.chartName}`,
   });
 
   // Get AI provider from dotAI
   const aiProvider = dotAI.ai;
 
   // Send prompt to AI
-  const response = await aiProvider.sendMessage(aiPrompt, 'helm-values-generation', {
-    user_intent: solution.intent || 'Helm chart installation',
-    interaction_id: interaction_id
-  });
+  const response = await aiProvider.sendMessage(
+    aiPrompt,
+    'helm-values-generation',
+    {
+      user_intent: solution.intent || 'Helm chart installation',
+      interaction_id: interaction_id,
+    }
+  );
 
   // Extract YAML content from response
-  const valuesContent = extractContentFromMarkdownCodeBlocks(response.content, 'yaml');
+  const valuesContent = extractContentFromMarkdownCodeBlocks(
+    response.content,
+    'yaml'
+  );
 
   logger.info('AI Helm values generation completed', {
     valuesLength: valuesContent.length,
     isRetry,
-    solutionId
+    solutionId,
   });
 
   return valuesContent;
@@ -472,50 +525,60 @@ async function validateHelmInstallation(
   logger.info('Running Helm dry-run validation via plugin', {
     chart: `${chart.repositoryName}/${chart.chartName}`,
     releaseName,
-    namespace
+    namespace,
   });
 
   try {
     // PRD #359: First, add/update the Helm repository via unified registry
-    const repoResult = await invokePluginTool('agentic-tools', 'helm_repo_add', {
-      name: chart.repositoryName,
-      url: chart.repository
-    });
+    const repoResult = await invokePluginTool(
+      'agentic-tools',
+      'helm_repo_add',
+      {
+        name: chart.repositoryName,
+        url: chart.repository,
+      }
+    );
 
     if (!repoResult.success) {
       logger.warn('Helm repo add failed', { error: repoResult.error?.message });
       return {
         valid: false,
         errors: [repoResult.error?.message || 'Failed to add Helm repository'],
-        warnings: []
+        warnings: [],
       };
     }
 
     // Run helm install with dry-run
-    const installResult = await invokePluginTool('agentic-tools', 'helm_install', {
-      releaseName,
-      chart: `${chart.repositoryName}/${chart.chartName}`,
-      namespace,
-      values: valuesYaml,
-      version: chart.version,
-      dryRun: true,
-      createNamespace: true
-    });
+    const installResult = await invokePluginTool(
+      'agentic-tools',
+      'helm_install',
+      {
+        releaseName,
+        chart: `${chart.repositoryName}/${chart.chartName}`,
+        namespace,
+        values: valuesYaml,
+        version: chart.version,
+        dryRun: true,
+        createNamespace: true,
+      }
+    );
 
     if (installResult.success) {
       logger.info('Helm dry-run validation successful');
       return {
         valid: true,
         errors: [],
-        warnings: []
+        warnings: [],
       };
     }
 
-    logger.warn('Helm dry-run validation failed', { error: installResult.error?.message });
+    logger.warn('Helm dry-run validation failed', {
+      error: installResult.error?.message,
+    });
     return {
       valid: false,
       errors: [installResult.error?.message || 'Unknown Helm validation error'],
-      warnings: []
+      warnings: [],
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -523,7 +586,7 @@ async function validateHelmInstallation(
     return {
       valid: false,
       errors: [errorMessage],
-      warnings: []
+      warnings: [],
     };
   }
 }
@@ -544,7 +607,9 @@ async function handleHelmGeneration(
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   const maxAttempts = 10;
   const chart: HelmChartInfo = solution.chart;
-  const userAnswers = extractUserAnswers(solution as unknown as Parameters<typeof extractUserAnswers>[0]);
+  const userAnswers = extractUserAnswers(
+    solution as unknown as Parameters<typeof extractUserAnswers>[0]
+  );
 
   // Extract release name and namespace from answers
   const releaseName = userAnswers.name as string;
@@ -559,7 +624,9 @@ async function handleHelmGeneration(
         operation: 'helm_generation',
         component: 'GenerateManifestsTool',
         requestId,
-        suggestedActions: ['Ensure the "name" question was answered in the configuration']
+        suggestedActions: [
+          'Ensure the "name" question was answered in the configuration',
+        ],
       }
     );
   }
@@ -577,7 +644,7 @@ async function handleHelmGeneration(
       maxAttempts,
       isRetry: attempt > 1,
       requestId,
-      chart: `${chart.repositoryName}/${chart.chartName}`
+      chart: `${chart.repositoryName}/${chart.chartName}`,
     });
 
     try {
@@ -593,10 +660,17 @@ async function handleHelmGeneration(
 
       // Save values to file
       fs.writeFileSync(valuesPath, valuesYaml, 'utf8');
-      logger.info('Helm values saved to file', { valuesPath, attempt, requestId });
+      logger.info('Helm values saved to file', {
+        valuesPath,
+        attempt,
+        requestId,
+      });
 
       // Save attempt for debugging
-      const attemptPath = valuesPath.replace('.yaml', `_attempt_${attempt.toString().padStart(2, '0')}.yaml`);
+      const attemptPath = valuesPath.replace(
+        '.yaml',
+        `_attempt_${attempt.toString().padStart(2, '0')}.yaml`
+      );
       fs.writeFileSync(attemptPath, valuesYaml, 'utf8');
 
       // Validate with helm dry-run via plugin
@@ -613,12 +687,17 @@ async function handleHelmGeneration(
         logger.info('Helm validation successful', {
           attempt,
           valuesPath,
-          requestId
+          requestId,
         });
 
         // Build user-friendly helm command with generic values file path
         // (internal valuesPath is used for actual execution, not shown to user)
-        const helmCommand = buildHelmCommandForDisplay(chart, releaseName, namespace, 'values.yaml');
+        const helmCommand = buildHelmCommandForDisplay(
+          chart,
+          releaseName,
+          namespace,
+          'values.yaml'
+        );
 
         // PRD #320: Update session with generateManifests data for visualization
         sessionManager.updateSession(solutionId, {
@@ -632,12 +711,12 @@ async function handleHelmGeneration(
               repository: chart.repository,
               repositoryName: chart.repositoryName,
               chartName: chart.chartName,
-              version: chart.version || 'latest'
+              version: chart.version || 'latest',
             },
             releaseName: releaseName,
             namespace: namespace,
-            validationAttempts: attempt
-          }
+            validationAttempts: attempt,
+          },
         } as Partial<SolutionData>);
 
         // PRD #320: Generate visualization URL
@@ -654,20 +733,22 @@ async function handleHelmGeneration(
             repository: chart.repository,
             repositoryName: chart.repositoryName,
             chartName: chart.chartName,
-            version: chart.version
+            version: chart.version,
           },
           releaseName: releaseName,
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
-          ...(visualizationUrl ? { visualizationUrl } : {})
+          ...(visualizationUrl ? { visualizationUrl } : {}),
         };
 
         // Build content blocks - JSON for REST API, agent instruction for MCP agents
-        const content: Array<{ type: 'text'; text: string }> = [{
-          type: 'text' as const,
-          text: JSON.stringify(response, null, 2)
-        }];
+        const content: Array<{ type: 'text'; text: string }> = [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(response, null, 2),
+          },
+        ];
 
         // Add agent instruction block if visualization URL is present
         const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
@@ -682,7 +763,7 @@ async function handleHelmGeneration(
       lastError = {
         attempt,
         previousValues: valuesYaml,
-        validationResult: validation
+        validationResult: validation,
       };
 
       logger.warn('Helm validation failed', {
@@ -690,11 +771,13 @@ async function handleHelmGeneration(
         maxAttempts,
         validationErrors: validation.errors,
         validationWarnings: validation.warnings,
-        requestId
+        requestId,
       });
-
     } catch (error) {
-      logger.error('Error during Helm values generation attempt', error as Error);
+      logger.error(
+        'Error during Helm values generation attempt',
+        error as Error
+      );
 
       if (attempt === maxAttempts) {
         throw error;
@@ -707,16 +790,17 @@ async function handleHelmGeneration(
         validationResult: {
           valid: false,
           errors: [error instanceof Error ? error.message : String(error)],
-          warnings: []
-        }
+          warnings: [],
+        },
       };
     }
   }
 
   // All attempts failed
-  throw new Error(`Failed to generate valid Helm values after ${maxAttempts} attempts. Last errors: ${lastError?.validationResult.errors.join(', ')}`);
+  throw new Error(
+    `Failed to generate valid Helm values after ${maxAttempts} attempts. Last errors: ${lastError?.validationResult.errors.join(', ')}`
+  );
 }
-
 
 /**
  * Render packaged output to raw YAML for validation
@@ -725,12 +809,18 @@ async function renderPackageToYaml(
   packageDir: string,
   format: OutputFormat,
   logger: Logger
-): Promise<{ success: boolean; yaml?: string; error?: string; isTerminalError?: boolean }> {
+): Promise<{
+  success: boolean;
+  yaml?: string;
+  error?: string;
+  isTerminalError?: boolean;
+}> {
   try {
     // Use execFile with array arguments to prevent command injection
-    const args = format === 'helm'
-      ? ['template', 'test-release', packageDir]
-      : ['kustomize', packageDir];
+    const args =
+      format === 'helm'
+        ? ['template', 'test-release', packageDir]
+        : ['kustomize', packageDir];
     const command = format === 'helm' ? 'helm' : 'kubectl';
 
     logger.debug('Rendering package to YAML', { format, command, args });
@@ -746,11 +836,11 @@ async function renderPackageToYaml(
 
     // Check for terminal infrastructure errors that won't be fixed by AI retrying
     const terminalErrorPatterns = [
-      'not found',           // command not found
-      'command not found',   // explicit command not found
-      'ENOENT',              // file/command doesn't exist
-      'permission denied',   // permission issues
-      'EACCES',              // access denied
+      'not found', // command not found
+      'command not found', // explicit command not found
+      'ENOENT', // file/command doesn't exist
+      'permission denied', // permission issues
+      'EACCES', // access denied
     ];
 
     const isTerminalError = terminalErrorPatterns.some(pattern =>
@@ -760,7 +850,7 @@ async function renderPackageToYaml(
     return {
       success: false,
       error: errorMessage,
-      isTerminalError  // Signal to caller to not retry
+      isTerminalError, // Signal to caller to not retry
     };
   }
 }
@@ -780,7 +870,9 @@ function writePackageFiles(
 
     // Prevent path traversal attacks
     if (!resolvedPath.startsWith(resolvedBase)) {
-      throw new Error(`Invalid file path: ${file.relativePath} would escape base directory`);
+      throw new Error(
+        `Invalid file path: ${file.relativePath} would escape base directory`
+      );
     }
 
     const fileDir = path.dirname(filePath);
@@ -807,9 +899,14 @@ async function packageAndValidate(
   logger: Logger,
   pluginManager: PluginManager,
   interaction_id?: string
-): Promise<{ files: { relativePath: string; content: string }[]; attempts: number }> {
+): Promise<{
+  files: { relativePath: string; content: string }[];
+  attempts: number;
+}> {
   const maxAttempts = 5;
-  let packagingError: { attempt: number; previousOutput: string; validationError: string } | undefined;
+  let packagingError:
+    | { attempt: number; previousOutput: string; validationError: string }
+    | undefined;
 
   const tmpDir = path.join(process.cwd(), 'tmp');
   const packageDir = path.join(tmpDir, `${solutionId}-${outputFormat}`);
@@ -820,13 +917,20 @@ async function packageAndValidate(
       try {
         fs.rmSync(packageDir, { recursive: true });
       } catch (cleanupError) {
-        logger.warn('Failed to cleanup temp package directory', { packageDir, error: cleanupError });
+        logger.warn('Failed to cleanup temp package directory', {
+          packageDir,
+          error: cleanupError,
+        });
       }
     }
   };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    logger.info('Packaging attempt', { attempt, maxAttempts, format: outputFormat });
+    logger.info('Packaging attempt', {
+      attempt,
+      maxAttempts,
+      format: outputFormat,
+    });
 
     try {
       const packagingResult = await packageManifests(
@@ -854,10 +958,15 @@ async function packageAndValidate(
         if (!lintResult.valid) {
           packagingError = {
             attempt,
-            previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
-            validationError: `helm lint failed: ${lintResult.errors.join(', ')}`
+            previousOutput: JSON.stringify(
+              packagingResult.files.map(f => f.relativePath)
+            ),
+            validationError: `helm lint failed: ${lintResult.errors.join(', ')}`,
           };
-          logger.warn('helm lint failed', { attempt, errors: lintResult.errors });
+          logger.warn('helm lint failed', {
+            attempt,
+            errors: lintResult.errors,
+          });
           continue;
         }
         // Log warnings but don't fail on them
@@ -867,28 +976,46 @@ async function packageAndValidate(
       }
 
       // Render to raw YAML
-      const renderResult = await renderPackageToYaml(packageDir, outputFormat, logger);
+      const renderResult = await renderPackageToYaml(
+        packageDir,
+        outputFormat,
+        logger
+      );
       if (!renderResult.success) {
         // Check for terminal infrastructure errors - fail fast, don't retry
         if (renderResult.isTerminalError) {
-          const terminalError = new Error(`Infrastructure error (not retryable): ${renderResult.error}`);
-          logger.error('Terminal infrastructure error - cannot retry', terminalError, {
-            format: outputFormat
-          });
+          const terminalError = new Error(
+            `Infrastructure error (not retryable): ${renderResult.error}`
+          );
+          logger.error(
+            'Terminal infrastructure error - cannot retry',
+            terminalError,
+            {
+              format: outputFormat,
+            }
+          );
           throw terminalError;
         }
 
         packagingError = {
           attempt,
-          previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
-          validationError: `Failed to render ${outputFormat}: ${renderResult.error}`
+          previousOutput: JSON.stringify(
+            packagingResult.files.map(f => f.relativePath)
+          ),
+          validationError: `Failed to render ${outputFormat}: ${renderResult.error}`,
         };
-        logger.warn('Package render failed', { attempt, error: renderResult.error });
+        logger.warn('Package render failed', {
+          attempt,
+          error: renderResult.error,
+        });
         continue;
       }
 
       // Validate rendered YAML
-      const renderedYamlPath = path.join(tmpDir, `${solutionId}-${outputFormat}-rendered.yaml`);
+      const renderedYamlPath = path.join(
+        tmpDir,
+        `${solutionId}-${outputFormat}-rendered.yaml`
+      );
       if (!renderResult.yaml) {
         throw new Error('Render succeeded but no YAML content returned');
       }
@@ -896,20 +1023,28 @@ async function packageAndValidate(
 
       const validation = await validateManifests(renderedYamlPath);
       if (validation.valid) {
-        logger.info('Package validation successful', { format: outputFormat, attempt });
+        logger.info('Package validation successful', {
+          format: outputFormat,
+          attempt,
+        });
         cleanupPackageDir();
         return { files: packagingResult.files, attempts: attempt };
       }
 
       packagingError = {
         attempt,
-        previousOutput: JSON.stringify(packagingResult.files.map(f => f.relativePath)),
-        validationError: validation.errors.join(', ')
+        previousOutput: JSON.stringify(
+          packagingResult.files.map(f => f.relativePath)
+        ),
+        validationError: validation.errors.join(', '),
       };
-      logger.warn('Package validation failed', { attempt, errors: validation.errors });
-
+      logger.warn('Package validation failed', {
+        attempt,
+        errors: validation.errors,
+      });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       logger.error('Packaging attempt failed', error as Error);
 
       if (attempt === maxAttempts) {
@@ -919,15 +1054,16 @@ async function packageAndValidate(
       packagingError = {
         attempt,
         previousOutput: packagingError?.previousOutput || '',
-        validationError: errorMessage
+        validationError: errorMessage,
       };
     }
   }
 
   cleanupPackageDir();
-  throw new Error(`Failed to generate valid ${outputFormat} package after ${maxAttempts} attempts. Last error: ${packagingError?.validationError}`);
+  throw new Error(
+    `Failed to generate valid ${outputFormat} package after ${maxAttempts} attempts. Last error: ${packagingError?.validationError}`
+  );
 }
-
 
 /**
  * Direct MCP tool handler for generateManifests functionality
@@ -943,10 +1079,10 @@ export async function handleGenerateManifestsTool(
   return await ErrorHandler.withErrorHandling(
     async () => {
       const maxAttempts = 10;
-      
-      logger.debug('Handling generateManifests request', { 
-        requestId, 
-        solutionId: args?.solutionId 
+
+      logger.debug('Handling generateManifests request', {
+        requestId,
+        solutionId: args?.solutionId,
       });
 
       // Input validation is handled automatically by MCP SDK with Zod schema
@@ -973,8 +1109,8 @@ export async function handleGenerateManifestsTool(
               'Verify the solution ID is correct',
               'Ensure the solution was created by the recommend tool',
               'Ensure all configuration stages were completed',
-              'Check that the session has not expired'
-            ]
+              'Check that the session has not expired',
+            ],
           }
         );
       }
@@ -984,14 +1120,16 @@ export async function handleGenerateManifestsTool(
         solutionId: args.solutionId,
         solutionType: solution.type,
         hasQuestions: !!solution.questions,
-        primaryResources: solution.resources
+        primaryResources: solution.resources,
       });
 
       // Branch based on solution type
       if (solution.type === 'helm') {
         logger.info('Detected Helm solution, using Helm generation flow', {
           solutionId: args.solutionId,
-          chart: solution.chart ? `${solution.chart.repositoryName}/${solution.chart.chartName}` : 'unknown'
+          chart: solution.chart
+            ? `${solution.chart.repositoryName}/${solution.chart.chartName}`
+            : 'unknown',
         });
         return await handleHelmGeneration(
           solution as unknown as HelmSolution,
@@ -1007,7 +1145,7 @@ export async function handleGenerateManifestsTool(
 
       // Capability-based solution: Generate Kubernetes manifests
       logger.info('Using capability-based manifest generation flow', {
-        solutionId: args.solutionId
+        solutionId: args.solutionId,
       });
 
       // Prepare file path for manifests (store in tmp directory)
@@ -1016,22 +1154,28 @@ export async function handleGenerateManifestsTool(
         fs.mkdirSync(tmpDir, { recursive: true });
       }
       const yamlPath = path.join(tmpDir, `${args.solutionId}.yaml`);
-      
+
       // AI generation and validation loop
       let lastError: ErrorContext | undefined;
-      
+
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        logger.info('AI manifest generation attempt', { 
-          attempt, 
-          maxAttempts, 
+        logger.info('AI manifest generation attempt', {
+          attempt,
+          maxAttempts,
           isRetry: attempt > 1,
-          requestId 
+          requestId,
         });
-        
+
         try {
           // Extract user answers and generate required labels
-          const userAnswers = extractUserAnswers(solution as unknown as Parameters<typeof extractUserAnswers>[0]);
-          const dotAiLabels = addDotAiLabels(undefined, userAnswers, solution as unknown as Parameters<typeof addDotAiLabels>[2]);
+          const userAnswers = extractUserAnswers(
+            solution as unknown as Parameters<typeof extractUserAnswers>[0]
+          );
+          const dotAiLabels = addDotAiLabels(
+            undefined,
+            userAnswers,
+            solution as unknown as Parameters<typeof addDotAiLabels>[2]
+          );
 
           // Generate manifests with AI (including labels)
           const aiManifests = await generateManifestsWithAI(
@@ -1054,17 +1198,25 @@ export async function handleGenerateManifestsTool(
                 solutionId: args.solutionId,
                 namespace: (userAnswers.namespace as string) || 'default',
                 solution: solution,
-                generatedManifestsYaml: aiManifests
+                generatedManifestsYaml: aiManifests,
               });
-              logger.info('Solution CR generated successfully', { solutionId: args.solutionId });
+              logger.info('Solution CR generated successfully', {
+                solutionId: args.solutionId,
+              });
             } else {
-              logger.info('Solution CRD not available, skipping Solution CR generation (graceful degradation)', { solutionId: args.solutionId });
+              logger.info(
+                'Solution CRD not available, skipping Solution CR generation (graceful degradation)',
+                { solutionId: args.solutionId }
+              );
             }
           } catch (error) {
-            logger.warn('Failed to check CRD availability or generate Solution CR, skipping', {
-              solutionId: args.solutionId,
-              error: error instanceof Error ? error.message : String(error)
-            });
+            logger.warn(
+              'Failed to check CRD availability or generate Solution CR, skipping',
+              {
+                solutionId: args.solutionId,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
             // Graceful degradation - continue without Solution CR
           }
 
@@ -1074,35 +1226,47 @@ export async function handleGenerateManifestsTool(
             manifestParts.push(solutionCR);
           }
           manifestParts.push(aiManifests);
-          const manifests = manifestParts.length > 1 ? manifestParts.join('---\n') : manifestParts[0];
-          
+          const manifests =
+            manifestParts.length > 1
+              ? manifestParts.join('---\n')
+              : manifestParts[0];
+
           // Save manifests to file
           fs.writeFileSync(yamlPath, manifests, 'utf8');
-          logger.info('Manifests saved to file', { yamlPath, attempt, requestId });
-          
-          // Save a copy of this attempt for debugging
-          const attemptPath = yamlPath.replace('.yaml', `_attempt_${attempt.toString().padStart(2, '0')}.yaml`);
-          fs.writeFileSync(attemptPath, manifests, 'utf8');
-          logger.info('Saved manifest attempt for debugging', { 
-            attempt, 
-            attemptPath,
-            requestId 
+          logger.info('Manifests saved to file', {
+            yamlPath,
+            attempt,
+            requestId,
           });
-          
+
+          // Save a copy of this attempt for debugging
+          const attemptPath = yamlPath.replace(
+            '.yaml',
+            `_attempt_${attempt.toString().padStart(2, '0')}.yaml`
+          );
+          fs.writeFileSync(attemptPath, manifests, 'utf8');
+          logger.info('Saved manifest attempt for debugging', {
+            attempt,
+            attemptPath,
+            requestId,
+          });
+
           // Validate manifests
           // PRD #359: Uses unified plugin registry for kubectl operations
           const validation = await validateManifests(yamlPath);
-          
+
           if (validation.valid) {
             logger.info('Manifest validation successful', {
               attempt,
               yamlPath,
-              requestId
+              requestId,
             });
 
             // Extract packaging options from user answers (with defaults)
-            const outputFormat = (userAnswers.outputFormat || 'raw') as OutputFormat;
-            const outputPath = (userAnswers.outputPath as string) || './manifests';
+            const outputFormat = (userAnswers.outputFormat ||
+              'raw') as OutputFormat;
+            const outputPath =
+              (userAnswers.outputPath as string) || './manifests';
 
             // Handle packaging based on outputFormat
             if (outputFormat === 'helm' || outputFormat === 'kustomize') {
@@ -1127,8 +1291,8 @@ export async function handleGenerateManifestsTool(
                   outputPath,
                   files: packagingResult.files,
                   validationAttempts: attempt,
-                  packagingAttempts: packagingResult.attempts
-                }
+                  packagingAttempts: packagingResult.attempts,
+                },
               });
 
               // PRD #320: Generate visualization URL
@@ -1145,17 +1309,21 @@ export async function handleGenerateManifestsTool(
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
                 agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-                ...(visualizationUrl ? { visualizationUrl } : {})
+                ...(visualizationUrl ? { visualizationUrl } : {}),
               };
 
               // Build content blocks - JSON for REST API, agent instruction for MCP agents
-              const content: Array<{ type: 'text'; text: string }> = [{
-                type: 'text' as const,
-                text: JSON.stringify(response, null, 2)
-              }];
+              const content: Array<{ type: 'text'; text: string }> = [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify(response, null, 2),
+                },
+              ];
 
               // Add agent instruction block if visualization URL is present
-              const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
+              const agentDisplayBlock = buildAgentDisplayBlock({
+                visualizationUrl,
+              });
               if (agentDisplayBlock) {
                 content.push(agentDisplayBlock);
               }
@@ -1171,8 +1339,8 @@ export async function handleGenerateManifestsTool(
                 type: 'raw',
                 outputPath,
                 files: [{ relativePath: 'manifests.yaml', content: manifests }],
-                validationAttempts: attempt
-              }
+                validationAttempts: attempt,
+              },
             });
 
             // PRD #320: Generate visualization URL
@@ -1185,23 +1353,25 @@ export async function handleGenerateManifestsTool(
               solutionId: args.solutionId,
               outputFormat,
               outputPath,
-              files: [
-                { relativePath: 'manifests.yaml', content: manifests }
-              ],
+              files: [{ relativePath: 'manifests.yaml', content: manifests }],
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
               agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
-              ...(visualizationUrl ? { visualizationUrl } : {})
+              ...(visualizationUrl ? { visualizationUrl } : {}),
             };
 
             // Build content blocks - JSON for REST API, agent instruction for MCP agents
-            const content: Array<{ type: 'text'; text: string }> = [{
-              type: 'text' as const,
-              text: JSON.stringify(response, null, 2)
-            }];
+            const content: Array<{ type: 'text'; text: string }> = [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(response, null, 2),
+              },
+            ];
 
             // Add agent instruction block if visualization URL is present
-            const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
+            const agentDisplayBlock = buildAgentDisplayBlock({
+              visualizationUrl,
+            });
             if (agentDisplayBlock) {
               content.push(agentDisplayBlock);
             }
@@ -1214,30 +1384,34 @@ export async function handleGenerateManifestsTool(
           lastError = {
             attempt,
             previousManifests: aiManifests,
-            validationResult: validation
+            validationResult: validation,
           };
-          
+
           logger.warn('Manifest validation failed', {
             attempt,
             maxAttempts,
             validationErrors: validation.errors,
             validationWarnings: validation.warnings,
-            requestId
+            requestId,
           });
-          
         } catch (error) {
-          logger.error('Error during manifest generation attempt', error as Error);
-          
+          logger.error(
+            'Error during manifest generation attempt',
+            error as Error
+          );
+
           // Check if this is a validation error that should not be retried
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const isValidationError = errorMessage.includes('Application name is required') || 
-                                   errorMessage.includes('Application intent is required');
-          
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          const isValidationError =
+            errorMessage.includes('Application name is required') ||
+            errorMessage.includes('Application intent is required');
+
           // If this is a validation error or the last attempt, throw the error immediately
           if (isValidationError || attempt === maxAttempts) {
             throw error;
           }
-          
+
           // Prepare error context for retry
           lastError = {
             attempt,
@@ -1245,21 +1419,22 @@ export async function handleGenerateManifestsTool(
             validationResult: {
               valid: false,
               errors: [errorMessage],
-              warnings: []
-            }
+              warnings: [],
+            },
           };
         }
       }
-      
+
       // If we reach here, all attempts failed
-      throw new Error(`Failed to generate valid manifests after ${maxAttempts} attempts. Last errors: ${lastError?.validationResult.errors.join(', ')}`);
+      throw new Error(
+        `Failed to generate valid manifests after ${maxAttempts} attempts. Last errors: ${lastError?.validationResult.errors.join(', ')}`
+      );
     },
     {
       operation: 'generate_manifests',
       component: 'GenerateManifestsTool',
       requestId,
-      input: args
+      input: args,
     }
   );
 }
-

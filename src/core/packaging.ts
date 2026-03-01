@@ -217,14 +217,14 @@ function getFormatConfig(format: OutputFormat): {
         outputFormat: 'Helm Chart',
         outputFormatDescription: 'a complete Helm chart structure',
         formatSpecificInstructions: HELM_FORMAT_INSTRUCTIONS,
-        formatExample: HELM_FORMAT_EXAMPLE
+        formatExample: HELM_FORMAT_EXAMPLE,
       };
     case 'kustomize':
       return {
         outputFormat: 'Kustomize',
         outputFormatDescription: 'a Kustomize overlay structure',
         formatSpecificInstructions: KUSTOMIZE_FORMAT_INSTRUCTIONS,
-        formatExample: KUSTOMIZE_FORMAT_EXAMPLE
+        formatExample: KUSTOMIZE_FORMAT_EXAMPLE,
       };
     default:
       throw new Error(`Unsupported format for packaging: ${format}`);
@@ -275,7 +275,10 @@ function parsePackagingResponse(response: string): PackageFile[] {
     parsed = JSON.parse(jsonContent);
   } catch (parseError) {
     const preview = jsonContent.slice(0, 200);
-    throw new Error(`Failed to parse packaging response as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}. Content preview: ${preview}...`);
+    throw new Error(
+      `Failed to parse packaging response as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}. Content preview: ${preview}...`,
+      { cause: parseError }
+    );
   }
 
   if (!parsed.files || !Array.isArray(parsed.files)) {
@@ -284,8 +287,13 @@ function parsePackagingResponse(response: string): PackageFile[] {
 
   // Validate each file entry
   for (const file of parsed.files) {
-    if (typeof file.relativePath !== 'string' || typeof file.content !== 'string') {
-      throw new Error('Invalid packaging response: each file must have relativePath and content strings');
+    if (
+      typeof file.relativePath !== 'string' ||
+      typeof file.content !== 'string'
+    ) {
+      throw new Error(
+        'Invalid packaging response: each file must have relativePath and content strings'
+      );
     }
   }
 
@@ -319,7 +327,7 @@ export async function packageManifests(
     // Raw format - no packaging needed
     return {
       files: [{ relativePath: 'manifests.yaml', content: rawManifests }],
-      format: 'raw'
+      format: 'raw',
     };
   }
 
@@ -327,7 +335,7 @@ export async function packageManifests(
     format: outputFormat,
     outputPath,
     isRetry: !!errorContext,
-    attempt: errorContext?.attempt
+    attempt: errorContext?.attempt,
   });
 
   // Get format-specific configuration
@@ -347,22 +355,27 @@ export async function packageManifests(
     output_format: formatConfig.outputFormat,
     output_format_description: formatConfig.outputFormatDescription,
     intent: solution.intent || 'Kubernetes deployment',
-    solution_description: solution.description || solution.title || 'No description available',
+    solution_description:
+      solution.description || solution.title || 'No description available',
     raw_manifests: rawManifests,
     questions_and_answers: formatQuestionsAndAnswers(solution),
     output_path: outputPath,
     format_specific_instructions: formatConfig.formatSpecificInstructions,
     format_example: formatConfig.formatExample,
     previous_attempt: previousAttempt,
-    error_details: errorDetails
+    error_details: errorDetails,
   });
 
   // Call AI for packaging
   const aiProvider = dotAI.ai;
-  const response = await aiProvider.sendMessage(prompt, `packaging-${outputFormat}`, {
-    user_intent: solution.intent || 'Package Kubernetes manifests',
-    interaction_id
-  });
+  const response = await aiProvider.sendMessage(
+    prompt,
+    `packaging-${outputFormat}`,
+    {
+      user_intent: solution.intent || 'Package Kubernetes manifests',
+      interaction_id,
+    }
+  );
 
   // Parse response
   const files = parsePackagingResponse(response.content);
@@ -370,11 +383,11 @@ export async function packageManifests(
   logger.info('Packaging completed', {
     format: outputFormat,
     fileCount: files.length,
-    files: files.map(f => f.relativePath)
+    files: files.map(f => f.relativePath),
   });
 
   return {
     files,
-    format: outputFormat
+    format: outputFormat,
   };
 }

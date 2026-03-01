@@ -202,15 +202,19 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
         } catch (error) {
           // Convert CircuitOpenError to descriptive message
           if (error instanceof CircuitOpenError) {
-            throw new Error(`Embedding API circuit open: ${error.message}`);
+            throw new Error(`Embedding API circuit open: ${error.message}`, {
+              cause: error,
+            });
           }
           if (error instanceof Error) {
             throw new Error(
-              `${this.providerType} embedding failed: ${error.message}`
+              `${this.providerType} embedding failed: ${error.message}`,
+              { cause: error }
             );
           }
           throw new Error(
-            `${this.providerType} embedding failed: ${String(error)}`
+            `${this.providerType} embedding failed: ${String(error)}`,
+            { cause: error }
           );
         }
       },
@@ -273,15 +277,19 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
         } catch (error) {
           // Convert CircuitOpenError to descriptive message
           if (error instanceof CircuitOpenError) {
-            throw new Error(`Embedding API circuit open: ${error.message}`);
+            throw new Error(`Embedding API circuit open: ${error.message}`, {
+              cause: error,
+            });
           }
           if (error instanceof Error) {
             throw new Error(
-              `${this.providerType} batch embedding failed: ${error.message}`
+              `${this.providerType} batch embedding failed: ${error.message}`,
+              { cause: error }
             );
           }
           throw new Error(
-            `${this.providerType} batch embedding failed: ${String(error)}`
+            `${this.providerType} batch embedding failed: ${String(error)}`,
+            { cause: error }
           );
         }
       },
@@ -370,7 +378,8 @@ export class EmbeddingService {
     } catch (error) {
       // Throw error immediately - no silent fallback
       throw new Error(
-        `Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`
+        `Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
       );
     }
   }

@@ -34,7 +34,9 @@ class CRDAvailabilityCache {
 
     // PRD #359: All K8s operations go through unified plugin registry
     if (!isPluginInitialized()) {
-      console.log('ℹ️  Plugin system not available - Solution CR generation disabled');
+      console.log(
+        'ℹ️  Plugin system not available - Solution CR generation disabled'
+      );
       this.crdAvailable = false;
       return false;
     }
@@ -43,47 +45,68 @@ class CRDAvailabilityCache {
     const crdName = 'solutions.dot-ai.devopstoolkit.live';
 
     try {
-      const response = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
-        resource: `crd/${crdName}`
-      });
+      const response = await invokePluginTool(
+        'agentic-tools',
+        'kubectl_get_resource_json',
+        {
+          resource: `crd/${crdName}`,
+        }
+      );
 
       if (response.success) {
         // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
-        const result = response.result as { success?: boolean; error?: string } | undefined;
+        const result = response.result as
+          | { success?: boolean; error?: string }
+          | undefined;
         if (result && result.success === false) {
           const errorMsg = result.error || '';
           if (errorMsg.includes('NotFound') || errorMsg.includes('not found')) {
             this.crdAvailable = false;
-            console.log('ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)');
+            console.log(
+              'ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)'
+            );
             return false;
           }
-          throw new Error(`Failed to check Solution CRD availability: ${errorMsg}`);
+          throw new Error(
+            `Failed to check Solution CRD availability: ${errorMsg}`
+          );
         }
         // CRD exists, cache result
         this.crdAvailable = true;
-        console.log('✅ Solution CRD available - Solution CR generation enabled');
+        console.log(
+          '✅ Solution CRD available - Solution CR generation enabled'
+        );
         return true;
       } else {
         // CRD not found or error
         const errorMsg = response.error?.message || '';
         if (errorMsg.includes('NotFound') || errorMsg.includes('not found')) {
           this.crdAvailable = false;
-          console.log('ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)');
+          console.log(
+            'ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)'
+          );
           return false;
         }
         // Other errors - don't cache, throw
-        throw new Error(`Failed to check Solution CRD availability: ${errorMsg}`);
+        throw new Error(
+          `Failed to check Solution CRD availability: ${errorMsg}`
+        );
       }
     } catch (error: unknown) {
       // Check if it's a "not found" error
       const errorMsg = error instanceof Error ? error.message : String(error);
       if (errorMsg.includes('NotFound') || errorMsg.includes('not found')) {
         this.crdAvailable = false;
-        console.log('ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)');
+        console.log(
+          'ℹ️  Solution CRD not available - Solution CR generation disabled (graceful degradation)'
+        );
         return false;
       }
       // Other errors - don't cache, throw
-      throw new Error(`Failed to check Solution CRD availability: ${errorMsg}`);
+      throw new Error(
+        `Failed to check Solution CRD availability: ${errorMsg}`,
+        { cause: error }
+      );
     }
   }
 

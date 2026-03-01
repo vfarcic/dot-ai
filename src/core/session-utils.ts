@@ -25,53 +25,68 @@ export function getSessionDirectory(): string {
 /**
  * Validate session directory exists and is accessible
  * Works with both relative and absolute paths
- * 
+ *
  * @param sessionDir - Session directory path to validate
  * @param requireWrite - Whether to test write permissions (default: false)
  */
-export function validateSessionDirectory(sessionDir: string, requireWrite: boolean = false): void {
+export function validateSessionDirectory(
+  sessionDir: string,
+  requireWrite: boolean = false
+): void {
   try {
     // Check if directory exists (resolves relative paths automatically)
     if (!fs.existsSync(sessionDir)) {
       throw new Error(`Session directory does not exist: ${sessionDir}`);
     }
-    
+
     // Check if it's actually a directory
     const stat = fs.statSync(sessionDir);
     if (!stat.isDirectory()) {
-      throw new Error(`Session directory path is not a directory: ${sessionDir}`);
+      throw new Error(
+        `Session directory path is not a directory: ${sessionDir}`
+      );
     }
-    
+
     // Test read permissions by attempting to read directory contents
     fs.readdirSync(sessionDir);
-    
+
     // Test write permissions if required
     if (requireWrite) {
       const testFile = path.join(sessionDir, '.write-test-' + Date.now());
       fs.writeFileSync(testFile, 'test');
       fs.unlinkSync(testFile);
     }
-    
   } catch (error) {
     if (error instanceof Error) {
       // Re-throw specific error messages
-      if (error.message.includes('Session directory does not exist') ||
-          error.message.includes('Session directory path is not a directory')) {
+      if (
+        error.message.includes('Session directory does not exist') ||
+        error.message.includes('Session directory path is not a directory')
+      ) {
         throw error;
       }
-      
+
       // Handle permission errors
       if (error.message.includes('EACCES')) {
-        throw new Error(`Session directory is not accessible: ${sessionDir}. Check permissions.`);
+        throw new Error(
+          `Session directory is not accessible: ${sessionDir}. Check permissions.`,
+          { cause: error }
+        );
       }
-      
+
       // Handle write permission errors
       if (requireWrite) {
-        throw new Error(`Session directory is not writable: ${sessionDir}. Error: ${error.message}`);
+        throw new Error(
+          `Session directory is not writable: ${sessionDir}. Error: ${error.message}`,
+          { cause: error }
+        );
       }
     }
-    
-    throw new Error(`Session directory validation failed: ${sessionDir}. Error: ${error}`);
+
+    throw new Error(
+      `Session directory validation failed: ${sessionDir}. Error: ${error}`,
+      { cause: error }
+    );
   }
 }
 
@@ -81,7 +96,9 @@ export function validateSessionDirectory(sessionDir: string, requireWrite: boole
  * @param requireWrite - Whether to test write permissions (default: false)
  * @returns Validated session directory path
  */
-export function getAndValidateSessionDirectory(requireWrite: boolean = false): string {
+export function getAndValidateSessionDirectory(
+  requireWrite: boolean = false
+): string {
   const sessionDir = getSessionDirectory();
   validateSessionDirectory(sessionDir, requireWrite);
   return sessionDir;

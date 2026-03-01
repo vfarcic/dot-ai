@@ -124,7 +124,10 @@ export class HostProvider implements AIProvider {
           );
 
           let content = '';
-          if (typeof result.content === 'object' && result.content.type === 'text') {
+          if (
+            typeof result.content === 'object' &&
+            result.content.type === 'text'
+          ) {
             content = result.content.text;
           } else if (typeof result.content === 'string') {
             content = result.content;
@@ -210,7 +213,9 @@ export class HostProvider implements AIProvider {
             }
           }
 
-          throw new Error(`Host sampling error: ${errorMessage}`);
+          throw new Error(`Host sampling error: ${errorMessage}`, {
+            cause: error,
+          });
         }
       },
       (response: AIResponse) => ({
@@ -288,7 +293,10 @@ export class HostProvider implements AIProvider {
             );
 
             let content = '';
-            if (typeof result.content === 'object' && result.content.type === 'text') {
+            if (
+              typeof result.content === 'object' &&
+              result.content.type === 'text'
+            ) {
               content = result.content.text;
             } else if (typeof result.content === 'string') {
               content = result.content;
@@ -376,7 +384,9 @@ export class HostProvider implements AIProvider {
           } catch (error) {
             const message =
               error instanceof Error ? error.message : String(error);
-            throw new Error(`Host sampling error in tool loop: ${message}`);
+            throw new Error(`Host sampling error in tool loop: ${message}`, {
+              cause: error,
+            });
           }
         }
 
@@ -402,7 +412,10 @@ export class HostProvider implements AIProvider {
           );
 
           let wrapUpContent = '';
-          if (typeof wrapUpResult.content === 'object' && wrapUpResult.content.type === 'text') {
+          if (
+            typeof wrapUpResult.content === 'object' &&
+            wrapUpResult.content.type === 'text'
+          ) {
             wrapUpContent = wrapUpResult.content.text;
           } else if (typeof wrapUpResult.content === 'string') {
             wrapUpContent = wrapUpResult.content;

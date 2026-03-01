@@ -101,12 +101,17 @@ export class VercelProvider implements AIProvider {
 
   private validateConfiguration(): void {
     if (!this.apiKey) {
-      throw new Error(AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(this.providerType));
+      throw new Error(
+        AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(this.providerType)
+      );
     }
 
     if (!SUPPORTED_PROVIDERS.includes(this.providerType)) {
       throw new Error(
-        AI_SERVICE_ERROR_TEMPLATES.UNSUPPORTED_PROVIDER(this.providerType, SUPPORTED_PROVIDERS)
+        AI_SERVICE_ERROR_TEMPLATES.UNSUPPORTED_PROVIDER(
+          this.providerType,
+          SUPPORTED_PROVIDERS
+        )
       );
     }
   }
@@ -193,7 +198,8 @@ export class VercelProvider implements AIProvider {
       this.modelInstance = provider(this.model);
     } catch (error) {
       throw new Error(
-        `Failed to initialize ${this.providerType} model: ${error}`
+        `Failed to initialize ${this.providerType} model: ${error}`,
+        { cause: error }
       );
     }
   }
@@ -382,7 +388,9 @@ export class VercelProvider implements AIProvider {
             logEvaluationDataset(failureMetrics, this.debugMode);
           }
 
-          throw new Error(`${this.providerType} API error: ${error}`);
+          throw new Error(`${this.providerType} API error: ${error}`, {
+            cause: error,
+          });
         }
       },
       (response: AIResponse) => ({
@@ -458,7 +466,9 @@ export class VercelProvider implements AIProvider {
               this.providerType === 'anthropic_haiku') &&
             isLastTool
           ) {
-            (toolDef as unknown as { providerOptions: Record<string, unknown> }).providerOptions = {
+            (
+              toolDef as unknown as { providerOptions: Record<string, unknown> }
+            ).providerOptions = {
               anthropic: {
                 cacheControl: { type: 'ephemeral' },
               },
@@ -693,7 +703,8 @@ export class VercelProvider implements AIProvider {
           // Check if we hit max iterations without a proper summary
           // If so, make one final wrap-up call WITHOUT tools to force summary generation
           const stepsUsed = result.steps?.length || 0;
-          const hasProperSummary = finalText && finalText.includes('{') && finalText.includes('}');
+          const hasProperSummary =
+            finalText && finalText.includes('{') && finalText.includes('}');
 
           if (stepsUsed >= maxIterations && !hasProperSummary) {
             try {
@@ -767,7 +778,10 @@ export class VercelProvider implements AIProvider {
               finalText = wrapUpResult.text || finalText;
             } catch (wrapUpError) {
               // If wrap-up fails, continue with whatever we have
-              console.warn('Wrap-up call failed, using existing response:', wrapUpError);
+              console.warn(
+                'Wrap-up call failed, using existing response:',
+                wrapUpError
+              );
             }
           }
 

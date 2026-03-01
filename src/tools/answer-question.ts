@@ -3,14 +3,21 @@
  */
 
 import { z } from 'zod';
-import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import {
+  ErrorHandler,
+  ErrorCategory,
+  ErrorSeverity,
+} from '../core/error-handling';
 import { STAGE_MESSAGES } from '../core/constants';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import type { SolutionData } from './recommend';
-import { extractUserAnswers, type Solution as SolutionBase } from '../core/solution-utils';
+import {
+  extractUserAnswers,
+  type Solution as SolutionBase,
+} from '../core/solution-utils';
 
 // Interfaces for solution and question types
 interface QuestionValidation {
@@ -78,14 +85,29 @@ interface EnhancementResult extends AnalysisResult {
 
 // Tool metadata for direct MCP registration
 export const ANSWERQUESTION_TOOL_NAME = 'answerQuestion';
-export const ANSWERQUESTION_TOOL_DESCRIPTION = 'Process user answers and return remaining questions or completion status. For open stage, use "open" as the answer key.';
+export const ANSWERQUESTION_TOOL_DESCRIPTION =
+  'Process user answers and return remaining questions or completion status. For open stage, use "open" as the answer key.';
 
 // Zod schema for MCP registration
 export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
-  solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/).describe('The solution ID to update (e.g., sol-1762983784617-9ddae2b8)'),
-  stage: z.enum(['required', 'basic', 'advanced', 'open']).describe('The configuration stage being addressed'),
-  answers: z.record(z.string(), z.any()).describe('User answers to configuration questions for the specified stage. For required/basic/advanced stages, use questionId as key. For open stage, use "open" as key (e.g., {"open": "add persistent storage"})'),
-  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
+  solutionId: z
+    .string()
+    .regex(/^sol-\d+-[a-f0-9]{8}$/)
+    .describe('The solution ID to update (e.g., sol-1762983784617-9ddae2b8)'),
+  stage: z
+    .enum(['required', 'basic', 'advanced', 'open'])
+    .describe('The configuration stage being addressed'),
+  answers: z
+    .record(z.string(), z.any())
+    .describe(
+      'User answers to configuration questions for the specified stage. For required/basic/advanced stages, use questionId as key. For open stage, use "open" as key (e.g., {"open": "add persistent storage"})'
+    ),
+  interaction_id: z
+    .string()
+    .optional()
+    .describe(
+      'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
+    ),
 };
 
 // Session management now handled by GenericSessionManager
@@ -95,31 +117,40 @@ export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
  */
 function validateAnswer(answer: unknown, question: Question): string | null {
   // Check required validation
-  if (question.validation?.required && (answer === undefined || answer === null || answer === '')) {
+  if (
+    question.validation?.required &&
+    (answer === undefined || answer === null || answer === '')
+  ) {
     return question.validation.message || `${question.question} is required`;
   }
-  
+
   // Skip validation if answer is empty and not required
   if (answer === undefined || answer === null || answer === '') {
     return null;
   }
-  
+
   // Type validation
   switch (question.type) {
     case 'number': {
-      if (typeof answer !== 'number' && !(!isNaN(Number(answer)))) {
+      if (typeof answer !== 'number' && !!isNaN(Number(answer))) {
         return `${question.question} must be a number`;
       }
       const numValue = typeof answer === 'number' ? answer : Number(answer);
-      if (question.validation?.min !== undefined && numValue < question.validation.min) {
+      if (
+        question.validation?.min !== undefined &&
+        numValue < question.validation.min
+      ) {
         return `${question.question} must be at least ${question.validation.min}`;
       }
-      if (question.validation?.max !== undefined && numValue > question.validation.max) {
+      if (
+        question.validation?.max !== undefined &&
+        numValue > question.validation.max
+      ) {
         return `${question.question} must be at most ${question.validation.max}`;
       }
       break;
     }
-      
+
     case 'text':
       if (typeof answer !== 'string') {
         return `${question.question} must be a string`;
@@ -127,24 +158,27 @@ function validateAnswer(answer: unknown, question: Question): string | null {
       if (question.validation?.pattern) {
         const pattern = new RegExp(question.validation.pattern);
         if (!pattern.test(answer)) {
-          return question.validation.message || `${question.question} format is invalid`;
+          return (
+            question.validation.message ||
+            `${question.question} format is invalid`
+          );
         }
       }
       break;
-      
+
     case 'boolean':
       if (typeof answer !== 'boolean') {
         return `${question.question} must be true or false`;
       }
       break;
-      
+
     case 'select':
       if (question.options && !question.options.includes(answer as string)) {
         return `${question.question} must be one of: ${question.options.join(', ')}`;
       }
       break;
   }
-  
+
   return null;
 }
 
@@ -152,7 +186,10 @@ function validateAnswer(answer: unknown, question: Question): string | null {
  * Get stage-specific instructions for different stages
  * For Helm solutions, advanced stage proceeds directly to manifest generation (no open stage)
  */
-function getStageSpecificInstructions(stage: Stage, isHelm: boolean = false): string {
+function getStageSpecificInstructions(
+  stage: Stage,
+  isHelm: boolean = false
+): string {
   switch (stage) {
     case 'required':
       return STAGE_MESSAGES.REQUIRED_INSTRUCTIONS;
@@ -174,7 +211,8 @@ function getStageSpecificInstructions(stage: Stage, isHelm: boolean = false): st
  * Get enhanced anti-cascade agent instructions for stage responses
  */
 function getAgentInstructions(stage: Stage, isHelm: boolean = false): string {
-  const antiCascadeRule = 'CRITICAL ANTI-CASCADE RULE: When user says "skip" for ANY stage, only skip THAT specific stage and present the NEXT stage questions to the user. NEVER automatically skip multiple stages in sequence.';
+  const antiCascadeRule =
+    'CRITICAL ANTI-CASCADE RULE: When user says "skip" for ANY stage, only skip THAT specific stage and present the NEXT stage questions to the user. NEVER automatically skip multiple stages in sequence.';
 
   const mandatoryWorkflow = `
 MANDATORY CLIENT AGENT WORKFLOW:
@@ -215,7 +253,9 @@ interface StageState {
 /**
  * Check if solution is a Helm-based installation
  */
-function isHelmSolution(solution: SolutionData | SolutionWithQuestions): boolean {
+function isHelmSolution(
+  solution: SolutionData | SolutionWithQuestions
+): boolean {
   return solution.type === 'helm';
 }
 
@@ -223,40 +263,57 @@ function isHelmSolution(solution: SolutionData | SolutionWithQuestions): boolean
  * Determine current stage based on solution state
  * For Helm solutions, the open stage is skipped entirely
  */
-function getCurrentStage(solution: SolutionData | SolutionWithQuestions): StageState {
-  const hasRequired = solution.questions.required && solution.questions.required.length > 0;
-  const hasBasic = solution.questions.basic && solution.questions.basic.length > 0;
-  const hasAdvanced = solution.questions.advanced && solution.questions.advanced.length > 0;
+function getCurrentStage(
+  solution: SolutionData | SolutionWithQuestions
+): StageState {
+  const hasRequired =
+    solution.questions.required && solution.questions.required.length > 0;
+  const hasBasic =
+    solution.questions.basic && solution.questions.basic.length > 0;
+  const hasAdvanced =
+    solution.questions.advanced && solution.questions.advanced.length > 0;
   const hasOpen = !!solution.questions.open;
   const isHelm = isHelmSolution(solution);
 
   // Check completion status
-  const requiredComplete = !hasRequired || solution.questions.required!.every((q) => q.answer !== undefined);
-  const basicComplete = !hasBasic || solution.questions.basic!.every((q) => q.answer !== undefined);
-  const advancedComplete = !hasAdvanced || solution.questions.advanced!.every((q) => q.answer !== undefined);
+  const requiredComplete =
+    !hasRequired ||
+    solution.questions.required!.every(q => q.answer !== undefined);
+  const basicComplete =
+    !hasBasic || solution.questions.basic!.every(q => q.answer !== undefined);
+  const advancedComplete =
+    !hasAdvanced ||
+    solution.questions.advanced!.every(q => q.answer !== undefined);
   // For Helm solutions, treat open as always complete (skip it)
-  const openComplete = isHelm || !hasOpen || solution.questions.open?.answer !== undefined;
+  const openComplete =
+    isHelm || !hasOpen || solution.questions.open?.answer !== undefined;
 
   // Determine current stage
   if (!requiredComplete) {
     // For Helm: skip open in nextStage calculation
-    const nextAfterRequired = hasBasic ? 'basic' : (hasAdvanced ? 'advanced' : (isHelm ? null : 'open'));
+    const nextAfterRequired = hasBasic
+      ? 'basic'
+      : hasAdvanced
+        ? 'advanced'
+        : isHelm
+          ? null
+          : 'open';
     return {
       currentStage: 'required',
       nextStage: nextAfterRequired,
       hasQuestions: true,
-      isComplete: false
+      isComplete: false,
     };
   }
 
   if (!basicComplete) {
     // For Helm: skip open in nextStage calculation
-    const nextAfterBasic = hasAdvanced ? 'advanced' : (isHelm ? null : 'open');
+    const nextAfterBasic = hasAdvanced ? 'advanced' : isHelm ? null : 'open';
     return {
       currentStage: 'basic',
       nextStage: nextAfterBasic,
       hasQuestions: true,
-      isComplete: false
+      isComplete: false,
     };
   }
 
@@ -266,7 +323,7 @@ function getCurrentStage(solution: SolutionData | SolutionWithQuestions): StageS
       // For Helm: go directly to completion (null), not open
       nextStage: isHelm ? null : 'open',
       hasQuestions: true,
-      isComplete: false
+      isComplete: false,
     };
   }
 
@@ -276,7 +333,7 @@ function getCurrentStage(solution: SolutionData | SolutionWithQuestions): StageS
       currentStage: 'advanced',
       nextStage: null,
       hasQuestions: false,
-      isComplete: true
+      isComplete: true,
     };
   }
 
@@ -285,7 +342,7 @@ function getCurrentStage(solution: SolutionData | SolutionWithQuestions): StageS
       currentStage: 'open',
       nextStage: null,
       hasQuestions: hasOpen,
-      isComplete: false
+      isComplete: false,
     };
   }
 
@@ -294,14 +351,18 @@ function getCurrentStage(solution: SolutionData | SolutionWithQuestions): StageS
     currentStage: 'open',
     nextStage: null,
     hasQuestions: false,
-    isComplete: true
+    isComplete: true,
   };
 }
 
 /**
  * Validate stage transition is allowed
  */
-function validateStageTransition(currentStage: Stage, requestedStage: Stage, solution: SolutionData | SolutionWithQuestions): { valid: boolean; error?: string } {
+function validateStageTransition(
+  currentStage: Stage,
+  requestedStage: Stage,
+  solution: SolutionData | SolutionWithQuestions
+): { valid: boolean; error?: string } {
   // Allow processing the same stage (for answering or skipping)
   if (currentStage === requestedStage) {
     return { valid: true };
@@ -310,12 +371,15 @@ function validateStageTransition(currentStage: Stage, requestedStage: Stage, sol
   const isHelm = isHelmSolution(solution);
 
   // Determine the next stage based on what questions exist
-  let expectedNext: Stage | null = null;
+  let expectedNext: Stage | null;
 
   if (currentStage === 'required') {
     if (solution.questions.basic && solution.questions.basic.length > 0) {
       expectedNext = 'basic';
-    } else if (solution.questions.advanced && solution.questions.advanced.length > 0) {
+    } else if (
+      solution.questions.advanced &&
+      solution.questions.advanced.length > 0
+    ) {
       expectedNext = 'advanced';
     } else {
       // For Helm, skip open stage
@@ -334,12 +398,12 @@ function validateStageTransition(currentStage: Stage, requestedStage: Stage, sol
   } else {
     expectedNext = null; // open stage is final
   }
-  
+
   // If we're at the final stage, no transitions allowed
   if (expectedNext === null) {
     return {
       valid: false,
-      error: `Cannot transition from '${currentStage}' stage. All stages completed.`
+      error: `Cannot transition from '${currentStage}' stage. All stages completed.`,
     };
   }
 
@@ -347,7 +411,7 @@ function validateStageTransition(currentStage: Stage, requestedStage: Stage, sol
   if (requestedStage !== expectedNext) {
     return {
       valid: false,
-      error: `Cannot skip to '${requestedStage}' stage. Must process '${expectedNext}' stage next. Use empty answers to skip the current stage.`
+      error: `Cannot skip to '${requestedStage}' stage. Must process '${expectedNext}' stage next. Use empty answers to skip the current stage.`,
     };
   }
 
@@ -357,7 +421,10 @@ function validateStageTransition(currentStage: Stage, requestedStage: Stage, sol
 /**
  * Get questions for a specific stage
  */
-function getQuestionsForStage(solution: SolutionData | SolutionWithQuestions, stage: Stage): (Question | OpenQuestion)[] {
+function getQuestionsForStage(
+  solution: SolutionData | SolutionWithQuestions,
+  stage: Stage
+): (Question | OpenQuestion)[] {
   switch (stage) {
     case 'required':
       return (solution.questions.required || []) as (Question | OpenQuestion)[];
@@ -366,7 +433,9 @@ function getQuestionsForStage(solution: SolutionData | SolutionWithQuestions, st
     case 'advanced':
       return (solution.questions.advanced || []) as (Question | OpenQuestion)[];
     case 'open':
-      return solution.questions.open ? [solution.questions.open as OpenQuestion] : [];
+      return solution.questions.open
+        ? [solution.questions.open as OpenQuestion]
+        : [];
     default:
       return [];
   }
@@ -411,8 +480,6 @@ function getStageGuidance(stage: Stage, isHelm: boolean = false): string {
   }
 }
 
-
-
 /**
  * Phase 1: Analyze what resources are needed for the user request
  */
@@ -426,19 +493,21 @@ async function analyzeResourceNeeds(
   const solutionWithResources = currentSolution as SolutionWithQuestions;
   const availableResources = solutionWithResources.availableResources || {
     resources: [],
-    custom: []
+    custom: [],
   };
 
   // Extract resource types for analysis
   const availableResourceTypes = [
     ...(availableResources.resources || []),
-    ...(availableResources.custom || [])
-  ].map((r: AvailableResource | string) => (typeof r === 'object' ? r.kind : r) || r);
+    ...(availableResources.custom || []),
+  ].map(
+    (r: AvailableResource | string) => (typeof r === 'object' ? r.kind : r) || r
+  );
 
   const analysisPrompt = loadPrompt('resource-analysis', {
     current_solution: JSON.stringify(currentSolution, null, 2),
     user_request: openResponse,
-    available_resource_types: JSON.stringify(availableResourceTypes, null, 2)
+    available_resource_types: JSON.stringify(availableResourceTypes, null, 2),
   });
 
   // Get AI provider from context
@@ -446,36 +515,43 @@ async function analyzeResourceNeeds(
 
   context.logger.info('Analyzing resource needs for open question', {
     openResponse,
-    availableResourceCount: availableResourceTypes.length
+    availableResourceCount: availableResourceTypes.length,
   });
 
   try {
-    const response = await aiProvider.sendMessage(analysisPrompt, 'answer-question-resource-analysis', {
-      user_intent: openResponse,
-      interaction_id: interaction_id
-    });
+    const response = await aiProvider.sendMessage(
+      analysisPrompt,
+      'answer-question-resource-analysis',
+      {
+        user_intent: openResponse,
+        interaction_id: interaction_id,
+      }
+    );
     const analysisResult = parseEnhancementResponse(response.content);
-    
+
     // Check for capability gap and throw specific error
     if (analysisResult.approach === 'capability_gap') {
-      context.logger.error('Capability gap detected in resource analysis', new Error(
-        `Capability gap for solution ${(currentSolution as SolutionWithQuestions).solutionId}: ${analysisResult.requestedCapability} - ${analysisResult.integrationIssue}`
-      ));
-      
+      context.logger.error(
+        'Capability gap detected in resource analysis',
+        new Error(
+          `Capability gap for solution ${(currentSolution as SolutionWithQuestions).solutionId}: ${analysisResult.requestedCapability} - ${analysisResult.integrationIssue}`
+        )
+      );
+
       const capabilityGapError = new Error(
         `Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.integrationIssue}. Suggested action: ${analysisResult.suggestedAction}`
       );
       capabilityGapError.name = 'CapabilityGapError';
       throw capabilityGapError;
     }
-    
+
     return analysisResult;
   } catch (error) {
     // If it's already a capability gap error, re-throw it
     if (error instanceof Error && error.name === 'CapabilityGapError') {
       throw error;
     }
-    
+
     context.logger.error('Resource analysis failed', error as Error);
     throw error;
   }
@@ -492,29 +568,45 @@ async function applySolutionEnhancement(
   interaction_id?: string
 ): Promise<SolutionData | SolutionWithQuestions> {
   if (analysisResult.approach === 'capability_gap') {
-    throw new Error(`Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.suggestedAction}`);
+    throw new Error(
+      `Enhancement capability gap: ${analysisResult.reasoning}. ${analysisResult.suggestedAction}`
+    );
   }
-  
+
   if (analysisResult.approach === 'complete_existing_questions') {
     // Auto-populate existing questions based on user requirements
-    context.logger.info('Auto-populating existing questions based on requirements', {
-      approach: analysisResult.approach,
-      reasoning: analysisResult.reasoning
-    });
+    context.logger.info(
+      'Auto-populating existing questions based on requirements',
+      {
+        approach: analysisResult.approach,
+        reasoning: analysisResult.reasoning,
+      }
+    );
 
-    return autoPopulateQuestions(solution, openResponse, analysisResult, context, interaction_id);
+    return autoPopulateQuestions(
+      solution,
+      openResponse,
+      analysisResult,
+      context,
+      interaction_id
+    );
   }
-  
+
   if (analysisResult.approach === 'add_resources') {
     // Add new resources and their questions
     context.logger.info('Adding new resources to solution', {
       approach: analysisResult.approach,
-      suggestedResources: analysisResult.suggestedResources
+      suggestedResources: analysisResult.suggestedResources,
     });
-    
-    return addResourcesAndQuestions(solution, openResponse, analysisResult, context);
+
+    return addResourcesAndQuestions(
+      solution,
+      openResponse,
+      analysisResult,
+      context
+    );
   }
-  
+
   // Default: no changes needed
   return solution;
 }
@@ -531,24 +623,32 @@ async function autoPopulateQuestions(
 ): Promise<SolutionData | SolutionWithQuestions> {
   const enhancementPrompt = loadPrompt('solution-enhancement', {
     current_solution: JSON.stringify(solution, null, 2),
-    detailed_schemas: JSON.stringify((solution as SolutionWithQuestions).schemas || {}, null, 2),
+    detailed_schemas: JSON.stringify(
+      (solution as SolutionWithQuestions).schemas || {},
+      null,
+      2
+    ),
     analysis_result: JSON.stringify(analysisResult, null, 2),
-    open_response: openResponse
+    open_response: openResponse,
   });
 
   // Get AI provider from context
   const aiProvider = context.dotAI.ai;
 
-  const response = await aiProvider.sendMessage(enhancementPrompt, 'answer-question-solution-enhancement', {
-    user_intent: openResponse,
-    interaction_id: interaction_id
-  });
+  const response = await aiProvider.sendMessage(
+    enhancementPrompt,
+    'answer-question-solution-enhancement',
+    {
+      user_intent: openResponse,
+      interaction_id: interaction_id,
+    }
+  );
   const enhancementData = parseEnhancementResponse(response.content);
-  
+
   if (enhancementData.enhancedSolution) {
     return enhancementData.enhancedSolution;
   }
-  
+
   return solution;
 }
 
@@ -564,9 +664,9 @@ async function addResourcesAndQuestions(
   // For now, implement basic resource addition
   // This would need more sophisticated question generation for new resources
   context.logger.warn('Resource addition not fully implemented yet', {
-    suggestedResources: analysisResult.suggestedResources
+    suggestedResources: analysisResult.suggestedResources,
   });
-  
+
   // TODO: Implement full resource addition with question generation
   return solution;
 }
@@ -581,11 +681,11 @@ function parseEnhancementResponse(content: string): EnhancementResult {
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
-    
+
     // If no JSON found, return error
     throw new Error('No valid JSON found in AI response');
   } catch (error) {
-    throw new Error(`Failed to parse AI response: ${error}`);
+    throw new Error(`Failed to parse AI response: ${error}`, { cause: error });
   }
 }
 
@@ -601,20 +701,31 @@ async function enhanceSolutionWithOpenAnswer(
   try {
     context.logger.info('Starting AI enhancement of solution', {
       solutionId: (solution as SolutionWithQuestions).solutionId,
-      openAnswer
+      openAnswer,
     });
-    
+
     // Phase 1: Analyze what resources are needed
-    const analysisResult = await analyzeResourceNeeds(solution, openAnswer, context, interaction_id);
-    
+    const analysisResult = await analyzeResourceNeeds(
+      solution,
+      openAnswer,
+      context,
+      interaction_id
+    );
+
     // Phase 2: Apply enhancements based on analysis
-    const enhancedSolution = await applySolutionEnhancement(solution, openAnswer, analysisResult, context, interaction_id);
-    
+    const enhancedSolution = await applySolutionEnhancement(
+      solution,
+      openAnswer,
+      analysisResult,
+      context,
+      interaction_id
+    );
+
     context.logger.info('AI enhancement completed', {
       approach: analysisResult.approach,
-      changed: enhancedSolution !== solution
+      changed: enhancedSolution !== solution,
     });
-    
+
     return enhancedSolution;
   } catch (error) {
     context.logger.error('Solution enhancement failed', error as Error);
@@ -622,23 +733,27 @@ async function enhanceSolutionWithOpenAnswer(
   }
 }
 
-
 /**
  * Direct MCP tool handler for answerQuestion functionality
  */
 export async function handleAnswerQuestionTool(
-  args: { solutionId: string; stage: 'required' | 'basic' | 'advanced' | 'open'; answers: Record<string, unknown>; interaction_id?: string },
+  args: {
+    solutionId: string;
+    stage: 'required' | 'basic' | 'advanced' | 'open';
+    answers: Record<string, unknown>;
+    interaction_id?: string;
+  },
   dotAI: DotAI,
   logger: Logger,
   requestId: string
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
-      logger.debug('Handling answerQuestion request', { 
-        requestId, 
+      logger.debug('Handling answerQuestion request', {
+        requestId,
         solutionId: args?.solutionId,
         stage: args?.stage,
-        answerCount: Object.keys(args?.answers || {}).length
+        answerCount: Object.keys(args?.answers || {}).length,
       });
 
       // Input validation is handled automatically by MCP SDK with Zod schema
@@ -664,8 +779,8 @@ export async function handleAnswerQuestionTool(
             suggestedActions: [
               'Verify the solution ID is correct',
               'Ensure the solution was created by the recommend tool',
-              'Check that the session has not expired'
-            ]
+              'Check that the session has not expired',
+            ],
           }
         );
       }
@@ -673,14 +788,18 @@ export async function handleAnswerQuestionTool(
       let solution: SolutionData | SolutionWithQuestions = session.data;
       logger.debug('Solution loaded successfully', {
         solutionId: args.solutionId,
-        hasQuestions: !!solution.questions
+        hasQuestions: !!solution.questions,
       });
-      
+
       // Stage-based validation and workflow
       const stageState = getCurrentStage(solution);
-      
+
       // Validate stage transition
-      const transitionResult = validateStageTransition(stageState.currentStage, args.stage as Stage, solution);
+      const transitionResult = validateStageTransition(
+        stageState.currentStage,
+        args.stage as Stage,
+        solution
+      );
       if (!transitionResult.valid) {
         const response = {
           status: 'stage_error',
@@ -690,38 +809,47 @@ export async function handleAnswerQuestionTool(
           received: args.stage,
           message: transitionResult.error,
           nextStage: stageState.nextStage,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
-        
+
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(response, null, 2)
-            }
-          ]
+              text: JSON.stringify(response, null, 2),
+            },
+          ],
         };
       }
 
       // Validate answers against questions for the requested stage
-      const stageQuestions = getQuestionsForStage(solution, args.stage as Stage);
+      const stageQuestions = getQuestionsForStage(
+        solution,
+        args.stage as Stage
+      );
       const validationErrors: string[] = [];
-      
+
       for (const [questionId, answer] of Object.entries(args.answers)) {
         // For open stage, handle special case since open question doesn't have 'id' property
         if (args.stage === 'open') {
           // Only allow 'open' as the question ID for open stage
           if (questionId !== 'open') {
-            validationErrors.push(`Invalid question ID '${questionId}' for open stage. Use "open" as the key, e.g., {"open": "add persistent storage"}.`);
+            validationErrors.push(
+              `Invalid question ID '${questionId}' for open stage. Use "open" as the key, e.g., {"open": "add persistent storage"}.`
+            );
             continue;
           }
           // Skip further validation for open stage as it doesn't follow Question interface
           continue;
         }
-        
-        const question = stageQuestions.find(q => q.id === questionId) as Question | undefined;
+
+        const question = stageQuestions.find(q => q.id === questionId) as
+          | Question
+          | undefined;
         if (!question) {
-          validationErrors.push(`Unknown question ID '${questionId}' for stage '${args.stage}'`);
+          validationErrors.push(
+            `Unknown question ID '${questionId}' for stage '${args.stage}'`
+          );
           continue;
         }
 
@@ -730,7 +858,7 @@ export async function handleAnswerQuestionTool(
           validationErrors.push(error);
         }
       }
-      
+
       if (validationErrors.length > 0) {
         const response = {
           status: 'stage_error',
@@ -739,19 +867,19 @@ export async function handleAnswerQuestionTool(
           validationErrors,
           currentStage: args.stage,
           message: 'Answer validation failed for stage questions',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
-        
+
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(response, null, 2)
-            }
-          ]
+              text: JSON.stringify(response, null, 2),
+            },
+          ],
         };
       }
-      
+
       // Update solution with answers for the current stage
       if (args.stage === 'open') {
         // Handle open question
@@ -767,9 +895,12 @@ export async function handleAnswerQuestionTool(
             question.answer = answer;
           }
         }
-        
+
         // If empty answers provided for skippable stage, mark all questions as skipped
-        if (Object.keys(args.answers).length === 0 && (args.stage === 'basic' || args.stage === 'advanced')) {
+        if (
+          Object.keys(args.answers).length === 0 &&
+          (args.stage === 'basic' || args.stage === 'advanced')
+        ) {
           for (const question of stageQuestions) {
             if (question.answer === undefined) {
               question.answer = null; // Mark as explicitly skipped
@@ -777,91 +908,119 @@ export async function handleAnswerQuestionTool(
           }
         }
       }
-      
+
       // Save solution with answers
       sessionManager.replaceSession(args.solutionId, solution);
       logger.info('Solution updated with stage answers', {
         solutionId: args.solutionId,
         stage: args.stage,
-        answerCount: Object.keys(args.answers).length
+        answerCount: Object.keys(args.answers).length,
       });
 
       // Handle open stage completion (triggers manifest generation)
       if (args.stage === 'open') {
         const openAnswer = args.answers.open;
-        
+
         // Enhance solution with AI analysis if open answer provided
         if (openAnswer && openAnswer !== 'N/A') {
           try {
             logger.info('Starting AI enhancement based on open question', {
               solutionId: args.solutionId,
-              openAnswer
+              openAnswer,
             });
-            
-            solution = await enhanceSolutionWithOpenAnswer(solution, String(openAnswer), { requestId, logger, dotAI }, args.interaction_id);
+
+            solution = await enhanceSolutionWithOpenAnswer(
+              solution,
+              String(openAnswer),
+              { requestId, logger, dotAI },
+              args.interaction_id
+            );
 
             // Save enhanced solution
-            sessionManager.replaceSession(args.solutionId, solution as SolutionData);
+            sessionManager.replaceSession(
+              args.solutionId,
+              solution as SolutionData
+            );
             logger.info('Enhanced solution saved', {
               solutionId: args.solutionId,
-              hasOpenAnswer: !!openAnswer
+              hasOpenAnswer: !!openAnswer,
             });
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
+
             // Check if this is a capability gap error (should fail the entire operation)
-            if (errorMessage.includes('Enhancement capability gap') || errorMessage.includes('capability_gap') || (error instanceof Error && error.name === 'CapabilityGapError')) {
-              logger.error('Capability gap detected, failing operation', error as Error);
-              
+            if (
+              errorMessage.includes('Enhancement capability gap') ||
+              errorMessage.includes('capability_gap') ||
+              (error instanceof Error && error.name === 'CapabilityGapError')
+            ) {
+              logger.error(
+                'Capability gap detected, failing operation',
+                error as Error
+              );
+
               // Return structured error response instead of throwing
               const errorResponse = {
                 status: 'enhancement_error',
                 solutionId: args.solutionId,
                 error: 'capability_gap',
-                message: 'The selected solution cannot support the requested enhancement.',
+                message:
+                  'The selected solution cannot support the requested enhancement.',
                 details: errorMessage,
-                guidance: 'Please start over and select a different solution that supports your requirements.',
+                guidance:
+                  'Please start over and select a different solution that supports your requirements.',
                 suggestedAction: 'restart_with_different_solution',
                 availableAlternatives: [
                   {
                     solutionId: 'sol_2025-07-12T172050_a685cdeb1427',
-                    description: 'Standard Kubernetes Pattern (Deployment + Service + Ingress) with full configuration flexibility'
-                  }
+                    description:
+                      'Standard Kubernetes Pattern (Deployment + Service + Ingress) with full configuration flexibility',
+                  },
                 ],
-                agentInstructions: 'CAPABILITY GAP DETECTED: The selected solution cannot fulfill the user\'s requirements. Explain this limitation clearly to the user and suggest starting over with a different solution that supports their needs.',
-                timestamp: new Date().toISOString()
+                agentInstructions:
+                  "CAPABILITY GAP DETECTED: The selected solution cannot fulfill the user's requirements. Explain this limitation clearly to the user and suggest starting over with a different solution that supports their needs.",
+                timestamp: new Date().toISOString(),
               };
-              
+
               return {
                 content: [
                   {
                     type: 'text',
-                    text: JSON.stringify(errorResponse, null, 2)
-                  }
-                ]
+                    text: JSON.stringify(errorResponse, null, 2),
+                  },
+                ],
               };
             }
-            
+
             // For other errors (AI service issues, parsing errors), continue with original solution
-            logger.error('AI enhancement failed due to service issue, continuing with original solution', error as Error);
-            
+            logger.error(
+              'AI enhancement failed due to service issue, continuing with original solution',
+              error as Error
+            );
+
             // Log the enhancement failure but continue with original solution
-            logger.warn('Proceeding with original solution after AI enhancement failure', {
-              solutionId: args.solutionId,
-              error: errorMessage,
-              fallbackApproach: 'using_original_solution'
-            });
+            logger.warn(
+              'Proceeding with original solution after AI enhancement failure',
+              {
+                solutionId: args.solutionId,
+                error: errorMessage,
+                fallbackApproach: 'using_original_solution',
+              }
+            );
           }
         }
-        
+
         // Extract all user answers for handoff
-        const userAnswers = extractUserAnswers(solution as unknown as SolutionBase);
+        const userAnswers = extractUserAnswers(
+          solution as unknown as SolutionBase
+        );
 
         // Update session with workflow state - all questions complete
         sessionManager.updateSession(args.solutionId, {
           stage: 'questions',
           currentQuestionStage: 'open',
-          nextQuestionStage: null
+          nextQuestionStage: null,
         });
 
         const response = {
@@ -873,37 +1032,41 @@ export async function handleAnswerQuestionTool(
             type: solution.type || 'single',
             description: solution.description || '',
             userAnswers: userAnswers,
-            hasOpenRequirements: !!(openAnswer && openAnswer !== 'N/A')
+            hasOpenRequirements: !!(openAnswer && openAnswer !== 'N/A'),
           },
           nextAction: 'Call recommend tool with stage: generateManifests',
-          guidance: 'Configuration complete. Ready to generate Kubernetes manifests for deployment.',
-          agentInstructions: 'All configuration stages are now complete. You may proceed to generate Kubernetes manifests using the generateManifests tool.',
-          timestamp: new Date().toISOString()
+          guidance:
+            'Configuration complete. Ready to generate Kubernetes manifests for deployment.',
+          agentInstructions:
+            'All configuration stages are now complete. You may proceed to generate Kubernetes manifests using the generateManifests tool.',
+          timestamp: new Date().toISOString(),
         };
 
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(response, null, 2)
-            }
-          ]
+              text: JSON.stringify(response, null, 2),
+            },
+          ],
         };
       }
-      
+
       // Regular stage flow: determine next stage and return questions
       const newStageState = getCurrentStage(solution);
 
       // For Helm solutions, if all stages are complete, return ready for manifest generation
       // This happens when advanced stage is completed (open stage is skipped for Helm)
       if (newStageState.isComplete && isHelmSolution(solution)) {
-        const userAnswers = extractUserAnswers(solution as unknown as SolutionBase);
+        const userAnswers = extractUserAnswers(
+          solution as unknown as SolutionBase
+        );
 
         // Update session with workflow state - all questions complete (Helm)
         sessionManager.updateSession(args.solutionId, {
           stage: 'questions',
           currentQuestionStage: 'advanced',
-          nextQuestionStage: null
+          nextQuestionStage: null,
         });
 
         const completionResponse = {
@@ -915,32 +1078,37 @@ export async function handleAnswerQuestionTool(
             type: solution.type || 'helm',
             description: solution.description || '',
             userAnswers: userAnswers,
-            hasOpenRequirements: false
+            hasOpenRequirements: false,
           },
           nextAction: 'Call recommend tool with stage: generateManifests',
-          guidance: 'All configuration stages are complete. Ready to generate Helm values.yaml for deployment.',
-          agentInstructions: 'All configuration stages are now complete. You may proceed to generate Helm values using the generateManifests tool.',
-          timestamp: new Date().toISOString()
+          guidance:
+            'All configuration stages are complete. Ready to generate Helm values.yaml for deployment.',
+          agentInstructions:
+            'All configuration stages are now complete. You may proceed to generate Helm values using the generateManifests tool.',
+          timestamp: new Date().toISOString(),
         };
 
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(completionResponse, null, 2)
-            }
-          ]
+              text: JSON.stringify(completionResponse, null, 2),
+            },
+          ],
         };
       }
 
       // If stage is complete, move to next stage
-      const nextStageQuestions = getQuestionsForStage(solution, newStageState.currentStage);
+      const nextStageQuestions = getQuestionsForStage(
+        solution,
+        newStageState.currentStage
+      );
 
       // Update session with workflow state - moving to next question stage
       sessionManager.updateSession(args.solutionId, {
         stage: 'questions',
         currentQuestionStage: newStageState.currentStage,
-        nextQuestionStage: newStageState.nextStage
+        nextQuestionStage: newStageState.nextStage,
       });
 
       const response = {
@@ -950,27 +1118,32 @@ export async function handleAnswerQuestionTool(
         questions: nextStageQuestions,
         nextStage: newStageState.nextStage,
         message: getStageMessage(newStageState.currentStage),
-        guidance: getStageGuidance(newStageState.currentStage, isHelmSolution(solution)),
-        agentInstructions: getAgentInstructions(newStageState.currentStage, isHelmSolution(solution)),
+        guidance: getStageGuidance(
+          newStageState.currentStage,
+          isHelmSolution(solution)
+        ),
+        agentInstructions: getAgentInstructions(
+          newStageState.currentStage,
+          isHelmSolution(solution)
+        ),
         nextAction: `Call recommend tool with stage: answerQuestion:${newStageState.currentStage}`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(response, null, 2)
-          }
-        ]
+            text: JSON.stringify(response, null, 2),
+          },
+        ],
       };
     },
     {
       operation: 'answer_question',
       component: 'AnswerQuestionTool',
       requestId,
-      input: args
+      input: args,
     }
   );
 }
-

@@ -90,18 +90,26 @@ export class PluginManager {
     try {
       content = readFileSync(PLUGINS_CONFIG_PATH, 'utf-8');
     } catch (err) {
-      throw new Error(`Failed to read plugin config at ${PLUGINS_CONFIG_PATH}: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(
+        `Failed to read plugin config at ${PLUGINS_CONFIG_PATH}: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err }
+      );
     }
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(content);
     } catch (err) {
-      throw new Error(`Invalid JSON in plugin config at ${PLUGINS_CONFIG_PATH}: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(
+        `Invalid JSON in plugin config at ${PLUGINS_CONFIG_PATH}: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err }
+      );
     }
 
     if (!Array.isArray(parsed)) {
-      throw new Error(`Plugin config at ${PLUGINS_CONFIG_PATH} must be an array, got ${typeof parsed}`);
+      throw new Error(
+        `Plugin config at ${PLUGINS_CONFIG_PATH} must be an array, got ${typeof parsed}`
+      );
     }
 
     return parsed.map((p, index) => {
@@ -109,7 +117,9 @@ export class PluginManager {
         throw new Error(`Plugin at index ${index} must be an object`);
       }
       if (!p.url || typeof p.url !== 'string') {
-        throw new Error(`Plugin at index ${index} (${p.name || 'unnamed'}) is missing required 'url' field`);
+        throw new Error(
+          `Plugin at index ${index} (${p.name || 'unnamed'}) is missing required 'url' field`
+        );
       }
       return {
         name: p.name || `plugin-${index}`,
@@ -147,11 +157,11 @@ export class PluginManager {
 
     this.logger.info('Starting plugin discovery', {
       pluginCount: configs.length,
-      plugins: configs.map((c) => c.name),
+      plugins: configs.map(c => c.name),
     });
 
     const results = await Promise.allSettled(
-      configs.map((config) => this.discoverPluginQuick(config))
+      configs.map(config => this.discoverPluginQuick(config))
     );
 
     const failed: Array<{ name: string; error: string }> = [];
@@ -159,10 +169,15 @@ export class PluginManager {
 
     results.forEach((result, index) => {
       const config = configs[index];
-      if (result.status === 'rejected' || (result.status === 'fulfilled' && !result.value)) {
+      if (
+        result.status === 'rejected' ||
+        (result.status === 'fulfilled' && !result.value)
+      ) {
         const error =
           result.status === 'rejected'
-            ? (result.reason instanceof Error ? result.reason.message : String(result.reason))
+            ? result.reason instanceof Error
+              ? result.reason.message
+              : String(result.reason)
             : 'Discovery failed';
         failed.push({ name: config.name, error });
 
@@ -177,14 +192,14 @@ export class PluginManager {
 
     if (failed.length > 0) {
       this.logger.warn('Some plugins failed initial discovery', {
-        failed: failed.map((f) => f.name),
-        willRetryInBackground: this.pendingPlugins.map((p) => p.name),
+        failed: failed.map(f => f.name),
+        willRetryInBackground: this.pendingPlugins.map(p => p.name),
       });
     }
 
     if (requiredFailed.length > 0) {
       throw new PluginDiscoveryError(
-        `Required plugins failed to discover: ${requiredFailed.map((f) => f.name).join(', ')}`,
+        `Required plugins failed to discover: ${requiredFailed.map(f => f.name).join(', ')}`,
         requiredFailed
       );
     }
@@ -210,7 +225,7 @@ export class PluginManager {
 
     this.backgroundRetryStartTime = Date.now();
     this.logger.info('Starting background plugin discovery', {
-      pendingPlugins: this.pendingPlugins.map((p) => p.name),
+      pendingPlugins: this.pendingPlugins.map(p => p.name),
       retryIntervalMs: BACKGROUND_RETRY_INTERVAL_MS,
       maxDurationMs: BACKGROUND_RETRY_MAX_DURATION_MS,
     });
@@ -226,7 +241,7 @@ export class PluginManager {
       clearTimeout(this.backgroundRetryTimer);
       this.backgroundRetryTimer = null;
       this.logger.info('Stopped background plugin discovery', {
-        remainingPending: this.pendingPlugins.map((p) => p.name),
+        remainingPending: this.pendingPlugins.map(p => p.name),
       });
     }
     this.backgroundRetryStartTime = null;
@@ -236,7 +251,7 @@ export class PluginManager {
    * Get pending plugins that are still awaiting discovery
    */
   getPendingPlugins(): string[] {
-    return this.pendingPlugins.map((p) => p.name);
+    return this.pendingPlugins.map(p => p.name);
   }
 
   /**
@@ -265,7 +280,7 @@ export class PluginManager {
       if (elapsed >= BACKGROUND_RETRY_MAX_DURATION_MS) {
         this.logger.warn('Background plugin discovery timed out', {
           elapsedMs: elapsed,
-          remainingPending: this.pendingPlugins.map((p) => p.name),
+          remainingPending: this.pendingPlugins.map(p => p.name),
         });
         this.stopBackgroundDiscovery();
         return;
@@ -352,12 +367,13 @@ export class PluginManager {
         this.logger.info('Plugin discovered', {
           name: config.name,
           version: response.version,
-          tools: response.tools.map((t) => t.name),
+          tools: response.tools.map(t => t.name),
           attempts: attempt,
         });
         return true;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
 
         if (attempt < maxRetries) {
           this.logger.debug('Plugin discovery attempt failed, retrying', {
@@ -365,13 +381,16 @@ export class PluginManager {
             attempt,
             error: errorMessage,
           });
-          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
         } else {
-          this.logger.debug('Plugin discovery failed, will retry in background', {
-            plugin: config.name,
-            attempts: maxRetries,
-            error: errorMessage,
-          });
+          this.logger.debug(
+            'Plugin discovery failed, will retry in background',
+            {
+              plugin: config.name,
+              attempts: maxRetries,
+              error: errorMessage,
+            }
+          );
         }
       }
     }
@@ -409,7 +428,7 @@ export class PluginManager {
     if (!plugin) {
       return [];
     }
-    return plugin.tools.map((t) => this.convertToAITool(t));
+    return plugin.tools.map(t => this.convertToAITool(t));
   }
 
   /**
@@ -486,12 +505,22 @@ export class PluginManager {
           if (response.success) {
             // PRD #343: Return only the data field to AI, not the full JSON wrapper
             // This saves tokens and provides cleaner output matching raw command output
-            if (typeof response.result === 'object' && response.result !== null) {
-              const result = response.result as { success?: boolean; data?: unknown; message?: string; error?: string };
+            if (
+              typeof response.result === 'object' &&
+              response.result !== null
+            ) {
+              const result = response.result as {
+                success?: boolean;
+                data?: unknown;
+                message?: string;
+                error?: string;
+              };
               if ('success' in result && 'data' in result) {
                 // Return just the data (raw command output) for successful results
                 // Return error message string for failed results
-                return result.success ? result.data : `Error: ${result.message || result.error || 'Command failed'}`;
+                return result.success
+                  ? result.data
+                  : `Error: ${result.message || result.error || 'Command failed'}`;
               }
             }
             // Fallback for non-standard responses - return result directly
@@ -503,10 +532,14 @@ export class PluginManager {
         } catch (err) {
           // Catch invoke exceptions to prevent tool-loop crashes
           const message = err instanceof Error ? err.message : String(err);
-          this.logger.error('Plugin invokeToolOnPlugin failed with exception', new Error(message), {
-            tool: toolName,
-            plugin: this.getToolPlugin(toolName),
-          });
+          this.logger.error(
+            'Plugin invokeToolOnPlugin failed with exception',
+            new Error(message),
+            {
+              tool: toolName,
+              plugin: this.getToolPlugin(toolName),
+            }
+          );
           return `Error: ${message}`;
         }
       }
@@ -552,7 +585,7 @@ export class PluginManager {
     pendingDiscovery: string[];
     backgroundDiscoveryActive: boolean;
   } {
-    const plugins = Array.from(this.discoveredPlugins.values()).map((p) => ({
+    const plugins = Array.from(this.discoveredPlugins.values()).map(p => ({
       name: p.name,
       version: p.version,
       toolCount: p.tools.length,
@@ -562,7 +595,7 @@ export class PluginManager {
       pluginCount: this.discoveredPlugins.size,
       toolCount: this.toolToPlugin.size,
       plugins,
-      pendingDiscovery: this.pendingPlugins.map((p) => p.name),
+      pendingDiscovery: this.pendingPlugins.map(p => p.name),
       backgroundDiscoveryActive: this.isBackgroundDiscoveryActive(),
     };
   }
