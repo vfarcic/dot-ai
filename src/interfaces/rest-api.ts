@@ -18,6 +18,7 @@ import { handleEmbeddingMigration } from './embedding-migration-handler';
 import {
   handlePromptsListRequest,
   handlePromptsGetRequest,
+  loadAllPrompts,
 } from '../tools/prompts';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { QuerySessionData } from '../tools/query';
@@ -399,6 +400,8 @@ export class RestApiRouter {
         this.handleGetLogs(req, res, requestId, searchParams),
       'GET:/api/v1/prompts': () =>
         this.handlePromptsListRequest(req, res, requestId),
+      'POST:/api/v1/prompts/refresh': () =>
+        this.handlePromptsCacheRefresh(req, res, requestId),
       'POST:/api/v1/prompts/:promptName': () =>
         this.handlePromptsGetRequest(
           req,
@@ -1842,6 +1845,60 @@ export class RestApiRouter {
           : HttpStatus.INTERNAL_SERVER_ERROR,
         isValidationError ? 'VALIDATION_ERROR' : 'PROMPT_GET_ERROR',
         errorMessage
+      );
+    }
+  }
+
+  /**
+   * Handle prompts cache refresh requests (PRD #386)
+   */
+  private async handlePromptsCacheRefresh(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing prompts cache refresh request', { requestId });
+
+      const prompts = await loadAllPrompts(this.logger, undefined, true);
+
+      const hasUserPromptsRepo = !!process.env.DOT_AI_USER_PROMPTS_REPO;
+      const source = hasUserPromptsRepo ? 'built-in+repository' : 'built-in';
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          refreshed: true,
+          promptsLoaded: prompts.length,
+          source,
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Prompts cache refresh completed', {
+        requestId,
+        promptsLoaded: prompts.length,
+        source,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Prompts cache refresh failed',
+        error instanceof Error ? error : new Error(String(error)),
+        { requestId }
+      );
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'PROMPTS_CACHE_REFRESH_ERROR',
+        'Failed to refresh prompts cache'
       );
     }
   }

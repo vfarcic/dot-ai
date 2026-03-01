@@ -39,6 +39,8 @@ import {
   PromptGetResponseSchema,
   PromptGetRequestSchema,
   PromptNotFoundErrorSchema,
+  PromptsCacheRefreshResponseSchema,
+  PromptsCacheRefreshErrorSchema,
   // Visualization schemas
   VisualizationResponseSchema,
   VisualizationNotFoundErrorSchema,
@@ -369,6 +371,16 @@ export const routeDefinitions: RouteDefinition<
     response: PromptsListResponseSchema,
     errorResponses: {
       500: InternalServerErrorSchema,
+    },
+  },
+  {
+    path: '/api/v1/prompts/refresh',
+    method: 'POST',
+    description: 'Force-refresh the prompts cache by pulling latest from the git repository',
+    tags: ['Prompts'],
+    response: PromptsCacheRefreshResponseSchema,
+    errorResponses: {
+      500: PromptsCacheRefreshErrorSchema,
     },
   },
   {
