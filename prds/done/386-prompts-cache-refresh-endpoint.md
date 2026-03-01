@@ -1,6 +1,6 @@
 # PRD #386: REST Endpoint for On-Demand Prompts Cache Refresh
 
-**Status**: Open
+**Status**: Complete (2026-03-01)
 **Priority**: Medium
 **Created**: 2026-02-27
 
@@ -42,7 +42,7 @@ A REST endpoint is the right choice because:
 - [x] Add route definition in `src/interfaces/routes/index.ts` for `POST /api/v1/prompts/refresh`
 - [x] Implement REST handler in `src/interfaces/rest-api.ts` that calls `loadAllPrompts` with `forceRefresh: true`
 - [x] Integration tests passing for the new endpoint
-- [ ] Notify original requester in issue #378 and close it
+- [x] Notify original requester in issue #378 and close it
 - [x] Changelog fragment created
 
 ## Technical Notes
