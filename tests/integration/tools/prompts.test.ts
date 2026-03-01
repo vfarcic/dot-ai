@@ -214,7 +214,7 @@ describe.concurrent('Prompts Integration', () => {
 
     // GitHub API helper to delete a file from the test-prompts repo
     async function deleteFileFromRepo(sha: string): Promise<void> {
-      await fetch(
+      const res = await fetch(
         `https://api.github.com/repos/vfarcic/dot-ai-test-prompts/contents/${testPromptPath}`,
         {
           method: 'DELETE',
