@@ -571,6 +571,11 @@ export class MCPServer {
       issuerUrl: this.issuerUrl,
     }));
 
+    // Dex OIDC callback — receives redirect from Dex after user authenticates (Task 2.3)
+    this.oauthApp.get('/callback', async (req, res) => {
+      await oauthProvider.handleCallback(req, res);
+    });
+
     // Create HTTP transport with session management
     this.httpTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: sessionMode === 'stateful' ? () => randomUUID() : undefined,
@@ -626,6 +631,7 @@ export class MCPServer {
           '/register',
           '/authorize',
           '/token',
+          '/callback',
         ];
         if (oauthPaths.some(p => req.url?.startsWith(p))) {
           res.on('finish', () => endSpan(res.statusCode || 200));

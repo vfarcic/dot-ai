@@ -339,15 +339,15 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] All existing integration tests pass (153/153 — legacy token still works via `verifyAccessToken` fallback)
 
 #### Task 2.3: Dex Integration + Helm Subchart
-- [ ] Create `dex-client.ts` — Dex OIDC communication: authorize URL builder, code exchange, ID token parsing
-- [ ] Implement `provider.authorize()` — store pending auth request, redirect to Dex
-- [ ] Implement `provider.handleCallback()` — exchange Dex code, extract identity, generate dot-ai auth code, redirect to MCP client
-- [ ] Implement `provider.exchangeAuthorizationCode()` — consume auth code, issue JWT with user identity claims
-- [ ] Add `/callback` Express route for Dex OIDC callback
-- [ ] Dex as Helm subchart — no static passwords in chart values
-- [ ] Auto-generate initial admin credentials on `helm install`, output in Helm notes (preserve on upgrade). If `DOT_AI_AUTH_TOKEN` exists, use as initial admin password instead of generating.
-- [ ] Configuration: Dex settings in Helm values, deployment env vars (`DEX_ISSUER_URL`, `DEX_EXTERNAL_URL`, `DEX_CLIENT_ID`, `DEX_CLIENT_SECRET`, `DOT_AI_JWT_SECRET`)
-- [ ] Integration tests: full OAuth flow end-to-end through Dex, token endpoint error handling
+- [x] Create `dex-client.ts` — Dex OIDC communication: authorize URL builder, code exchange, ID token parsing
+- [x] Implement `provider.authorize()` — store pending auth request, redirect to Dex
+- [x] Implement `provider.handleCallback()` — exchange Dex code, extract identity, generate dot-ai auth code, redirect to MCP client
+- [x] Implement `provider.exchangeAuthorizationCode()` — consume auth code, issue JWT with user identity claims
+- [x] Add `/callback` Express route for Dex OIDC callback
+- [x] Dex as Helm subchart — no static passwords in chart values
+- [x] Auto-generate initial admin credentials on `helm install`, output in Helm notes (preserve on upgrade). If `DOT_AI_AUTH_TOKEN` exists, use as initial admin password instead of generating.
+- [x] Configuration: Dex settings in Helm values, deployment env vars (`DEX_ISSUER_URL`, `DEX_EXTERNAL_URL`, `DEX_CLIENT_ID`, `DEX_CLIENT_SECRET`, `DOT_AI_JWT_SECRET`)
+- [x] Integration tests: full OAuth flow end-to-end through Dex, token endpoint error handling
 
 #### Task 2.4: Remove Legacy Auth + Identity in Version Tool
 - [ ] Remove all legacy token auth code (`DOT_AI_AUTH_TOKEN`, token mode config, `src/interfaces/auth.ts`)

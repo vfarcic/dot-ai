@@ -1,0 +1,25 @@
+=== dot-ai installed ===
+
+{{ if .Values.dex.enabled -}}
+OAuth authentication is enabled via Dex OIDC provider.
+
+Initial admin credentials:
+  Email:    admin@dot-ai.local
+  Password: stored in Secret "{{ include "dot-ai.fullname" . }}-dex" key "admin-password"
+
+  Retrieve password:
+    kubectl get secret {{ include "dot-ai.fullname" . }}-dex -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
+
+MCP clients authenticate via OAuth2 Authorization Code flow with PKCE.
+Authorization server metadata:
+  {{ include "dot-ai.externalUrl" . }}/.well-known/oauth-authorization-server
+
+{{- if .Values.dex.connectors }}
+
+Configured IdP connectors: {{ len .Values.dex.connectors }}
+{{- end }}
+{{ else -}}
+Authentication: Legacy bearer token mode.
+  Set secrets.auth.token in values.yaml or create the Secret externally.
+  Enable dex.enabled=true for OAuth/OIDC authentication.
+{{ end -}}

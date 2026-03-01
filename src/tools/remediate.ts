@@ -822,42 +822,63 @@ Validation task: ${validationIntent}
 
 IMPORTANT: You MUST respond with the final JSON analysis format as specified in your instructions. Verify the remediation was successful and return your analysis as JSON with issueStatus set to "resolved" if fixed, or "active" if issues remain.`;
 
-      const validationInput = {
+      // Run validation via conductInvestigation() directly (not handleRemediateTool)
+      // to avoid creating a new session with mode:'manual' which always returns awaiting_user_approval
+      const validationSession = sessionManager.createSession({
+        toolName: 'remediate',
         issue: validationIssue,
-        executedCommands: executedCommands,
-        interaction_id: currentInteractionId || session.data.interaction_id, // Use current interaction_id for validation
-      };
+        mode: session.data.mode,
+        status: 'investigating',
+        interaction_id: currentInteractionId || session.data.interaction_id,
+      });
 
-      // Recursive call to main function for validation (PRD #359: uses unified registry)
-      const validationResponse = await handleRemediateTool(validationInput);
-      const validationData = JSON.parse(validationResponse.content[0].text);
+      const validationAiProvider = createAIProvider();
+      const validationOutput = await conductInvestigation(
+        validationSession,
+        sessionManager,
+        validationAiProvider,
+        logger,
+        requestId,
+        true, // isValidation
+        currentInteractionId || session.data.interaction_id
+      );
 
-      // If validation discovered new issues, enhance with execution context
-      if (validationData.status === 'awaiting_user_approval') {
+      const validationResolved = validationOutput.status === 'success';
+
+      // If validation discovered remaining issues, enhance with execution context
+      if (!validationResolved) {
         logger.info(
-          'Validation discovered new issues, enhancing response with execution context',
+          'Validation discovered remaining issues, enhancing response with execution context',
           {
             requestId,
             sessionId: session.sessionId,
-            newIssueConfidence: validationData.analysis?.confidence,
+            validationStatus: validationOutput.status,
+            newIssueConfidence: validationOutput.analysis?.confidence,
           }
         );
 
-        // Enhance validation response with execution context
-        validationData.executed = true;
-        validationData.results = results;
-        validationData.executedCommands = results.map(r => r.action);
-        validationData.previousExecution = {
-          sessionId: session.sessionId,
-          summary: `Previously executed ${results.length} remediation actions`,
-          actions: finalAnalysis.remediation.actions,
+        const enhancedResponse = {
+          ...validationOutput,
+          status: 'success' as const,
+          executed: true,
+          results: results,
+          executedCommands: results.map(r => r.action),
+          previousExecution: {
+            sessionId: session.sessionId,
+            summary: `Previously executed ${results.length} remediation actions`,
+            actions: finalAnalysis.remediation.actions,
+          },
+          validation: {
+            success: false,
+            summary: 'Validation found remaining issues after remediation',
+          },
         };
 
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(validationData, null, 2),
+              text: JSON.stringify(enhancedResponse, null, 2),
             },
           ],
         };
@@ -869,25 +890,24 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
         {
           requestId,
           sessionId: session.sessionId,
-          validationStatus: validationData.status,
+          validationStatus: validationOutput.status,
         }
       );
 
-      // Create success response with execution context
       const successResponse = {
         status: 'success',
         sessionId: session.sessionId,
         executed: true,
         results: results,
         executedCommands: results.map(r => r.action),
-        analysis: validationData.analysis,
+        analysis: validationOutput.analysis,
         remediation: {
-          summary: `Successfully executed ${results.length} remediation actions. ${validationData.remediation.summary}`,
+          summary: `Successfully executed ${results.length} remediation actions. ${validationOutput.remediation?.summary || 'Issue resolved.'}`,
           actions: finalAnalysis.remediation.actions,
           risk: finalAnalysis.remediation.risk,
         },
-        investigation: validationData.investigation,
-        validationIntent: validationData.validationIntent,
+        investigation: validationOutput.investigation,
+        validationIntent: validationOutput.validationIntent,
         guidance: `✅ REMEDIATION COMPLETE: Issue has been successfully resolved through executed commands.`,
         agentInstructions: `1. Show user that the issue has been successfully resolved\n2. Display the actual kubectl commands that were executed (from remediation.actions[].command field)\n3. Show execution results with success/failure status for each command\n4. Show the validation results confirming the fix worked\n5. No further action required`,
         message: `Issue successfully resolved. Executed ${results.length} remediation actions and validated the fix.`,

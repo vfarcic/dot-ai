@@ -81,6 +81,65 @@ Supports two modes:
   - Deployed: image + port → auto-generates endpoint URL
   - External: endpoint → uses provided URL
 */}}
+{{/*
+Dex external host — derived from the main ingress/gateway host.
+Prepends "dex." to the main host (e.g., dot-ai.example.com → dex.dot-ai.example.com).
+*/}}
+{{- define "dot-ai.dexExternalHost" -}}
+{{- $host := "" -}}
+{{- if .Values.ingress.enabled -}}
+  {{- $host = .Values.ingress.host -}}
+{{- else if .Values.gateway.listeners.http.hostname -}}
+  {{- $host = .Values.gateway.listeners.http.hostname -}}
+{{- else if .Values.gateway.listeners.https.hostname -}}
+  {{- $host = .Values.gateway.listeners.https.hostname -}}
+{{- end -}}
+{{- if $host -}}
+dex.{{ $host }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Dex external URL — full URL including scheme and optional port.
+Used as the Dex issuer URL and for browser redirects.
+*/}}
+{{- define "dot-ai.dexExternalUrl" -}}
+{{- $host := include "dot-ai.dexExternalHost" . -}}
+{{- if $host -}}
+{{- if .Values.ingress.tls.enabled -}}
+https://{{ $host }}
+{{- else -}}
+http://{{ $host }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+dot-ai external URL — full URL of the main MCP server.
+Used for OAuth callback redirect URI.
+*/}}
+{{- define "dot-ai.externalUrl" -}}
+{{- if .Values.ingress.enabled -}}
+  {{- if .Values.ingress.tls.enabled -}}
+https://{{ .Values.ingress.host }}
+  {{- else -}}
+http://{{ .Values.ingress.host }}
+  {{- end -}}
+{{- else if .Values.gateway.listeners.https.hostname -}}
+https://{{ .Values.gateway.listeners.https.hostname }}
+{{- else if .Values.gateway.listeners.http.hostname -}}
+http://{{ .Values.gateway.listeners.http.hostname }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Dex in-cluster token endpoint — for server-to-server token exchange.
+The MCP server pod uses this URL (not the external one) to talk to Dex.
+*/}}
+{{- define "dot-ai.dexTokenEndpoint" -}}
+http://{{ .Release.Name }}-dex.{{ .Release.Namespace }}.svc.cluster.local:5556/token
+{{- end -}}
+
 {{- define "dot-ai.pluginsConfig" -}}
 {{- $plugins := list -}}
 {{- range $name, $config := .Values.plugins -}}

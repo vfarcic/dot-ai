@@ -91,10 +91,15 @@ export interface TokenResponse {
 
 /**
  * Dex OIDC provider configuration.
+ *
+ * Two separate URLs are needed because in Kubernetes the MCP server pod
+ * can't reach Dex via the external ingress hostname (it resolves to
+ * the pod itself). Browser redirects use issuerUrl (external); server-
+ * to-server token exchange uses tokenEndpoint (in-cluster service URL).
  */
 export interface DexConfig {
-  issuerUrl: string;
-  externalUrl: string;
+  issuerUrl: string;       // External Dex URL (for browser authorize redirects)
+  tokenEndpoint: string;   // Dex token endpoint (in-cluster URL for k8s, or issuerUrl/token for local dev)
   clientId: string;
   clientSecret: string;
 }

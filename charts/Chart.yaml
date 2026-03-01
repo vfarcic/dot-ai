@@ -24,3 +24,7 @@ dependencies:
     version: "1.15.5"
     repository: "https://qdrant.github.io/qdrant-helm"
     condition: qdrant.enabled
+  - name: dex
+    version: "0.24.0"
+    repository: "https://charts.dexidp.io"
+    condition: dex.enabled

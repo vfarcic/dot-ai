@@ -1,0 +1,78 @@
+{{/*
+Dex secrets and configuration — auto-generated on first install, preserved on upgrade.
+
+Creates two Secrets:
+1. dot-ai-dex: stores plaintext admin password, client secret, JWT secret
+   (referenced by deployment.yaml for env vars, and by this template for config)
+2. dex: Dex config.yaml consumed by the Dex subchart (configSecret.name: dex)
+
+Both use the SAME generated values — they must be in one template to avoid
+independent randAlphaNum calls producing mismatched credentials.
+*/}}
+{{- if .Values.dex.enabled }}
+{{- $secretName := printf "%s-dex" (include "dot-ai.fullname" .) }}
+{{- $existingSecret := lookup "v1" "Secret" .Release.Namespace $secretName }}
+{{- $jwtSecret := "" }}
+{{- $dexClientSecret := "" }}
+{{- $adminPassword := "" }}
+{{- if $existingSecret }}
+  {{- $jwtSecret = index $existingSecret.data "jwt-secret" | b64dec }}
+  {{- $dexClientSecret = index $existingSecret.data "dex-client-secret" | b64dec }}
+  {{- $adminPassword = index $existingSecret.data "admin-password" | b64dec }}
+{{- else }}
+  {{- $jwtSecret = randAlphaNum 32 }}
+  {{- $dexClientSecret = randAlphaNum 32 }}
+  {{- $adminPassword = randAlphaNum 16 }}
+{{- end }}
+{{- $dexExternalUrl := include "dot-ai.dexExternalUrl" . }}
+{{- $dotAiExternalUrl := include "dot-ai.externalUrl" . }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+type: Opaque
+stringData:
+  jwt-secret: {{ $jwtSecret | quote }}
+  dex-client-secret: {{ $dexClientSecret | quote }}
+  admin-password: {{ $adminPassword | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dex
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  config.yaml: |
+    issuer: {{ $dexExternalUrl }}
+    storage:
+      type: kubernetes
+      config:
+        inCluster: true
+    enablePasswordDB: true
+    oauth2:
+      skipApprovalScreen: true
+      responseTypes:
+        - code
+    staticClients:
+      - id: dot-ai
+        name: "dot-ai MCP Server"
+        secret: {{ $dexClientSecret | quote }}
+        redirectURIs:
+          - "{{ $dotAiExternalUrl }}/callback"
+    staticPasswords:
+      - email: "admin@dot-ai.local"
+        hash: {{ $adminPassword | bcrypt | quote }}
+        username: "admin"
+        userID: "00000000-0000-0000-0000-000000000001"
+    {{- if .Values.dex.connectors }}
+    connectors:
+      {{- toYaml .Values.dex.connectors | nindent 6 }}
+    {{- end }}
+{{- end }}

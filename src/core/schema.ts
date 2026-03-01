@@ -1571,6 +1571,30 @@ ${resourceDetails}`;
         throw new Error('Invalid question structure from AI');
       }
 
+      // Sanitize select/multiselect questions: ensure suggestedAnswer matches options
+      const sanitizeQuestions = (qs: Question[]) => {
+        for (const q of qs) {
+          if (
+            (q.type === 'select' || q.type === 'multiselect') &&
+            q.options &&
+            q.options.length > 0 &&
+            q.suggestedAnswer !== undefined
+          ) {
+            if (q.type === 'select' && !q.options.includes(q.suggestedAnswer as string)) {
+              q.suggestedAnswer = q.options[0];
+            } else if (q.type === 'multiselect' && Array.isArray(q.suggestedAnswer)) {
+              q.suggestedAnswer = (q.suggestedAnswer as string[]).filter(a => q.options!.includes(a));
+              if ((q.suggestedAnswer as string[]).length === 0) {
+                q.suggestedAnswer = [q.options[0]];
+              }
+            }
+          }
+        }
+      };
+      sanitizeQuestions(questions.required as Question[]);
+      sanitizeQuestions(questions.basic as Question[]);
+      sanitizeQuestions(questions.advanced as Question[]);
+
       // Inject packaging questions for capability-based solutions
       return injectPackagingQuestions(questions as QuestionGroup);
     } catch (error) {

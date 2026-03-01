@@ -4,11 +4,11 @@
  * Implements the SDK's OAuthServerProvider interface with:
  * - In-memory client store (clients re-register on restart per MCP spec)
  * - Dual-mode token verification (JWT + legacy DOT_AI_AUTH_TOKEN)
- * - Stub authorize/token methods (Dex integration in Task 2.3)
+ * - Dex OIDC integration for authorize/callback/token flow (Task 2.3)
  */
 
-import { Response } from 'express';
-import { timingSafeEqual } from 'node:crypto';
+import type { Request, Response } from 'express';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
 import type {
   OAuthServerProvider,
@@ -18,12 +18,15 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import {
   ServerError,
   InvalidTokenError,
+  InvalidGrantError,
 } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type {
   OAuthClientInformationFull,
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
-import { verifyJwt, getJwtSecret } from './jwt';
+import { verifyJwt, signJwt, getJwtSecret } from './jwt';
+import type { DexConfig, PendingAuthRequest, AuthorizationCode } from './types';
+import { buildAuthorizeUrl, exchangeDexCode, parseIdToken } from './dex-client';
 
 /**
  * In-memory client store for OAuth registered clients.
@@ -52,49 +55,155 @@ export class DotAIClientsStore implements OAuthRegisteredClientsStore {
   }
 }
 
+/** Max age for pending auth requests (10 minutes). */
+const PENDING_REQUEST_TTL_MS = 10 * 60 * 1000;
+
+/** Max age for authorization codes (5 minutes). */
+const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
+
+/** Separator between session ID and original state in the Dex state param. */
+const STATE_SEPARATOR = '|';
+
 /**
  * OAuth Server Provider for dot-ai.
  *
- * Acts as the OAuth Authorization Server for MCP clients.
+ * Acts as the OAuth Authorization Server for MCP clients. On authorize,
+ * redirects the browser to Dex for authentication, then exchanges the
+ * Dex code for an ID token and issues a dot-ai JWT.
+ *
  * Token verification supports dual-mode: JWT first, legacy token fallback.
- * Authorization flow stubs throw ServerError until Dex is integrated (Task 2.3).
  */
 export class DotAIOAuthProvider implements OAuthServerProvider {
   readonly clientsStore: DotAIClientsStore;
+  private pendingRequests = new Map<string, PendingAuthRequest>();
+  private authCodes = new Map<string, AuthorizationCode>();
+  private dexConfig: DexConfig | null;
+  private dotAiExternalUrl: string;
 
   constructor() {
     this.clientsStore = new DotAIClientsStore();
+    this.dexConfig = this.loadDexConfig();
+    this.dotAiExternalUrl = (process.env.DOT_AI_EXTERNAL_URL || '').replace(/\/$/, '');
   }
 
+  private loadDexConfig(): DexConfig | null {
+    const issuerUrl = process.env.DEX_ISSUER_URL;
+    const clientId = process.env.DEX_CLIENT_ID;
+    const clientSecret = process.env.DEX_CLIENT_SECRET;
+    if (!issuerUrl || !clientId || !clientSecret) {
+      return null;
+    }
+    const tokenEndpoint = process.env.DEX_TOKEN_ENDPOINT
+      || `${issuerUrl.replace(/\/$/, '')}/token`;
+    return { issuerUrl, tokenEndpoint, clientId, clientSecret };
+  }
+
+  /**
+   * Start the authorization flow by redirecting the browser to Dex.
+   *
+   * Stores the pending auth request (PKCE challenge, redirect URI, state)
+   * keyed by a random session ID, then encodes sessionId|originalState
+   * in the Dex state param so the callback can recover the pending request.
+   */
   async authorize(
-    _client: OAuthClientInformationFull,
-    _params: AuthorizationParams,
-    _res: Response
+    client: OAuthClientInformationFull,
+    params: AuthorizationParams,
+    res: Response
   ): Promise<void> {
-    throw new ServerError(
-      'Authorization not available — Dex integration pending (Task 2.3)'
-    );
+    if (!this.dexConfig) {
+      throw new ServerError('Dex not configured (set DEX_ISSUER_URL, DEX_CLIENT_ID, DEX_CLIENT_SECRET)');
+    }
+
+    const sessionId = randomBytes(16).toString('hex');
+
+    const pending: PendingAuthRequest = {
+      clientId: client.client_id,
+      redirectUri: params.redirectUri,
+      codeChallenge: params.codeChallenge,
+      codeChallengeMethod: 'S256',
+      state: params.state ?? '',
+      createdAt: Date.now(),
+    };
+    this.pendingRequests.set(sessionId, pending);
+
+    const dexState = `${sessionId}${STATE_SEPARATOR}${params.state ?? ''}`;
+    const callbackUrl = `${this.dotAiExternalUrl}/callback`;
+
+    const dexAuthUrl = buildAuthorizeUrl(this.dexConfig, {
+      redirectUri: callbackUrl,
+      state: dexState,
+    });
+
+    res.redirect(302, dexAuthUrl);
   }
 
+  /**
+   * Return the PKCE code challenge for a given authorization code.
+   *
+   * Called by the SDK's tokenHandler BEFORE exchangeAuthorizationCode.
+   * Do NOT delete the code here — it is consumed in exchangeAuthorizationCode.
+   */
   async challengeForAuthorizationCode(
     _client: OAuthClientInformationFull,
-    _authorizationCode: string
+    authorizationCode: string
   ): Promise<string> {
-    throw new ServerError(
-      'Not implemented — Dex integration pending (Task 2.3)'
-    );
+    const record = this.authCodes.get(authorizationCode);
+    if (!record) {
+      throw new InvalidGrantError('Authorization code not found or expired');
+    }
+
+    if (Date.now() > record.expiresAt) {
+      this.authCodes.delete(authorizationCode);
+      throw new InvalidGrantError('Authorization code expired');
+    }
+
+    return record.codeChallenge;
   }
 
+  /**
+   * Exchange a dot-ai authorization code for a JWT access token.
+   *
+   * Called by the SDK's tokenHandler AFTER PKCE verification passes.
+   * Consumes the authorization code (one-time use) and signs a JWT
+   * containing the user's identity from the Dex ID token.
+   */
   async exchangeAuthorizationCode(
     _client: OAuthClientInformationFull,
-    _authorizationCode: string,
+    authorizationCode: string,
     _codeVerifier?: string,
     _redirectUri?: string,
     _resource?: URL
   ): Promise<OAuthTokens> {
-    throw new ServerError(
-      'Token exchange not available — Dex integration pending (Task 2.3)'
-    );
+    const record = this.authCodes.get(authorizationCode);
+    if (!record) {
+      throw new InvalidGrantError('Authorization code not found or expired');
+    }
+
+    if (Date.now() > record.expiresAt) {
+      this.authCodes.delete(authorizationCode);
+      throw new InvalidGrantError('Authorization code expired');
+    }
+
+    // Consume the authorization code (one-time use)
+    this.authCodes.delete(authorizationCode);
+
+    const now = Math.floor(Date.now() / 1000);
+    const expiresIn = 3600; // 1 hour
+    const secret = getJwtSecret();
+
+    const accessToken = signJwt({
+      sub: record.userIdentity.userId,
+      email: record.userIdentity.email,
+      groups: record.userIdentity.groups,
+      iat: now,
+      exp: now + expiresIn,
+    }, secret);
+
+    return {
+      access_token: accessToken,
+      token_type: 'bearer',
+      expires_in: expiresIn,
+    };
   }
 
   async exchangeRefreshToken(
@@ -104,6 +213,106 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     _resource?: URL
   ): Promise<OAuthTokens> {
     throw new ServerError('Refresh tokens not supported');
+  }
+
+  /**
+   * Handle the Dex OIDC callback after user authenticates.
+   *
+   * Receives the redirect from Dex with ?code=DEX_CODE&state=sessionId|originalState.
+   * Exchanges the Dex code for an ID token, extracts user identity,
+   * creates a dot-ai authorization code, and redirects to the MCP client.
+   */
+  async handleCallback(req: Request, res: Response): Promise<void> {
+    const dexCode = req.query.code as string | undefined;
+    const encodedState = req.query.state as string | undefined;
+    const error = req.query.error as string | undefined;
+
+    if (error) {
+      const sessionId = encodedState?.split(STATE_SEPARATOR)[0];
+      const pending = sessionId ? this.pendingRequests.get(sessionId) : undefined;
+      if (pending) {
+        this.pendingRequests.delete(sessionId!);
+        const errUrl = new URL(pending.redirectUri);
+        errUrl.searchParams.set('error', 'access_denied');
+        errUrl.searchParams.set('error_description',
+          (req.query.error_description as string) ?? 'Authentication failed');
+        if (pending.state) errUrl.searchParams.set('state', pending.state);
+        res.redirect(302, errUrl.toString());
+      } else {
+        res.status(400).send('Authentication failed and no pending session found');
+      }
+      return;
+    }
+
+    if (!dexCode || !encodedState) {
+      res.status(400).send('Missing code or state parameter');
+      return;
+    }
+
+    const separatorIndex = encodedState.indexOf(STATE_SEPARATOR);
+    if (separatorIndex === -1) {
+      res.status(400).send('Invalid state parameter');
+      return;
+    }
+    const sessionId = encodedState.slice(0, separatorIndex);
+    const originalState = encodedState.slice(separatorIndex + 1);
+
+    const pending = this.pendingRequests.get(sessionId);
+    if (!pending) {
+      res.status(400).send('No pending auth request for this session (expired or invalid)');
+      return;
+    }
+
+    if (Date.now() - pending.createdAt > PENDING_REQUEST_TTL_MS) {
+      this.pendingRequests.delete(sessionId);
+      res.status(400).send('Auth request expired');
+      return;
+    }
+
+    this.pendingRequests.delete(sessionId);
+
+    if (!this.dexConfig) {
+      res.status(500).send('Dex not configured');
+      return;
+    }
+
+    try {
+      const callbackUrl = `${this.dotAiExternalUrl}/callback`;
+      const { idToken } = await exchangeDexCode(this.dexConfig, dexCode, callbackUrl);
+      const claims = parseIdToken(idToken);
+
+      const userIdentity = {
+        userId: claims.sub,
+        email: claims.email,
+        groups: claims.groups ?? [],
+        source: 'oauth' as const,
+      };
+
+      const dotAiCode = randomBytes(32).toString('hex');
+      const authCode: AuthorizationCode = {
+        code: dotAiCode,
+        clientId: pending.clientId,
+        redirectUri: pending.redirectUri,
+        codeChallenge: pending.codeChallenge,
+        codeChallengeMethod: 'S256',
+        userIdentity,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + AUTH_CODE_TTL_MS,
+      };
+      this.authCodes.set(dotAiCode, authCode);
+
+      const redirectUrl = new URL(pending.redirectUri);
+      redirectUrl.searchParams.set('code', dotAiCode);
+      if (originalState) redirectUrl.searchParams.set('state', originalState);
+
+      res.redirect(302, redirectUrl.toString());
+    } catch {
+      const errUrl = new URL(pending.redirectUri);
+      errUrl.searchParams.set('error', 'server_error');
+      errUrl.searchParams.set('error_description', 'Failed to exchange code with identity provider');
+      if (originalState) errUrl.searchParams.set('state', originalState);
+      res.redirect(302, errUrl.toString());
+    }
   }
 
   /**

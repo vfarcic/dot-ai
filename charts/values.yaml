@@ -237,6 +237,30 @@ localEmbeddings:
       cpu: "1"
       memory: "512Mi"
 
+# Dex OIDC Provider (PRD #380)
+# Deploys Dex as the identity provider for OAuth2/OIDC authentication.
+# MCP clients authenticate via Dex and receive JWT access tokens.
+# Initial admin credentials are auto-generated on install (shown in Helm notes).
+# Routing (Ingress/Gateway) is automatically derived from the main server's config.
+dex:
+  enabled: true                       # Deploy Dex for OAuth authentication
+  # Production IdP connectors (optional)
+  # When configured, users authenticate via their organization's identity provider.
+  # See https://dexidp.io/docs/connectors/ for available connectors.
+  connectors: []
+  # Example:
+  # connectors:
+  #   - type: github
+  #     id: github
+  #     name: GitHub
+  #     config:
+  #       clientID: "xxx"
+  #       clientSecret: "xxx"
+  #       redirectURI: "https://dex.example.com/callback"
+  configSecret:
+    create: false
+    name: dex
+
 # Plugin configuration (PRD #343)
 # Plugins are configured as a map, allowing users to customize defaults or add their own.
 # Two modes:
