@@ -66,13 +66,6 @@ import {
   handleManageKnowledgeTool,
   type ManageKnowledgeInput,
 } from '../tools/manage-knowledge';
-import {
-  VALIDATE_DOCS_TOOL_NAME,
-  VALIDATE_DOCS_TOOL_DESCRIPTION,
-  VALIDATE_DOCS_TOOL_INPUT_SCHEMA,
-  handleValidateDocsTool,
-  ValidateDocsInput,
-} from '../tools/validate-docs';
 
 import {
   handlePromptsListRequest,
@@ -239,28 +232,20 @@ export class MCPServer {
   ): void {
     // MCP handler: uses actual client info from MCP handshake (e.g., "claude-code", "cursor")
     const mcpTracedHandler = async (args: ToolArgs) => {
-      return await withToolTracing(name, args, handler, {
-        mcpClient: this.mcpClientInfo,
-      });
+      return await withToolTracing(name, args, handler, { mcpClient: this.mcpClientInfo });
     };
 
     // REST handler: uses "http" as client identifier for REST API calls
     const restTracedHandler = async (args: ToolArgs) => {
-      return await withToolTracing(name, args, handler, {
-        mcpClient: { name: 'http', version: 'rest-api' },
-      });
+      return await withToolTracing(name, args, handler, { mcpClient: { name: 'http', version: 'rest-api' } });
     };
 
     // Register MCP handler with MCP server
     /* eslint-disable @typescript-eslint/no-explicit-any -- MCP SDK type compatibility */
-    this.server.registerTool(
-      name,
-      {
-        description,
-        inputSchema: inputSchema as any,
-      },
-      mcpTracedHandler as any
-    );
+    this.server.registerTool(name, {
+      description,
+      inputSchema: inputSchema as any
+    }, mcpTracedHandler as any);
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     // Register REST handler with REST registry
@@ -270,7 +255,7 @@ export class MCPServer {
       inputSchema: inputSchema as Record<string, z.ZodSchema>,
       handler: restTracedHandler as (...args: unknown[]) => Promise<unknown>,
       category,
-      tags,
+      tags
     });
   }
 
@@ -291,9 +276,7 @@ export class MCPServer {
           requestId,
         });
         if (!this.pluginManager) {
-          throw new Error(
-            'Plugin system not available. Recommend tool requires agentic-tools plugin.'
-          );
+          throw new Error('Plugin system not available. Recommend tool requires agentic-tools plugin.');
         }
         return await handleRecommendTool(
           args,
@@ -354,13 +337,12 @@ export class MCPServer {
       REMEDIATE_TOOL_INPUT_SCHEMA,
       async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${REMEDIATE_TOOL_NAME} tool request`, {
-          requestId,
-        });
+        this.logger.info(
+          `Processing ${REMEDIATE_TOOL_NAME} tool request`,
+          { requestId }
+        );
         if (!isPluginInitialized()) {
-          throw new Error(
-            'Plugin system not available. Remediate tool requires agentic-tools plugin for kubectl operations.'
-          );
+          throw new Error('Plugin system not available. Remediate tool requires agentic-tools plugin for kubectl operations.');
         }
         return await handleRemediateTool(args);
       },
@@ -376,13 +358,12 @@ export class MCPServer {
       OPERATE_TOOL_INPUT_SCHEMA,
       async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${OPERATE_TOOL_NAME} tool request`, {
-          requestId,
-        });
+        this.logger.info(
+          `Processing ${OPERATE_TOOL_NAME} tool request`,
+          { requestId }
+        );
         if (!this.pluginManager) {
-          throw new Error(
-            'Plugin system not available. Operate tool requires agentic-tools plugin for kubectl operations.'
-          );
+          throw new Error('Plugin system not available. Operate tool requires agentic-tools plugin for kubectl operations.');
         }
         return await handleOperateTool(args, this.pluginManager);
       },
@@ -397,9 +378,10 @@ export class MCPServer {
       PROJECT_SETUP_TOOL_INPUT_SCHEMA,
       async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${PROJECT_SETUP_TOOL_NAME} tool request`, {
-          requestId,
-        });
+        this.logger.info(
+          `Processing ${PROJECT_SETUP_TOOL_NAME} tool request`,
+          { requestId }
+        );
         return await handleProjectSetupTool(args, this.logger);
       },
       'Project Setup',
@@ -413,9 +395,10 @@ export class MCPServer {
       QUERY_TOOL_INPUT_SCHEMA,
       async (args: ToolArgs) => {
         const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${QUERY_TOOL_NAME} tool request`, {
-          requestId,
-        });
+        this.logger.info(
+          `Processing ${QUERY_TOOL_NAME} tool request`,
+          { requestId }
+        );
         return await handleQueryTool(args, this.pluginManager);
       },
       'Intelligence',
@@ -444,31 +427,10 @@ export class MCPServer {
       ['knowledge', 'documents', 'ingest', 'semantic', 'search']
     );
 
-    // Register validateDocs tool (PRD #388: Documentation Validation)
-    this.registerTool(
-      VALIDATE_DOCS_TOOL_NAME,
-      VALIDATE_DOCS_TOOL_DESCRIPTION,
-      VALIDATE_DOCS_TOOL_INPUT_SCHEMA,
-      async (args: ToolArgs) => {
-        const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${VALIDATE_DOCS_TOOL_NAME} tool request`, {
-          requestId,
-        });
-        return await handleValidateDocsTool(
-          args as unknown as ValidateDocsInput,
-          this.dotAI,
-          this.logger,
-          requestId
-        );
-      },
-      'Documentation',
-      ['validation', 'docs', 'documentation', 'pod', 'lifecycle', 'discover']
-    );
-
     // NOTE: Plugin tools (kubectl_*, helm_*, shell_exec) are NOT registered as MCP tools.
     // They are internal implementation details used by built-in tools like remediate/query.
     // Plugin tools are invoked via invokePluginTool() from the unified registry.
-    // Only the built-in MCP tools are exposed to clients.
+    // Only the 7 built-in MCP tools are exposed to clients.
 
     const builtInTools = [
       RECOMMEND_TOOL_NAME,
@@ -478,13 +440,11 @@ export class MCPServer {
       OPERATE_TOOL_NAME,
       PROJECT_SETUP_TOOL_NAME,
       QUERY_TOOL_NAME,
-      MANAGE_KNOWLEDGE_TOOL_NAME,
-      VALIDATE_DOCS_TOOL_NAME,
+      MANAGE_KNOWLEDGE_TOOL_NAME
     ];
 
     // Log summary of tool registration
-    const pluginToolCount =
-      this.pluginManager?.getDiscoveredTools().length || 0;
+    const pluginToolCount = this.pluginManager?.getDiscoveredTools().length || 0;
     this.logger.info('Registered tools with McpServer', {
       builtInTools,
       totalRegistered: builtInTools.length,
@@ -515,9 +475,7 @@ export class MCPServer {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type compatibility
     (this.server.server.setRequestHandler as any)(
       GetPromptRequestSchema,
-      async (request: {
-        params?: { name: string; arguments?: Record<string, string> };
-      }) => {
+      async (request: { params?: { name: string; arguments?: Record<string, string> } }) => {
         const requestId = this.generateRequestId();
         this.logger.info('Processing prompts/get request', {
           requestId,
@@ -540,19 +498,14 @@ export class MCPServer {
     // Configure HostProvider if active
     // We use capability detection (duck typing) to avoid strict class dependency
     // and handle potential class loading issues
-    const aiProvider = this.dotAI.ai as {
-      setSamplingHandler?: (handler: SamplingHandler) => void;
-      getProviderType?: () => string;
-    };
+    const aiProvider = this.dotAI.ai as { setSamplingHandler?: (handler: SamplingHandler) => void; getProviderType?: () => string };
 
     if (typeof aiProvider.setSamplingHandler === 'function') {
       this.logger.info('Configuring Host AI Provider with Sampling capability');
       aiProvider.setSamplingHandler(this.handleSamplingRequest.bind(this));
     } else {
       this.logger.info('Using configured AI Provider', {
-        type: aiProvider.getProviderType
-          ? aiProvider.getProviderType()
-          : 'unknown',
+        type: aiProvider.getProviderType ? aiProvider.getProviderType() : 'unknown'
       });
     }
   }
@@ -564,21 +517,18 @@ export class MCPServer {
   ): Promise<SamplingResult> {
     try {
       if (!this.server.server.createMessage) {
-        throw new Error('Server does not support createMessage (sampling)');
+         throw new Error('Server does not support createMessage (sampling)');
       }
-      return (await this.server.server.createMessage(
-        {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type compatibility
-          messages: messages as any,
-          systemPrompt,
-          includeContext: 'none',
-          maxTokens: options?.maxTokens || 4096,
-          ...options,
-        },
-        {
-          timeout: 3600000, // 1 hour timeout for sampling requests
-        }
-      )) as SamplingResult;
+      return await this.server.server.createMessage({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type compatibility
+        messages: messages as any,
+        systemPrompt,
+        includeContext: 'none',
+        maxTokens: options?.maxTokens || 4096,
+        ...options
+      }, {
+        timeout: 3600000 // 1 hour timeout for sampling requests
+      }) as SamplingResult;
     } catch (error) {
       this.logger.error('Sampling request failed', error as Error);
       throw error;
@@ -591,7 +541,7 @@ export class MCPServer {
 
   async start(): Promise<void> {
     this.logger.info('Starting MCP Server', {
-      sessionMode: this.config.sessionMode || 'stateful',
+      sessionMode: this.config.sessionMode || 'stateful'
     });
 
     await this.startHttpTransport();
@@ -599,166 +549,122 @@ export class MCPServer {
   }
 
   private async startHttpTransport(): Promise<void> {
-    const port = process.env.PORT
-      ? parseInt(process.env.PORT)
-      : this.config.port !== undefined
-        ? this.config.port
-        : 3456;
+    const port = process.env.PORT ? parseInt(process.env.PORT) : (this.config.port !== undefined ? this.config.port : 3456);
     const host = process.env.HOST || this.config.host || '0.0.0.0';
-    const sessionMode =
-      process.env.SESSION_MODE || this.config.sessionMode || 'stateful';
-
+    const sessionMode = process.env.SESSION_MODE || this.config.sessionMode || 'stateful';
+    
     this.logger.info('Using HTTP/SSE transport', { port, host, sessionMode });
 
     // Create HTTP transport with session management
     this.httpTransport = new StreamableHTTPServerTransport({
-      sessionIdGenerator:
-        sessionMode === 'stateful' ? () => randomUUID() : undefined,
+      sessionIdGenerator: sessionMode === 'stateful' ? () => randomUUID() : undefined,
       enableJsonResponse: false, // Use SSE for streaming
       onsessioninitialized: (sessionId: string) => {
         this.logger.info('Session initialized', { sessionId });
-      },
+      }
     });
 
     // Connect MCP server to transport
     await this.server.connect(this.httpTransport);
 
     // Create HTTP server
-    this.httpServer = createServer(
-      async (req: IncomingMessage, res: ServerResponse) => {
-        // Create HTTP SERVER span for distributed tracing
-        const { span, endSpan } = createHttpServerSpan(req);
+    this.httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+      // Create HTTP SERVER span for distributed tracing
+      const { span, endSpan } = createHttpServerSpan(req);
 
-        // Execute entire request within the span's context for proper propagation
-        await context.with(trace.setSpan(context.active(), span), async () => {
-          try {
-            this.logger.debug('HTTP request received', {
-              method: req.method,
-              url: req.url,
-              headers: req.headers,
-            });
+      // Execute entire request within the span's context for proper propagation
+      await context.with(trace.setSpan(context.active(), span), async () => {
+        try {
+          this.logger.debug('HTTP request received', {
+            method: req.method,
+            url: req.url,
+            headers: req.headers
+          });
 
-            // Handle CORS for browser-based clients
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader(
-              'Access-Control-Allow-Methods',
-              'GET, POST, DELETE, OPTIONS'
-            );
-            res.setHeader(
-              'Access-Control-Allow-Headers',
-              'Content-Type, X-Session-Id, Authorization'
-            );
+        // Handle CORS for browser-based clients
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Id, Authorization');
 
-            if (req.method === 'OPTIONS') {
-              res.writeHead(204);
-              res.end();
-              endSpan(204);
-              return;
-            }
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204);
+          res.end();
+          endSpan(204);
+          return;
+        }
 
-            // Health check endpoint (unauthenticated, for Kubernetes probes)
-            if (req.url === '/healthz' && req.method === 'GET') {
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ status: 'ok' }));
-              endSpan(200);
-              return;
-            }
+        // Health check endpoint (unauthenticated, for Kubernetes probes)
+        if (req.url === '/healthz' && req.method === 'GET') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok' }));
+          endSpan(200);
+          return;
+        }
 
-            // Check Bearer token authentication (only when DOT_AI_AUTH_TOKEN is set)
-            // Skip authentication for OpenAPI specification endpoint (public documentation)
-            const isOpenApiEndpoint = req.url?.startsWith('/api/v1/openapi');
-            if (!isOpenApiEndpoint) {
-              const authResult = checkBearerAuth(req);
-              if (!authResult.authorized) {
-                this.logger.warn('Authentication failed', {
-                  message: authResult.message,
-                });
-                sendErrorResponse(
-                  res,
-                  401,
-                  'UNAUTHORIZED',
-                  authResult.message || 'Authentication required'
-                );
-                endSpan(401);
-                return;
-              }
-            }
-
-            // Parse request body for POST requests
-            let body: unknown = undefined;
-            if (req.method === 'POST') {
-              body = await this.parseRequestBody(req);
-            }
-
-            // Check if this is a REST API request
-            if (this.restApiRouter.isApiRequest(req.url || '')) {
-              this.logger.debug('Routing to REST API handler', {
-                url: req.url,
-              });
-              // Mark span as REST API request
-              span.setAttribute('request.type', 'rest-api');
-              try {
-                await this.restApiRouter.handleRequest(req, res, body);
-                endSpan(res.statusCode || 200);
-                return;
-              } catch (error) {
-                this.logger.error('REST API request failed', error as Error);
-                if (!res.headersSent) {
-                  sendErrorResponse(
-                    res,
-                    500,
-                    'INTERNAL_ERROR',
-                    'REST API internal server error'
-                  );
-                }
-                endSpan(500);
-                return;
-              }
-            }
-
-            // Handle MCP protocol requests using the transport
-            // Mark span as MCP protocol request
-            span.setAttribute('request.type', 'mcp-protocol');
-            span.updateName('MCP ' + (req.url || '/'));
-            try {
-              await this.httpTransport!.handleRequest(req, res, body);
-              endSpan(res.statusCode || 200);
-            } catch (error) {
-              this.logger.error(
-                'Error handling MCP HTTP request',
-                error as Error
-              );
-              if (!res.headersSent) {
-                sendErrorResponse(
-                  res,
-                  500,
-                  'INTERNAL_ERROR',
-                  'MCP internal server error'
-                );
-              }
-              endSpan(500);
-            }
-          } catch (error) {
-            // Handle any unexpected errors in span creation or request handling
-            this.logger.error(
-              'Unexpected error in HTTP request handler',
-              error as Error
-            );
-            span.recordException(error as Error);
-            endSpan(500);
-
-            if (!res.headersSent) {
-              sendErrorResponse(
-                res,
-                500,
-                'INTERNAL_ERROR',
-                'Internal server error'
-              );
-            }
+        // Check Bearer token authentication (only when DOT_AI_AUTH_TOKEN is set)
+        // Skip authentication for OpenAPI specification endpoint (public documentation)
+        const isOpenApiEndpoint = req.url?.startsWith('/api/v1/openapi');
+        if (!isOpenApiEndpoint) {
+          const authResult = checkBearerAuth(req);
+          if (!authResult.authorized) {
+            this.logger.warn('Authentication failed', { message: authResult.message });
+            sendErrorResponse(res, 401, 'UNAUTHORIZED', authResult.message || 'Authentication required');
+            endSpan(401);
+            return;
           }
-        }); // Close context.with()
-      }
-    );
+        }
+
+        // Parse request body for POST requests
+        let body: unknown = undefined;
+        if (req.method === 'POST') {
+          body = await this.parseRequestBody(req);
+        }
+
+        // Check if this is a REST API request
+        if (this.restApiRouter.isApiRequest(req.url || '')) {
+          this.logger.debug('Routing to REST API handler', { url: req.url });
+          // Mark span as REST API request
+          span.setAttribute('request.type', 'rest-api');
+          try {
+            await this.restApiRouter.handleRequest(req, res, body);
+            endSpan(res.statusCode || 200);
+            return;
+          } catch (error) {
+            this.logger.error('REST API request failed', error as Error);
+            if (!res.headersSent) {
+              sendErrorResponse(res, 500, 'INTERNAL_ERROR', 'REST API internal server error');
+            }
+            endSpan(500);
+            return;
+          }
+        }
+
+        // Handle MCP protocol requests using the transport
+        // Mark span as MCP protocol request
+        span.setAttribute('request.type', 'mcp-protocol');
+        span.updateName('MCP ' + (req.url || '/'));
+        try {
+          await this.httpTransport!.handleRequest(req, res, body);
+          endSpan(res.statusCode || 200);
+        } catch (error) {
+          this.logger.error('Error handling MCP HTTP request', error as Error);
+          if (!res.headersSent) {
+            sendErrorResponse(res, 500, 'INTERNAL_ERROR', 'MCP internal server error');
+          }
+          endSpan(500);
+        }
+        } catch (error) {
+          // Handle any unexpected errors in span creation or request handling
+          this.logger.error('Unexpected error in HTTP request handler', error as Error);
+          span.recordException(error as Error);
+          endSpan(500);
+
+          if (!res.headersSent) {
+            sendErrorResponse(res, 500, 'INTERNAL_ERROR', 'Internal server error');
+          }
+        }
+      }); // Close context.with()
+    });
 
     // Start listening
     await new Promise<void>((resolve, reject) => {
@@ -772,7 +678,7 @@ export class MCPServer {
   private async parseRequestBody(req: IncomingMessage): Promise<unknown> {
     return new Promise((resolve, reject) => {
       let body = '';
-      req.on('data', chunk => (body += chunk.toString()));
+      req.on('data', chunk => body += chunk.toString());
       req.on('end', () => {
         try {
           resolve(body ? JSON.parse(body) : undefined);
@@ -786,17 +692,17 @@ export class MCPServer {
 
   async stop(): Promise<void> {
     await this.server.close();
-
+    
     // Stop HTTP server if running
     if (this.httpServer) {
-      await new Promise<void>(resolve => {
+      await new Promise<void>((resolve) => {
         this.httpServer!.close(() => {
           this.logger.info('HTTP server stopped');
           resolve();
         });
       });
     }
-
+    
     this.initialized = false;
   }
 

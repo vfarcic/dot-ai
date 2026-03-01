@@ -42,12 +42,8 @@ async function main() {
     process.stderr.write(`Using session directory: ${sessionDir}\n`);
 
     if (!process.env.DOT_AI_SESSION_DIR) {
-      process.stderr.write(
-        'INFO: DOT_AI_SESSION_DIR not set, using default: ./tmp/sessions\n'
-      );
-      process.stderr.write(
-        'For custom session directory, set DOT_AI_SESSION_DIR environment variable\n'
-      );
+      process.stderr.write('INFO: DOT_AI_SESSION_DIR not set, using default: ./tmp/sessions\n');
+      process.stderr.write('For custom session directory, set DOT_AI_SESSION_DIR environment variable\n');
     }
 
     // Validate session directory exists and is writable
@@ -57,24 +53,16 @@ async function main() {
 
       // Check if directory exists
       if (!fs.existsSync(sessionDir)) {
-        process.stderr.write(
-          `FATAL: Session directory does not exist: ${sessionDir}\n`
-        );
-        process.stderr.write(
-          'Solution: Create the directory or update DOT_AI_SESSION_DIR\n'
-        );
+        process.stderr.write(`FATAL: Session directory does not exist: ${sessionDir}\n`);
+        process.stderr.write('Solution: Create the directory or update DOT_AI_SESSION_DIR\n');
         process.exit(1);
       }
 
       // Check if it's actually a directory
       const stat = fs.statSync(sessionDir);
       if (!stat.isDirectory()) {
-        process.stderr.write(
-          `FATAL: Session directory path is not a directory: ${sessionDir}\n`
-        );
-        process.stderr.write(
-          'Solution: Use a valid directory path in DOT_AI_SESSION_DIR\n'
-        );
+        process.stderr.write(`FATAL: Session directory path is not a directory: ${sessionDir}\n`);
+        process.stderr.write('Solution: Use a valid directory path in DOT_AI_SESSION_DIR\n');
         process.exit(1);
       }
 
@@ -85,18 +73,13 @@ async function main() {
         fs.unlinkSync(testFile);
         process.stderr.write(`Session directory validated: ${sessionDir}\n`);
       } catch {
-        process.stderr.write(
-          `FATAL: Session directory is not writable: ${sessionDir}\n`
-        );
-        process.stderr.write(
-          'Solution: Fix directory permissions or use a different directory\n'
-        );
+        process.stderr.write(`FATAL: Session directory is not writable: ${sessionDir}\n`);
+        process.stderr.write('Solution: Fix directory permissions or use a different directory\n');
         process.exit(1);
       }
+
     } catch (error) {
-      process.stderr.write(
-        `FATAL: Session directory validation failed: ${error}\n`
-      );
+      process.stderr.write(`FATAL: Session directory validation failed: ${error}\n`);
       process.exit(1);
     }
 
@@ -108,20 +91,14 @@ async function main() {
     try {
       await dotAI.initializeWithoutCluster();
       process.stderr.write('DevOps AI Toolkit initialized successfully\n');
-      process.stderr.write(
-        'Cluster connectivity will be checked when needed by individual tools\n'
-      );
+      process.stderr.write('Cluster connectivity will be checked when needed by individual tools\n');
     } catch (initError) {
-      process.stderr.write(
-        `FATAL: Failed to initialize DevOps AI Toolkit: ${initError}\n`
-      );
+      process.stderr.write(`FATAL: Failed to initialize DevOps AI Toolkit: ${initError}\n`);
       process.exit(1);
     }
 
     // Load version dynamically from package.json
-    const packageJson = JSON.parse(
-      readFileSync(path.join(__dirname, '../../package.json'), 'utf8')
-    );
+    const packageJson = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
 
     // Initialize plugin discovery (PRD #343)
     const pluginLogger = new ConsoleLogger('PluginManager');
@@ -129,27 +106,19 @@ async function main() {
     const pluginConfigs = PluginManager.parsePluginConfig();
 
     if (pluginConfigs.length > 0) {
-      process.stderr.write(
-        `Discovering ${pluginConfigs.length} plugin(s)...\n`
-      );
+      process.stderr.write(`Discovering ${pluginConfigs.length} plugin(s)...\n`);
       try {
         await pluginManager.discoverPlugins(pluginConfigs);
         const stats = pluginManager.getStats();
         const pending = pluginManager.getPendingPlugins();
-        process.stderr.write(
-          `Plugin discovery complete: ${stats.pluginCount} plugin(s), ${stats.toolCount} tool(s)\n`
-        );
+        process.stderr.write(`Plugin discovery complete: ${stats.pluginCount} plugin(s), ${stats.toolCount} tool(s)\n`);
         if (pending.length > 0) {
-          process.stderr.write(
-            `Plugins pending background discovery: ${pending.join(', ')}\n`
-          );
+          process.stderr.write(`Plugins pending background discovery: ${pending.join(', ')}\n`);
         }
       } catch (error) {
         // Non-required plugin failures are warnings, required failures throw
         if (error instanceof Error && error.name === 'PluginDiscoveryError') {
-          process.stderr.write(
-            `FATAL: Required plugin discovery failed: ${error.message}\n`
-          );
+          process.stderr.write(`FATAL: Required plugin discovery failed: ${error.message}\n`);
           process.exit(1);
         }
         process.stderr.write(`Plugin discovery warning: ${error}\n`);
@@ -158,19 +127,15 @@ async function main() {
       // Start background discovery for any plugins that failed initial discovery
       // They will be retried every 30 seconds for up to 10 minutes
       if (pluginManager.getPendingPlugins().length > 0) {
-        pluginManager.setOnPluginDiscovered(plugin => {
-          process.stderr.write(
-            `Background discovery: Plugin '${plugin.name}' now available with ${plugin.tools.length} tool(s)\n`
-          );
+        pluginManager.setOnPluginDiscovered((plugin) => {
+          process.stderr.write(`Background discovery: Plugin '${plugin.name}' now available with ${plugin.tools.length} tool(s)\n`);
           // Note: Tools are automatically registered via pluginManager's internal maps
           // The version tool will reflect the updated plugin status
         });
         pluginManager.startBackgroundDiscovery();
       }
     } else {
-      process.stderr.write(
-        'No plugins configured (mount plugins.json at /etc/dot-ai/plugins.json to enable)\n'
-      );
+      process.stderr.write('No plugins configured (mount plugins.json at /etc/dot-ai/plugins.json to enable)\n');
     }
 
     // PRD #359: Initialize unified plugin registry for all plugin tool invocations
@@ -183,10 +148,9 @@ async function main() {
     const mcpServer = new MCPServer(dotAI, {
       name: 'dot-ai',
       version: packageJson.version,
-      description:
-        'Universal Kubernetes application deployment agent with AI-powered orchestration',
+      description: 'Universal Kubernetes application deployment agent with AI-powered orchestration',
       author: 'Viktor Farcic',
-      pluginManager: pluginConfigs.length > 0 ? pluginManager : undefined,
+      pluginManager: pluginConfigs.length > 0 ? pluginManager : undefined
     });
 
     // Start the MCP server (HTTP transport only)
@@ -199,37 +163,9 @@ async function main() {
     // PRD #345: Deployment method tracking removed (Kubernetes-only)
     getTelemetry().trackServerStart();
 
-    // PRD #388: Start docs validation TTL sweep (cleans up expired pods every 5 minutes)
-    let ttlSweepInterval: NodeJS.Timeout | null = null;
-    if (pluginConfigs.length > 0) {
-      const TTL_SWEEP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-      ttlSweepInterval = setInterval(async () => {
-        try {
-          const { invokePluginTool, isPluginInitialized } =
-            await import('../core/plugin-registry.js');
-          if (!isPluginInitialized()) return;
-          await invokePluginTool(
-            'agentic-tools',
-            'docs_validate_ttl_sweep',
-            {}
-          );
-        } catch {
-          // Best-effort sweep; failures are non-fatal
-        }
-      }, TTL_SWEEP_INTERVAL_MS);
-      process.stderr.write('Docs validation TTL sweep started (every 5m)\n');
-    }
-
     // Handle graceful shutdown
     const gracefulShutdown = async (signal: string) => {
-      process.stderr.write(
-        `Shutting down DevOps AI Toolkit MCP server (${signal})...\n`
-      );
-
-      // Stop docs validation TTL sweep
-      if (ttlSweepInterval) {
-        clearInterval(ttlSweepInterval);
-      }
+      process.stderr.write(`Shutting down DevOps AI Toolkit MCP server (${signal})...\n`);
 
       // Stop background plugin discovery if active
       pluginManager.stopBackgroundDiscovery();
@@ -251,30 +187,27 @@ async function main() {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
     // HTTP server keeps the process alive
-    process.stderr.write(
-      'HTTP server active - server will run until terminated\n'
-    );
+    process.stderr.write('HTTP server active - server will run until terminated\n');
+
   } catch (error) {
-    process.stderr.write(
-      `Failed to start DevOps AI Toolkit MCP server: ${error}\n`
-    );
+    process.stderr.write(`Failed to start DevOps AI Toolkit MCP server: ${error}\n`);
     process.exit(1);
   }
 }
 
 // Handle uncaught exceptions
-process.on('uncaughtException', error => {
+process.on('uncaughtException', (error) => {
   process.stderr.write(`Uncaught exception in MCP server: ${error}\n`);
   process.exit(1);
 });
 
-process.on('unhandledRejection', reason => {
+process.on('unhandledRejection', (reason) => {
   process.stderr.write(`Unhandled rejection in MCP server: ${reason}\n`);
   process.exit(1);
 });
 
 // Start the server
-main().catch(error => {
+main().catch((error) => {
   process.stderr.write(`Fatal error starting MCP server: ${error}\n`);
   process.exit(1);
 });
