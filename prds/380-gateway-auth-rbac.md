@@ -4,7 +4,7 @@
 **Priority**: High
 **GitHub Issue**: [#380](https://github.com/vfarcic/dot-ai/issues/380)
 **Created**: 2026-02-18
-**Last Updated**: 2026-03-01
+**Last Updated**: 2026-03-02
 **Supersedes**: [PRD #360 - User Authentication](./done/360-user-authentication.md) (closed)
 
 ---
@@ -321,51 +321,59 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ---
 
-### Milestone 2: OAuth Endpoints in dot-ai (No Dex)
-**Objective**: Port the PoC OAuth flow into the real dot-ai server. Same self-contained auth (approve button, no external IdP) — prove the OAuth endpoints work in the actual codebase before adding Dex. Remove all legacy token auth code.
+### Milestone 2: OAuth + Dex Integration
+**Objective**: Implement OAuth endpoints per the MCP Authorization spec with Dex as the OIDC provider, replace legacy token auth, add user management, and show identity in the version tool.
 
-**Architecture:** Following the existing plugin pattern:
-- **Plugin (`packages/agentic-tools/`)** — OAuth logic, token issuance/validation, bcrypt hashing, Dex integration (later)
-- **MCP server (`src/`)** — registers OAuth endpoints as Express routes, orchestrates calls to plugin
+**Architecture:** OAuth logic lives in the MCP server (`src/interfaces/oauth/`), not the plugin. OAuth endpoints are HTTP routes — not tool invocations routed through the plugin's `POST /execute`. Dex is an external OIDC provider (its own service/subchart), similar to how Kubernetes and Qdrant are external to the plugin. The server handles OAuth HTTP concerns (discovery metadata, redirects, token validation) and talks to Dex via OIDC.
 
-**Deliverables:**
-- [ ] OAuth endpoints in dot-ai: `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/register`, `/authorize`, `/token`
-- [ ] `/authorize` shows a simple approve page (same as PoC — no Dex yet)
-- [ ] Token issuance with user identity claims
-- [ ] Token validation middleware on MCP and REST endpoints
-- [ ] `UserIdentity` type definition and extraction from validated tokens
-- [ ] Remove all legacy token auth code (`DOT_AI_AUTH_TOKEN`, token mode config, related middleware)
-- [ ] `version` tool updated to include identity in output (userId, email, groups, source)
-- [ ] Integration tests: OAuth flow end-to-end, token validation, identity extraction
+**Delivery approach:** 5 incremental tasks. Each is self-contained and independently testable. A dual-mode auth middleware (JWT + legacy token) keeps existing tests passing throughout the transition.
 
-**Success Criteria:**
-- MCP clients complete OAuth and access tools through dot-ai (same flow as PoC, inside the real server)
-- `version` output shows the authenticated user's identity
-- Missing/invalid token returns 401
-- No legacy token auth code remains
+#### Task 2.1: OAuth Foundation (Types + JWT + Dual-Mode Middleware)
+- [ ] `UserIdentity` type: `{ userId, email?, groups[], source: 'oauth' }`
+- [ ] JWT signing/verification using `node:crypto` HMAC-SHA256 (no external libraries)
+- [ ] Dual-mode auth middleware: validates JWT tokens, falls back to legacy `DOT_AI_AUTH_TOKEN`
+- [ ] Wire new middleware into `src/interfaces/mcp.ts` replacing `checkBearerAuth`
+- [ ] All existing integration tests pass unchanged (legacy token still works)
 
----
+#### Task 2.2: OAuth Discovery + Client Registration Endpoints
+- [ ] `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728)
+- [ ] `/.well-known/oauth-authorization-server` — Auth Server Metadata (RFC 8414)
+- [ ] `/register` — Dynamic Client Registration (RFC 7591)
+- [ ] `WWW-Authenticate` header on 401 responses per MCP spec
+- [ ] Integration tests for metadata endpoints and client registration
 
-### Milestone 3: Dex Integration & User Management
-**Objective**: Swap the self-contained approve page for Dex as the OIDC provider. Add user management API and Helm subchart.
-
-**Deliverables:**
-- [ ] Integration with Dex — `/authorize` redirects to Dex, callback verifies Dex OIDC response
-- [ ] Dex as Helm subchart — no static passwords in values
+#### Task 2.3: Dex Subchart + Authorize/Token Flow
+- [ ] Dex as Helm subchart — no static passwords in chart values
 - [ ] Auto-generate initial admin credentials on `helm install`, output in Helm notes (preserve on upgrade). If `DOT_AI_AUTH_TOKEN` exists, use as initial admin password instead of generating.
-- [ ] Config reloader sidecar for Dex — watches Secret for changes, signals Dex to reload
-- [ ] User management endpoints: `POST /users`, `GET /users`, `DELETE /users/:email` — RBAC-protected, writes to Dex Secret
+- [ ] `/authorize` — redirects to Dex for user authentication, handles callback
+- [ ] `/token` — exchanges authorization code for access token (PKCE verification)
+- [ ] Token issuance with user identity claims from Dex OIDC response
 - [ ] Configuration: Dex settings in Helm values
-- [ ] Integration tests: Dex OAuth flow, user management, config reload
+- [ ] Integration tests: full OAuth flow end-to-end through Dex
+
+#### Task 2.4: Remove Legacy Auth + Identity in Version Tool
+- [ ] Remove all legacy token auth code (`DOT_AI_AUTH_TOKEN`, token mode config, `src/interfaces/auth.ts`)
+- [ ] Remove legacy token from Helm chart (deployment.yaml, secret.yaml, values.yaml)
+- [ ] Update test infrastructure to use OAuth flow instead of static token
+- [ ] `version` tool updated to include identity in output (userId, email, groups, source)
+- [ ] All integration tests pass using OAuth only
+
+#### Task 2.5: User Management + Config Reloader
+- [ ] User management endpoints: `POST /users`, `GET /users`, `DELETE /users/:email` — RBAC-protected, writes to Dex Secret
+- [ ] Config reloader sidecar for Dex — watches Secret for changes, signals Dex to reload
+- [ ] Integration tests: user CRUD, config reload
 
 **Success Criteria:**
 - MCP clients complete OAuth through Dex and access tools
+- `version` output shows the authenticated user's identity
+- Missing/invalid token returns 401 with `WWW-Authenticate` header
+- No legacy token auth code remains
 - Admin can create/list/delete users via API without redeploying
 - Config reloader picks up Secret changes and Dex reloads
 
 ---
 
-### Milestone 4: Kubernetes RBAC Enforcement
+### Milestone 3: Kubernetes RBAC Enforcement
 **Objective**: Enforce tool-level and namespace-level permissions using K8s SubjectAccessReview.
 
 **Deliverables:**
@@ -384,7 +392,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ---
 
-### Milestone 5: Audit Integration
+### Milestone 4: Audit Integration
 **Objective**: Include user identity in audit logs for traceability.
 
 **Deliverables:**
@@ -397,7 +405,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ---
 
-### Milestone 6: Client Identity PRDs
+### Milestone 5: Client Identity PRDs
 **Objective**: Define how CLI and Web UI authenticate and expose user management.
 
 **Deliverables:**
@@ -410,7 +418,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ---
 
-### Milestone 7: Documentation & End-to-End Testing
+### Milestone 6: Documentation & End-to-End Testing
 **Objective**: Validate the full stack, test Dex connectors, and document the complete system (including CLI/UI).
 
 **Deliverables:**
@@ -434,12 +442,12 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ### Must Have (MVP)
 
-- [ ] MCP OAuth endpoints in dot-ai (Milestone 2)
-- [ ] Identity extraction from OAuth tokens (Milestone 2)
-- [ ] Dex integration as default OIDC provider (Milestone 3)
-- [ ] User management endpoints with config reloader (Milestone 3)
-- [ ] K8s SubjectAccessReview enforcement (Milestone 4)
-- [ ] Pre-built ClusterRoles in Helm chart, including user management (Milestone 4)
+- [ ] MCP OAuth endpoints in dot-ai (Milestone 2, Tasks 2.1-2.2)
+- [ ] Dex integration as default OIDC provider (Milestone 2, Task 2.3)
+- [ ] Identity extraction from OAuth tokens (Milestone 2, Task 2.4)
+- [ ] User management endpoints with config reloader (Milestone 2, Task 2.5)
+- [ ] K8s SubjectAccessReview enforcement (Milestone 3)
+- [ ] Pre-built ClusterRoles in Helm chart, including user management (Milestone 3)
 - [ ] Integration tests for auth, user management, and RBAC enforcement
 
 ### Nice to Have (Future)
@@ -490,30 +498,37 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ## Technical Scope
 
-### dot-ai Changes (Milestones 2-4)
+### dot-ai Changes (Milestones 2-3)
 
-**OAuth Endpoints (new module):**
+**OAuth Module (`src/interfaces/oauth/`):**
+- `types.ts` — `UserIdentity`, JWT claims, OAuth client/code types
+- `jwt.ts` — JWT signing/verification using `node:crypto` HMAC-SHA256
+- `handlers.ts` — OAuth endpoint handlers (metadata, register, authorize, token)
+- `middleware.ts` — JWT validation middleware, `WWW-Authenticate` challenge
+- `store.ts` — In-memory state for registered clients and authorization codes
+
+**OAuth Endpoints (served by MCP server, not plugin):**
 - `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728)
 - `/.well-known/oauth-authorization-server` — Auth Server Metadata (RFC 8414)
 - `/register` — Dynamic Client Registration (RFC 7591)
 - `/authorize` — Redirects to Dex for user authentication, handles callback
 - `/token` — Exchanges authorization code for access token
 
-**User Management Endpoints (new module):**
+**User Management Endpoints (`src/interfaces/oauth/`):**
 - `POST /users` — bcrypt-hash password, add to Dex Secret, trigger reload
 - `GET /users` — read Dex Secret, return email list (no hashes)
 - `DELETE /users/:email` — remove from Dex Secret, trigger reload
 - RBAC-protected: requires `dotai-admin` role (`users` resource, `create`/`delete`/`list` verbs)
 
-**Auth Middleware (`src/interfaces/auth.ts`):**
-- Replace token validation with OAuth token validation
+**Auth Middleware (`src/interfaces/oauth/middleware.ts`):**
+- Replace `src/interfaces/auth.ts` with JWT token validation
 - Validate Bearer tokens, extract `UserIdentity`
 
-**Authorization Check (new module):**
+**Authorization Check (new module, Milestone 3):**
 - K8s SubjectAccessReview before tool dispatch
 - dot-ai's ServiceAccount needs `create` on `subjectaccessreviews`
 
-### Helm Chart Changes (Milestones 2-3)
+### Helm Chart Changes (Milestone 2)
 
 - Dex subchart with config reloader sidecar (watches Secret, signals Dex to reload)
 - Auto-generated initial admin on `helm install` (or migrated from `DOT_AI_AUTH_TOKEN`)
@@ -537,13 +552,13 @@ rules:
 - Dex (ships as Helm subchart — no separate installation)
 
 **Internal Dependencies:**
-- `version` tool — for identity display (Milestone 2)
-- Auth middleware — extend existing (Milestone 2)
-- Helm chart — for ClusterRoles (Milestone 3)
+- `version` tool — for identity display (Milestone 2, Task 2.4)
+- Auth middleware — replace existing with OAuth (Milestone 2, Task 2.1)
+- Helm chart — for Dex subchart and ClusterRoles (Milestones 2-3)
 
 **Dependent PRDs:**
 - [PRD #361 (User-Specific Permissions)](./361-user-specific-permissions.md) — depends on user identity from this PRD
-- New PRDs for `dot-ai-cli` and `dot-ai-ui` (Milestone 6)
+- New PRDs for `dot-ai-cli` and `dot-ai-ui` (Milestone 5)
 
 ## Security Considerations
 
@@ -610,7 +625,9 @@ rules:
 | 2026-03-01 | **User management endpoints in dot-ai** | RBAC-protected API to create/list/delete Dex static users without redeploying. Config reloader sidecar watches Dex Secret for changes. CLI/UI hook into these endpoints. |
 | 2026-03-01 | **Auto-generate initial admin on install** | No passwords in chart values or Git. `helm install` generates random admin credentials, outputs them once in Helm notes. Preserved on upgrade. Same pattern as Grafana, MinIO. |
 | 2026-03-01 | **Remove token mode entirely** | OAuth via Dex is the only auth. All legacy token code (`DOT_AI_AUTH_TOKEN`, token mode config, related middleware) removed. Migration: if `DOT_AI_AUTH_TOKEN` exists on first Dex setup, use as initial admin password; otherwise auto-generate. Future cleanup PRD (~6 months) to remove migration logic. |
-| 2026-03-01 | **Plugin architecture for OAuth** | Following existing pattern: auth logic (token issuance/validation, bcrypt, Dex integration) lives in plugin (`packages/agentic-tools/`), MCP server (`src/`) orchestrates calls to plugin. |
+| 2026-03-02 | **Merge Milestones 2 and 3** | The self-contained OAuth (approve page, token issuance) in M2 is throwaway code — replaced entirely by Dex in M3. Skip the intermediate step, go straight to Dex. Old M2+M3 become new M2. |
+| 2026-03-02 | **OAuth logic in MCP server, not plugin** | Reverses previous "plugin architecture for OAuth" decision. OAuth endpoints are HTTP routes (redirects, HTML, form bodies, WWW-Authenticate headers) — not tool invocations routed through the plugin's `POST /execute`. Token validation runs on every request and must be in-process. Dex is already an external service, playing the same role as Kubernetes/Qdrant do for the plugin. |
+| 2026-03-02 | **5 incremental tasks with dual-mode auth transition** | Break merged M2 into 5 self-contained testable tasks. Dual-mode middleware (JWT + legacy token) keeps existing tests passing throughout. Tasks: (1) types + JWT + dual-mode middleware, (2) OAuth discovery + registration, (3) Dex subchart + authorize/token, (4) remove legacy auth + identity in version, (5) user management + config reloader. |
 
 ## Version History
 
@@ -624,3 +641,4 @@ rules:
 - **v4.3** (2026-03-01): **Auto-generate initial admin** — no passwords in chart values. `helm install` generates random admin credentials, outputs in Helm notes. Preserved on upgrade.
 - **v4.4** (2026-03-01): **Split Milestone 2** — Milestone 2 is now "OAuth endpoints in dot-ai (no Dex)" to prove the flow works in the real codebase first. Milestone 3 is "Dex integration & user management". Remaining milestones renumbered (4=RBAC, 5=Audit, 6=Docs, 7=Client PRDs).
 - **v4.5** (2026-03-01): **Remove token mode, plugin architecture** — OAuth via Dex is the only auth mode. All legacy token code removed. Token migration on first Dex setup (DOT_AI_AUTH_TOKEN → Dex static password). Future cleanup PRD for migration logic. Auth logic follows plugin architecture (`packages/agentic-tools/`). Milestones 6/7 swapped (Client PRDs before Docs).
+- **v5.0** (2026-03-02): **Merge M2+M3, OAuth in server, incremental delivery** — Merged "OAuth Endpoints (no Dex)" and "Dex Integration" into single Milestone 2 to avoid throwaway code. OAuth logic moves to `src/interfaces/oauth/` (server, not plugin) — endpoints are HTTP routes, not tool invocations; Dex is an external service like K8s/Qdrant. Milestone broken into 5 incremental tasks with dual-mode auth transition. Milestones renumbered (old M4-M7 → M3-M6).
