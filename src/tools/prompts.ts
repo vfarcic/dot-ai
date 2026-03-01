@@ -25,12 +25,18 @@ export interface PromptMetadata {
   arguments?: PromptArgument[];
 }
 
+export interface PromptFile {
+  path: string;       // Relative path within skill folder (e.g., "create-worktree.sh")
+  content: string;    // Base64-encoded file content
+}
+
 export interface Prompt {
   name: string;
   description: string;
   content: string;
   arguments?: PromptArgument[];
   source: 'built-in' | 'user';
+  files?: PromptFile[];
 }
 
 /**
@@ -114,7 +120,8 @@ function parseYamlFrontmatter(yaml: string): Partial<PromptMetadata> {
  */
 export function loadPromptFile(
   filePath: string,
-  source: 'built-in' | 'user' = 'built-in'
+  source: 'built-in' | 'user' = 'built-in',
+  defaultName?: string
 ): Prompt {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
@@ -131,6 +138,11 @@ export function loadPromptFile(
 
     // Parse YAML with support for arguments array
     const metadata = parseYamlFrontmatter(frontmatterYaml);
+
+    // Use defaultName as fallback if frontmatter lacks name (for skill folders)
+    if (!metadata.name && defaultName) {
+      metadata.name = defaultName;
+    }
 
     if (!metadata.name || !metadata.description) {
       throw new Error(
@@ -337,6 +349,7 @@ interface PromptsGetArgs {
 interface PromptsGetResponse {
   description?: string;
   messages: Array<{ role: string; content: { type: string; text: string } }>;
+  files?: PromptFile[];
 }
 
 /**
@@ -417,7 +430,7 @@ export async function handlePromptsGetRequest(
     });
 
     // Convert to MCP prompts/get response format
-    return {
+    const response: PromptsGetResponse = {
       description: prompt.description,
       messages: [
         {
@@ -429,6 +442,12 @@ export async function handlePromptsGetRequest(
         },
       ],
     };
+
+    if (prompt.files && prompt.files.length > 0) {
+      response.files = prompt.files;
+    }
+
+    return response;
   } catch (error) {
     logger.error('Prompts get request failed', error as Error);
 

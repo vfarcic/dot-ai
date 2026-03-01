@@ -58,12 +58,23 @@ export const PromptMessageSchema = z.object({
 export type PromptMessage = z.infer<typeof PromptMessageSchema>;
 
 /**
+ * Supporting file for folder-based skills (base64-encoded)
+ */
+export const PromptFileSchema = z.object({
+  path: z.string().describe('Relative path within skill folder'),
+  content: z.string().describe('Base64-encoded file content'),
+});
+
+export type PromptFileData = z.infer<typeof PromptFileSchema>;
+
+/**
  * Prompt get response data
  * POST /api/v1/prompts/:promptName
  */
 export const PromptGetDataSchema = z.object({
   description: z.string().optional().describe('Prompt description'),
   messages: z.array(PromptMessageSchema).describe('Prompt messages'),
+  files: z.array(PromptFileSchema).optional().describe('Supporting files for folder-based skills (base64-encoded)'),
 });
 
 export type PromptGetData = z.infer<typeof PromptGetDataSchema>;

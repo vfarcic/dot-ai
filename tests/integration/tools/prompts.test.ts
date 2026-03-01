@@ -53,6 +53,7 @@ describe.concurrent('Prompts Integration', () => {
       ]
     },
     { name: 'eval-update-model-metadata', description: 'Update Model Metadata Command' },
+    { name: 'test-skill', description: 'Test skill for folder-based skills integration tests', expectedFiles: ['helper.sh'] },
   ];
 
   // Combined list of all prompts (built-in + user)
@@ -72,7 +73,7 @@ describe.concurrent('Prompts Integration', () => {
   });
 
   describe('Prompts List', () => {
-    test('should return 10 built-in prompts + 3 user prompts with correct metadata', async () => {
+    test('should return 10 built-in prompts + 4 user prompts with correct metadata', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/prompts');
 
       const expectedListResponse = {
@@ -90,14 +91,14 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedListResponse);
-      // At least 10 built-in + 3 user prompts from git repository
-      expect(response.data.prompts.length).toBeGreaterThanOrEqual(13);
+      // At least 10 built-in + 4 user prompts (3 flat .md + 1 skill folder) from git repository
+      expect(response.data.prompts.length).toBeGreaterThanOrEqual(14);
     });
   });
 
   describe('Prompts Get', () => {
-    // Test each prompt individually
-    test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description }) => {
+    // Test each prompt individually (including folder-based skills with files)
+    test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description, expectedFiles }) => {
       const response = await integrationTest.httpClient.post(`/api/v1/prompts/${name}`, {});
 
       const expectedGetResponse = {
@@ -124,6 +125,23 @@ describe.concurrent('Prompts Integration', () => {
       expect(response).toMatchObject(expectedGetResponse);
       // Verify content is non-empty
       expect(response.data.messages[0].content.text.length).toBeGreaterThan(100);
+
+      // Verify files field for folder-based skills vs flat prompts
+      if (expectedFiles) {
+        expect(response.data.files).toEqual(
+          expectedFiles.map((filePath: string) => ({
+            path: filePath,
+            content: expect.any(String),
+          }))
+        );
+        // Verify base64 content decodes to non-empty string
+        for (const file of response.data.files) {
+          const decoded = Buffer.from(file.content, 'base64').toString('utf-8');
+          expect(decoded.length).toBeGreaterThan(0);
+        }
+      } else {
+        expect(response.data.files).toBeUndefined();
+      }
     });
 
     test('should return error for non-existent prompt', async () => {
