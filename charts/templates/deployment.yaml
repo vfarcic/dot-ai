@@ -134,6 +134,10 @@ spec:
         # Additional environment variables
         {{- toYaml . | nindent 8 }}
 {{- end }}
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sleep", "5"]
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         livenessProbe:
