@@ -1,6 +1,6 @@
 /**
  * Dataset Loader for Standard OpenAI Evals Format
- * 
+ *
  * Loads JSONL evaluation datasets following OpenAI Evals standard:
  * - Each line contains: {input, ideal, metadata}
  * - Supports filtering by category, complexity, tags
@@ -38,34 +38,43 @@ export interface DatasetFilter {
  * @returns Array of evaluation samples
  */
 export function loadEvalDataset(
-  datasetName: string, 
+  datasetName: string,
   filter?: DatasetFilter
 ): StandardEvalSample[] {
   const datasetsDir = path.join(process.cwd(), 'eval', 'datasets');
   const datasetPath = path.join(datasetsDir, `${datasetName}.jsonl`);
-  
+
   if (!fs.existsSync(datasetPath)) {
     throw new Error(`Dataset not found: ${datasetPath}`);
   }
-  
+
   const fileContent = fs.readFileSync(datasetPath, 'utf8');
-  const lines = fileContent.trim().split('\n').filter(line => line.trim());
-  
+  const lines = fileContent
+    .trim()
+    .split('\n')
+    .filter(line => line.trim());
+
   const samples: StandardEvalSample[] = lines.map((line, index) => {
     try {
       return JSON.parse(line);
     } catch (error) {
-      throw new Error(`Invalid JSON at line ${index + 1} in ${datasetName}.jsonl: ${error}`);
+      throw new Error(
+        `Invalid JSON at line ${index + 1} in ${datasetName}.jsonl: ${error}`,
+        { cause: error }
+      );
     }
   });
-  
+
   // Apply filters if provided
   if (filter) {
     return samples.filter(sample => {
       if (filter.category && sample.metadata.category !== filter.category) {
         return false;
       }
-      if (filter.complexity && sample.metadata.complexity !== filter.complexity) {
+      if (
+        filter.complexity &&
+        sample.metadata.complexity !== filter.complexity
+      ) {
         return false;
       }
       if (filter.phase && sample.metadata.phase !== filter.phase) {
@@ -75,7 +84,7 @@ export function loadEvalDataset(
         return false;
       }
       if (filter.tags) {
-        const hasAllTags = filter.tags.every(tag => 
+        const hasAllTags = filter.tags.every(tag =>
           sample.metadata.tags.includes(tag)
         );
         if (!hasAllTags) {
@@ -85,7 +94,7 @@ export function loadEvalDataset(
       return true;
     });
   }
-  
+
   return samples;
 }
 
@@ -95,6 +104,9 @@ export function loadEvalDataset(
  * @param phase - Test phase to load
  * @returns Array of samples for that phase
  */
-export function loadTestPhase(datasetName: string, phase: string): StandardEvalSample[] {
+export function loadTestPhase(
+  datasetName: string,
+  phase: string
+): StandardEvalSample[] {
   return loadEvalDataset(datasetName, { phase });
 }

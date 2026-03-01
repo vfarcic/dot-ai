@@ -53,8 +53,12 @@ export function getUserPromptsConfig(): UserPromptsConfig | null {
   }
 
   // Validate cache TTL - fallback to default if invalid or negative
-  const parsedTtl = parseInt(process.env.DOT_AI_USER_PROMPTS_CACHE_TTL || '86400', 10);
-  const cacheTtlSeconds = Number.isNaN(parsedTtl) || parsedTtl < 0 ? 86400 : parsedTtl;
+  const parsedTtl = parseInt(
+    process.env.DOT_AI_USER_PROMPTS_CACHE_TTL || '86400',
+    10
+  );
+  const cacheTtlSeconds =
+    Number.isNaN(parsedTtl) || parsedTtl < 0 ? 86400 : parsedTtl;
 
   return {
     repoUrl,
@@ -176,17 +180,25 @@ async function cloneRepository(
       branch: config.branch,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     // Sanitize error message in case it contains the token
     const sanitizedError = config.gitToken
       ? errorMessage.replaceAll(config.gitToken, '***')
       : errorMessage;
 
-    logger.error('Failed to clone user prompts repository', new Error(sanitizedError), {
-      url: sanitizedUrl,
-      branch: config.branch,
-    });
-    throw new Error(`Failed to clone user prompts repository: ${sanitizedError}`);
+    logger.error(
+      'Failed to clone user prompts repository',
+      new Error(sanitizedError),
+      {
+        url: sanitizedUrl,
+        branch: config.branch,
+      }
+    );
+    throw new Error(
+      `Failed to clone user prompts repository: ${sanitizedError}`,
+      { cause: error }
+    );
   }
 }
 
@@ -209,7 +221,9 @@ async function pullRepository(
     // Set up credentials for pull if token is provided
     if (config.gitToken) {
       const authUrl = insertTokenInUrl(config.repoUrl, config.gitToken);
-      await execAsync(`git -C "${localPath}" remote set-url origin "${authUrl}"`);
+      await execAsync(
+        `git -C "${localPath}" remote set-url origin "${authUrl}"`
+      );
     }
 
     await execAsync(`git -C "${localPath}" pull --ff-only`);
@@ -218,15 +232,19 @@ async function pullRepository(
       url: sanitizedUrl,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     const sanitizedError = config.gitToken
       ? errorMessage.replaceAll(config.gitToken, '***')
       : errorMessage;
 
-    logger.warn('Failed to pull user prompts repository, using cached version', {
-      url: sanitizedUrl,
-      error: sanitizedError,
-    });
+    logger.warn(
+      'Failed to pull user prompts repository, using cached version',
+      {
+        url: sanitizedUrl,
+        error: sanitizedError,
+      }
+    );
     // Don't throw - use cached version
   }
 }
@@ -262,9 +280,7 @@ async function ensureRepository(
   }
 
   // Return path to prompts directory (with optional subPath)
-  return config.subPath
-    ? path.join(localPath, config.subPath)
-    : localPath;
+  return config.subPath ? path.join(localPath, config.subPath) : localPath;
 }
 
 /**
@@ -278,7 +294,9 @@ export async function loadUserPrompts(
   const config = getUserPromptsConfig();
 
   if (!config) {
-    logger.debug('User prompts not configured (DOT_AI_USER_PROMPTS_REPO not set)');
+    logger.debug(
+      'User prompts not configured (DOT_AI_USER_PROMPTS_REPO not set)'
+    );
     return [];
   }
 
@@ -305,7 +323,8 @@ export async function loadUserPrompts(
         prompts.push(prompt);
         logger.debug('Loaded user prompt', { name: prompt.name, file });
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
         logger.warn('Failed to load user prompt file, skipping', {
           file,
           error: errorMessage,
@@ -321,8 +340,12 @@ export async function loadUserPrompts(
 
     return prompts;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to load user prompts, falling back to built-in only', new Error(errorMessage));
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+    logger.error(
+      'Failed to load user prompts, falling back to built-in only',
+      new Error(errorMessage)
+    );
     return [];
   }
 }

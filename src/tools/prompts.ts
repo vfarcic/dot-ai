@@ -147,7 +147,8 @@ export function loadPromptFile(
     };
   } catch (error) {
     throw new Error(
-      `Failed to load prompt file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to load prompt file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error }
     );
   }
 }

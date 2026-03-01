@@ -76,18 +76,27 @@ export abstract class BaseVectorService<T> {
    * Invoke a plugin tool and extract the result
    * @throws Error if plugin returns an error response
    */
-  private async invokePlugin<R>(tool: string, args: Record<string, unknown>): Promise<R> {
+  private async invokePlugin<R>(
+    tool: string,
+    args: Record<string, unknown>
+  ): Promise<R> {
     const response = await invokePluginTool(PLUGIN_NAME, tool, args);
 
     if (!response.success) {
       const error = response.error as { message?: string } | string | undefined;
-      const message = typeof error === 'object' && error?.message ? error.message : String(error || `Plugin tool ${tool} failed`);
+      const message =
+        typeof error === 'object' && error?.message
+          ? error.message
+          : String(error || `Plugin tool ${tool} failed`);
       throw new Error(message);
     }
 
     // Plugin tools return ToolResult: { success, data, message, error? }
     // We need to extract the data field, and check for tool-level errors
-    const toolResult = response.result as { success?: boolean; data?: R; error?: string; message?: string } | null | undefined;
+    const toolResult = response.result as
+      | { success?: boolean; data?: R; error?: string; message?: string }
+      | null
+      | undefined;
 
     // Handle missing or malformed result
     if (!toolResult || typeof toolResult !== 'object') {
@@ -96,7 +105,9 @@ export abstract class BaseVectorService<T> {
 
     // Check for tool-level errors (use strict equality to handle undefined gracefully)
     if (toolResult.success === false) {
-      throw new Error(toolResult.error || toolResult.message || `Plugin tool ${tool} failed`);
+      throw new Error(
+        toolResult.error || toolResult.message || `Plugin tool ${tool} failed`
+      );
     }
 
     return toolResult.data as R;
@@ -107,7 +118,9 @@ export abstract class BaseVectorService<T> {
    */
   async initialize(): Promise<void> {
     // Use embedding dimensions if available, otherwise default to 1536 (OpenAI default)
-    const dimensions = this.embeddingService.isAvailable() ? this.embeddingService.getDimensions() : 1536;
+    const dimensions = this.embeddingService.isAvailable()
+      ? this.embeddingService.getDimensions()
+      : 1536;
 
     await this.invokePlugin<void>('collection_initialize', {
       collection: this.collectionName,
@@ -121,9 +134,12 @@ export abstract class BaseVectorService<T> {
    */
   async collectionExists(): Promise<boolean> {
     try {
-      const stats = await this.invokePlugin<CollectionStats>('collection_stats', {
-        collection: this.collectionName,
-      });
+      const stats = await this.invokePlugin<CollectionStats>(
+        'collection_stats',
+        {
+          collection: this.collectionName,
+        }
+      );
       return stats.exists;
     } catch {
       return false;
@@ -162,11 +178,16 @@ export abstract class BaseVectorService<T> {
         embedding = await this.embeddingService.generateEmbedding(searchText);
       } catch (error) {
         // Fail immediately with clear error about embedding generation
-        throw new Error(`Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(
+          `Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error }
+        );
       }
     } else {
       // Embedding service not available - fail with clear error
-      throw new Error('Embedding service not available - cannot store data in vector collection');
+      throw new Error(
+        'Embedding service not available - cannot store data in vector collection'
+      );
     }
 
     await this.invokePlugin<void>('vector_store', {
@@ -184,10 +205,15 @@ export abstract class BaseVectorService<T> {
   /**
    * Search for data using hybrid semantic + keyword matching
    */
-  async searchData(query: string, options: BaseSearchOptions = {}): Promise<BaseSearchResult<T>[]> {
+  async searchData(
+    query: string,
+    options: BaseSearchOptions = {}
+  ): Promise<BaseSearchResult<T>[]> {
     // Fail immediately if embedding service not available - no graceful fallback
     if (!this.embeddingService.isAvailable()) {
-      throw new Error('Embedding service not available - cannot perform semantic search');
+      throw new Error(
+        'Embedding service not available - cannot perform semantic search'
+      );
     }
 
     // Extract keywords for keyword search
@@ -202,10 +228,17 @@ export abstract class BaseVectorService<T> {
 
     // Perform hybrid search (semantic + keyword)
     try {
-      return await this.hybridSearch(query, queryKeywords, { limit, scoreThreshold, filter: options.filter });
+      return await this.hybridSearch(query, queryKeywords, {
+        limit,
+        scoreThreshold,
+        filter: options.filter,
+      });
     } catch (error) {
       // Fail immediately - no fallback to keyword-only search
-      throw new Error(`Semantic search failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Semantic search failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
+      );
     }
   }
 
@@ -213,10 +246,13 @@ export abstract class BaseVectorService<T> {
    * Get data by ID
    */
   async getData(id: string): Promise<T | null> {
-    const document = await this.invokePlugin<VectorDocument | null>('vector_get', {
-      collection: this.collectionName,
-      id,
-    });
+    const document = await this.invokePlugin<VectorDocument | null>(
+      'vector_get',
+      {
+        collection: this.collectionName,
+        id,
+      }
+    );
 
     if (!document) {
       return null;
@@ -251,14 +287,20 @@ export abstract class BaseVectorService<T> {
    * @param filter - Qdrant filter object constructed by AI
    * @param limit - Maximum results to return
    */
-  async queryWithFilter(filter: Record<string, unknown>, limit: number = 100): Promise<T[]> {
-    const documents = await this.invokePlugin<VectorDocument[]>('vector_query', {
-      collection: this.collectionName,
-      filter,
-      limit,
-    });
+  async queryWithFilter(
+    filter: Record<string, unknown>,
+    limit: number = 100
+  ): Promise<T[]> {
+    const documents = await this.invokePlugin<VectorDocument[]>(
+      'vector_query',
+      {
+        collection: this.collectionName,
+        filter,
+        limit,
+      }
+    );
 
-    return documents.map((doc) => {
+    return documents.map(doc => {
       const data = this.payloadToData(doc.payload);
       (data as T & { id: string }).id = doc.id;
       return data;
@@ -274,7 +316,7 @@ export abstract class BaseVectorService<T> {
       limit: limit ?? 10000,
     });
 
-    return documents.map((doc) => {
+    return documents.map(doc => {
       const data = this.payloadToData(doc.payload);
       (data as T & { id: string }).id = doc.id;
       return data;
@@ -286,9 +328,12 @@ export abstract class BaseVectorService<T> {
    */
   async getDataCount(): Promise<number> {
     try {
-      const stats = await this.invokePlugin<CollectionStats>('collection_stats', {
-        collection: this.collectionName,
-      });
+      const stats = await this.invokePlugin<CollectionStats>(
+        'collection_stats',
+        {
+          collection: this.collectionName,
+        }
+      );
       return stats.pointsCount || 0;
     } catch {
       // Fallback: get all and count
@@ -305,7 +350,9 @@ export abstract class BaseVectorService<T> {
     return {
       semantic: status.available,
       provider: status.provider || undefined,
-      reason: status.reason || (status.available ? 'Embedding service available' : undefined),
+      reason:
+        status.reason ||
+        (status.available ? 'Embedding service available' : undefined),
     };
   }
 
@@ -320,7 +367,7 @@ export abstract class BaseVectorService<T> {
     return query
       .toLowerCase()
       .split(/\s+/)
-      .filter((word) => word.length > 2);
+      .filter(word => word.length > 2);
   }
 
   /**
@@ -329,7 +376,11 @@ export abstract class BaseVectorService<T> {
   private async hybridSearch(
     query: string,
     queryKeywords: string[],
-    options: { limit: number; scoreThreshold: number; filter?: Record<string, unknown> }
+    options: {
+      limit: number;
+      scoreThreshold: number;
+      filter?: Record<string, unknown>;
+    }
   ): Promise<BaseSearchResult<T>[]> {
     // Generate query embedding - required for semantic search
     const queryEmbedding = await this.embeddingService.generateEmbedding(query);
@@ -338,24 +389,35 @@ export abstract class BaseVectorService<T> {
     }
 
     // Semantic search using vector similarity
-    const semanticResults = await this.invokePlugin<SearchResult[]>('vector_search', {
-      collection: this.collectionName,
-      embedding: queryEmbedding,
-      limit: options.limit * 2, // Get more candidates for hybrid ranking
-      scoreThreshold: 0.1, // Very permissive threshold for single-word queries
-      filter: options.filter,
-    });
+    const semanticResults = await this.invokePlugin<SearchResult[]>(
+      'vector_search',
+      {
+        collection: this.collectionName,
+        embedding: queryEmbedding,
+        limit: options.limit * 2, // Get more candidates for hybrid ranking
+        scoreThreshold: 0.1, // Very permissive threshold for single-word queries
+        filter: options.filter,
+      }
+    );
 
     // Keyword search
-    const keywordResults = await this.invokePlugin<SearchResult[]>('vector_search_keywords', {
-      collection: this.collectionName,
-      keywords: queryKeywords,
-      limit: options.limit * 2,
-      filter: options.filter,
-    });
+    const keywordResults = await this.invokePlugin<SearchResult[]>(
+      'vector_search_keywords',
+      {
+        collection: this.collectionName,
+        keywords: queryKeywords,
+        limit: options.limit * 2,
+        filter: options.filter,
+      }
+    );
 
     // Combine and rank results
-    return this.combineHybridResults(semanticResults, keywordResults, queryKeywords, options);
+    return this.combineHybridResults(
+      semanticResults,
+      keywordResults,
+      queryKeywords,
+      options
+    );
   }
 
   /**
@@ -402,7 +464,7 @@ export abstract class BaseVectorService<T> {
 
     // Sort by score and apply limits
     return Array.from(combinedResults.values())
-      .filter((result) => result.score >= options.scoreThreshold)
+      .filter(result => result.score >= options.scoreThreshold)
       .sort((a, b) => b.score - a.score)
       .slice(0, options.limit);
   }

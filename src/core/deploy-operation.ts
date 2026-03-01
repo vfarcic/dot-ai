@@ -39,7 +39,9 @@ export class DeployOperation {
    */
   constructor() {
     if (!isPluginInitialized()) {
-      throw new Error('Plugin system not available. DeployOperation requires agentic-tools plugin.');
+      throw new Error(
+        'Plugin system not available. DeployOperation requires agentic-tools plugin.'
+      );
     }
   }
 
@@ -56,7 +58,10 @@ export class DeployOperation {
         await this.verifyManifestExists(manifestPath);
 
         // Apply manifests with kubectl via plugin
-        const kubectlOutput = await this.applyManifests(manifestPath, options.timeout || 30);
+        const kubectlOutput = await this.applyManifests(
+          manifestPath,
+          options.timeout || 30
+        );
 
         return {
           success: true,
@@ -64,12 +69,12 @@ export class DeployOperation {
           manifestPath,
           readinessTimeout: false,
           message: 'Deployment completed successfully',
-          kubectlOutput
+          kubectlOutput,
         };
       },
       {
         operation: 'deploy',
-        component: 'deploy-operation'
+        component: 'deploy-operation',
       }
     );
   }
@@ -99,13 +104,19 @@ export class DeployOperation {
    * PRD #359: All kubectl operations go through unified plugin registry
    */
   private async executeKubectl(args: string[]): Promise<string> {
-    const response = await invokePluginTool('agentic-tools', 'kubectl_exec_command', { args });
+    const response = await invokePluginTool(
+      'agentic-tools',
+      'kubectl_exec_command',
+      { args }
+    );
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
         const result = response.result as PluginResultData;
         // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
         if (result.success === false) {
-          throw new Error(result.error || result.message || 'kubectl command failed');
+          throw new Error(
+            result.error || result.message || 'kubectl command failed'
+          );
         }
         // Return only the data field - never pass JSON wrapper to consumers
         if (result.data !== undefined) {
@@ -114,11 +125,15 @@ export class DeployOperation {
         if (typeof result === 'string') {
           return result as unknown as string;
         }
-        throw new Error('Plugin returned unexpected response format - missing data field');
+        throw new Error(
+          'Plugin returned unexpected response format - missing data field'
+        );
       }
       return String(response.result || '');
     } else {
-      throw new Error(response.error?.message || 'kubectl command failed via plugin');
+      throw new Error(
+        response.error?.message || 'kubectl command failed via plugin'
+      );
     }
   }
 
@@ -127,7 +142,10 @@ export class DeployOperation {
    * PRD #343: Uses kubectl_apply tool with manifest content (not file path)
    * File paths don't work across containers - must pass content via stdin
    */
-  private async applyManifests(manifestPath: string, timeout: number): Promise<string> {
+  private async applyManifests(
+    manifestPath: string,
+    timeout: number
+  ): Promise<string> {
     // Read manifest content from file (file is in MCP server container)
     const manifestContent = await readFile(manifestPath, 'utf8');
 
@@ -135,7 +153,7 @@ export class DeployOperation {
     const applyResult = await this.applyManifestContent(manifestContent);
 
     // Try to wait for deployments to be ready (ignore failures for other resource types)
-    let waitOutput = '';
+    let waitOutput: string;
     try {
       const waitResult = await this.executeKubectl([
         'wait',
@@ -143,14 +161,16 @@ export class DeployOperation {
         'deployments',
         '--all',
         `--timeout=${timeout}s`,
-        '--all-namespaces'
+        '--all-namespaces',
       ]);
       waitOutput = `\n\nWait output:\n${waitResult}`;
     } catch (waitError: unknown) {
       // If no deployments found or wait fails, that's OK for other resource types (Services, etc.)
-      const errorMsg = waitError instanceof Error ? waitError.message : String(waitError);
+      const errorMsg =
+        waitError instanceof Error ? waitError.message : String(waitError);
       if (errorMsg.includes('no matching resources found')) {
-        waitOutput = '\n\nWait output: No deployments found to wait for (likely Services, CRs, etc.)';
+        waitOutput =
+          '\n\nWait output: No deployments found to wait for (likely Services, CRs, etc.)';
       } else {
         waitOutput = `\n\nWait output: Warning - ${errorMsg}`;
       }
@@ -164,13 +184,17 @@ export class DeployOperation {
    * PRD #359: Uses unified plugin registry's kubectl_apply tool with stdin
    */
   private async applyManifestContent(manifest: string): Promise<string> {
-    const response = await invokePluginTool('agentic-tools', 'kubectl_apply', { manifest });
+    const response = await invokePluginTool('agentic-tools', 'kubectl_apply', {
+      manifest,
+    });
     if (response.success) {
       if (typeof response.result === 'object' && response.result !== null) {
         const result = response.result as PluginResultData;
         // Check for nested error
         if (result.success === false) {
-          throw new Error(result.error || result.message || 'kubectl apply failed');
+          throw new Error(
+            result.error || result.message || 'kubectl apply failed'
+          );
         }
         // Return only the data field
         if (result.data !== undefined) {
@@ -179,11 +203,15 @@ export class DeployOperation {
         if (typeof result === 'string') {
           return result as unknown as string;
         }
-        throw new Error('Plugin returned unexpected response format - missing data field');
+        throw new Error(
+          'Plugin returned unexpected response format - missing data field'
+        );
       }
       return String(response.result || '');
     } else {
-      throw new Error(response.error?.message || 'kubectl apply failed via plugin');
+      throw new Error(
+        response.error?.message || 'kubectl apply failed via plugin'
+      );
     }
   }
 }

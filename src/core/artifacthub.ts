@@ -66,7 +66,10 @@ export class ArtifactHubService {
    * @param limit - Maximum number of results to return
    * @returns Array of search results sorted by relevance (excludes Bitnami)
    */
-  async searchCharts(query: string, limit: number = 10): Promise<ArtifactHubSearchResult[]> {
+  async searchCharts(
+    query: string,
+    limit: number = 10
+  ): Promise<ArtifactHubSearchResult[]> {
     const encodedQuery = encodeURIComponent(query);
     // kind=0 filters for Helm charts only
     const url = `${this.baseUrl}/packages/search?ts_query_web=${encodedQuery}&kind=0&limit=${limit}`;
@@ -78,7 +81,7 @@ export class ArtifactHubService {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
         },
         signal: controller.signal,
       });
@@ -86,21 +89,30 @@ export class ArtifactHubService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`ArtifactHub API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `ArtifactHub API error: ${response.status} ${response.statusText}`
+        );
       }
 
-      const data = await response.json() as { packages?: ArtifactHubSearchResult[] };
+      const data = (await response.json()) as {
+        packages?: ArtifactHubSearchResult[];
+      };
 
       // Filter out excluded repositories (e.g., Bitnami)
       const packages = data.packages || [];
-      return packages.filter(pkg =>
-        !this.excludedRepos.includes(pkg.repository.name.toLowerCase())
+      return packages.filter(
+        pkg => !this.excludedRepos.includes(pkg.repository.name.toLowerCase())
       );
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`ArtifactHub API timeout after ${this.timeout}ms`);
+        throw new Error(`ArtifactHub API timeout after ${this.timeout}ms`, {
+          cause: error,
+        });
       }
-      throw new Error(`ArtifactHub search failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `ArtifactHub search failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
+      );
     }
   }
 
@@ -111,7 +123,10 @@ export class ArtifactHubService {
    * @param chartName - Chart name (e.g., "argo-cd")
    * @returns Detailed chart information including README and values schema
    */
-  async getChartDetails(repoName: string, chartName: string): Promise<ArtifactHubPackageDetails> {
+  async getChartDetails(
+    repoName: string,
+    chartName: string
+  ): Promise<ArtifactHubPackageDetails> {
     const url = `${this.baseUrl}/packages/helm/${repoName}/${chartName}`;
 
     try {
@@ -121,7 +136,7 @@ export class ArtifactHubService {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
         },
         signal: controller.signal,
       });
@@ -129,15 +144,22 @@ export class ArtifactHubService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`ArtifactHub API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `ArtifactHub API error: ${response.status} ${response.statusText}`
+        );
       }
 
-      return await response.json() as ArtifactHubPackageDetails;
+      return (await response.json()) as ArtifactHubPackageDetails;
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`ArtifactHub API timeout after ${this.timeout}ms`);
+        throw new Error(`ArtifactHub API timeout after ${this.timeout}ms`, {
+          cause: error,
+        });
       }
-      throw new Error(`ArtifactHub chart details failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `ArtifactHub chart details failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
+      );
     }
   }
 
@@ -148,7 +170,9 @@ export class ArtifactHubService {
    * @returns Formatted string for AI prompt
    */
   formatChartsForAI(charts: ArtifactHubSearchResult[]): string {
-    return charts.map((chart, index) => `
+    return charts
+      .map(
+        (chart, index) => `
 Chart ${index + 1}: ${chart.name}
   Repository: ${chart.repository.name} (${chart.repository.url})
   Version: ${chart.version}${chart.app_version ? ` (App: ${chart.app_version})` : ''}
@@ -156,6 +180,8 @@ Chart ${index + 1}: ${chart.name}
   Official: ${chart.official || chart.repository.official ? 'Yes' : 'No'}
   Verified Publisher: ${chart.verified_publisher || chart.repository.verified_publisher ? 'Yes' : 'No'}
   Stars: ${chart.stars}
-`).join('\n');
+`
+      )
+      .join('\n');
   }
 }
