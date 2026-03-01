@@ -28,5 +28,4 @@ beforeAll(() => {
     );
   }
 
-  console.log(`Integration tests using kubeconfig: ${testKubeconfig}`);
 });

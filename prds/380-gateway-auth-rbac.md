@@ -328,12 +328,12 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 **Delivery approach:** 5 incremental tasks. Each is self-contained and independently testable. A dual-mode auth middleware (JWT + legacy token) keeps existing tests passing throughout the transition.
 
-#### Task 2.1: OAuth Foundation (Types + JWT + Dual-Mode Middleware)
-- [ ] `UserIdentity` type: `{ userId, email?, groups[], source: 'oauth' }`
-- [ ] JWT signing/verification using `node:crypto` HMAC-SHA256 (no external libraries)
-- [ ] Dual-mode auth middleware: validates JWT tokens, falls back to legacy `DOT_AI_AUTH_TOKEN`
-- [ ] Wire new middleware into `src/interfaces/mcp.ts` replacing `checkBearerAuth`
-- [ ] All existing integration tests pass unchanged (legacy token still works)
+#### Task 2.1: OAuth Foundation (Types + JWT + Dual-Mode Middleware) ✅
+- [x] `UserIdentity` type: `{ userId, email?, groups[], source: 'oauth' }`
+- [x] JWT signing/verification using `node:crypto` HMAC-SHA256 (no external libraries)
+- [x] Dual-mode auth middleware: validates JWT tokens, falls back to legacy `DOT_AI_AUTH_TOKEN`
+- [x] Wire new middleware into `src/interfaces/mcp.ts` replacing `checkBearerAuth`
+- [x] All existing integration tests pass unchanged (legacy token still works)
 
 #### Task 2.2: OAuth Discovery + Client Registration Endpoints
 - [ ] `/.well-known/oauth-protected-resource` — Protected Resource Metadata (RFC 9728)

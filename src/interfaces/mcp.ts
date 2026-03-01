@@ -74,7 +74,7 @@ import {
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
-import { checkBearerAuth } from './auth';
+import { checkBearerAuth } from './oauth';
 import { sendErrorResponse } from './error-response';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
