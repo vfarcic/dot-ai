@@ -74,13 +74,9 @@ import {
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
-import {
-  checkBearerAuth,
-  getBaseUrl,
-  handleProtectedResourceMetadata,
-  handleAuthServerMetadata,
-  handleClientRegistration,
-} from './oauth';
+import { checkBearerAuth, DotAIOAuthProvider } from './oauth';
+import express from 'express';
+import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { sendErrorResponse } from './error-response';
 import { createHttpServerSpan, withToolTracing } from '../core/tracing';
 import { context, trace } from '@opentelemetry/api';
@@ -156,6 +152,8 @@ export class MCPServer {
   private restApiRouter: RestApiRouter;
   private mcpClientInfo: McpClientInfo | undefined;
   private pluginManager?: PluginManager;
+  private oauthApp?: ReturnType<typeof express>;
+  private issuerUrl?: URL;
 
   constructor(dotAI: DotAI, config: MCPServerConfig) {
     this.dotAI = dotAI;
@@ -561,6 +559,18 @@ export class MCPServer {
     
     this.logger.info('Using HTTP/SSE transport', { port, host, sessionMode });
 
+    // Create OAuth provider and Express sub-app with SDK router
+    // Issuer URL: DOT_AI_EXTERNAL_URL for production (HTTPS), localhost for dev/test
+    // SDK exempts localhost from HTTPS requirement
+    const externalUrl = process.env.DOT_AI_EXTERNAL_URL || `http://localhost:${port}`;
+    this.issuerUrl = new URL(externalUrl);
+    const oauthProvider = new DotAIOAuthProvider();
+    this.oauthApp = express();
+    this.oauthApp.use(mcpAuthRouter({
+      provider: oauthProvider,
+      issuerUrl: this.issuerUrl,
+    }));
+
     // Create HTTP transport with session management
     this.httpTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: sessionMode === 'stateful' ? () => randomUUID() : undefined,
@@ -607,24 +617,19 @@ export class MCPServer {
           return;
         }
 
-        // OAuth discovery & registration endpoints (unauthenticated)
-        // Clients use these to discover how to authenticate before they have a token.
-        if (req.url === '/.well-known/oauth-protected-resource' && req.method === 'GET') {
-          handleProtectedResourceMetadata(req, res);
-          endSpan(200);
-          return;
-        }
-
-        if (req.url === '/.well-known/oauth-authorization-server' && req.method === 'GET') {
-          handleAuthServerMetadata(req, res);
-          endSpan(200);
-          return;
-        }
-
-        if (req.url === '/register' && req.method === 'POST') {
-          const registerBody = await this.parseRequestBody(req);
-          handleClientRegistration(req, res, registerBody);
-          endSpan(res.statusCode || 201);
+        // OAuth endpoints (unauthenticated) — delegate to Express sub-app with SDK router
+        // SDK handles: discovery metadata, client registration, authorize, token
+        // (with built-in rate limiting, CORS, Zod validation)
+        const oauthPaths = [
+          '/.well-known/oauth-protected-resource',
+          '/.well-known/oauth-authorization-server',
+          '/register',
+          '/authorize',
+          '/token',
+        ];
+        if (oauthPaths.some(p => req.url?.startsWith(p))) {
+          res.on('finish', () => endSpan(res.statusCode || 200));
+          this.oauthApp!(req, res);
           return;
         }
 
@@ -635,7 +640,8 @@ export class MCPServer {
           const authResult = checkBearerAuth(req);
           if (!authResult.authorized) {
             this.logger.warn('Authentication failed', { message: authResult.message });
-            const resourceMetadataUrl = `${getBaseUrl(req)}/.well-known/oauth-protected-resource`;
+            const issuerHref = this.issuerUrl!.href.replace(/\/$/, '');
+            const resourceMetadataUrl = `${issuerHref}/.well-known/oauth-protected-resource`;
             sendErrorResponse(
               res,
               401,

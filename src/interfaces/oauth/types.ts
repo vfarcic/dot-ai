@@ -40,39 +40,61 @@ export interface JwtClaims {
 }
 
 /**
- * Registered OAuth client (RFC 7591).
- * Stored in-memory; clients re-register on server restart.
+ * Pending authorization request.
+ * Created when /authorize is called, before redirecting to Dex.
+ * Maps a session ID to the original client request params.
  */
-export interface OAuthClient {
-  client_id: string;
-  client_name?: string;
-  redirect_uris: string[];
-  grant_types: string[];
-  response_types: string[];
-  token_endpoint_auth_method: string;
-  client_id_issued_at: number;
+export interface PendingAuthRequest {
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  codeChallengeMethod: 'S256';
+  state: string;
+  createdAt: number;
 }
 
 /**
- * Dynamic Client Registration request body (RFC 7591).
+ * Issued authorization code.
+ * Created after Dex callback, consumed by /token.
  */
-export interface ClientRegistrationRequest {
-  redirect_uris: string[];
-  client_name?: string;
-  grant_types?: string[];
-  response_types?: string[];
-  token_endpoint_auth_method?: string;
+export interface AuthorizationCode {
+  code: string;
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  codeChallengeMethod: 'S256';
+  userIdentity: UserIdentity;
+  createdAt: number;
+  expiresAt: number;
 }
 
 /**
- * Dynamic Client Registration response body (RFC 7591).
+ * Token request body (POST /token).
+ * RFC 6749 requires application/x-www-form-urlencoded.
  */
-export interface ClientRegistrationResponse {
+export interface TokenRequest {
+  grant_type: string;
+  code: string;
+  redirect_uri: string;
   client_id: string;
-  client_name?: string;
-  redirect_uris: string[];
-  grant_types: string[];
-  response_types: string[];
-  token_endpoint_auth_method: string;
-  client_id_issued_at: number;
+  code_verifier: string;
+}
+
+/**
+ * Token response body.
+ */
+export interface TokenResponse {
+  access_token: string;
+  token_type: 'bearer';
+  expires_in: number;
+}
+
+/**
+ * Dex OIDC provider configuration.
+ */
+export interface DexConfig {
+  issuerUrl: string;
+  externalUrl: string;
+  clientId: string;
+  clientSecret: string;
 }

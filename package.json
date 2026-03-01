@@ -86,6 +86,7 @@
   ],
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/express": "^5.0.6",
     "@types/glob": "^9.0.0",
     "@types/handlebars": "^4.0.40",
     "@types/node": "^22.0.0",
