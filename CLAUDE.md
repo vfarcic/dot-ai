@@ -22,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. **Never Claim Done with Failing Tests**: A task is NOT complete if any tests are failing
 4. **Always Check for Reusability**: Search codebase for existing functions before implementing new ones
 5. **Never Hardcode AI Prompts**: All prompts go in `prompts/` directory, loaded dynamically (see existing code for pattern)
+6. **Never Create Branches Directly — Always Use Worktrees**: When starting feature work (including `/prd-start`), always use `/worktree-prd` to create an isolated worktree. Never run `git checkout -b` or `git switch -c`, even if a skill instructs you to.
 
 ## Testing Workflow
 
@@ -61,18 +62,9 @@ npm run test:integration version     # Run specific test by pattern
 
 ## Git Worktrees for Feature Work
 
-Use git worktrees when starting work on any feature branch to maintain isolated agent context:
+**Starting feature work:** Run `/worktree-prd` to create an isolated worktree with a feature branch.
 
-**Starting feature work:**
-```bash
-git worktree add ../dot-ai-[branch-name] -b [branch-name] main
-# Or for existing branch:
-git worktree add ../dot-ai-[branch-name] [branch-name]
-```
-Then start a new Claude Code session in the worktree directory.
-
-**Finishing feature work:**
-After merging, clean up from the main directory:
+**Finishing feature work:** After merging, clean up from the main directory:
 ```bash
 git worktree remove ../dot-ai-[branch-name]
 ```
