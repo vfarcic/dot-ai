@@ -65,12 +65,7 @@ If any check fails, inform the user and ask how to proceed.
 git worktree add "${worktree_path}" -b [branch-name] main
 ```
 
-4. **Initialize submodules** in the new worktree:
-```bash
-cd "${worktree_path}" && git submodule update --init --recursive
-```
-
-5. **Report** the result to the user:
+4. **Report** the result to the user:
    - Worktree path: `${worktree_path}`
    - Branch: `[branch-name]`
    - Next step: `cd ${worktree_path}`
