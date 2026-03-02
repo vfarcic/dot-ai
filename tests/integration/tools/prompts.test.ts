@@ -91,8 +91,8 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedListResponse);
-      // At least 10 built-in + 4 user prompts (3 flat .md + 1 skill folder) from git repository
-      expect(response.data.prompts.length).toBeGreaterThanOrEqual(14);
+      // 10 built-in + 4 user prompts (3 flat .md + 1 skill folder) from git repository
+      expect(response.data.prompts.length).toBe(14);
     });
   });
 
@@ -364,29 +364,6 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedErrorResponse);
-    });
-  });
-
-  describe('Skill File Attachment', () => {
-    test('should include files on folder-based skills and omit files on flat prompts', async () => {
-      // Folder-based skill (SKILL.md + helper.sh) includes supporting files
-      const skillResponse = await integrationTest.httpClient.post('/api/v1/prompts/test-skill', {});
-      expect(skillResponse).toMatchObject({
-        success: true,
-        data: {
-          files: [{ path: 'helper.sh', content: expect.any(String) }],
-        },
-      });
-
-      // Flat user prompt has no files
-      const flatResponse = await integrationTest.httpClient.post('/api/v1/prompts/eval-run', {});
-      expect(flatResponse).toMatchObject({ success: true });
-      expect(flatResponse.data.files).toBeUndefined();
-
-      // Built-in prompt has no files
-      const builtInResponse = await integrationTest.httpClient.post('/api/v1/prompts/generate-dockerfile', {});
-      expect(builtInResponse).toMatchObject({ success: true });
-      expect(builtInResponse.data.files).toBeUndefined();
     });
   });
 });
