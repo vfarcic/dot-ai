@@ -141,6 +141,27 @@ describe('Mock Server Fixtures', () => {
       // Verify messages content is non-empty
       expect(fixture.data.messages.length).toBeGreaterThan(0);
       expect(fixture.data.messages[0].content.text.length).toBeGreaterThan(0);
+
+      // Verify optional files array with base64-encoded supporting files
+      expect(fixture.data.files).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: expect.any(String),
+            content: expect.any(String),
+          }),
+        ])
+      );
+
+      // Verify files include a flat file and a nested path file
+      const filePaths = fixture.data.files.map((f: any) => f.path);
+      expect(filePaths).toContain('troubleshoot.sh');
+      expect(filePaths).toContain('templates/pod-debug.yaml');
+
+      // Verify content is valid base64
+      for (const file of fixture.data.files) {
+        const decoded = Buffer.from(file.content, 'base64').toString('utf-8');
+        expect(decoded.length).toBeGreaterThan(0);
+      }
     });
   });
 });
