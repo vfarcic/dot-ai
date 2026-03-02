@@ -1,4 +1,4 @@
-# PRD: MCP OAuth Authentication & Kubernetes RBAC
+# PRD: MCP OAuth Authentication & User Identity
 
 **Status**: In Progress
 **Priority**: High
@@ -25,7 +25,7 @@ Previous approaches (PRD #360, v1.0–v3.0 of this PRD) proposed gateway-delegat
 **Two core principles:**
 
 1. **dot-ai handles OAuth directly** — following the [MCP Authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization), dot-ai serves OAuth metadata endpoints, triggers browser-based login, and validates tokens. No gateway required.
-2. **dot-ai owns authorization via Kubernetes RBAC** — all requests converge on a `UserIdentity` extracted from the OAuth token, and dot-ai checks permissions using K8s [SubjectAccessReview](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/subject-access-review-v1/).
+2. **Individual user identity** — all requests converge on a `UserIdentity` extracted from the OAuth token, providing the foundation for audit trails and future authorization (K8s RBAC via [SubjectAccessReview](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/subject-access-review-v1/)).
 
 ### How It Works
 
@@ -41,8 +41,8 @@ User's laptop                              Kubernetes cluster
 │  CLI         │ ── (internet) ──►        │  ├── OAuth endpoints    │    │
 └─────────────┘                           │  ├── MCP endpoint       │    │
                                           │  ├── REST API      (OIDC)   │
-┌─────────────┐                          │  ├── Token validation         │
-│  Web UI      │ ── (internet) ──►        │  └── K8s RBAC check          │
+┌─────────────┐                          │  └── Token validation         │
+│  Web UI      │ ── (internet) ──►        │                              │
 │ (browser)    │                          │                              │
 └─────────────┘                           └──────────────────────────────┘
 ```
@@ -97,132 +97,37 @@ interface UserIdentity {
 }
 ```
 
-### Authorization: Kubernetes RBAC
+### Authorization (Follow-up PRD)
 
-dot-ai leverages Kubernetes RBAC using a **virtual API group** (`dot-ai.devopstoolkit.ai`). No CRDs are required — SubjectAccessReview evaluates RBAC rules as pure string matching.
+**Note:** Tool-level and namespace-level authorization via Kubernetes RBAC is planned as a follow-up PRD. The identity infrastructure delivered by this PRD (UserIdentity with userId, email, groups) provides the foundation for RBAC enforcement via K8s SubjectAccessReview.
 
-When a request arrives to use a tool (e.g., `operate` in namespace `production`):
-
-```typescript
-const review = await k8sApi.createSubjectAccessReview({
-    spec: {
-        user: identity.userId,
-        groups: identity.groups,
-        resourceAttributes: {
-            namespace: targetNamespace,
-            group: "dot-ai.devopstoolkit.ai",
-            resource: "tools",
-            name: toolName,       // e.g., "operate"
-            verb: "execute",
-        },
-    },
-});
-
-if (!review.body.status.allowed) {
-    // Reject with clear error message
-}
-```
-
-**Example: Restrict a user to `remediate` and `query` in `production` only:**
-
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: dotai-operator
-  namespace: production
-rules:
-  - apiGroups: ["dot-ai.devopstoolkit.ai"]
-    resources: ["tools"]
-    resourceNames: ["remediate", "query"]
-    verbs: ["execute"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: viktor-operator
-  namespace: production
-subjects:
-  - kind: User
-    name: viktor@farcic.com
-roleRef:
-  kind: Role
-  name: dotai-operator
-  apiGroup: rbac.authorization.k8s.io
-```
-
-**Namespace scoping comes for free** — same user, different permissions per namespace. **Group bindings** leverage groups from the identity provider.
-
-### Pre-built ClusterRoles
-
-The Helm chart ships pre-built ClusterRoles. Admins only need to create bindings:
-
-| ClusterRole | Tools Allowed | Use Case |
-|-------------|---------------|----------|
-| `dotai-viewer` | `query`, `version` | Read-only cluster visibility |
-| `dotai-operator` | `query`, `version`, `operate`, `remediate` | Day-2 operations |
-| `dotai-admin` | All tools (`*`) | Full access |
-
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: dotai-viewer
-rules:
-  - apiGroups: ["dot-ai.devopstoolkit.ai"]
-    resources: ["tools"]
-    resourceNames: ["query", "version"]
-    verbs: ["execute"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: dotai-operator
-rules:
-  - apiGroups: ["dot-ai.devopstoolkit.ai"]
-    resources: ["tools"]
-    resourceNames: ["query", "version", "operate", "remediate"]
-    verbs: ["execute"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: dotai-admin
-rules:
-  - apiGroups: ["dot-ai.devopstoolkit.ai"]
-    resources: ["tools"]
-    resourceNames: ["query", "version", "recommend", "operate", "remediate",
-                     "manageOrgData", "manageKnowledge", "projectSetup", "validateDocs"]
-    verbs: ["execute"]
-  - apiGroups: ["dot-ai.devopstoolkit.ai"]
-    resources: ["users"]
-    verbs: ["create", "delete", "list"]
-```
-
-Admins can create additional custom ClusterRoles/Roles with standard `kubectl`.
+Currently, all authenticated users (OAuth and token) have full access to all tools. The follow-up RBAC PRD will add:
+- SubjectAccessReview checks before tool invocations
+- Pre-built ClusterRoles (`dotai-viewer`, `dotai-operator`, `dotai-admin`)
+- Namespace-scoped permissions
 
 ### Authentication
 
 dot-ai supports **two authentication modes** that coexist permanently:
 
-1. **OAuth via Dex** (recommended) — browser-based login with individual user identity, supports RBAC, audit trails, and Dex connectors for enterprise IdPs (Google, GitHub, LDAP, SAML)
+1. **OAuth via Dex** (recommended) — browser-based login with individual user identity, audit trail foundation, and Dex connectors for enterprise IdPs (Google, GitHub, LDAP, SAML)
 2. **Static token** (`DOT_AI_AUTH_TOKEN`) — shared Bearer token for simple setups, CI/CD pipelines, REST API consumers, and MCP clients without OAuth support. Provides shared access with no individual identity — all token users appear as anonymous.
 
 **When to use which:**
 
 | Use Case | Auth Mode | Why |
 |----------|-----------|-----|
-| MCP clients with OAuth (Claude Code, ChatGPT, Windsurf) | OAuth | Individual identity, RBAC |
+| MCP clients with OAuth (Claude Code, ChatGPT, Windsurf) | OAuth | Individual identity |
 | MCP clients without OAuth support | Static token | Only option available |
 | REST API / CI/CD automation | Static token | No browser for OAuth flow |
-| Enterprise with IdP (Google, LDAP) | OAuth + Dex connector | SSO, group-based RBAC |
+| Enterprise with IdP (Google, LDAP) | OAuth + Dex connector | SSO, individual identity |
 | Local development / quick start | Static token | Zero setup, works immediately |
 
-**Both modes active simultaneously** — the auth middleware checks JWT first, falls back to static token match. OAuth users get full identity (userId, email, groups). Token users get shared anonymous access (no RBAC enforcement, full tool access).
+**Both modes active simultaneously** — the auth middleware checks JWT first, falls back to static token match. OAuth users get full identity (userId, email, groups). Token users get shared anonymous access. All authenticated users currently have full tool access — authorization (RBAC) is a follow-up PRD.
 
 ### User Management
 
-dot-ai provides authenticated API endpoints for managing Dex static users. RBAC enforcement is deferred to Milestone 3 — any authenticated user can currently manage users.
+dot-ai provides authenticated API endpoints for managing Dex static users. Any authenticated user can currently manage users — authorization will be added in the follow-up RBAC PRD.
 
 **Endpoints:**
 - `POST /api/v1/users` — Create a new static user (email, password)
@@ -234,14 +139,7 @@ dot-ai provides authenticated API endpoints for managing Dex static users. RBAC 
 2. dot-ai calls Dex gRPC API (`CreatePassword`, `ListPasswords`, `DeletePassword`)
 3. Change takes effect immediately in Dex's storage — no Secret editing or pod restarts needed
 
-**RBAC for user management:**
-```yaml
-- apiGroups: ["dot-ai.devopstoolkit.ai"]
-  resources: ["users"]
-  verbs: ["create", "delete", "list"]
-```
-
-This is included in the `dotai-admin` ClusterRole. When Dex connectors are configured, static user management becomes irrelevant — users come from the upstream IdP.
+**Note:** Any authenticated user can currently manage users. RBAC enforcement for user management will be added in the follow-up RBAC PRD. When Dex connectors are configured, static user management becomes irrelevant — users come from the upstream IdP.
 
 ### Configuration
 
@@ -307,13 +205,11 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 ### Key Design Principles
 
 1. **Server-side OAuth** — dot-ai handles OAuth per the MCP Authorization spec; no gateway dependency for auth
-2. **Dual-mode auth** — OAuth (individual identity + RBAC) and static token (shared access) coexist permanently. Progressive adoption: start with token, upgrade to OAuth when ready
+2. **Dual-mode auth** — OAuth (individual identity) and static token (shared access) coexist permanently. Progressive adoption: start with token, upgrade to OAuth when ready
 3. **Dex as default IdP** — ships as a subchart with static users; admins configure connectors for production IdPs
-4. **Single authorization path** — OAuth users converge on UserIdentity → K8s RBAC; token users bypass RBAC
-5. **Kubernetes-native** — K8s SubjectAccessReview, standard RBAC manifests
-6. **Infrastructure-agnostic** — works with any ingress/gateway; dot-ai doesn't prescribe routing
-7. **Validate first** — PoC proved the OAuth flow works before building RBAC
-8. **Familiar UX** — admins manage permissions with `kubectl`
+4. **Infrastructure-agnostic** — works with any ingress/gateway; dot-ai doesn't prescribe routing
+5. **Validate first** — PoC proved the OAuth flow works before building the full system
+6. **Identity foundation** — UserIdentity (userId, email, groups) extracted from OAuth tokens provides the basis for future RBAC enforcement
 
 ## Milestones
 
@@ -385,70 +281,30 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ---
 
-### Milestone 3: Kubernetes RBAC Enforcement
-**Objective**: Enforce tool-level and namespace-level permissions using K8s SubjectAccessReview.
+### Milestone 3: Documentation & Connector Validation
+**Objective**: Document the authentication system so users can adopt it, validate Dex connectors for production IdPs, and apply dot-ai branding to the login page.
 
 **Deliverables:**
-- [ ] SubjectAccessReview call before every tool invocation for OAuth users (token users bypass RBAC — shared access)
-- [ ] Tool name and target namespace passed to SubjectAccessReview
-- [ ] Rejected tool calls return structured error with reason
-- [ ] Pre-built ClusterRoles in Helm chart: `dotai-viewer`, `dotai-operator`, `dotai-admin`
-- [ ] ClusterRole for dot-ai's ServiceAccount to create SubjectAccessReview
-- [ ] Integration tests: authorized calls succeed, unauthorized rejected, namespace scoping, group bindings
-
-**Success Criteria:**
-- Unauthorized tool access rejected 100% of the time
-- Namespace-scoped permissions enforced correctly
-- Group-based RoleBindings work
-- SubjectAccessReview adds <10ms latency
-
----
-
-### Milestone 4: Audit Integration
-**Objective**: Include user identity in audit logs for traceability.
-
-**Deliverables:**
-- [ ] User identity in all operation audit log entries
-- [ ] Authorization decisions logged (allowed and denied)
-
-**Success Criteria:**
-- All operations traceable to specific user
-- Denied access attempts logged with reason
-
----
-
-### Milestone 5: Client Identity PRDs
-**Objective**: Define how CLI and Web UI authenticate and expose user management.
-
-**Deliverables:**
-- [ ] Create PRD for `dot-ai-cli`: how CLI authenticates (device flow, browser OAuth, etc.) and exposes user management commands (`dot-ai users add/list/remove`)
-- [ ] Create PRD for `dot-ai-ui`: how Web UI authenticates users (OAuth redirect, etc.) and provides user management UI for admins
-
-**Success Criteria:**
-- CLI and Web UI PRDs define their auth flow and user management UX
-- No changes needed in dot-ai core (CLI/UI use existing user management endpoints)
-
----
-
-### Milestone 6: Documentation & End-to-End Testing
-**Objective**: Validate the full stack, test Dex connectors, and document the complete system (including CLI/UI).
-
-**Deliverables:**
-- [ ] End-to-end integration tests: OAuth → identity → RBAC → tool execution
-- [ ] Tests for role escalation prevention
-- [ ] Test and document Dex connectors: Google, GitHub (validate the connector flow works end-to-end)
-- [ ] Documentation: deployment with OAuth (default setup with auto-generated admin)
-- [ ] Documentation: user management via CLI/UI/API
-- [ ] Documentation: RBAC setup (ClusterRoles, RoleBindings, examples)
-- [ ] Documentation: Dex connector configuration (Google, GitHub, LDAP, SAML)
-- [ ] Documentation: MCP client configuration for each supported client
+- [ ] Documentation: deployment with OAuth (default setup with auto-generated admin, Helm values reference)
+- [ ] Documentation: user management via API (create/list/delete users, with curl/CLI examples)
+- [ ] Documentation: Dex connector configuration (Google, GitHub, LDAP, SAML — with step-by-step guides)
+- [ ] Documentation: MCP client configuration for each supported client (Claude Code, ChatGPT, Windsurf, VS Code Copilot)
+- [ ] Test and document at least two Dex connectors end-to-end: Google, GitHub
 - [ ] Dex login page theming — custom templates (logo, colors, CSS) mounted via ConfigMap, Helm-configurable
 
 **Success Criteria:**
-- All tests passing
+- Admins can deploy and configure OAuth following documentation alone
 - At least two Dex connectors tested and documented (Google, GitHub)
-- Admins can deploy and configure auth following documentation
 - Dex login page uses dot-ai branding
+
+---
+
+### Future Work (Separate PRDs)
+
+The following capabilities build on the authentication foundation delivered by this PRD and will be tracked as separate PRDs:
+
+- **[PRD #392 - RBAC Enforcement](./392-rbac-enforcement.md)** — SubjectAccessReview-based tool-level and namespace-level permissions for OAuth users. Pre-built ClusterRoles (`dotai-viewer`, `dotai-operator`, `dotai-admin`). Includes audit logging of authorization decisions. Depends on Milestone 2 identity infrastructure.
+- **Client Identity PRDs** — How CLI authenticates (device flow, browser OAuth) and exposes user management commands. How Web UI authenticates users and provides admin UI. These are separate projects that consume this PRD's user management endpoints.
 
 ---
 
@@ -456,26 +312,24 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ### Must Have (MVP)
 
-- [ ] MCP OAuth endpoints in dot-ai (Milestone 2, Tasks 2.1-2.2)
-- [ ] Dex integration as default OIDC provider (Milestone 2, Task 2.3)
-- [ ] Identity extraction from OAuth tokens (Milestone 2, Task 2.4)
-- [ ] Static token auth preserved as permanent alternative (dual-mode)
-- [ ] User management endpoints via Dex gRPC API (Milestone 2, Task 2.5)
-- [ ] K8s SubjectAccessReview enforcement for OAuth users (Milestone 3)
-- [ ] Pre-built ClusterRoles in Helm chart, including user management (Milestone 3)
-- [ ] Integration tests for auth (both modes), user management, and RBAC enforcement
+- [x] MCP OAuth endpoints in dot-ai (Milestone 2, Tasks 2.1-2.2)
+- [x] Dex integration as default OIDC provider (Milestone 2, Task 2.3)
+- [x] Identity extraction from OAuth tokens (Milestone 2, Task 2.4)
+- [x] Static token auth preserved as permanent alternative (dual-mode)
+- [x] User management endpoints via Dex gRPC API (Milestone 2, Task 2.5)
+- [x] Integration tests for auth (both modes) and user management
+- [ ] Documentation for OAuth deployment, user management, Dex connectors, and MCP client configuration (Milestone 3)
+- [ ] At least two Dex connectors tested and documented (Milestone 3)
 
 ### Nice to Have (Future)
 
 - [ ] Rate limiting per user
-- [ ] RBAC dry-run tool ("what would happen if user X tried tool Y?")
 - [ ] Token refresh flow
 
 ### Success Metrics
 
-- Unauthorized tool access rejected 100% of the time
-- All authenticated operations traceable to specific user
-- RBAC evaluation adds <10ms latency per request
+- All authenticated operations traceable to specific user (via UserIdentity)
+- Admins can deploy and configure OAuth by following documentation alone
 
 ## User Journey
 
@@ -486,30 +340,27 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 3. All users have full access to all tools
 4. No individual identity tracking — suitable for small teams, local dev, CI/CD
 
-### Enterprise Setup (OAuth + K8s RBAC)
+### Enterprise Setup (OAuth via Dex)
 
 1. Admin runs `helm install` with `dex.enabled=true` — gets auto-generated admin credentials in output
-2. Admin logs in as initial admin, adds users via dot-ai API (CLI, UI, or MCP tool)
+2. Admin logs in as initial admin, adds users via dot-ai API (REST or MCP tool)
 3. Admin optionally configures Dex connectors for production IdP (Google, GitHub, LDAP, etc.)
-4. Admin applies ClusterRoles and RoleBindings via `kubectl`
-5. User configures MCP client with dot-ai URL
-6. On first connection, user authenticates via `/mcp` → Authenticate (browser opens for Dex login)
-7. dot-ai validates identity, checks K8s RBAC, allows or denies
-8. All operations logged with user identity
-9. Static token can coexist — useful for CI/CD pipelines alongside OAuth for interactive users
+4. User configures MCP client with dot-ai URL
+5. On first connection, user authenticates via `/mcp` → Authenticate (browser opens for Dex login)
+6. dot-ai validates identity, grants access
+7. All operations logged with user identity
+8. Static token can coexist — useful for CI/CD pipelines alongside OAuth for interactive users
+
+**Note:** Tool-level and namespace-level authorization (RBAC) will be added in a follow-up PRD. Currently all authenticated users have full tool access.
 
 ### User Personas
 
 **Persona 1: Enterprise Platform Admin**
 - Deploys dot-ai via Helm with OAuth enabled (Dex included)
 - Configures Dex connectors for company IdP (Google, GitHub, LDAP)
-- Creates RoleBindings for teams via `kubectl`
+- Manages users via API (create/list/delete)
 
-**Persona 2: Platform Team Lead**
-- Team auto-assigned `dotai-operator` via Group RoleBinding
-- Can query, operate, remediate — cannot deploy
-
-**Persona 3: Developer (Existing User)**
+**Persona 2: Developer (Existing User)**
 - Dex static user for local development (KinD) — individual identity from day one
 - Or static token for quick local setup — no Dex needed
 
@@ -520,7 +371,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ## Technical Scope
 
-### dot-ai Changes (Milestones 2-3)
+### dot-ai Changes (Milestone 2)
 
 **OAuth Module (`src/interfaces/oauth/`):**
 - `types.ts` — `UserIdentity`, JWT claims, pending auth request/authorization code types, `DexConfig`
@@ -541,32 +392,16 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - `POST /api/v1/users` — bcrypt-hash password, call Dex gRPC `CreatePassword` (409 if exists)
 - `GET /api/v1/users` — call Dex gRPC `ListPasswords`, return email list (no hashes)
 - `DELETE /api/v1/users/:email` — call Dex gRPC `DeletePassword` (404 if not found)
-- RBAC deferred to Milestone 3 — any authenticated user can currently manage users
+- Any authenticated user can manage users (RBAC enforcement deferred to follow-up PRD)
 
 **Auth Middleware (`src/interfaces/oauth/middleware.ts`):**
 - Dual-mode token validation: JWT first, static token fallback
 - Validate Bearer tokens, extract `UserIdentity` (OAuth: full identity; token: anonymous)
 
-**Authorization Check (new module, Milestone 3):**
-- K8s SubjectAccessReview before tool dispatch
-- dot-ai's ServiceAccount needs `create` on `subjectaccessreviews`
-
 ### Helm Chart Changes (Milestone 2)
 
 - Dex subchart with gRPC enabled (`dex.grpc.enabled: true`) for user management API
 - Auto-generated initial admin on `helm install` (or migrated from `DOT_AI_AUTH_TOKEN`)
-- Pre-built ClusterRoles: `dotai-viewer`, `dotai-operator`, `dotai-admin`
-- ClusterRole for SubjectAccessReview:
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: dotai-auth-checker
-rules:
-  - apiGroups: ["authorization.k8s.io"]
-    resources: ["subjectaccessreviews"]
-    verbs: ["create"]
-```
 
 ## Dependencies
 
@@ -577,11 +412,12 @@ rules:
 **Internal Dependencies:**
 - `version` tool — for identity display (Milestone 2, Task 2.4)
 - Auth middleware — replace existing with OAuth (Milestone 2, Task 2.1)
-- Helm chart — for Dex subchart and ClusterRoles (Milestones 2-3)
+- Helm chart — for Dex subchart (Milestone 2)
 
 **Dependent PRDs:**
 - [PRD #361 (User-Specific Permissions)](./361-user-specific-permissions.md) — depends on user identity from this PRD
-- New PRDs for `dot-ai-cli` and `dot-ai-ui` (Milestone 5)
+- Follow-up RBAC PRD — depends on identity infrastructure from this PRD
+- Future PRDs for `dot-ai-cli` and `dot-ai-ui` auth flows
 
 ## Security Considerations
 
@@ -593,9 +429,8 @@ rules:
 
 ### Default Deny
 - Requests without valid Bearer token (JWT or static) → 401
-- OAuth users without RoleBindings → denied all tool access
-- Static token users bypass RBAC — full tool access (shared anonymous identity)
-- No default role for OAuth users — access must be explicitly granted
+- All authenticated users (OAuth and token) currently have full tool access
+- Tool-level authorization (RBAC) will be added in a follow-up PRD — OAuth users will then require explicit RoleBindings
 
 ### Dex Trust
 - dot-ai trusts Dex as its OIDC provider — Dex runs in-cluster alongside dot-ai
@@ -629,7 +464,9 @@ rules:
 - **GitHub Issue**: [#380](https://github.com/vfarcic/dot-ai/issues/380)
 - **Supersedes**: [PRD #360 - User Authentication](./done/360-user-authentication.md) (closed)
 - **Dependent PRD**: [PRD #361 - User-Specific Permissions](./361-user-specific-permissions.md)
-- **Follow-up PRDs**: CLI identity (`dot-ai-cli`), Web UI identity (`dot-ai-ui`)
+- **Follow-up**: [PRD #392 - RBAC Enforcement](./392-rbac-enforcement.md) (K8s SubjectAccessReview, ClusterRoles, audit logging)
+- **Follow-up**: CLI identity PRD, Web UI identity PRD
+- **Follow-up**: dot-ai-stack quickstart update (enable Dex, auth setup in getting-started guide)
 
 ---
 
@@ -661,6 +498,7 @@ rules:
 | 2026-03-02 | **Dex gRPC API for user management (replaces Secret writes + Stakater Reloader)** | Dex exposes `CreatePassword`, `ListPasswords`, `DeletePassword` via gRPC. Changes take effect immediately in Dex's storage — no Secret editing, no pod restarts, no config reloader needed. Simpler architecture with fewer moving parts. |
 | 2026-03-02 | **Defer RBAC on user management to Milestone 3** | Any authenticated user can currently manage users. RBAC enforcement via SubjectAccessReview will be added when Milestone 3 implements the full RBAC layer. Avoids a chicken-and-egg problem (need users before RBAC can protect user creation). |
 | 2026-03-02 | **Session GC with 1-hour TTL** | In-memory sessions accumulate without cleanup. Sessions inactive for 1 hour are reaped (matches JWT expiry). 5-minute sweep interval via `setInterval(..).unref()`. Pod restarts invalidate all sessions; clients auto-reconnect with existing JWT (no re-auth through Dex needed). |
+| 2026-03-02 | **Split RBAC, audit, and client PRDs into separate PRDs** | This PRD delivers authentication + identity + user management + documentation. RBAC enforcement (SubjectAccessReview, ClusterRoles), audit integration, and client identity PRDs moved to follow-up PRDs. Rationale: (1) auth alone provides real value — controlling who can access the server, (2) RBAC is a distinct concern deserving its own design space, (3) shipping sooner enables earlier feedback, (4) PRD was already 680+ lines with 6 milestones. |
 
 ## Version History
 
@@ -677,3 +515,4 @@ rules:
 - **v5.0** (2026-03-02): **Merge M2+M3, OAuth in server, incremental delivery** — Merged "OAuth Endpoints (no Dex)" and "Dex Integration" into single Milestone 2 to avoid throwaway code. OAuth logic moves to `src/interfaces/oauth/` (server, not plugin) — endpoints are HTTP routes, not tool invocations; Dex is an external service like K8s/Qdrant. Milestone broken into 5 incremental tasks with dual-mode auth transition. Milestones renumbered (old M4-M7 → M3-M6).
 - **v6.0** (2026-03-02): **MCP SDK OAuth support** — Replace custom `handlers.ts` + `store.ts` with SDK's `mcpAuthRouter()` + `OAuthServerProvider` interface. Express sub-app (bundled with SDK) handles OAuth routes; raw `node:http` stays for everything else. Custom provider (not `ProxyOAuthServerProvider`) because dot-ai is intermediary between MCP clients and Dex. Tasks 2.1+2.2 merged into single "SDK Migration" step; Task 2.3 narrowed to Dex-specific logic + Helm.
 - **v7.0** (2026-03-02): **Dual-mode auth permanent** — Reverses "remove token mode entirely" decision. Static token (`DOT_AI_AUTH_TOKEN`) stays as a permanent alternative alongside OAuth. Reasons: MCP clients without OAuth support, CI/CD automation, simpler onboarding, backward compatibility. Task 2.4 rewritten from "remove legacy auth" to "identity in version tool + auth cleanup". Per-session McpServer factory for multi-user. Session GC with 1-hour TTL.
+- **v8.0** (2026-03-02): **Scope reduction — auth + docs only** — Moved RBAC enforcement (SubjectAccessReview, ClusterRoles), audit integration, and client identity PRDs to separate follow-up PRDs. This PRD now delivers: authentication (OAuth + static token), Dex integration, identity extraction, user management, and documentation. Milestones reduced from 6 to 3. Rationale: ship authentication sooner, get feedback, RBAC is a distinct concern.
