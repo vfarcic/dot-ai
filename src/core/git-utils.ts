@@ -291,7 +291,19 @@ export class GitOperations {
       }
 
       for (const file of files) {
-        const fullPath = path.join(repoPath, file.path);
+        // Prevent path traversal attacks
+        const repoRoot = path.resolve(repoPath);
+        const fullPath = path.resolve(repoPath, file.path);
+
+        if (
+          !fullPath.startsWith(repoRoot + path.sep) &&
+          fullPath !== repoRoot
+        ) {
+          throw new Error(
+            `Path traversal detected: "${file.path}" attempts to write outside repository directory`
+          );
+        }
+
         const dir = path.dirname(fullPath);
 
         if (!fs.existsSync(dir)) {
