@@ -46,7 +46,7 @@ On `helm install`, the AI Engine automatically:
 
 No passwords are stored in chart values or Git. See the [Deployment Guide](deployment.md) for retrieving the initial credentials.
 
-MCP clients that support OAuth (Claude Code, Codex, Windsurf, VS Code Copilot) can authenticate via browser. Some clients open the login page automatically. If yours doesn't, go to your client's MCP server configuration and select the option to authenticate. Tokens are cached across sessions — you only re-authenticate when they expire.
+For MCP client setup with OAuth (which clients support it, how to authenticate), see [MCP Client Setup](/docs/mcp#oauth-authentication).
 
 To add more users or connect your organization's identity provider (Google, GitHub, LDAP, SAML), see [User Management](user-management.md) and [Identity Provider Connectors](connectors.md).
 
@@ -70,23 +70,7 @@ kubectl create secret generic dot-ai-secrets \
   -n dot-ai
 ```
 
-Clients include the token in every request:
-
-```json
-{
-  "mcpServers": {
-    "dot-ai": {
-      "type": "http",
-      "url": "http://dot-ai.example.com",
-      "headers": {
-        "Authorization": "Bearer <your-token>"
-      }
-    }
-  }
-}
-```
-
-Static token works alongside OAuth — you can use both at the same time. See [MCP Client Setup](/docs/mcp) for client-specific configuration.
+Static token works alongside OAuth — you can use both at the same time. See [MCP Client Setup](/docs/mcp) for client configuration with either mode.
 
 ## User Identity
 

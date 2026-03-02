@@ -292,7 +292,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] Update `docs/ai-engine/quick-start.md` — reflect that OAuth is the default, show how to retrieve initial admin credentials
 
 #### Task 3.3: MCP Client Configuration for OAuth
-- [ ] Update `docs/mcp/index.md` — OAuth flow per supported client (Claude Code, ChatGPT, Windsurf, VS Code Copilot), static token setup preserved as alternative
+- [x] Update `docs/mcp/index.md` — OAuth flow per supported client (Claude Code, ChatGPT, Windsurf, VS Code Copilot), static token setup preserved as alternative
 
 #### Task 3.4: User Management Documentation
 - [ ] New `docs/ai-engine/setup/user-management.md` — create/list/delete users via REST API with curl examples, authenticated endpoints
