@@ -222,18 +222,17 @@ dot-ai supports **two authentication modes** that coexist permanently:
 
 ### User Management
 
-dot-ai provides authenticated API endpoints for managing Dex static users. These endpoints are RBAC-protected — only users with the `dotai-admin` role can manage users.
+dot-ai provides authenticated API endpoints for managing Dex static users. RBAC enforcement is deferred to Milestone 3 — any authenticated user can currently manage users.
 
 **Endpoints:**
-- `POST /users` — Create a new static user (email, password)
-- `GET /users` — List static users (emails only, no password hashes)
-- `DELETE /users/:email` — Remove a static user
+- `POST /api/v1/users` — Create a new static user (email, password)
+- `GET /api/v1/users` — List static users (emails only, no password hashes)
+- `DELETE /api/v1/users/:email` — Remove a static user
 
 **How it works:**
 1. Admin calls user management endpoint (via MCP tool, CLI, or REST API)
-2. dot-ai updates the Dex configuration Secret in Kubernetes
-3. A config reloader sidecar detects the Secret change and signals Dex to reload
-4. New user can immediately authenticate
+2. dot-ai calls Dex gRPC API (`CreatePassword`, `ListPasswords`, `DeletePassword`)
+3. Change takes effect immediately in Dex's storage — no Secret editing or pod restarts needed
 
 **RBAC for user management:**
 ```yaml
@@ -264,8 +263,8 @@ dex:
 # Dex subchart configuration
 dex:
   enabled: true
-  configReloader:
-    enabled: true  # Watches Secret for changes, reloads Dex config
+  grpc:
+    enabled: true   # Enables Dex gRPC API for user management
   # No static passwords in values — auto-generated at install time
   # Production: add connectors for your IdP
   # connectors:
@@ -373,18 +372,16 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] Integration tests cover both auth modes: OAuth flow tests + static token tests
 - [x] All integration tests pass
 
-#### Task 2.5: User Management + Config Reloader
-- [ ] User management endpoints: `POST /users`, `GET /users`, `DELETE /users/:email` — RBAC-protected, writes to Dex Secret
-- [ ] Config reloader sidecar for Dex — watches Secret for changes, signals Dex to reload
-- [ ] Integration tests: user CRUD, config reload
+#### Task 2.5: User Management via Dex gRPC API
+- [x] User management endpoints: `POST /api/v1/users`, `GET /api/v1/users`, `DELETE /api/v1/users/:email` — uses Dex gRPC API (changes take effect immediately, no restart needed)
+- [x] Integration tests: user CRUD workflow with count verification, input validation, authentication requirement (all 162/162 tests pass)
 
 **Success Criteria:**
 - MCP clients complete OAuth through Dex and access tools
 - Static token auth continues to work for REST API and non-OAuth MCP clients
 - `version` output shows the authenticated user's identity (OAuth: full identity; token: anonymous)
 - Missing/invalid token returns 401 with `WWW-Authenticate` header
-- Admin can create/list/delete users via API without redeploying
-- Config reloader picks up Secret changes and Dex reloads
+- Admin can create/list/delete users via API without redeploying (Dex gRPC API — immediate effect)
 
 ---
 
@@ -463,7 +460,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [ ] Dex integration as default OIDC provider (Milestone 2, Task 2.3)
 - [ ] Identity extraction from OAuth tokens (Milestone 2, Task 2.4)
 - [ ] Static token auth preserved as permanent alternative (dual-mode)
-- [ ] User management endpoints with config reloader (Milestone 2, Task 2.5)
+- [ ] User management endpoints via Dex gRPC API (Milestone 2, Task 2.5)
 - [ ] K8s SubjectAccessReview enforcement for OAuth users (Milestone 3)
 - [ ] Pre-built ClusterRoles in Helm chart, including user management (Milestone 3)
 - [ ] Integration tests for auth (both modes), user management, and RBAC enforcement
@@ -540,11 +537,11 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - `/token` — PKCE verification + code exchange → JWT — *SDK + provider*
 - `/callback` — Dex OIDC callback (custom Express route, not part of OAuth spec)
 
-**User Management Endpoints (`src/interfaces/oauth/`):**
-- `POST /users` — bcrypt-hash password, add to Dex Secret, trigger reload
-- `GET /users` — read Dex Secret, return email list (no hashes)
-- `DELETE /users/:email` — remove from Dex Secret, trigger reload
-- RBAC-protected: requires `dotai-admin` role (`users` resource, `create`/`delete`/`list` verbs)
+**User Management Endpoints (`src/interfaces/oauth/user-management.ts`):**
+- `POST /api/v1/users` — bcrypt-hash password, call Dex gRPC `CreatePassword` (409 if exists)
+- `GET /api/v1/users` — call Dex gRPC `ListPasswords`, return email list (no hashes)
+- `DELETE /api/v1/users/:email` — call Dex gRPC `DeletePassword` (404 if not found)
+- RBAC deferred to Milestone 3 — any authenticated user can currently manage users
 
 **Auth Middleware (`src/interfaces/oauth/middleware.ts`):**
 - Dual-mode token validation: JWT first, static token fallback
@@ -556,7 +553,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ### Helm Chart Changes (Milestone 2)
 
-- Dex subchart with config reloader sidecar (watches Secret, signals Dex to reload)
+- Dex subchart with gRPC enabled (`dex.grpc.enabled: true`) for user management API
 - Auto-generated initial admin on `helm install` (or migrated from `DOT_AI_AUTH_TOKEN`)
 - Pre-built ClusterRoles: `dotai-viewer`, `dotai-operator`, `dotai-admin`
 - ClusterRole for SubjectAccessReview:
@@ -661,6 +658,8 @@ rules:
 | 2026-03-02 | **Redo Tasks 2.1+2.2 as single SDK migration step** | SDK's `mcpAuthRouter()` is all-or-nothing (discovery + registration + authorize + token endpoints). Redoing 2.1 and 2.2 as separate steps is artificial. Two-step approach: (1) SDK migration — replace custom handlers/store with SDK router + provider with stub authorize/token, (2) Dex integration — implement real authorize/token + Helm subchart. |
 | 2026-03-02 | **Keep dual-mode auth permanently (reverses "Remove token mode entirely")** | Static token (`DOT_AI_AUTH_TOKEN`) stays as a permanent alternative to OAuth. Reasons: (1) MCP clients without OAuth support need a way in, (2) REST API / CI/CD automation can't do browser-based OAuth, (3) simpler onboarding — works immediately without Dex, (4) backward compatibility — existing users don't break on upgrade. OAuth provides individual identity + RBAC; token provides shared anonymous access. Both modes coexist via dual-mode middleware (JWT first, token fallback). |
 | 2026-03-02 | **Per-session McpServer factory pattern for multi-user** | MCP SDK's `Protocol` class only supports one transport per `McpServer` instance (`connect()` throws "Already connected"). Multi-user requires a new `McpServer` + `StreamableHTTPServerTransport` pair per session. Tool definitions extracted into shared `getToolDefs()`, registered on each session server. REST API stays shared (registered once). Stateful mode (`SESSION_MODE=stateful`) tracks sessions by `Mcp-Session-Id` header. |
+| 2026-03-02 | **Dex gRPC API for user management (replaces Secret writes + Stakater Reloader)** | Dex exposes `CreatePassword`, `ListPasswords`, `DeletePassword` via gRPC. Changes take effect immediately in Dex's storage — no Secret editing, no pod restarts, no config reloader needed. Simpler architecture with fewer moving parts. |
+| 2026-03-02 | **Defer RBAC on user management to Milestone 3** | Any authenticated user can currently manage users. RBAC enforcement via SubjectAccessReview will be added when Milestone 3 implements the full RBAC layer. Avoids a chicken-and-egg problem (need users before RBAC can protect user creation). |
 | 2026-03-02 | **Session GC with 1-hour TTL** | In-memory sessions accumulate without cleanup. Sessions inactive for 1 hour are reaped (matches JWT expiry). 5-minute sweep interval via `setInterval(..).unref()`. Pod restarts invalidate all sessions; clients auto-reconnect with existing JWT (no re-auth through Dex needed). |
 
 ## Version History
