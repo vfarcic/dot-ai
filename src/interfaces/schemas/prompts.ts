@@ -115,3 +115,27 @@ export const PromptGetErrorSchema = InternalServerErrorSchema.extend({
     details: z.any().optional(),
   }),
 });
+
+/**
+ * Prompts cache refresh response data
+ * POST /api/v1/prompts/refresh
+ */
+export const PromptsCacheRefreshDataSchema = z.object({
+  refreshed: z.boolean().describe('Whether the cache was refreshed'),
+  promptsLoaded: z.number().describe('Total number of prompts loaded after refresh'),
+  source: z.string().describe('Source of prompts (e.g., "built-in", "built-in+repository")'),
+});
+
+export type PromptsCacheRefreshData = z.infer<typeof PromptsCacheRefreshDataSchema>;
+
+export const PromptsCacheRefreshResponseSchema = createSuccessResponseSchema(PromptsCacheRefreshDataSchema);
+
+export type PromptsCacheRefreshResponse = z.infer<typeof PromptsCacheRefreshResponseSchema>;
+
+export const PromptsCacheRefreshErrorSchema = InternalServerErrorSchema.extend({
+  error: z.object({
+    code: z.literal('PROMPTS_CACHE_REFRESH_ERROR'),
+    message: z.string(),
+    details: z.any().optional(),
+  }),
+});

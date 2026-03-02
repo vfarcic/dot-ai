@@ -176,6 +176,9 @@ export {
   PromptValidationErrorSchema,
   PromptsListErrorSchema,
   PromptGetErrorSchema,
+  PromptsCacheRefreshDataSchema,
+  PromptsCacheRefreshResponseSchema,
+  PromptsCacheRefreshErrorSchema,
   type PromptArgument,
   type PromptInfo,
   type PromptsListData,
@@ -184,6 +187,8 @@ export {
   type PromptGetData,
   type PromptGetResponse,
   type PromptGetRequest,
+  type PromptsCacheRefreshData,
+  type PromptsCacheRefreshResponse,
 } from './prompts';
 
 // Knowledge schemas

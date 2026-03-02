@@ -50,6 +50,10 @@ spec:
         - containerPort: {{ $config.port }}
           name: http
           protocol: TCP
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sleep", "5"]
         livenessProbe:
           httpGet:
             path: /health

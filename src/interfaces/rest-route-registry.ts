@@ -213,16 +213,16 @@ export class RestRouteRegistry {
    * @returns Array of allowed methods, or empty array if path doesn't match any route
    */
   findAllowedMethods(path: string): HttpMethod[] {
-    const methods: HttpMethod[] = [];
+    const methods = new Set<HttpMethod>();
 
     for (const compiled of this.routes.values()) {
       const match = compiled.regex.exec(path);
       if (match) {
-        methods.push(compiled.definition.method);
+        methods.add(compiled.definition.method);
       }
     }
 
-    return methods;
+    return Array.from(methods);
   }
 
   /**

@@ -410,7 +410,7 @@ The feature is designed for graceful degradation:
 
 **Changes not appearing**
 - **Cause**: Cache hasn't expired yet
-- **Solution**: Wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing
+- **Solution**: Force-refresh the cache via [`dot-ai prompts refresh`](https://devopstoolkit.ai/docs/cli) (CLI) or `curl -X POST http://<your-server>/api/v1/prompts/refresh`, wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing
 
 **Prompt has same name as built-in**
 - **Cause**: Name collision with built-in prompt

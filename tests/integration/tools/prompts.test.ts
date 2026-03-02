@@ -177,6 +177,136 @@ describe.concurrent('Prompts Integration', () => {
     });
   });
 
+  describe('Prompts Cache Refresh', () => {
+    const gitToken = process.env.DOT_AI_GIT_TOKEN;
+    const testRunId = Date.now();
+    const testPromptName = `test-cache-refresh-${testRunId}`;
+    const testPromptPath = `user-prompts/${testPromptName}.md`;
+    const testPromptContent = [
+      '---',
+      `name: ${testPromptName}`,
+      'description: Temporary prompt for cache refresh integration test',
+      '---',
+      '',
+      'This is a temporary prompt used by integration tests. If you see this file, it was not cleaned up properly.',
+    ].join('\n');
+
+    // GitHub API helper to create a file in the test-prompts repo
+    async function createFileInRepo(): Promise<string> {
+      const res = await fetch(
+        `https://api.github.com/repos/vfarcic/dot-ai-test-prompts/contents/${testPromptPath}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `token ${gitToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: 'test: add temporary prompt for cache refresh test',
+            content: Buffer.from(testPromptContent).toString('base64'),
+          }),
+        }
+      );
+      expect(res.ok).toBe(true);
+      const data = await res.json();
+      return data.content.sha;
+    }
+
+    // GitHub API helper to delete a file from the test-prompts repo
+    async function deleteFileFromRepo(sha: string): Promise<void> {
+      const res = await fetch(
+        `https://api.github.com/repos/vfarcic/dot-ai-test-prompts/contents/${testPromptPath}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `token ${gitToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: 'test: remove temporary prompt for cache refresh test',
+            sha,
+          }),
+        }
+      );
+      expect(res.ok).toBe(true);
+    }
+
+    test('should refresh cache and pick up new prompts from repository', async () => {
+      // Skip if no git token (can only test with write access to test-prompts repo)
+      if (!gitToken) {
+        console.log('Skipping cache refresh test: DOT_AI_GIT_TOKEN not set');
+        return;
+      }
+
+      let fileSha: string | undefined;
+
+      try {
+        // Step 1: Record initial prompt count
+        const initialList = await integrationTest.httpClient.get('/api/v1/prompts');
+        expect(initialList).toMatchObject({ success: true });
+        const initialCount = initialList.data.prompts.length;
+
+        // Step 2: Push a new prompt to the repo
+        fileSha = await createFileInRepo();
+
+        // Step 3: Verify list still returns cached (old) count
+        const cachedList = await integrationTest.httpClient.get('/api/v1/prompts');
+        expect(cachedList.data.prompts.length).toBe(initialCount);
+
+        // Step 4: Call refresh
+        const refreshResponse = await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+        expect(refreshResponse).toMatchObject({
+          success: true,
+          data: {
+            refreshed: true,
+            promptsLoaded: expect.any(Number),
+            source: expect.stringMatching(/^built-in(\+repository)?$/),
+          },
+          meta: {
+            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+            version: 'v1'
+          }
+        });
+
+        // Step 5: Verify list now includes the new prompt
+        const refreshedList = await integrationTest.httpClient.get('/api/v1/prompts');
+        expect(refreshedList.data.prompts.length).toBe(initialCount + 1);
+        const newPrompt = refreshedList.data.prompts.find(
+          (p: { name: string }) => p.name === testPromptName
+        );
+        expect(newPrompt).toMatchObject({
+          name: testPromptName,
+          description: 'Temporary prompt for cache refresh integration test',
+        });
+      } finally {
+        // Step 6: Always clean up — remove the test prompt from the repo
+        if (fileSha) {
+          await deleteFileFromRepo(fileSha);
+          // Refresh again to restore the server cache to clean state
+          await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+        }
+      }
+    }, 300000);
+
+    test('should reject GET method for refresh endpoint', async () => {
+      const response = await integrationTest.httpClient.get('/api/v1/prompts/refresh');
+
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'METHOD_NOT_ALLOWED',
+          message: expect.stringContaining('Only POST method allowed'),
+        },
+        meta: {
+          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+          version: 'v1'
+        }
+      });
+    });
+  });
+
   describe('HTTP Method Validation', () => {
     test('should reject POST for prompts list endpoint', async () => {
       const response = await integrationTest.httpClient.post('/api/v1/prompts', {});
