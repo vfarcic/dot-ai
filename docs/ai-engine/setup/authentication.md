@@ -30,7 +30,7 @@ The AI Engine supports two authentication modes simultaneously. Both can be acti
 |----------|-----------|-----|
 | Teams needing per-user identity | OAuth | Individual audit trail |
 | Enterprise SSO (Google, GitHub, LDAP) | OAuth | Connects to your existing identity provider |
-| MCP clients with OAuth (Claude Code, ChatGPT, Windsurf) | OAuth | Automatic browser-based login |
+| MCP clients with OAuth (Claude Code, Codex, Windsurf) | OAuth | Automatic browser-based login |
 | Local development / quick start | Static token | Zero setup, works immediately |
 | CI/CD pipelines | Static token | No browser for OAuth flow |
 | REST API automation | Static token | Programmatic access without interactive login |
@@ -46,7 +46,7 @@ On `helm install`, the AI Engine automatically:
 
 No passwords are stored in chart values or Git. See the [Deployment Guide](deployment.md) for retrieving the initial credentials.
 
-MCP clients that support OAuth (Claude Code, ChatGPT, Windsurf, VS Code Copilot) can authenticate via browser. Some clients open the login page automatically. If yours doesn't, go to your client's MCP server configuration and select the option to authenticate. Tokens are cached across sessions — you only re-authenticate when they expire.
+MCP clients that support OAuth (Claude Code, Codex, Windsurf, VS Code Copilot) can authenticate via browser. Some clients open the login page automatically. If yours doesn't, go to your client's MCP server configuration and select the option to authenticate. Tokens are cached across sessions — you only re-authenticate when they expire.
 
 To add more users or connect your organization's identity provider (Google, GitHub, LDAP, SAML), see [User Management](user-management.md) and [Identity Provider Connectors](connectors.md).
 

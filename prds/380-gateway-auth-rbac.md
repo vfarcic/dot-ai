@@ -288,8 +288,8 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] New `docs/ai-engine/setup/authentication.md` — two auth modes (static token vs OAuth), when to use which, identity contract (`UserIdentity`), see-also links
 
 #### Task 3.2: Deployment Guide Update (OAuth)
-- [ ] Update `docs/ai-engine/setup/deployment.md` — OAuth is enabled by default, auto-generated admin credentials, retrieving admin password, Helm values reference for auth settings
-- [ ] Update `docs/ai-engine/quick-start.md` — reflect that OAuth is the default, show how to retrieve initial admin credentials
+- [x] Update `docs/ai-engine/setup/deployment.md` — OAuth is enabled by default, auto-generated admin credentials, retrieving admin password, Helm values reference for auth settings
+- [x] Update `docs/ai-engine/quick-start.md` — reflect that OAuth is the default, show how to retrieve initial admin credentials
 
 #### Task 3.3: MCP Client Configuration for OAuth
 - [ ] Update `docs/mcp/index.md` — OAuth flow per supported client (Claude Code, ChatGPT, Windsurf, VS Code Copilot), static token setup preserved as alternative

@@ -27,6 +27,7 @@ Access these tools through [MCP clients](/docs/mcp) or the [CLI](https://devopst
 - **Integrated Qdrant Database** — Vector database for capability and pattern management
 - **External Access** — Ingress configuration for team collaboration
 - **Resource Management** — Proper CPU/memory limits and requests
+- **Authentication** — [OAuth](authentication.md#oauth) (enabled by default) and [static token](authentication.md#static-token) authentication
 - **Security** — RBAC and ServiceAccount configuration
 
 ## Prerequisites
@@ -40,11 +41,14 @@ Access these tools through [MCP clients](/docs/mcp) or the [CLI](https://devopst
 
 ### Step 1: Set Environment Variables
 
-Export your API key and auth token:
+Export your API key and configure authentication:
 
 ```bash
 # Required
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
+
+# Optional — for static token auth (CI/CD, REST API, MCP clients without OAuth)
+# OAuth is enabled by default — see Authentication section below
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
 # Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
@@ -90,6 +94,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 ```
 
 **Notes**:
+- **Authentication**: OAuth is enabled by default — an admin account is auto-generated on install and credentials are shown in the Helm output. `DOT_AI_AUTH_TOKEN` is optional and enables [static token](authentication.md#static-token) auth alongside OAuth. See [Authentication](authentication.md) for details.
 - `localEmbeddings.enabled=true` deploys an in-cluster embedding service ([HuggingFace TEI](https://github.com/huggingface/text-embeddings-inference)) so semantic search works without any embedding API keys. See [Local Embeddings](#local-embeddings-zero-config) for details.
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `auth-token` instead of using `--set` arguments.
@@ -103,7 +108,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 With the server running, connect using your preferred access method:
 
-- **[MCP Client Setup](/docs/mcp)** — Connect via MCP protocol from Claude Code, Cursor, or other MCP clients
+- **[MCP Client Setup](/docs/mcp)** — Connect via MCP protocol from Claude Code, Cursor, or other MCP clients. MCP clients with OAuth support authenticate via browser automatically; others use the static token.
 - **[CLI](https://devopstoolkit.ai/docs/cli)** — Use the command-line interface for terminal and CI/CD pipelines
 
 ## Capability Scanning for AI Recommendations
@@ -538,13 +543,16 @@ See **[Gateway API Deployment Guide](gateway-api.md)** for:
 
 Once the server is running:
 
-### 1. Explore Tools
+### 1. Configure Authentication
+- **[Authentication](authentication.md)** — Understand OAuth vs static token, retrieve initial admin credentials, add users, or connect your identity provider
+
+### 2. Explore Tools
 - **[Tools Overview](../tools/overview.md)** — Complete guide to all available tools, how they work together, and recommended usage flow
 
-### 2. Enable Observability (Optional)
+### 3. Enable Observability (Optional)
 - **[Observability Guide](../operations/observability.md)** — Distributed tracing with OpenTelemetry for debugging workflows, measuring AI performance, and monitoring Kubernetes operations
 
-### 3. Production Considerations
+### 4. Production Considerations
 - Consider backup strategies for vector database content (organizational patterns and capabilities)
 - Review [TLS Configuration](#tls-configuration) for HTTPS
 
