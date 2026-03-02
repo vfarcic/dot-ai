@@ -104,6 +104,9 @@ Dex external URL — full URL including scheme and optional port.
 Used as the Dex issuer URL and for browser redirects.
 */}}
 {{- define "dot-ai.dexExternalUrl" -}}
+{{- if .Values.dex.externalUrl -}}
+{{ .Values.dex.externalUrl }}
+{{- else -}}
 {{- $host := include "dot-ai.dexExternalHost" . -}}
 {{- if $host -}}
 {{- if .Values.ingress.tls.enabled -}}
@@ -113,13 +116,16 @@ http://{{ $host }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
 
 {{/*
 dot-ai external URL — full URL of the main MCP server.
 Used for OAuth callback redirect URI.
 */}}
 {{- define "dot-ai.externalUrl" -}}
-{{- if .Values.ingress.enabled -}}
+{{- if .Values.externalUrl -}}
+{{ .Values.externalUrl }}
+{{- else if .Values.ingress.enabled -}}
   {{- if .Values.ingress.tls.enabled -}}
 https://{{ .Values.ingress.host }}
   {{- else -}}

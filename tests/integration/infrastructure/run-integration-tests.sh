@@ -325,6 +325,8 @@ helm upgrade --install dot-ai ./charts \
     --set ingress.enabled=true \
     --set ingress.className=nginx \
     --set ingress.host=dot-ai.127.0.0.1.nip.io \
+    --set externalUrl=http://dot-ai.127.0.0.1.nip.io:8180 \
+    --set dex.externalUrl=http://dex.dot-ai.127.0.0.1.nip.io:8180 \
     --set qdrant.enabled=false \
     --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
     $([[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]] && echo "--set localEmbeddings.enabled=true") \

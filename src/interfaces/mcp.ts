@@ -566,6 +566,7 @@ export class MCPServer {
     this.issuerUrl = new URL(externalUrl);
     const oauthProvider = new DotAIOAuthProvider();
     this.oauthApp = express();
+    this.oauthApp.set('trust proxy', 1);
     this.oauthApp.use(mcpAuthRouter({
       provider: oauthProvider,
       issuerUrl: this.issuerUrl,
