@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -5500,6 +5500,28 @@
                   "additionalProperties": false
                 },
                 "description": "Prompt messages"
+              },
+              "files": {
+                "description": "Supporting files for folder-based skills (base64-encoded)",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Relative path within skill folder"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Base64-encoded file content"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "content"
+                  ],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
