@@ -1,6 +1,6 @@
 # PRD #387: Serve Folder-Based Skills from Git Repositories
 
-**Status**: In Progress
+**Status**: Complete
 **Priority**: Medium
 **Related Issue**: #379 (original feature request)
 
@@ -128,7 +128,4 @@ export interface Prompt {
 - [x] Update REST API: add `files` field to prompts get response schema and pass through files data from loader
 - [x] Update MCP handler to filter out prompts with `files[]` from `prompts/list` (filtering `prompts/get` unnecessary — clients discover via list first)
 - [x] Integration tests for MCP filtering and collision detection
-- [ ] Create PRD in `dot-ai-cli` repo for CLI-side changes:
-  - `skills generate` fetches and writes full folder structures (SKILL.md + supporting files)
-  - Decode base64 file content and write to disk
-  - Set executable permissions on scripts (detect via shebang `#!/` or extension `.sh`, `.bash`)
+- [x] Create PRD in `dot-ai-cli` repo for CLI-side changes: [dot-ai-cli #4](https://github.com/vfarcic/dot-ai-cli/issues/4) — covers `skills generate` writing full folder structures, base64 decoding, and executable permission detection
