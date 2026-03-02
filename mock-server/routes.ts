@@ -109,6 +109,12 @@ export const routes: RouteDefinition[] = [
     fixture: 'prompts/list-success.json',
   },
   {
+    path: '/api/v1/prompts/refresh',
+    method: 'POST',
+    description: 'Refresh prompts cache from git repositories',
+    fixture: 'prompts/refresh-success.json',
+  },
+  {
     path: '/api/v1/prompts/:promptName',
     method: 'POST',
     description: 'Get a prompt with arguments',

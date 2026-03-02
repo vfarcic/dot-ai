@@ -8,6 +8,7 @@
 import { describe, test, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { matchRoute } from '../../../mock-server/routes';
 
 const MOCK_SERVER_DIR = join(
   import.meta.dirname,
@@ -111,6 +112,38 @@ describe('Mock Server Fixtures', () => {
           });
         }
       }
+    });
+  });
+
+  describe('Route matching: /api/v1/prompts/refresh vs :promptName', () => {
+    test('should match refresh route, not the wildcard', () => {
+      const result = matchRoute('POST', '/api/v1/prompts/refresh');
+
+      expect(result).not.toBeNull();
+      expect(result!.route.path).toBe('/api/v1/prompts/refresh');
+      expect(result!.route.fixture).toBe('prompts/refresh-success.json');
+      expect(result!.params).toEqual({});
+    });
+  });
+
+  describe('POST /api/v1/prompts/refresh - Refresh Prompts Cache', () => {
+    test('should have valid fixture with refresh data', async () => {
+      const fixture = (await loadFixture(
+        'prompts/refresh-success.json'
+      )) as any;
+
+      expect(fixture).toMatchObject({
+        success: true,
+        data: {
+          refreshed: expect.any(Boolean),
+          promptsLoaded: expect.any(Number),
+          source: expect.any(String),
+        },
+        meta: {
+          timestamp: expect.any(String),
+          version: '1.0.0',
+        },
+      });
     });
   });
 
