@@ -90,10 +90,10 @@ User identity is extracted from the OAuth token, not from HTTP headers:
 
 ```typescript
 interface UserIdentity {
-    userId: string;      // OIDC `sub` claim from Dex
-    email?: string;      // OIDC `email` claim from Dex
-    groups: string[];    // OIDC `groups` claim (from Dex connector / upstream IdP)
-    source: 'oauth';
+    userId: string;      // OIDC `sub` claim from Dex (OAuth) or 'anonymous' (token)
+    email?: string;      // OIDC `email` claim from Dex (OAuth only)
+    groups: string[];    // OIDC `groups` claim (OAuth only; empty for token users)
+    source: 'oauth' | 'token';
 }
 ```
 
@@ -203,15 +203,22 @@ Admins can create additional custom ClusterRoles/Roles with standard `kubectl`.
 
 ### Authentication
 
-OAuth via Dex is the **only** auth mode. The legacy token mode (`DOT_AI_AUTH_TOKEN`) is removed — all token-related code is deleted from the codebase.
+dot-ai supports **two authentication modes** that coexist permanently:
 
-**Migration from token mode:** On first Dex setup (no Dex Secret exists yet):
-- If `DOT_AI_AUTH_TOKEN` is set → use its value as the initial admin password (bcrypt-hashed, stored in Dex Secret as `admin@dot-ai.local`)
-- If no token → auto-generate a random password
+1. **OAuth via Dex** (recommended) — browser-based login with individual user identity, supports RBAC, audit trails, and Dex connectors for enterprise IdPs (Google, GitHub, LDAP, SAML)
+2. **Static token** (`DOT_AI_AUTH_TOKEN`) — shared Bearer token for simple setups, CI/CD pipelines, REST API consumers, and MCP clients without OAuth support. Provides shared access with no individual identity — all token users appear as anonymous.
 
-Either way, credentials are output in Helm install/upgrade notes. After migration, `DOT_AI_AUTH_TOKEN` is ignored and can be removed.
+**When to use which:**
 
-**Future cleanup PRD:** ~6 months after release, create a PRD to remove the token migration logic (the code that detects `DOT_AI_AUTH_TOKEN` and converts it to a Dex password). By then all users will have transitioned.
+| Use Case | Auth Mode | Why |
+|----------|-----------|-----|
+| MCP clients with OAuth (Claude Code, ChatGPT, Windsurf) | OAuth | Individual identity, RBAC |
+| MCP clients without OAuth support | Static token | Only option available |
+| REST API / CI/CD automation | Static token | No browser for OAuth flow |
+| Enterprise with IdP (Google, LDAP) | OAuth + Dex connector | SSO, group-based RBAC |
+| Local development / quick start | Static token | Zero setup, works immediately |
+
+**Both modes active simultaneously** — the auth middleware checks JWT first, falls back to static token match. OAuth users get full identity (userId, email, groups). Token users get shared anonymous access (no RBAC enforcement, full tool access).
 
 ### User Management
 
@@ -239,17 +246,27 @@ This is included in the `dotai-admin` ClusterRole. When Dex connectors are confi
 
 ### Configuration
 
+**Simple setup (static token only — no Dex needed):**
 ```yaml
-auth:
-  oauth:
-    issuer: "http://dex.dot-ai.svc.cluster.local:5556"  # Dex in-cluster URL
+# In Kubernetes secret or environment:
+DOT_AI_AUTH_TOKEN: "your-shared-token"
+
+# Dex disabled by default
+dex:
+  enabled: false
+```
+
+**Enterprise setup (OAuth + optional static token):**
+```yaml
+# Static token still works alongside OAuth
+# DOT_AI_AUTH_TOKEN: "your-shared-token"  # Optional, for CI/CD
 
 # Dex subchart configuration
 dex:
   enabled: true
   configReloader:
     enabled: true  # Watches Secret for changes, reloads Dex config
-  # No static passwords in values — auto-generated at install time (or migrated from DOT_AI_AUTH_TOKEN)
+  # No static passwords in values — auto-generated at install time
   # Production: add connectors for your IdP
   # connectors:
   #   - type: google
@@ -291,12 +308,13 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 ### Key Design Principles
 
 1. **Server-side OAuth** — dot-ai handles OAuth per the MCP Authorization spec; no gateway dependency for auth
-2. **Dex as default IdP** — ships as a subchart with static users; admins configure connectors for production IdPs
-3. **Single authorization path** — all requests converge on UserIdentity → K8s RBAC
-4. **Kubernetes-native** — K8s SubjectAccessReview, standard RBAC manifests
-5. **Infrastructure-agnostic** — works with any ingress/gateway; dot-ai doesn't prescribe routing
-6. **Validate first** — PoC proved the OAuth flow works before building RBAC
-7. **Familiar UX** — admins manage permissions with `kubectl`
+2. **Dual-mode auth** — OAuth (individual identity + RBAC) and static token (shared access) coexist permanently. Progressive adoption: start with token, upgrade to OAuth when ready
+3. **Dex as default IdP** — ships as a subchart with static users; admins configure connectors for production IdPs
+4. **Single authorization path** — OAuth users converge on UserIdentity → K8s RBAC; token users bypass RBAC
+5. **Kubernetes-native** — K8s SubjectAccessReview, standard RBAC manifests
+6. **Infrastructure-agnostic** — works with any ingress/gateway; dot-ai doesn't prescribe routing
+7. **Validate first** — PoC proved the OAuth flow works before building RBAC
+8. **Familiar UX** — admins manage permissions with `kubectl`
 
 ## Milestones
 
@@ -322,11 +340,11 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 ---
 
 ### Milestone 2: OAuth + Dex Integration
-**Objective**: Implement OAuth endpoints per the MCP Authorization spec with Dex as the OIDC provider, replace legacy token auth, add user management, and show identity in the version tool.
+**Objective**: Implement OAuth endpoints per the MCP Authorization spec with Dex as the OIDC provider, add user management, show identity in the version tool, and maintain static token auth for backward compatibility.
 
 **Architecture:** OAuth logic lives in the MCP server (`src/interfaces/oauth/`), not the plugin. OAuth endpoints are HTTP routes — not tool invocations routed through the plugin's `POST /execute`. Dex is an external OIDC provider (its own service/subchart), similar to how Kubernetes and Qdrant are external to the plugin. The server handles OAuth HTTP concerns (discovery metadata, redirects, token validation) and talks to Dex via OIDC.
 
-**Delivery approach:** 5 incremental tasks. Each is self-contained and independently testable. A dual-mode auth middleware (JWT + legacy token) keeps existing tests passing throughout the transition.
+**Delivery approach:** 5 incremental tasks. Each is self-contained and independently testable. Dual-mode auth middleware (JWT + static token) is a permanent feature — both modes coexist.
 
 #### Task 2.1+2.2: SDK Migration (Replace Custom OAuth with MCP SDK)
 - [x] Delete `handlers.ts` + `store.ts` (replaced by SDK's `mcpAuthRouter()`)
@@ -349,12 +367,11 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] Configuration: Dex settings in Helm values, deployment env vars (`DEX_ISSUER_URL`, `DEX_EXTERNAL_URL`, `DEX_CLIENT_ID`, `DEX_CLIENT_SECRET`, `DOT_AI_JWT_SECRET`)
 - [x] Integration tests: full OAuth flow end-to-end through Dex, token endpoint error handling
 
-#### Task 2.4: Remove Legacy Auth + Identity in Version Tool
-- [ ] Remove all legacy token auth code (`DOT_AI_AUTH_TOKEN`, token mode config, `src/interfaces/auth.ts`)
-- [ ] Remove legacy token from Helm chart (deployment.yaml, secret.yaml, values.yaml)
-- [ ] Update test infrastructure to use OAuth flow instead of static token
-- [ ] `version` tool updated to include identity in output (userId, email, groups, source)
-- [ ] All integration tests pass using OAuth only
+#### Task 2.4: Identity in Version Tool + Auth Cleanup
+- [ ] `version` tool updated to include identity in output (userId, email, groups, source: 'oauth' | 'token')
+- [ ] Clean up old `src/interfaces/auth.ts` — consolidate into `src/interfaces/oauth/middleware.ts` (dual-mode stays)
+- [ ] Integration tests cover both auth modes: OAuth flow tests + static token tests
+- [ ] All integration tests pass
 
 #### Task 2.5: User Management + Config Reloader
 - [ ] User management endpoints: `POST /users`, `GET /users`, `DELETE /users/:email` — RBAC-protected, writes to Dex Secret
@@ -363,9 +380,9 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 **Success Criteria:**
 - MCP clients complete OAuth through Dex and access tools
-- `version` output shows the authenticated user's identity
+- Static token auth continues to work for REST API and non-OAuth MCP clients
+- `version` output shows the authenticated user's identity (OAuth: full identity; token: anonymous)
 - Missing/invalid token returns 401 with `WWW-Authenticate` header
-- No legacy token auth code remains
 - Admin can create/list/delete users via API without redeploying
 - Config reloader picks up Secret changes and Dex reloads
 
@@ -375,7 +392,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 **Objective**: Enforce tool-level and namespace-level permissions using K8s SubjectAccessReview.
 
 **Deliverables:**
-- [ ] SubjectAccessReview call before every tool invocation in OAuth mode
+- [ ] SubjectAccessReview call before every tool invocation for OAuth users (token users bypass RBAC — shared access)
 - [ ] Tool name and target namespace passed to SubjectAccessReview
 - [ ] Rejected tool calls return structured error with reason
 - [ ] Pre-built ClusterRoles in Helm chart: `dotai-viewer`, `dotai-operator`, `dotai-admin`
@@ -443,10 +460,11 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [ ] MCP OAuth endpoints in dot-ai (Milestone 2, Tasks 2.1-2.2)
 - [ ] Dex integration as default OIDC provider (Milestone 2, Task 2.3)
 - [ ] Identity extraction from OAuth tokens (Milestone 2, Task 2.4)
+- [ ] Static token auth preserved as permanent alternative (dual-mode)
 - [ ] User management endpoints with config reloader (Milestone 2, Task 2.5)
-- [ ] K8s SubjectAccessReview enforcement (Milestone 3)
+- [ ] K8s SubjectAccessReview enforcement for OAuth users (Milestone 3)
 - [ ] Pre-built ClusterRoles in Helm chart, including user management (Milestone 3)
-- [ ] Integration tests for auth, user management, and RBAC enforcement
+- [ ] Integration tests for auth (both modes), user management, and RBAC enforcement
 
 ### Nice to Have (Future)
 
@@ -462,16 +480,16 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 ## User Journey
 
-### Current State (Shared Token)
+### Simple Setup (Static Token)
 
 1. Admin sets `DOT_AI_AUTH_TOKEN` on dot-ai server
-2. All users share the same token
+2. All users share the same token via MCP config headers or REST API
 3. All users have full access to all tools
-4. No individual identity tracking
+4. No individual identity tracking — suitable for small teams, local dev, CI/CD
 
-### Future State (OAuth + K8s RBAC)
+### Enterprise Setup (OAuth + K8s RBAC)
 
-1. Admin runs `helm install` — gets auto-generated admin credentials in output
+1. Admin runs `helm install` with `dex.enabled=true` — gets auto-generated admin credentials in output
 2. Admin logs in as initial admin, adds users via dot-ai API (CLI, UI, or MCP tool)
 3. Admin optionally configures Dex connectors for production IdP (Google, GitHub, LDAP, etc.)
 4. Admin applies ClusterRoles and RoleBindings via `kubectl`
@@ -479,6 +497,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 6. On first connection, user authenticates via `/mcp` → Authenticate (browser opens for Dex login)
 7. dot-ai validates identity, checks K8s RBAC, allows or denies
 8. All operations logged with user identity
+9. Static token can coexist — useful for CI/CD pipelines alongside OAuth for interactive users
 
 ### User Personas
 
@@ -493,6 +512,12 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 
 **Persona 3: Developer (Existing User)**
 - Dex static user for local development (KinD) — individual identity from day one
+- Or static token for quick local setup — no Dex needed
+
+**Persona 4: CI/CD Pipeline**
+- Uses static token (`DOT_AI_AUTH_TOKEN`) via REST API
+- No browser available for OAuth flow
+- Full tool access, shared anonymous identity
 
 ## Technical Scope
 
@@ -501,7 +526,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 **OAuth Module (`src/interfaces/oauth/`):**
 - `types.ts` — `UserIdentity`, JWT claims, pending auth request/authorization code types, `DexConfig`
 - `jwt.ts` — JWT signing/verification using `node:crypto` HMAC-SHA256
-- `provider.ts` — `OAuthServerProvider` implementation (SDK interface): client store, authorize→Dex redirect, code exchange→JWT issuance, token verification (JWT + legacy fallback), `/callback` handler
+- `provider.ts` — `OAuthServerProvider` implementation (SDK interface): client store, authorize→Dex redirect, code exchange→JWT issuance, token verification (JWT + static token dual-mode), `/callback` handler
 - `dex-client.ts` — Lightweight Dex OIDC communication using `node:http`: authorize URL builder, code exchange, ID token identity extraction
 - `middleware.ts` — JWT validation middleware for non-OAuth routes, `WWW-Authenticate` challenge
 
@@ -520,8 +545,8 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - RBAC-protected: requires `dotai-admin` role (`users` resource, `create`/`delete`/`list` verbs)
 
 **Auth Middleware (`src/interfaces/oauth/middleware.ts`):**
-- Replace `src/interfaces/auth.ts` with JWT token validation
-- Validate Bearer tokens, extract `UserIdentity`
+- Dual-mode token validation: JWT first, static token fallback
+- Validate Bearer tokens, extract `UserIdentity` (OAuth: full identity; token: anonymous)
 
 **Authorization Check (new module, Milestone 3):**
 - K8s SubjectAccessReview before tool dispatch
@@ -568,9 +593,10 @@ rules:
 - Revocation via token expiry (refresh tokens for longer sessions — future)
 
 ### Default Deny
-- In OAuth mode, requests without valid token → 401
-- Users without RoleBindings → denied all tool access
-- No default role — access must be explicitly granted
+- Requests without valid Bearer token (JWT or static) → 401
+- OAuth users without RoleBindings → denied all tool access
+- Static token users bypass RBAC — full tool access (shared anonymous identity)
+- No default role for OAuth users — access must be explicitly granted
 
 ### Dex Trust
 - dot-ai trusts Dex as its OIDC provider — Dex runs in-cluster alongside dot-ai
@@ -631,6 +657,9 @@ rules:
 | 2026-03-02 | **Express sub-app for OAuth routes** | Express v5.0.1 is already bundled as an SDK dependency — no new dep needed. SDK's `mcpAuthRouter()` returns an Express router. OAuth routes delegate to Express sub-app via `this.oauthApp(req, res)`, rest of server stays on raw `node:http`. |
 | 2026-03-02 | **Custom OAuthServerProvider, not ProxyOAuthServerProvider** | `ProxyOAuthServerProvider` passes MCP clients' `client_id`/`redirect_uri` directly to Dex, but Dex only knows dot-ai as a static client. dot-ai must act as OAuth AS to MCP clients AND as OIDC RP to Dex — requires custom provider that stores clients + auth codes in-memory, redirects to Dex on authorize, exchanges Dex codes on callback, issues its own JWTs. |
 | 2026-03-02 | **Redo Tasks 2.1+2.2 as single SDK migration step** | SDK's `mcpAuthRouter()` is all-or-nothing (discovery + registration + authorize + token endpoints). Redoing 2.1 and 2.2 as separate steps is artificial. Two-step approach: (1) SDK migration — replace custom handlers/store with SDK router + provider with stub authorize/token, (2) Dex integration — implement real authorize/token + Helm subchart. |
+| 2026-03-02 | **Keep dual-mode auth permanently (reverses "Remove token mode entirely")** | Static token (`DOT_AI_AUTH_TOKEN`) stays as a permanent alternative to OAuth. Reasons: (1) MCP clients without OAuth support need a way in, (2) REST API / CI/CD automation can't do browser-based OAuth, (3) simpler onboarding — works immediately without Dex, (4) backward compatibility — existing users don't break on upgrade. OAuth provides individual identity + RBAC; token provides shared anonymous access. Both modes coexist via dual-mode middleware (JWT first, token fallback). |
+| 2026-03-02 | **Per-session McpServer factory pattern for multi-user** | MCP SDK's `Protocol` class only supports one transport per `McpServer` instance (`connect()` throws "Already connected"). Multi-user requires a new `McpServer` + `StreamableHTTPServerTransport` pair per session. Tool definitions extracted into shared `getToolDefs()`, registered on each session server. REST API stays shared (registered once). Stateful mode (`SESSION_MODE=stateful`) tracks sessions by `Mcp-Session-Id` header. |
+| 2026-03-02 | **Session GC with 1-hour TTL** | In-memory sessions accumulate without cleanup. Sessions inactive for 1 hour are reaped (matches JWT expiry). 5-minute sweep interval via `setInterval(..).unref()`. Pod restarts invalidate all sessions; clients auto-reconnect with existing JWT (no re-auth through Dex needed). |
 
 ## Version History
 
@@ -646,3 +675,4 @@ rules:
 - **v4.5** (2026-03-01): **Remove token mode, plugin architecture** — OAuth via Dex is the only auth mode. All legacy token code removed. Token migration on first Dex setup (DOT_AI_AUTH_TOKEN → Dex static password). Future cleanup PRD for migration logic. Auth logic follows plugin architecture (`packages/agentic-tools/`). Milestones 6/7 swapped (Client PRDs before Docs).
 - **v5.0** (2026-03-02): **Merge M2+M3, OAuth in server, incremental delivery** — Merged "OAuth Endpoints (no Dex)" and "Dex Integration" into single Milestone 2 to avoid throwaway code. OAuth logic moves to `src/interfaces/oauth/` (server, not plugin) — endpoints are HTTP routes, not tool invocations; Dex is an external service like K8s/Qdrant. Milestone broken into 5 incremental tasks with dual-mode auth transition. Milestones renumbered (old M4-M7 → M3-M6).
 - **v6.0** (2026-03-02): **MCP SDK OAuth support** — Replace custom `handlers.ts` + `store.ts` with SDK's `mcpAuthRouter()` + `OAuthServerProvider` interface. Express sub-app (bundled with SDK) handles OAuth routes; raw `node:http` stays for everything else. Custom provider (not `ProxyOAuthServerProvider`) because dot-ai is intermediary between MCP clients and Dex. Tasks 2.1+2.2 merged into single "SDK Migration" step; Task 2.3 narrowed to Dex-specific logic + Helm.
+- **v7.0** (2026-03-02): **Dual-mode auth permanent** — Reverses "remove token mode entirely" decision. Static token (`DOT_AI_AUTH_TOKEN`) stays as a permanent alternative alongside OAuth. Reasons: MCP clients without OAuth support, CI/CD automation, simpler onboarding, backward compatibility. Task 2.4 rewritten from "remove legacy auth" to "identity in version tool + auth cleanup". Per-session McpServer factory for multi-user. Session GC with 1-hour TTL.

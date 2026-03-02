@@ -41,7 +41,7 @@ spec:
         - name: HOST
           value: "0.0.0.0"
         - name: SESSION_MODE
-          value: "stateless"
+          value: "stateful"
         # AI Provider configuration
         - name: AI_PROVIDER
           value: {{ .Values.ai.provider | default "anthropic" | quote }}
