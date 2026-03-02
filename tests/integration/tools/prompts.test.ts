@@ -80,7 +80,7 @@ describe.concurrent('Prompts Integration', () => {
         success: true,
         data: {
           prompts: expect.arrayContaining(
-            expectedPrompts.map(({ expectedFiles, ...rest }) => expect.objectContaining(rest))
+            expectedPrompts.map(({ expectedFiles: _, ...rest }) => expect.objectContaining(rest))
           )
         },
         meta: {
@@ -128,19 +128,21 @@ describe.concurrent('Prompts Integration', () => {
 
       // Verify files field for folder-based skills vs flat prompts
       if (expectedFiles) {
-        expect(response.data.files).toEqual(
-          expectedFiles.map((filePath: string) => ({
+        expect(response.data).toMatchObject({
+          files: expectedFiles.map((filePath: string) => ({
             path: filePath,
             content: expect.any(String),
-          }))
-        );
+          })),
+        });
         // Verify base64 content decodes to non-empty string
         for (const file of response.data.files) {
           const decoded = Buffer.from(file.content, 'base64').toString('utf-8');
           expect(decoded.length).toBeGreaterThan(0);
         }
       } else {
-        expect(response.data.files).toBeUndefined();
+        expect(response.data).toMatchObject(
+          expect.not.objectContaining({ files: expect.anything() })
+        );
       }
     });
 
@@ -365,9 +367,9 @@ describe.concurrent('Prompts Integration', () => {
     });
   });
 
-  describe('MCP Filtering', () => {
-    test('should have files on file-dependent skills and no files on flat prompts', async () => {
-      // File-dependent skill (folder with SKILL.md + helper.sh) — MCP would exclude this
+  describe('Skill File Attachment', () => {
+    test('should include files on folder-based skills and omit files on flat prompts', async () => {
+      // Folder-based skill (SKILL.md + helper.sh) includes supporting files
       const skillResponse = await integrationTest.httpClient.post('/api/v1/prompts/test-skill', {});
       expect(skillResponse).toMatchObject({
         success: true,
@@ -376,12 +378,12 @@ describe.concurrent('Prompts Integration', () => {
         },
       });
 
-      // Flat user prompt — MCP would include this (no files)
+      // Flat user prompt has no files
       const flatResponse = await integrationTest.httpClient.post('/api/v1/prompts/eval-run', {});
       expect(flatResponse).toMatchObject({ success: true });
       expect(flatResponse.data.files).toBeUndefined();
 
-      // Built-in prompt — MCP would include this (no files)
+      // Built-in prompt has no files
       const builtInResponse = await integrationTest.httpClient.post('/api/v1/prompts/generate-dockerfile', {});
       expect(builtInResponse).toMatchObject({ success: true });
       expect(builtInResponse.data.files).toBeUndefined();
