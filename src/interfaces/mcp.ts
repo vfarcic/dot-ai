@@ -464,7 +464,7 @@ export class MCPServer {
         const requestId = this.generateRequestId();
         this.logger.info('Processing prompts/list request', { requestId });
         return await handlePromptsListRequest(
-          request.params || {},
+          { ...request.params, excludeFileSkills: true },
           this.logger,
           requestId
         );

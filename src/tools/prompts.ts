@@ -273,6 +273,7 @@ export async function loadAllPrompts(
 
 export interface PromptsListArgs {
   baseDir?: string;
+  excludeFileSkills?: boolean;
 }
 
 interface PromptsListResponse {
@@ -294,10 +295,15 @@ export async function handlePromptsListRequest(
   try {
     logger.info('Processing prompts/list request', { requestId });
 
-    const prompts = await loadAllPrompts(
+    const allPrompts = await loadAllPrompts(
       logger,
       process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
     );
+
+    // Filter out file-dependent skills when requested (MCP clients can't deliver files)
+    const prompts = args?.excludeFileSkills
+      ? allPrompts.filter(p => !p.files || p.files.length === 0)
+      : allPrompts;
 
     // Convert to MCP prompts/list response format (include arguments if present)
     const promptList = prompts.map(prompt => {

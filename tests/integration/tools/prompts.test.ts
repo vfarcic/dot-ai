@@ -7,6 +7,8 @@
 
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
+import { handlePromptsListRequest } from '../../../src/tools/prompts.js';
+import { Logger } from '../../../src/core/error-handling.js';
 
 describe.concurrent('Prompts Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -362,6 +364,44 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedErrorResponse);
+    });
+  });
+
+  describe('MCP Filtering', () => {
+    const logger: Logger = {
+      info: () => {},
+      error: () => {},
+      warn: () => {},
+      debug: () => {},
+    };
+
+    test('should exclude file-dependent skills from list when excludeFileSkills is true', async () => {
+      // MCP path: excludeFileSkills=true
+      const mcpResult = await handlePromptsListRequest(
+        { excludeFileSkills: true },
+        logger,
+        'test-mcp-filter'
+      );
+
+      // REST path: no flag
+      const restResult = await handlePromptsListRequest(
+        {},
+        logger,
+        'test-rest-no-filter'
+      );
+
+      // REST includes test-skill (has supporting files)
+      expect(restResult.prompts.find(p => p.name === 'test-skill')).toBeDefined();
+
+      // MCP excludes test-skill (has supporting files MCP can't deliver)
+      expect(mcpResult.prompts.find(p => p.name === 'test-skill')).toBeUndefined();
+
+      // MCP should have exactly one fewer prompt than REST
+      expect(mcpResult.prompts.length).toBe(restResult.prompts.length - 1);
+
+      // Flat user prompts and built-in prompts still present in MCP list
+      expect(mcpResult.prompts.find(p => p.name === 'eval-run')).toBeDefined();
+      expect(mcpResult.prompts.find(p => p.name === 'generate-dockerfile')).toBeDefined();
     });
   });
 });
