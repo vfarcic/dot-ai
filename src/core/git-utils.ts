@@ -274,10 +274,15 @@ export class GitOperations {
 
       await git.add(files.map(f => f.path));
 
-      if (author) {
-        await git.addConfig('user.name', author.name);
-        await git.addConfig('user.email', author.email);
-      }
+      // Configure git identity (use provided author or fallback to env vars/defaults)
+      const gitUserName =
+        author?.name || process.env.GIT_AUTHOR_NAME || 'dot-ai-bot';
+      const gitUserEmail =
+        author?.email ||
+        process.env.GIT_AUTHOR_EMAIL ||
+        'dot-ai@users.noreply.github.com';
+      await git.addConfig('user.name', gitUserName);
+      await git.addConfig('user.email', gitUserEmail);
 
       const commitResult = await git.commit(commitMessage);
       const commitSha = commitResult.commit || undefined;

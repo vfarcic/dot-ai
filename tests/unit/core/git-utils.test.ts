@@ -11,21 +11,21 @@ import {
 
 vi.mock('simple-git', () => {
   const mockGit = {
-    clone: vi.fn(),
-    checkout: vi.fn(),
-    checkoutLocalBranch: vi.fn(),
-    branchLocal: vi.fn(),
-    add: vi.fn(),
+    clone: vi.fn().mockResolvedValue(undefined),
+    checkout: vi.fn().mockResolvedValue(undefined),
+    checkoutLocalBranch: vi.fn().mockResolvedValue(undefined),
+    branchLocal: vi.fn().mockResolvedValue({ all: ['main'] }),
+    add: vi.fn().mockResolvedValue(undefined),
     commit: vi.fn().mockResolvedValue({ commit: 'abc123' }),
-    push: vi.fn(),
+    push: vi.fn().mockResolvedValue(undefined),
     status: vi.fn().mockResolvedValue({ current: 'main' }),
     getRemotes: vi
       .fn()
       .mockResolvedValue([
         { name: 'origin', refs: { fetch: 'https://github.com/org/repo.git' } },
       ]),
-    remote: vi.fn(),
-    addConfig: vi.fn(),
+    remote: vi.fn().mockResolvedValue(undefined),
+    addConfig: vi.fn().mockResolvedValue(undefined),
   };
 
   return {
