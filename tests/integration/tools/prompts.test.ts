@@ -80,7 +80,7 @@ describe.concurrent('Prompts Integration', () => {
         success: true,
         data: {
           prompts: expect.arrayContaining(
-            expectedPrompts.map(p => expect.objectContaining(p))
+            expectedPrompts.map(({ expectedFiles, ...rest }) => expect.objectContaining(rest))
           )
         },
         meta: {
