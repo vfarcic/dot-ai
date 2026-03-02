@@ -12,7 +12,15 @@ import simpleGit, { SimpleGit, SimpleGitOptions } from 'simple-git';
 import * as jwt from 'jsonwebtoken';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+
+const TMP_DIR = './tmp';
+
+function ensureTmpDir(): string {
+  if (!fs.existsSync(TMP_DIR)) {
+    fs.mkdirSync(TMP_DIR, { recursive: true });
+  }
+  return TMP_DIR;
+}
 
 export interface GitAuthConfig {
   pat?: string;
@@ -70,10 +78,31 @@ export interface GitHubAppToken {
 export class GitOperations {
   private authConfig: GitAuthConfig;
   private logger: Console;
+  private readonly fetchTimeoutMs = 30000;
 
   constructor(authConfig: GitAuthConfig) {
     this.authConfig = authConfig;
     this.logger = console;
+  }
+
+  /**
+   * Fetch with timeout to prevent indefinite hangs
+   */
+  private async fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs = this.fetchTimeoutMs
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   /**
@@ -112,7 +141,7 @@ export class GitOperations {
     let installId = installationId;
 
     if (!installId) {
-      const installationsResponse = await fetch(
+      const installationsResponse = await this.fetchWithTimeout(
         'https://api.github.com/app/installations',
         {
           headers: {
@@ -138,7 +167,7 @@ export class GitOperations {
       installId = String(installations[0].id);
     }
 
-    const tokenResponse = await fetch(
+    const tokenResponse = await this.fetchWithTimeout(
       `https://api.github.com/app/installations/${installId}/access_tokens`,
       {
         method: 'POST',
@@ -199,7 +228,7 @@ export class GitOperations {
       const authUrl = this.getAuthenticatedUrl(repoUrl, token);
 
       const localPath =
-        targetDir || path.join(os.tmpdir(), `git-clone-${Date.now()}`);
+        targetDir || path.join(ensureTmpDir(), `git-clone-${Date.now()}`);
 
       const options: Partial<SimpleGitOptions> = {
         baseDir: process.cwd(),
@@ -285,7 +314,19 @@ export class GitOperations {
       await git.addConfig('user.email', gitUserEmail);
 
       const commitResult = await git.commit(commitMessage);
-      const commitSha = commitResult.commit || undefined;
+
+      // Handle empty commit (no changes to commit)
+      if (!commitResult.commit) {
+        this.logger.log('No changes to commit, skipping push');
+        return {
+          success: true,
+          commitSha: undefined,
+          branch: (await git.status()).current || 'main',
+          filesAdded: [],
+        };
+      }
+
+      const commitSha = commitResult.commit;
 
       const token = await this.getAuthToken();
       const remotes = await git.getRemotes(true);

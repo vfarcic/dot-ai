@@ -8,21 +8,20 @@ import {
   GIT_CLONE_TOOL_NAME,
   GIT_CLONE_TOOL_DESCRIPTION,
 } from '../../../src/tools/git-clone';
-import { resetGitOperations } from '../../../src/core/git-utils';
+import type { Logger } from '../../../src/core/error-handling';
 
 vi.mock('../../../src/core/git-utils', () => ({
   getGitOperations: vi.fn(() => ({
     clone: vi.fn().mockResolvedValue({
       success: true,
-      localPath: '/tmp/test-repo',
+      localPath: './tmp/test-repo',
       branch: 'main',
     }),
   })),
-  resetGitOperations: vi.fn(),
 }));
 
 describe('git-clone tool', () => {
-  const mockLogger = {
+  const mockLogger: Logger = {
     info: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
@@ -54,7 +53,7 @@ describe('git-clone tool', () => {
           repoUrl: 'https://github.com/org/repo.git',
           branch: 'main',
         },
-        mockLogger as any,
+        mockLogger,
         'test-request-id'
       );
 
@@ -63,7 +62,7 @@ describe('git-clone tool', () => {
 
       const output = JSON.parse(result.content[0].text);
       expect(output.success).toBe(true);
-      expect(output.localPath).toBe('/tmp/test-repo');
+      expect(output.localPath).toBe('./tmp/test-repo');
       expect(output.branch).toBe('main');
     });
 
@@ -72,10 +71,10 @@ describe('git-clone tool', () => {
         {
           repoUrl: 'https://github.com/org/repo.git',
           branch: 'develop',
-          targetDir: '/custom/path',
+          targetDir: './custom/path',
           depth: 1,
         },
-        mockLogger as any,
+        mockLogger,
         'test-request-id'
       );
 

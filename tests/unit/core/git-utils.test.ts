@@ -92,7 +92,7 @@ describe('GitOperations', () => {
       gitOps = new GitOperations({ pat: 'test-token' });
 
       const result = await gitOps.push({
-        repoPath: '/tmp/test-repo',
+        repoPath: './tmp/test-repo',
         files: [
           { path: 'test.yaml', content: 'apiVersion: v1\nkind: ConfigMap' },
         ],
@@ -106,7 +106,7 @@ describe('GitOperations', () => {
       gitOps = new GitOperations({ pat: 'test-token' });
 
       const result = await gitOps.push({
-        repoPath: '/tmp/test-repo',
+        repoPath: './tmp/test-repo',
         files: [{ path: 'test.yaml', content: 'test' }],
         commitMessage: 'Add test file',
         author: {

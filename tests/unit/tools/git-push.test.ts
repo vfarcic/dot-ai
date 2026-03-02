@@ -8,6 +8,7 @@ import {
   GIT_PUSH_TOOL_NAME,
   GIT_PUSH_TOOL_DESCRIPTION,
 } from '../../../src/tools/git-push';
+import type { Logger } from '../../../src/core/error-handling';
 
 vi.mock('../../../src/core/git-utils', () => ({
   getGitOperations: vi.fn(() => ({
@@ -18,11 +19,10 @@ vi.mock('../../../src/core/git-utils', () => ({
       filesAdded: ['apps/deployment.yaml', 'apps/service.yaml'],
     }),
   })),
-  resetGitOperations: vi.fn(),
 }));
 
 describe('git-push tool', () => {
-  const mockLogger = {
+  const mockLogger: Logger = {
     info: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
@@ -53,7 +53,7 @@ describe('git-push tool', () => {
     it('should push files successfully', async () => {
       const result = await handleGitPushTool(
         {
-          repoPath: '/tmp/test-repo',
+          repoPath: './tmp/test-repo',
           files: [
             {
               path: 'apps/deployment.yaml',
@@ -66,7 +66,7 @@ describe('git-push tool', () => {
           ],
           commitMessage: 'Add deployment manifests',
         },
-        mockLogger as any,
+        mockLogger,
         'test-request-id'
       );
 
@@ -83,7 +83,7 @@ describe('git-push tool', () => {
     it('should accept optional author parameter', async () => {
       const result = await handleGitPushTool(
         {
-          repoPath: '/tmp/test-repo',
+          repoPath: './tmp/test-repo',
           files: [{ path: 'test.yaml', content: 'test' }],
           commitMessage: 'Test commit',
           author: {
@@ -91,7 +91,7 @@ describe('git-push tool', () => {
             email: 'test@example.com',
           },
         },
-        mockLogger as any,
+        mockLogger,
         'test-request-id'
       );
 
@@ -101,12 +101,12 @@ describe('git-push tool', () => {
     it('should accept optional branch parameter', async () => {
       const result = await handleGitPushTool(
         {
-          repoPath: '/tmp/test-repo',
+          repoPath: './tmp/test-repo',
           files: [{ path: 'test.yaml', content: 'test' }],
           commitMessage: 'Test commit',
           branch: 'feature/test',
         },
-        mockLogger as any,
+        mockLogger,
         'test-request-id'
       );
 
