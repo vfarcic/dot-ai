@@ -1,6 +1,6 @@
 # PRD #387: Serve Folder-Based Skills from Git Repositories
 
-**Status**: Draft
+**Status**: In Progress
 **Priority**: Medium
 **Related Issue**: #379 (original feature request)
 
@@ -31,10 +31,12 @@ user-prompts-repo/
 
 ## Scope
 
-**REST API + CLI only.** MCP clients receive prompt text directly through the protocol and do not materialize files on disk. The `files` field is only meaningful for REST API consumers (the CLI) that write skill folders to the user's filesystem.
+**Files are REST API + CLI only.** MCP clients receive prompt text directly through the protocol and do not materialize files on disk. The `files` field is only meaningful for REST API consumers (the CLI) that write skill folders to the user's filesystem.
 
-- **In scope**: Server-side prompt loading, REST API response, CLI skill generation
-- **Out of scope**: MCP `prompts/get` handler (continues to serve prompt text only)
+**MCP visibility rule:** Skill folders with only `SKILL.md` (no supporting files) are treated as regular prompts and served via both MCP and REST. Skill folders with `SKILL.md` + supporting files are **excluded from MCP entirely** — not listed in `prompts/list`, not retrievable via `prompts/get`. Rationale: if a skill depends on supporting files that MCP can't deliver, showing it to MCP clients is misleading — the skill won't work.
+
+- **In scope**: Server-side prompt loading, REST API response, CLI skill generation, MCP filtering of file-dependent skills
+- **Out of scope**: MCP file delivery (MCP never receives `files` field)
 
 ## Architecture
 
@@ -42,13 +44,17 @@ user-prompts-repo/
 
 ```
 Git repo ──clone──▶ user-prompts-loader
-                        ├── flat .md files ──▶ Prompt (existing)
-                        └── dirs with SKILL.md ──▶ Prompt + files[] (new)
-                                                      │
-                    GET /api/v1/prompts ◀──────────────┘ (list includes skills)
-                    POST /api/v1/prompts/:name ◀────────┘ (response includes files)
-                                                      │
-                    CLI: dot-ai skills generate ◀──────┘ (writes SKILL.md + files to disk)
+                        ├── flat .md files ──────────────▶ Prompt (existing)
+                        ├── dirs with SKILL.md only ─────▶ Prompt (no files[], like flat .md)
+                        └── dirs with SKILL.md + files ──▶ Prompt + files[] (REST-only)
+                                                              │
+                    MCP prompts/list ◀────── filters out prompts with files[]
+                    MCP prompts/get  ◀────── rejects prompts with files[]
+                                                              │
+                    GET /api/v1/prompts ◀─────────────────────┘ (list includes all)
+                    POST /api/v1/prompts/:name ◀──────────────┘ (response includes files)
+                                                              │
+                    CLI: dot-ai skills generate ◀─────────────┘ (writes SKILL.md + files)
 ```
 
 ### Interface Changes
@@ -102,22 +108,26 @@ export interface Prompt {
 
 7. **File permissions are a CLI concern**: The server serves raw file content without tracking permissions. The CLI companion PRD (see Milestones) will handle setting executable permissions when writing files to disk (e.g., based on shebang or file extension).
 
+8. **MCP excludes file-dependent skills**: A skill folder with only `SKILL.md` (no supporting files) is treated identically to a flat `.md` prompt — served via both MCP and REST. A skill folder with `SKILL.md` + supporting files is excluded from MCP `prompts/list` and `prompts/get` entirely, since MCP cannot deliver the files needed for the skill to function. This means the MCP handler must filter based on the presence of `files[]`.
+
+9. **No "skill" vs "prompt" distinction in the data model**: Everything remains a `Prompt` in the internal model. The `PromptFile` type and `files[]` field are just interface additions created as part of the loader work — not a standalone deliverable. The "prompt" vs "skill" distinction is purely a consumer concern: MCP serves prompts, the CLI writes skill folders.
+
 ## Success Criteria
 
 - Flat `.md` prompts continue to work identically (no regression)
 - Skill folders with `SKILL.md` are discovered and served as prompts
-- Supporting files are included in the `POST /api/v1/prompts/:name` response
-- REST API `POST /api/v1/prompts/:name` includes `files` in response
-- MCP `prompts/get` is unchanged (serves prompt text only, no `files` field)
+- Skill folders with only `SKILL.md` (no supporting files) are served via both MCP and REST
+- Skill folders with `SKILL.md` + supporting files are served via REST only (excluded from MCP)
+- REST API `POST /api/v1/prompts/:name` includes `files` in response for file-dependent skills
+- MCP `prompts/list` and `prompts/get` exclude skills that have supporting files
 - Collision detection works for skill folders (built-in takes precedence)
 
 ## Milestones
 
-- [ ] Extend `Prompt` interface with optional `files` field and add `PromptFile` type
-- [ ] Extend `user-prompts-loader.ts` to scan for skill folders (directories containing `SKILL.md`) and load supporting files
-- [ ] Update prompts response schema to include optional `files` field in get response
-- [ ] Update REST API handler to pass through files data (MCP handler unchanged)
-- [ ] Integration tests for folder-based skill loading (list, get with files, collision detection)
+- [x] Extend loader to scan for skill folders (directories containing `SKILL.md`), load supporting files as base64, and attach as `files[]` on the `Prompt` object (includes adding `PromptFile` type and `files` field to the `Prompt` interface)
+- [x] Update REST API: add `files` field to prompts get response schema and pass through files data from loader
+- [ ] Update MCP handler to filter out prompts with `files[]` from `prompts/list` and `prompts/get`
+- [ ] Integration tests for MCP filtering and collision detection (list/get/files tests done)
 - [ ] Create PRD in `dot-ai-cli` repo for CLI-side changes:
   - `skills generate` fetches and writes full folder structures (SKILL.md + supporting files)
   - Decode base64 file content and write to disk

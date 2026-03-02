@@ -58,7 +58,9 @@ npm run test:integration version     # Run specific test by pattern
 
 **Test Clusters**: Integration tests create `./kubeconfig-test.yaml` in project root
 
-**Git Commits**: Add `[skip ci]` when user requests to skip CI
+**Git Commits**: Add `[skip ci]` to skip CI, or `[run ci]` to trigger the CI pipeline on branch pushes
+
+**Running Integration Tests via CI**: When the local cluster is unavailable (e.g., in use by parallel work), push to the branch with `[run ci]` in the commit message instead of running `npm run test:integration` locally. The CI pipeline will run the full integration test suite.
 
 ## Git Worktrees for Feature Work
 
