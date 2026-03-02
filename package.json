@@ -35,7 +35,7 @@
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run lint",
     "build": "tsc --sourceMap false",
-    "postbuild": "chmod +x dist/mcp/server.js",
+    "postbuild": "chmod +x dist/mcp/server.js && cp src/interfaces/oauth/dex-api.proto dist/interfaces/oauth/",
     "build:prod": "npm run clean && tsc --sourceMap false --removeComments true",
     "build:dev": "tsc --sourceMap true",
     "build:watch": "tsc --watch",
