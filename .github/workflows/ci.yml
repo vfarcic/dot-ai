@@ -65,6 +65,7 @@ jobs:
       timeout-minutes: 30
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        DOT_AI_GIT_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}
         USE_LOCAL_EMBEDDINGS: "true"
 
     - name: Skip integration tests (fork PR)

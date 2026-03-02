@@ -17,7 +17,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { Logger } from './error-handling';
 import { execAsync } from './platform-utils';
-import { Prompt, loadPromptFile } from '../tools/prompts';
+import { Prompt, PromptFile, loadPromptFile } from '../tools/prompts';
 
 /**
  * Configuration for user prompts repository
@@ -283,6 +283,79 @@ async function ensureRepository(
   return config.subPath ? path.join(localPath, config.subPath) : localPath;
 }
 
+const SKILL_FILE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB per file (before base64 encoding)
+const SKILL_FILENAME = 'SKILL.md';
+
+/**
+ * Recursively collect all files in a skill folder (excluding SKILL.md at root),
+ * returning them as base64-encoded PromptFile objects.
+ */
+function collectSkillFiles(
+  dirPath: string,
+  basePath: string,
+  logger: Logger
+): PromptFile[] {
+  const files: PromptFile[] = [];
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+
+    const fullPath = path.join(dirPath, entry.name);
+    const relativePath = path.relative(basePath, fullPath);
+
+    if (entry.isDirectory()) {
+      files.push(...collectSkillFiles(fullPath, basePath, logger));
+    } else if (entry.isFile()) {
+      if (entry.name === SKILL_FILENAME && dirPath === basePath) continue;
+
+      const stat = fs.statSync(fullPath);
+      if (stat.size > SKILL_FILE_MAX_BYTES) {
+        logger.warn('Skill file exceeds size limit, skipping', {
+          file: relativePath,
+          size: stat.size,
+          limit: SKILL_FILE_MAX_BYTES,
+        });
+        continue;
+      }
+
+      const content = fs.readFileSync(fullPath);
+      files.push({
+        path: relativePath,
+        content: content.toString('base64'),
+      });
+    }
+  }
+
+  return files;
+}
+
+/**
+ * Load a skill folder (directory containing SKILL.md) as a Prompt with supporting files.
+ * Returns null if the directory does not contain SKILL.md.
+ */
+function loadSkillFolder(
+  dirPath: string,
+  dirName: string,
+  logger: Logger
+): Prompt | null {
+  const skillMdPath = path.join(dirPath, SKILL_FILENAME);
+
+  if (!fs.existsSync(skillMdPath)) {
+    return null;
+  }
+
+  const prompt = loadPromptFile(skillMdPath, 'user', dirName);
+
+  const supportingFiles = collectSkillFiles(dirPath, dirPath, logger);
+
+  if (supportingFiles.length > 0) {
+    prompt.files = supportingFiles;
+  }
+
+  return prompt;
+}
+
 /**
  * Load user prompts from the configured git repository
  * Returns empty array if not configured or on error
@@ -311,25 +384,59 @@ export async function loadUserPrompts(
       return [];
     }
 
-    // Load all .md files from the prompts directory
-    const files = fs.readdirSync(promptsDir);
-    const promptFiles = files.filter(file => file.endsWith('.md'));
+    // Load flat .md files and skill folders from the prompts directory
+    const entries = fs.readdirSync(promptsDir, { withFileTypes: true });
     const prompts: Prompt[] = [];
+    const loadedNames = new Set<string>();
 
-    for (const file of promptFiles) {
+    // 1. Load flat .md files (existing behavior)
+    const mdFiles = entries.filter(e => e.isFile() && e.name.endsWith('.md'));
+    for (const entry of mdFiles) {
       try {
-        const filePath = path.join(promptsDir, file);
+        const filePath = path.join(promptsDir, entry.name);
         const prompt = loadPromptFile(filePath, 'user');
         prompts.push(prompt);
-        logger.debug('Loaded user prompt', { name: prompt.name, file });
+        loadedNames.add(prompt.name);
+        logger.debug('Loaded user prompt', { name: prompt.name, file: entry.name });
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error';
         logger.warn('Failed to load user prompt file, skipping', {
-          file,
+          file: entry.name,
           error: errorMessage,
         });
-        // Continue with other prompts
+      }
+    }
+
+    // 2. Load skill folders (directories containing SKILL.md)
+    const directories = entries.filter(e => e.isDirectory() && !e.name.startsWith('.'));
+    for (const dir of directories) {
+      try {
+        const dirPath = path.join(promptsDir, dir.name);
+        const prompt = loadSkillFolder(dirPath, dir.name, logger);
+        if (prompt) {
+          if (loadedNames.has(prompt.name)) {
+            logger.warn('Skill folder name collision with existing prompt, skipping', {
+              name: prompt.name,
+              dir: dir.name,
+            });
+            continue;
+          }
+          prompts.push(prompt);
+          loadedNames.add(prompt.name);
+          logger.debug('Loaded user skill folder', {
+            name: prompt.name,
+            dir: dir.name,
+            filesCount: prompt.files?.length ?? 0,
+          });
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        logger.warn('Failed to load skill folder, skipping', {
+          dir: dir.name,
+          error: errorMessage,
+        });
       }
     }
 

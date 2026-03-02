@@ -380,7 +380,11 @@ export class MCPServer {
       async (request: { params?: PromptsListArgs }) => {
         const requestId = this.generateRequestId();
         this.logger.info('Processing prompts/list request', { requestId });
-        return await handlePromptsListRequest(request.params || {}, this.logger, requestId);
+        return await handlePromptsListRequest(
+          { ...request.params, excludeFileSkills: true },
+          this.logger,
+          requestId
+        );
       }
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type compatibility
