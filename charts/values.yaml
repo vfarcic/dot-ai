@@ -8,71 +8,78 @@ annotations: {}
 
 # Application image configuration
 image:
-  repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "1.5.0"                     # Container image tag - set by CI pipeline during release
+  repository: ghcr.io/vfarcic/dot-ai # Container image repository
+  tag: '1.5.0' # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
   requests:
-    memory: "512Mi"  # Minimum memory required
-    cpu: "200m"      # Minimum CPU required
+    memory: '512Mi' # Minimum memory required
+    cpu: '200m' # Minimum CPU required
   limits:
-    memory: "2Gi"    # Maximum memory allowed
-    cpu: "1000m"     # Maximum CPU allowed
+    memory: '2Gi' # Maximum memory allowed
+    cpu: '1000m' # Maximum CPU allowed
 
 # Secrets configuration
 secrets:
-  name: dot-ai-secrets              # Name of the Kubernetes Secret resource
+  name: dot-ai-secrets # Name of the Kubernetes Secret resource
   auth:
-    keyName: auth-token             # Key name within the secret for Bearer token auth
-    token: ""                       # Auth token value (only needed if chart should create the secret)
+    keyName: auth-token # Key name within the secret for Bearer token auth
+    token: '' # Auth token value (only needed if chart should create the secret)
   anthropic:
-    keyName: anthropic-api-key      # Key name within the secret
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
+    keyName: anthropic-api-key # Key name within the secret
+    apiKey: '' # API key value (only needed if chart should create the secret)
   openai:
-    keyName: openai-api-key         # Key name within the secret
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
+    keyName: openai-api-key # Key name within the secret
+    apiKey: '' # API key value (only needed if chart should create the secret)
   google:
-    keyName: google-api-key         # Key name within the secret
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
+    keyName: google-api-key # Key name within the secret
+    apiKey: '' # API key value (only needed if chart should create the secret)
   xai:
-    keyName: xai-api-key            # Key name within the secret
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
+    keyName: xai-api-key # Key name within the secret
+    apiKey: '' # API key value (only needed if chart should create the secret)
   moonshot:
-    keyName: moonshot-api-key       # Key name within the secret (PRD #237: Kimi K2)
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
+    keyName: moonshot-api-key # Key name within the secret (PRD #237: Kimi K2)
+    apiKey: '' # API key value (only needed if chart should create the secret)
   customLlm:
-    keyName: custom-llm-api-key     # Key name within the secret for custom LLM endpoint
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
+    keyName: custom-llm-api-key # Key name within the secret for custom LLM endpoint
+    apiKey: '' # API key value (only needed if chart should create the secret)
   customEmbeddings:
-    keyName: custom-embeddings-api-key  # Key name within the secret for custom embeddings endpoint
-    apiKey: ""                      # API key value (only needed if chart should create the secret)
+    keyName: custom-embeddings-api-key # Key name within the secret for custom embeddings endpoint
+    apiKey: '' # API key value (only needed if chart should create the secret)
+  git:
+    token: '' # Git PAT token for git_clone/git_push tools (PRD #362)
+  githubApp:
+    enabled: false # Enable GitHub App authentication (alternative to PAT)
+    appId: '' # GitHub App ID
+    privateKey: '' # GitHub App private key (PEM format)
+    installationId: '' # GitHub App installation ID (optional, auto-detected if not provided)
 
 # ServiceAccount configuration
 serviceAccount:
-  create: true                      # Create a ServiceAccount
-  name: ""                          # ServiceAccount name override (generated if empty)
+  create: true # Create a ServiceAccount
+  name: '' # ServiceAccount name override (generated if empty)
 
 # Ingress configuration
 # NOTE: Mutually exclusive with gateway.enabled - only one can be enabled
 ingress:
-  enabled: false                    # Create Ingress resource
-  className: nginx                  # Ingress class name
-  host: dot-ai.127.0.0.1.nip.io     # Ingress hostname
+  enabled: false # Create Ingress resource
+  className: nginx # Ingress class name
+  host: dot-ai.127.0.0.1.nip.io # Ingress hostname
   # Annotations required for HTTP transport with SSE (Server-Sent Events)
   # If using different className, update annotations for your ingress controller:
   # - Traefik: traefik.ingress.kubernetes.io/service.sticky.cookie.httponly: "true"
   # - HAProxy: haproxy.org/timeout-http-request: "3600s"
   # - AWS ALB: alb.ingress.kubernetes.io/target-group-attributes: idle_timeout.timeout_seconds=3600
   annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"    # Allow long-running SSE connections
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"    # Allow long-running SSE connections
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"        # Disable buffering for real-time streaming
-    nginx.ingress.kubernetes.io/proxy-request-buffering: "off" # Disable request buffering for real-time streaming
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600' # Allow long-running SSE connections
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600' # Allow long-running SSE connections
+    nginx.ingress.kubernetes.io/proxy-buffering: 'off' # Disable buffering for real-time streaming
+    nginx.ingress.kubernetes.io/proxy-request-buffering: 'off' # Disable request buffering for real-time streaming
   tls:
-    enabled: false                  # Enable TLS/HTTPS
-    secretName: ""                  # TLS secret name (generated if empty when enabled)
-    clusterIssuer: ""               # cert-manager ClusterIssuer name (e.g., "letsencrypt")
+    enabled: false # Enable TLS/HTTPS
+    secretName: '' # TLS secret name (generated if empty when enabled)
+    clusterIssuer: '' # cert-manager ClusterIssuer name (e.g., "letsencrypt")
 
 # Gateway API configuration (Kubernetes 1.26+)
 # NOTE: Mutually exclusive with ingress.enabled - only one can be enabled
@@ -93,36 +100,36 @@ gateway:
   # Reference mode: Specify name of existing Gateway resource (RECOMMENDED)
   # When set, HTTPRoute will reference this Gateway. Gateway must exist before deployment.
   # Leave empty when using create mode.
-  name: ""                          # Gateway name to reference (e.g., "cluster-gateway")
-  
+  name: '' # Gateway name to reference (e.g., "cluster-gateway")
+
   # Optional: Gateway namespace for cross-namespace references
   # Only used when 'name' is set. Requires ReferenceGrant in Gateway namespace.
   # Leave empty if Gateway is in same namespace as this chart.
-  namespace: ""                     # Gateway namespace (e.g., "gateway-system")
-  
+  namespace: '' # Gateway namespace (e.g., "gateway-system")
+
   # Creation mode: Create a new Gateway resource (for development/testing only)
   # When true, creates Gateway with name "<fullname>-http" to prevent kGateway naming collisions.
   # Requires 'className' to be set. Not recommended for production (use reference mode instead).
-  create: false                     # Create Gateway resource (false = reference mode)
-  
+  create: false # Create Gateway resource (false = reference mode)
+
   # GatewayClass name - REQUIRED when create=true, ignored when referencing existing Gateway
-  className: ""                     # GatewayClass name (e.g., "istio", "envoy-gateway", "gke-l7-global-external-managed")
-  
+  className: '' # GatewayClass name (e.g., "istio", "envoy-gateway", "gke-l7-global-external-managed")
+
   # Annotations for integration with external-dns, cert-manager, etc.
   # Only used when create=true. For existing Gateways, configure annotations on the Gateway resource directly.
   # Example for external-dns: external-dns.alpha.kubernetes.io/hostname: "dot-ai.example.com"
   annotations: {}
-  
+
   # Listener configuration - only used when create=true
   # For existing Gateways, listeners are already configured on the Gateway resource.
   listeners:
     http:
-      enabled: true                 # Enable HTTP listener on port 80
-      hostname: ""                  # Optional: hostname for HTTP listener (e.g., "dot-ai.example.com")
+      enabled: true # Enable HTTP listener on port 80
+      hostname: '' # Optional: hostname for HTTP listener (e.g., "dot-ai.example.com")
     https:
-      enabled: false                # Enable HTTPS listener on port 443
-      hostname: ""                  # Optional: hostname for HTTPS listener (e.g., "dot-ai.example.com")
-      secretName: ""                # TLS secret name (generated if empty: <fullname>-tls)
+      enabled: false # Enable HTTPS listener on port 443
+      hostname: '' # Optional: hostname for HTTPS listener (e.g., "dot-ai.example.com")
+      secretName: '' # TLS secret name (generated if empty: <fullname>-tls)
       # Optional: certificateRefs for advanced TLS configuration
       # Useful for cert-manager integration or cross-namespace secrets (requires ReferenceGrant)
       # certificateRefs:
@@ -131,25 +138,25 @@ gateway:
       #   # Optional: group (defaults to core for Secret)
       #   # Optional: namespace (for cross-namespace references, requires ReferenceGrant)
       certificateRefs: []
-  
+
   # Timeouts for SSE streaming support (GEP-1742)
   # Applied to HTTPRoute rules for both reference and create modes
   timeouts:
-    request: "3600s"                # Request timeout (supports SSE streaming)
-    backendRequest: "3600s"         # Backend request timeout
+    request: '3600s' # Request timeout (supports SSE streaming)
+    backendRequest: '3600s' # Backend request timeout
 
 # AI Provider configuration
 ai:
-  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, kimi, kimi_thinking, xai, amazon_bedrock)
-  model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
+  provider: anthropic # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, kimi, kimi_thinking, xai, amazon_bedrock)
+  model: '' # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
   customEndpoint:
-    enabled: false                  # Enable custom endpoint
-    baseURL: ""                     # Custom LLM endpoint URL - MUST include /v1 suffix for OpenAI-compatible APIs (e.g., "http://ollama-service:11434/v1")
-    embeddingsBaseURL: ""           # Optional: custom embeddings endpoint URL (if different from LLM endpoint, also requires /v1 suffix)
-    embeddingsModel: ""             # Optional: custom embeddings model name (e.g., "nomic-embed-text" for Ollama, defaults to "text-embedding-3-small" for OpenAI)
-    embeddingsDimensions: ""        # Optional: custom embeddings dimensions (e.g., "768" for nomic-embed-text, defaults to "1536" for OpenAI)
+    enabled: false # Enable custom endpoint
+    baseURL: '' # Custom LLM endpoint URL - MUST include /v1 suffix for OpenAI-compatible APIs (e.g., "http://ollama-service:11434/v1")
+    embeddingsBaseURL: '' # Optional: custom embeddings endpoint URL (if different from LLM endpoint, also requires /v1 suffix)
+    embeddingsModel: '' # Optional: custom embeddings model name (e.g., "nomic-embed-text" for Ollama, defaults to "text-embedding-3-small" for OpenAI)
+    embeddingsDimensions: '' # Optional: custom embeddings dimensions (e.g., "768" for nomic-embed-text, defaults to "1536" for OpenAI)
 
   # Examples (commented out):
   # Example 1: Ollama (self-hosted) - IMPORTANT: Include /v1 suffix
@@ -185,9 +192,10 @@ ai:
 # When configured, query tool responses include a visualizationUrl that opens
 # rich visualizations in the Web UI (resource topology, relationships, health)
 webUI:
-  baseUrl: ""                         # Web UI base URL (e.g., "https://dot-ai-ui.example.com")
-                                      # When set, query responses include visualizationUrl field
-                                      # Format: {baseUrl}/v/{sessionId}
+  baseUrl:
+    '' # Web UI base URL (e.g., "https://dot-ai-ui.example.com")
+    # When set, query responses include visualizationUrl field
+    # Format: {baseUrl}/v/{sessionId}
 
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server
@@ -209,13 +217,13 @@ extraEnv: []
 
 # Qdrant Vector Database
 qdrant:
-  enabled: true                     # Deploy Qdrant as dependency (false = use external)
+  enabled: true # Deploy Qdrant as dependency (false = use external)
   image:
-    repository: qdrant/qdrant       # Qdrant image repository
-    tag: v1.15.5                    # Qdrant image tag
+    repository: qdrant/qdrant # Qdrant image repository
+    tag: v1.15.5 # Qdrant image tag
   external:
-    url: ""                         # External Qdrant URL (required when enabled=false)
-    apiKey: ""                      # External Qdrant API key (optional)
+    url: '' # External Qdrant URL (required when enabled=false)
+    apiKey: '' # External Qdrant API key (optional)
 
 # Local Embedding Service (PRD #384)
 # Deploys HuggingFace Text Embeddings Inference (TEI) as an in-cluster embedding service.
@@ -223,19 +231,19 @@ qdrant:
 # automatically connects to this service via CUSTOM_EMBEDDINGS_BASE_URL.
 # Existing users with OpenAI API keys or custom embedding endpoints are unaffected.
 localEmbeddings:
-  enabled: false                    # Deploy local embedding service (set true if not using cloud embedding API keys)
+  enabled: false # Deploy local embedding service (set true if not using cloud embedding API keys)
   image:
     repository: ghcr.io/huggingface/text-embeddings-inference
-    tag: "cpu-latest"
-  model: "sentence-transformers/all-MiniLM-L6-v2"  # Embedding model (384 dimensions)
-  dimensions: 384                   # Must match the model's output dimensions
+    tag: 'cpu-latest'
+  model: 'sentence-transformers/all-MiniLM-L6-v2' # Embedding model (384 dimensions)
+  dimensions: 384 # Must match the model's output dimensions
   resources:
     requests:
-      cpu: "250m"
-      memory: "256Mi"
+      cpu: '250m'
+      memory: '256Mi'
     limits:
-      cpu: "1"
-      memory: "512Mi"
+      cpu: '1'
+      memory: '512Mi'
 
 # Plugin configuration (PRD #343)
 # Plugins are configured as a map, allowing users to customize defaults or add their own.
@@ -248,18 +256,18 @@ plugins:
     enabled: true
     image:
       repository: ghcr.io/vfarcic/dot-ai-agentic-tools
-      tag: "1.5.0"
+      tag: '1.5.0'
     port: 8080
     # RBAC created automatically by chart (hardcoded for agentic-tools)
-    env: []                         # Additional environment variables
-    envFrom: []                     # Environment from ConfigMaps/Secrets
+    env: [] # Additional environment variables
+    envFrom: [] # Environment from ConfigMaps/Secrets
     resources:
       requests:
-        memory: "128Mi"
-        cpu: "100m"
+        memory: '128Mi'
+        cpu: '100m'
       limits:
-        memory: "512Mi"
-        cpu: "500m"
+        memory: '512Mi'
+        cpu: '500m'
 
   # Example: User plugin deployed by chart
   # my-company-tools:

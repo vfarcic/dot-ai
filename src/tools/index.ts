@@ -68,3 +68,21 @@ export {
   handleManageKnowledgeTool,
   type ManageKnowledgeInput,
 } from './manage-knowledge';
+
+export {
+  GIT_CLONE_TOOL_NAME,
+  GIT_CLONE_TOOL_DESCRIPTION,
+  GIT_CLONE_TOOL_INPUT_SCHEMA,
+  handleGitCloneTool,
+  type GitCloneInput,
+  type GitCloneOutput,
+} from './git-clone';
+
+export {
+  GIT_PUSH_TOOL_NAME,
+  GIT_PUSH_TOOL_DESCRIPTION,
+  GIT_PUSH_TOOL_INPUT_SCHEMA,
+  handleGitPushTool,
+  type GitPushInput,
+  type GitPushOutput,
+} from './git-push';
