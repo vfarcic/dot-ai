@@ -284,18 +284,30 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 ### Milestone 3: Documentation & Connector Validation
 **Objective**: Document the authentication system so users can adopt it, validate Dex connectors for production IdPs, and apply dot-ai branding to the login page.
 
-**Deliverables:**
-- [ ] Documentation: deployment with OAuth (default setup with auto-generated admin, Helm values reference)
-- [ ] Documentation: user management via API (create/list/delete users, with curl/CLI examples)
-- [ ] Documentation: Dex connector configuration (Google, GitHub, LDAP, SAML — with step-by-step guides)
-- [ ] Documentation: MCP client configuration for each supported client (Claude Code, ChatGPT, Windsurf, VS Code Copilot)
-- [ ] Test and document at least two Dex connectors end-to-end: Google, GitHub
-- [ ] Dex login page theming — custom templates (logo, colors, CSS) mounted via ConfigMap, Helm-configurable
+#### Task 3.1: Authentication Overview Page
+- [x] New `docs/ai-engine/setup/authentication.md` — two auth modes (static token vs OAuth), when to use which, identity contract (`UserIdentity`), see-also links
+
+#### Task 3.2: Deployment Guide Update (OAuth)
+- [ ] Update `docs/ai-engine/setup/deployment.md` — OAuth is enabled by default, auto-generated admin credentials, retrieving admin password, Helm values reference for auth settings
+- [ ] Update `docs/ai-engine/quick-start.md` — reflect that OAuth is the default, show how to retrieve initial admin credentials
+
+#### Task 3.3: MCP Client Configuration for OAuth
+- [ ] Update `docs/mcp/index.md` — OAuth flow per supported client (Claude Code, ChatGPT, Windsurf, VS Code Copilot), static token setup preserved as alternative
+
+#### Task 3.4: User Management Documentation
+- [ ] New `docs/ai-engine/setup/user-management.md` — create/list/delete users via REST API with curl examples, authenticated endpoints
+
+#### Task 3.5: Dex Connector Configuration & Validation
+- [ ] New `docs/ai-engine/setup/connectors.md` — step-by-step guides for Google, GitHub, LDAP, SAML connectors
+- [ ] Test at least two connectors end-to-end (Google, GitHub) and document with validated examples
+
+#### Task 3.6: Dex Login Page Theming
+- [ ] Custom login page templates (logo, colors, CSS) mounted via ConfigMap, Helm-configurable
 
 **Success Criteria:**
 - Admins can deploy and configure OAuth following documentation alone
-- At least two Dex connectors tested and documented (Google, GitHub)
-- Dex login page uses dot-ai branding
+- At least two connectors tested and documented end-to-end (Google, GitHub)
+- Login page uses dot-ai branding
 
 ---
 
