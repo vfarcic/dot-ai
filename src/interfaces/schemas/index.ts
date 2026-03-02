@@ -231,3 +231,27 @@ export {
   type EmbeddingMigrationData,
   type EmbeddingMigrationResponse,
 } from './embeddings';
+
+// Users schemas (PRD #380 Task 2.5)
+export {
+  UserCreateRequestSchema,
+  UserCreateDataSchema,
+  UserCreateResponseSchema,
+  UserListDataSchema,
+  UserListResponseSchema,
+  UserDeleteDataSchema,
+  UserDeleteResponseSchema,
+  UserEntrySchema,
+  UserEmailParamsSchema,
+  UserConflictErrorSchema,
+  UserNotFoundErrorSchema,
+  UserBadRequestErrorSchema,
+  UserManagementErrorSchema,
+  type UserCreateRequest,
+  type UserCreateData,
+  type UserCreateResponse,
+  type UserListData,
+  type UserListResponse,
+  type UserDeleteData,
+  type UserDeleteResponse,
+} from './users';

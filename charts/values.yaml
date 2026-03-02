@@ -260,6 +260,8 @@ dex:
   configSecret:
     create: false
     name: dex
+  grpc:
+    enabled: true                     # Enable gRPC API for user management (PRD #380 Task 2.5)
 
 # Plugin configuration (PRD #343)
 # Plugins are configured as a map, allowing users to customize defaults or add their own.

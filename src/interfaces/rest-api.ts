@@ -55,6 +55,11 @@ import {
   type SearchKnowledgeBaseResult,
 } from '../tools/manage-knowledge';
 import type { AITool } from '../core/ai-provider.interface';
+import {
+  createUser,
+  listUsers,
+  deleteUser,
+} from './oauth/user-management';
 
 /**
  * HTTP status codes for REST responses
@@ -431,6 +436,13 @@ export class RestApiRouter {
         this.handleKnowledgeAsk(req, res, requestId, body),
       'POST:/api/v1/embeddings/migrate': () =>
         this.handleEmbeddingMigrationRequest(req, res, requestId, body),
+      // User management (PRD #380 Task 2.5)
+      'POST:/api/v1/users': () =>
+        this.handleCreateUser(req, res, requestId, body),
+      'GET:/api/v1/users': () =>
+        this.handleListUsers(req, res, requestId),
+      'DELETE:/api/v1/users/:email': () =>
+        this.handleDeleteUser(req, res, requestId, params.email),
     };
 
     const handler = handlers[routeKey];
@@ -2925,6 +2937,148 @@ export class RestApiRouter {
         'Failed to process embedding migration request',
         { error: errorMessage }
       );
+    }
+  }
+
+  // ===========================================================================
+  // User Management Handlers (PRD #380 Task 2.5)
+  // ===========================================================================
+
+  /**
+   * Handle POST /api/v1/users — create a new Dex static user
+   */
+  private async handleCreateUser(
+    _req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    body: unknown
+  ): Promise<void> {
+    try {
+      if (!body || typeof body !== 'object' || !('email' in body) || !('password' in body)) {
+        await this.sendErrorResponse(
+          res, requestId, HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST', 'Request body must include email and password'
+        );
+        return;
+      }
+
+      const { email, password } = body as { email: string; password: string };
+
+      if (!email || typeof email !== 'string') {
+        await this.sendErrorResponse(
+          res, requestId, HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST', 'email is required and must be a string'
+        );
+        return;
+      }
+
+      if (!password || typeof password !== 'string' || password.length < 8) {
+        await this.sendErrorResponse(
+          res, requestId, HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST', 'password is required and must be at least 8 characters'
+        );
+        return;
+      }
+
+      const result = await createUser(email, password);
+
+      await this.sendJsonResponse(res, HttpStatus.OK, {
+        success: true,
+        data: result,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      });
+
+      this.logger.info('User created', { requestId, email });
+    } catch (error) {
+      const err = error as Error & { statusCode?: number };
+      if (err.statusCode === 409) {
+        await this.sendErrorResponse(
+          res, requestId, 409 as HttpStatus,
+          'USER_CONFLICT', err.message
+        );
+      } else {
+        this.logger.error('Failed to create user', err, { requestId });
+        await this.sendErrorResponse(
+          res, requestId, HttpStatus.INTERNAL_SERVER_ERROR,
+          'USER_MANAGEMENT_ERROR', 'Failed to create user'
+        );
+      }
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/users — list all Dex static users
+   */
+  private async handleListUsers(
+    _req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
+    try {
+      const users = await listUsers();
+
+      await this.sendJsonResponse(res, HttpStatus.OK, {
+        success: true,
+        data: { users, total: users.length },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      });
+
+      this.logger.info('Users listed', { requestId, total: users.length });
+    } catch (error) {
+      this.logger.error('Failed to list users', error as Error, { requestId });
+      await this.sendErrorResponse(
+        res, requestId, HttpStatus.INTERNAL_SERVER_ERROR,
+        'USER_MANAGEMENT_ERROR', 'Failed to list users'
+      );
+    }
+  }
+
+  /**
+   * Handle DELETE /api/v1/users/:email — delete a Dex static user
+   */
+  private async handleDeleteUser(
+    _req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    email: string
+  ): Promise<void> {
+    try {
+      const decodedEmail = decodeURIComponent(email);
+      const result = await deleteUser(decodedEmail);
+
+      await this.sendJsonResponse(res, HttpStatus.OK, {
+        success: true,
+        data: result,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      });
+
+      this.logger.info('User deleted', { requestId, email: decodedEmail });
+    } catch (error) {
+      const err = error as Error & { statusCode?: number };
+      if (err.statusCode === 404) {
+        await this.sendErrorResponse(
+          res, requestId, HttpStatus.NOT_FOUND,
+          'USER_NOT_FOUND', err.message
+        );
+      } else {
+        this.logger.error('Failed to delete user', err, { requestId });
+        await this.sendErrorResponse(
+          res, requestId, HttpStatus.INTERNAL_SERVER_ERROR,
+          'USER_MANAGEMENT_ERROR', 'Failed to delete user'
+        );
+      }
     }
   }
 

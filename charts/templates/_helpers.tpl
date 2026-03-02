@@ -146,6 +146,13 @@ The MCP server pod uses this URL (not the external one) to talk to Dex.
 http://{{ .Release.Name }}-dex.{{ .Release.Namespace }}.svc.cluster.local:5556/token
 {{- end -}}
 
+{{/*
+Dex in-cluster gRPC endpoint — for user management via Dex gRPC API (PRD #380 Task 2.5).
+*/}}
+{{- define "dot-ai.dexGrpcEndpoint" -}}
+{{ .Release.Name }}-dex.{{ .Release.Namespace }}.svc.cluster.local:5557
+{{- end -}}
+
 {{- define "dot-ai.pluginsConfig" -}}
 {{- $plugins := list -}}
 {{- range $name, $config := .Values.plugins -}}

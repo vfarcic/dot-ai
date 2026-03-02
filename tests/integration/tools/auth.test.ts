@@ -1,15 +1,19 @@
 /**
- * Integration Test: Authentication & OAuth Discovery (PRD #380 Tasks 2.1-2.2)
+ * Integration Test: Authentication, OAuth & User Management (PRD #380)
  *
- * Tests auth rejection, OAuth discovery metadata, client registration,
- * and WWW-Authenticate header on 401 responses.
+ * Tasks 2.1-2.2: Auth rejection, OAuth discovery metadata, client registration,
+ * WWW-Authenticate header on 401 responses.
+ * Task 2.3: Full OAuth flow (register → authorize → Dex login → callback → token → JWT auth).
+ * Task 2.5: User management CRUD via Dex gRPC API.
+ *
  * Legacy token acceptance is already covered by all other integration tests
  * (IntegrationTest base class auto-injects DOT_AI_AUTH_TOKEN).
  */
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import * as http from 'http';
 import { HttpRestApiClient } from '../helpers/http-client.js';
+import { IntegrationTest } from '../helpers/test-base.js';
 import { createHash, randomBytes } from 'node:crypto';
 
 // --- OAuth flow helpers ---
@@ -513,6 +517,206 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
       const errorData = JSON.parse(tokenRes.body);
       expect(errorData).toMatchObject({
         error: 'invalid_grant',
+      });
+    });
+  });
+});
+
+// --- User Management Tests (PRD #380 Task 2.5) ---
+// Skipped when Dex env vars are not set so existing CI without Dex still passes.
+
+describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
+  const integrationTest = new IntegrationTest();
+  const testId = Date.now();
+  const testEmail = `test-user-${testId}@dot-ai.local`;
+  const testPassword = 'integration-test-password-2025';
+
+  // Clean up any leftover test user before running tests
+  beforeAll(async () => {
+    try {
+      await integrationTest.httpClient.delete(
+        `/api/v1/users/${encodeURIComponent(testEmail)}`
+      );
+    } catch {
+      // Ignore — user may not exist yet
+    }
+  });
+
+  test('should complete full user CRUD workflow with count verification', async () => {
+    // Step 1: List users — capture initial count
+    const initialListResponse = await integrationTest.httpClient.get('/api/v1/users');
+
+    expect(initialListResponse).toMatchObject({
+      success: true,
+      data: {
+        users: expect.any(Array),
+        total: expect.any(Number),
+      },
+    });
+
+    const initialCount = initialListResponse.data.total;
+
+    // Step 2: Create a new user
+    const createResponse = await integrationTest.httpClient.post('/api/v1/users', {
+      email: testEmail,
+      password: testPassword,
+    });
+
+    expect(createResponse).toMatchObject({
+      success: true,
+      data: {
+        email: testEmail,
+        message: 'User created',
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+        requestId: expect.any(String),
+        version: expect.any(String),
+      },
+    });
+
+    // Step 3: List users — count should have increased by 1 and test user should be present
+    const afterCreateListResponse = await integrationTest.httpClient.get('/api/v1/users');
+
+    expect(afterCreateListResponse).toMatchObject({
+      success: true,
+      data: {
+        users: expect.arrayContaining([{ email: testEmail }]),
+        total: initialCount + 1,
+      },
+    });
+
+    // Step 4: Create same user again — 409 Conflict
+    const duplicateResponse = await integrationTest.httpClient.post('/api/v1/users', {
+      email: testEmail,
+      password: testPassword,
+    });
+
+    expect(duplicateResponse).toMatchObject({
+      success: false,
+      error: {
+        code: 'USER_CONFLICT',
+        message: expect.stringContaining('already exists'),
+      },
+    });
+
+    // Step 5: Delete the user
+    const deleteResponse = await integrationTest.httpClient.delete(
+      `/api/v1/users/${encodeURIComponent(testEmail)}`
+    );
+
+    expect(deleteResponse).toMatchObject({
+      success: true,
+      data: {
+        email: testEmail,
+        message: 'User deleted',
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+        requestId: expect.any(String),
+        version: expect.any(String),
+      },
+    });
+
+    // Step 6: List users — count should be back to initial and test user should be gone
+    const afterDeleteListResponse = await integrationTest.httpClient.get('/api/v1/users');
+
+    expect(afterDeleteListResponse).toMatchObject({
+      success: true,
+      data: {
+        users: expect.any(Array),
+        total: initialCount,
+      },
+    });
+
+    const deletedUserStillPresent = afterDeleteListResponse.data.users.some(
+      (u: { email: string }) => u.email === testEmail
+    );
+    expect(deletedUserStillPresent).toBe(false);
+
+    // Step 7: Delete nonexistent user — 404
+    const deleteNonexistentResponse = await integrationTest.httpClient.delete(
+      `/api/v1/users/${encodeURIComponent(`nonexistent-${testId}@dot-ai.local`)}`
+    );
+
+    expect(deleteNonexistentResponse).toMatchObject({
+      success: false,
+      error: {
+        code: 'USER_NOT_FOUND',
+        message: expect.stringContaining('not found'),
+      },
+    });
+  }, 60000);
+
+  describe('Input Validation', () => {
+    test('should reject create without email/password and with short password', async () => {
+      // Missing email and password
+      const missingFieldsResponse = await integrationTest.httpClient.post(
+        '/api/v1/users',
+        {}
+      );
+
+      expect(missingFieldsResponse).toMatchObject({
+        success: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: expect.stringContaining('email and password'),
+        },
+      });
+
+      // Password too short (minimum 8 characters)
+      const shortPwResponse = await integrationTest.httpClient.post('/api/v1/users', {
+        email: `short-pw-${testId}@dot-ai.local`,
+        password: '1234567',
+      });
+
+      expect(shortPwResponse).toMatchObject({
+        success: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: expect.stringContaining('8 characters'),
+        },
+      });
+    });
+  });
+
+  describe('Authentication Requirement', () => {
+    test('should reject unauthenticated requests to all user endpoints', async () => {
+      const unauthenticatedClient = new HttpRestApiClient();
+
+      const createRes = await unauthenticatedClient.post('/api/v1/users', {
+        email: `unauth-${testId}@dot-ai.local`,
+        password: 'some-password-value',
+      });
+
+      expect(createRes).toMatchObject({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: expect.stringContaining('Authentication required'),
+        },
+      });
+
+      const listRes = await unauthenticatedClient.get('/api/v1/users');
+
+      expect(listRes).toMatchObject({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: expect.stringContaining('Authentication required'),
+        },
+      });
+
+      const deleteRes = await unauthenticatedClient.delete(
+        `/api/v1/users/${encodeURIComponent(`unauth-${testId}@dot-ai.local`)}`
+      );
+
+      expect(deleteRes).toMatchObject({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: expect.stringContaining('Authentication required'),
+        },
       });
     });
   });
