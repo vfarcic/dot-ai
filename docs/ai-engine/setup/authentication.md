@@ -21,7 +21,7 @@ The AI Engine supports two authentication modes simultaneously. Both can be acti
 | **How it works** | Browser-based login via OIDC | Shared Bearer token (`DOT_AI_AUTH_TOKEN`) |
 | **Identity** | Individual — each user has their own identity | Anonymous — all users share one token |
 | **Setup** | Enabled by default with auto-generated admin | One environment variable |
-| **User management** | Create/list/delete users via [CLI](https://devopstoolkit.ai/docs/cli), [Web UI](https://devopstoolkit.ai/docs/ui), or [REST API](../api/rest-api.md) | N/A — single shared token |
+| **User management** | Create/list/delete users via [CLI](https://devopstoolkit.ai/docs/cli) *(coming soon)* and [Web UI](https://devopstoolkit.ai/docs/ui) *(coming soon)* | N/A — single shared token |
 | **Best for** | Teams, enterprise SSO, per-user audit trail | Local dev, CI/CD, quick start |
 
 ### When to Use Which
@@ -48,7 +48,7 @@ No passwords are stored in chart values or Git. See the [Deployment Guide](deplo
 
 For MCP client setup with OAuth (which clients support it, how to authenticate), see [MCP Client Setup](/docs/mcp#oauth-authentication).
 
-To add more users or connect your organization's identity provider (Google, GitHub, LDAP, SAML), see [User Management](user-management.md) and [Identity Provider Connectors](connectors.md).
+To connect your organization's identity provider (Google, GitHub, LDAP, SAML), see [Identity Provider Connectors](connectors.md).
 
 ## Static Token
 
@@ -87,5 +87,4 @@ Every authenticated request carries a user identity. The `version` tool includes
 
 - **[Deployment Guide](deployment.md)** — Install the AI Engine and retrieve initial admin credentials
 - **[MCP Client Setup](/docs/mcp)** — Connect your MCP client with OAuth or static token
-- **[User Management](user-management.md)** — Create, list, and delete users
 - **[Identity Provider Connectors](connectors.md)** — Connect Google, GitHub, LDAP, or SAML

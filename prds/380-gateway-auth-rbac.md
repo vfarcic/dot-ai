@@ -295,7 +295,9 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] Update `docs/mcp/index.md` — OAuth flow per supported client (Claude Code, ChatGPT, Windsurf, VS Code Copilot), static token setup preserved as alternative
 
 #### Task 3.4: User Management Documentation
-- [ ] New `docs/ai-engine/setup/user-management.md` — create/list/delete users via REST API with curl examples, authenticated endpoints
+- [x] Updated `docs/ai-engine/setup/authentication.md` — removed `user-management.md` references, added "coming soon" to CLI/Web UI links
+- [x] No separate `user-management.md` needed — user management docs belong in CLI and Web UI projects
+- [ ] **Pending (external):** Create PRDs in dot-ai-cli and dot-ai-ui for OAuth + user management support. Those PRDs should include sending a feature request back to this project to update auth doc links to their specific user management pages.
 
 #### Task 3.5: Dex Connector Configuration & Validation
 - [ ] New `docs/ai-engine/setup/connectors.md` — step-by-step guides for Google, GitHub, LDAP, SAML connectors
