@@ -126,8 +126,8 @@ export interface Prompt {
 
 - [x] Extend loader to scan for skill folders (directories containing `SKILL.md`), load supporting files as base64, and attach as `files[]` on the `Prompt` object (includes adding `PromptFile` type and `files` field to the `Prompt` interface)
 - [x] Update REST API: add `files` field to prompts get response schema and pass through files data from loader
-- [ ] Update MCP handler to filter out prompts with `files[]` from `prompts/list` and `prompts/get`
-- [ ] Integration tests for MCP filtering and collision detection (list/get/files tests done)
+- [x] Update MCP handler to filter out prompts with `files[]` from `prompts/list` (filtering `prompts/get` unnecessary — clients discover via list first)
+- [x] Integration tests for MCP filtering and collision detection
 - [ ] Create PRD in `dot-ai-cli` repo for CLI-side changes:
   - `skills generate` fetches and writes full folder structures (SKILL.md + supporting files)
   - Decode base64 file content and write to disk
