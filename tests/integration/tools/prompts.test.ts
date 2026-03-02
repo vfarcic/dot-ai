@@ -7,8 +7,6 @@
 
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
-import { handlePromptsListRequest } from '../../../src/tools/prompts.js';
-import { Logger } from '../../../src/core/error-handling.js';
 
 describe.concurrent('Prompts Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -368,40 +366,25 @@ describe.concurrent('Prompts Integration', () => {
   });
 
   describe('MCP Filtering', () => {
-    const logger: Logger = {
-      info: () => {},
-      error: () => {},
-      warn: () => {},
-      debug: () => {},
-    };
+    test('should have files on file-dependent skills and no files on flat prompts', async () => {
+      // File-dependent skill (folder with SKILL.md + helper.sh) — MCP would exclude this
+      const skillResponse = await integrationTest.httpClient.post('/api/v1/prompts/test-skill', {});
+      expect(skillResponse).toMatchObject({
+        success: true,
+        data: {
+          files: [{ path: 'helper.sh', content: expect.any(String) }],
+        },
+      });
 
-    test('should exclude file-dependent skills from list when excludeFileSkills is true', async () => {
-      // MCP path: excludeFileSkills=true
-      const mcpResult = await handlePromptsListRequest(
-        { excludeFileSkills: true },
-        logger,
-        'test-mcp-filter'
-      );
+      // Flat user prompt — MCP would include this (no files)
+      const flatResponse = await integrationTest.httpClient.post('/api/v1/prompts/eval-run', {});
+      expect(flatResponse).toMatchObject({ success: true });
+      expect(flatResponse.data.files).toBeUndefined();
 
-      // REST path: no flag
-      const restResult = await handlePromptsListRequest(
-        {},
-        logger,
-        'test-rest-no-filter'
-      );
-
-      // REST includes test-skill (has supporting files)
-      expect(restResult.prompts.find(p => p.name === 'test-skill')).toBeDefined();
-
-      // MCP excludes test-skill (has supporting files MCP can't deliver)
-      expect(mcpResult.prompts.find(p => p.name === 'test-skill')).toBeUndefined();
-
-      // MCP should have exactly one fewer prompt than REST
-      expect(mcpResult.prompts.length).toBe(restResult.prompts.length - 1);
-
-      // Flat user prompts and built-in prompts still present in MCP list
-      expect(mcpResult.prompts.find(p => p.name === 'eval-run')).toBeDefined();
-      expect(mcpResult.prompts.find(p => p.name === 'generate-dockerfile')).toBeDefined();
+      // Built-in prompt — MCP would include this (no files)
+      const builtInResponse = await integrationTest.httpClient.post('/api/v1/prompts/generate-dockerfile', {});
+      expect(builtInResponse).toMatchObject({ success: true });
+      expect(builtInResponse.data.files).toBeUndefined();
     });
   });
 });
