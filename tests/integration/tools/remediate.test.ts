@@ -166,7 +166,7 @@ EOF`);
         }
       };
 
-      expect(investigationResponse).toMatchObject(expectedInvestigationResponse);
+      expect(investigationResponse, `Manual mode investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`).toMatchObject(expectedInvestigationResponse);
 
       // PRD #320: Verify visualization URL is present in response (not embedded in message)
       expect(investigationResponse.data.result.visualizationUrl).toBeTruthy();
@@ -434,7 +434,7 @@ EOF`);
         }
       };
 
-      expect(autoResponse).toMatchObject(expectedAutoResponse);
+      expect(autoResponse, `Auto mode failed: ${JSON.stringify(autoResponse.error || autoResponse.data?.result?.error || 'no error field')}`).toMatchObject(expectedAutoResponse);
 
       // Verify execution was automatic (no executionChoices)
       expect(autoResponse.data.result.executionChoices).toBeUndefined();
@@ -546,7 +546,7 @@ EOF`);
         }
       );
 
-      expect(investigationResponse).toMatchObject({
+      expect(investigationResponse, `Helm investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`).toMatchObject({
         success: true,
         data: {
           result: {

@@ -75,7 +75,8 @@ import {
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
 import { RestApiRouter } from './rest-api';
-import { checkBearerAuth, DotAIOAuthProvider } from './oauth';
+import { checkBearerAuth, DotAIOAuthProvider, type UserIdentity } from './oauth';
+import { requestContext } from './request-context';
 import express from 'express';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { sendErrorResponse } from './error-response';
@@ -516,6 +517,7 @@ export class MCPServer {
         // Check Bearer token authentication (only when DOT_AI_AUTH_TOKEN is set)
         // Skip authentication for OpenAPI specification endpoint (public documentation)
         const isOpenApiEndpoint = req.url?.startsWith('/api/v1/openapi');
+        let authIdentity: UserIdentity | undefined;
         if (!isOpenApiEndpoint) {
           const authResult = checkBearerAuth(req);
           if (!authResult.authorized) {
@@ -533,7 +535,11 @@ export class MCPServer {
             endSpan(401);
             return;
           }
+          authIdentity = authResult.identity;
         }
+
+        // Propagate identity to all downstream tool handlers (PRD #380)
+        await requestContext.run({ identity: authIdentity }, async () => {
 
         // Parse request body for POST requests
         let body: unknown = undefined;
@@ -630,6 +636,7 @@ export class MCPServer {
           }
           endSpan(500);
         }
+        }); // Close requestContext.run()
         } catch (error) {
           // Handle any unexpected errors in span creation or request handling
           this.logger.error('Unexpected error in HTTP request handler', error as Error);

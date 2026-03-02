@@ -307,7 +307,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         interaction_id: 'json_lookup_cluster'
       });
 
-      expect(clusterResponse.data.result.success).toBe(true);
+      expect(clusterResponse.data.result.success, `Capabilities scan failed: ${JSON.stringify(clusterResponse.data?.result?.error || clusterResponse.error || 'no error field')}`).toBe(true);
       const cluster = clusterResponse.data.result.data;
 
       // Test JSON format lookup for Service (core resource with v1 apiVersion)

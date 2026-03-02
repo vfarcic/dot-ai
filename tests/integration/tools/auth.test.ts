@@ -450,6 +450,13 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
       data: {
         result: {
           status: 'success',
+          // PRD #380: OAuth identity from Dex JWT
+          identity: {
+            userId: expect.any(String),
+            email: dexEmail,
+            groups: expect.any(Array),
+            source: 'oauth',
+          },
         },
       },
     });

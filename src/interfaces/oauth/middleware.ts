@@ -28,7 +28,10 @@ export function checkBearerAuth(req: IncomingMessage): AuthResult {
 
   // If no auth is configured, authentication is disabled (backward compatible)
   if (!legacyToken && !jwtSecret) {
-    return { authorized: true };
+    return {
+      authorized: true,
+      identity: { userId: 'anonymous', groups: [], source: 'token' },
+    };
   }
 
   // Extract Authorization header
@@ -99,7 +102,10 @@ export function checkBearerAuth(req: IncomingMessage): AuthResult {
     }
 
     if (timingSafeEqual(configuredBuffer, providedBuffer)) {
-      return { authorized: true };
+      return {
+        authorized: true,
+        identity: { userId: 'anonymous', groups: [], source: 'token' },
+      };
     }
   }
 

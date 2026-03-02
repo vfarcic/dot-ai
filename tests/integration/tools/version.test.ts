@@ -46,6 +46,12 @@ describe.concurrent('Version Tool Integration', () => {
           executionTime: expect.any(Number), // Variable - execution time varies
           result: {
             status: 'success',
+            // PRD #380: Identity from static token auth (test base class injects DOT_AI_AUTH_TOKEN)
+            identity: {
+              userId: 'anonymous',
+              groups: [],
+              source: 'token',
+            },
             system: {
               version: {
                 version: packageJson.version,

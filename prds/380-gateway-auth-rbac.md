@@ -368,10 +368,10 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] Integration tests: full OAuth flow end-to-end through Dex, token endpoint error handling
 
 #### Task 2.4: Identity in Version Tool + Auth Cleanup
-- [ ] `version` tool updated to include identity in output (userId, email, groups, source: 'oauth' | 'token')
-- [ ] Clean up old `src/interfaces/auth.ts` — consolidate into `src/interfaces/oauth/middleware.ts` (dual-mode stays)
-- [ ] Integration tests cover both auth modes: OAuth flow tests + static token tests
-- [ ] All integration tests pass
+- [x] `version` tool updated to include identity in output (userId, email, groups, source: 'oauth' | 'token')
+- [x] Clean up old `src/interfaces/auth.ts` — consolidate into `src/interfaces/oauth/middleware.ts` (dual-mode stays)
+- [x] Integration tests cover both auth modes: OAuth flow tests + static token tests
+- [x] All integration tests pass
 
 #### Task 2.5: User Management + Config Reloader
 - [ ] User management endpoints: `POST /users`, `GET /users`, `DELETE /users/:email` — RBAC-protected, writes to Dex Secret
@@ -445,11 +445,13 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [ ] Documentation: RBAC setup (ClusterRoles, RoleBindings, examples)
 - [ ] Documentation: Dex connector configuration (Google, GitHub, LDAP, SAML)
 - [ ] Documentation: MCP client configuration for each supported client
+- [ ] Dex login page theming — custom templates (logo, colors, CSS) mounted via ConfigMap, Helm-configurable
 
 **Success Criteria:**
 - All tests passing
 - At least two Dex connectors tested and documented (Google, GitHub)
 - Admins can deploy and configure auth following documentation
+- Dex login page uses dot-ai branding
 
 ---
 

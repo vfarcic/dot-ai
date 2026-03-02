@@ -13,7 +13,7 @@ export interface UserIdentity {
   userId: string;
   email?: string;
   groups: string[];
-  source: 'oauth';
+  source: 'oauth' | 'token';
 }
 
 /**
