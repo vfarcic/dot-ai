@@ -358,22 +358,28 @@ export class GitOperations {
       const token = await this.getAuthToken();
       const remotes = await git.getRemotes(true);
       const origin = remotes.find(r => r.name === 'origin');
+      let originalOriginUrl: string | undefined;
 
       if (origin) {
-        const repoUrl = origin.refs.fetch;
-        const authUrl = this.getAuthenticatedUrl(repoUrl, token);
+        originalOriginUrl = origin.refs.fetch;
+        const authUrl = this.getAuthenticatedUrl(originalOriginUrl, token);
         await git.remote(['set-url', 'origin', authUrl]);
       }
 
-      const currentBranch = (await git.status()).current || 'main';
-      await git.push('origin', currentBranch, ['--set-upstream']);
-
-      return {
-        success: true,
-        commitSha,
-        branch: currentBranch,
-        filesAdded: files.map(f => f.path),
-      };
+      try {
+        const currentBranch = (await git.status()).current || 'main';
+        await git.push('origin', currentBranch, ['--set-upstream']);
+        return {
+          success: true,
+          commitSha,
+          branch: currentBranch,
+          filesAdded: files.map(f => f.path),
+        };
+      } finally {
+        if (origin && originalOriginUrl) {
+          await git.remote(['set-url', 'origin', originalOriginUrl]);
+        }
+      }
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : String(error);
       const errorMessage = this.scrubCredentials(rawMessage);

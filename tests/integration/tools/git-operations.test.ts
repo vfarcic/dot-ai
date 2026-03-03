@@ -17,64 +17,58 @@ interface Tool {
   description: string;
 }
 
-describe('Git Operations Integration', () => {
-  const integrationTest = new IntegrationTest();
-  const hasGitAuth =
-    !!process.env.DOT_AI_GIT_TOKEN || process.env.GITHUB_APP_ENABLED === 'true';
-  const testRepo = 'https://github.com/octocat/Hello-World.git';
-  const testDir = './tmp/git-integration-test';
+const integrationTest = new IntegrationTest();
+const hasGitAuth =
+  !!process.env.DOT_AI_GIT_TOKEN || process.env.GITHUB_APP_ENABLED === 'true';
+const testRepo = 'https://github.com/octocat/Hello-World.git';
 
+describe.concurrent('Git Operations Integration', () => {
   beforeAll(async () => {
-    // Clean up test directory if exists
-    if (fs.existsSync(testDir)) {
-      fs.rmSync(testDir, { recursive: true, force: true });
-    }
-    // Create tmp directory
     if (!fs.existsSync('./tmp')) {
       fs.mkdirSync('./tmp', { recursive: true });
     }
   });
 
-  afterAll(async () => {
-    // Clean up test directory
-    if (fs.existsSync(testDir)) {
-      fs.rmSync(testDir, { recursive: true, force: true });
-    }
-  });
-
-  describe('Tool Registration', () => {
+  describe.concurrent('Tool Registration', () => {
     test('git_clone tool should be registered in MCP server', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/tools');
 
-      expect(response.success).toBe(true);
-      expect(response.data?.tools).toBeDefined();
-
-      const gitCloneTool = response.data.tools.find(
-        (t: Tool) => t.name === 'git_clone'
-      );
-      expect(gitCloneTool).toBeDefined();
-      expect(gitCloneTool?.description).toContain('Clone a git repository');
+      expect(response).toMatchObject({
+        success: true,
+        data: expect.objectContaining({
+          tools: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'git_clone',
+              description: expect.stringContaining('Clone a git repository'),
+            }),
+          ]),
+        }),
+      });
     });
 
     test('git_push tool should be registered in MCP server', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/tools');
 
-      expect(response.success).toBe(true);
-      expect(response.data?.tools).toBeDefined();
-
-      const gitPushTool = response.data.tools.find(
-        (t: Tool) => t.name === 'git_push'
-      );
-      expect(gitPushTool).toBeDefined();
-      expect(gitPushTool?.description).toContain(
-        'Push files to a git repository'
-      );
+      expect(response).toMatchObject({
+        success: true,
+        data: expect.objectContaining({
+          tools: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'git_push',
+              description: expect.stringContaining(
+                'Push files to a git repository'
+              ),
+            }),
+          ]),
+        }),
+      });
     });
   });
 
-  // Skip git operations if no auth configured
-  describe.skipIf(!hasGitAuth)('Git Clone Operations', () => {
+  describe.concurrent.skipIf(!hasGitAuth)('Git Clone Operations', () => {
     test('should clone a public repository', async () => {
+      const testDir = `./tmp/git-clone-${Date.now()}`;
+
       const response = await integrationTest.httpClient.post(
         '/api/v1/tools/git_clone',
         {
@@ -84,16 +78,25 @@ describe('Git Operations Integration', () => {
         }
       );
 
-      expect(response.success).toBe(true);
-      expect(response.data?.result?.success).toBe(true);
-      expect(response.data?.result?.localPath).toBe(testDir);
+      expect(response).toMatchObject({
+        success: true,
+        data: expect.objectContaining({
+          result: expect.objectContaining({
+            success: true,
+            localPath: testDir,
+          }),
+        }),
+      });
 
-      // Verify repository was cloned
       expect(fs.existsSync(path.join(testDir, '.git'))).toBe(true);
+
+      if (fs.existsSync(testDir)) {
+        fs.rmSync(testDir, { recursive: true, force: true });
+      }
     }, 60000);
 
     test('should clone specific branch', async () => {
-      const branchTestDir = `${testDir}-branch`;
+      const branchTestDir = `./tmp/git-branch-${Date.now()}`;
 
       const response = await integrationTest.httpClient.post(
         '/api/v1/tools/git_clone',
@@ -105,38 +108,51 @@ describe('Git Operations Integration', () => {
         }
       );
 
-      expect(response.success).toBe(true);
-      expect(response.data?.result?.success).toBe(true);
-      expect(response.data?.result?.branch).toBe('main');
+      expect(response).toMatchObject({
+        success: true,
+        data: expect.objectContaining({
+          result: expect.objectContaining({
+            success: true,
+            branch: 'main',
+          }),
+        }),
+      });
 
-      // Cleanup
       if (fs.existsSync(branchTestDir)) {
         fs.rmSync(branchTestDir, { recursive: true, force: true });
       }
     }, 60000);
 
     test('should return error for invalid repository URL', async () => {
+      const invalidDir = `./tmp/git-invalid-${Date.now()}`;
+
       const response = await integrationTest.httpClient.post(
         '/api/v1/tools/git_clone',
         {
           repoUrl:
             'https://github.com/nonexistent/repo-that-does-not-exist.git',
-          targetDir: `${testDir}-invalid`,
+          targetDir: invalidDir,
         }
       );
 
-      expect(response.success).toBe(false);
-      expect(response.data?.result?.success).toBe(false);
-      expect(response.data?.result?.error).toBeDefined();
+      expect(response).toMatchObject({
+        success: false,
+        data: expect.objectContaining({
+          result: expect.objectContaining({
+            success: false,
+            error: expect.any(String),
+          }),
+        }),
+      });
     }, 60000);
   });
 
-  describe.skipIf(!hasGitAuth)('Git Push Operations', () => {
+  describe.concurrent.skipIf(!hasGitAuth)('Git Push Operations', () => {
     test.skipIf(!process.env.TEST_REPO_URL)(
       'should push files to repository (requires test repo)',
       async () => {
         const testRepoUrl = process.env.TEST_REPO_URL!;
-        const testPushDir = `${testDir}-push-${Date.now()}`;
+        const testPushDir = `./tmp/git-push-${Date.now()}`;
 
         const cloneResponse = await integrationTest.httpClient.post(
           '/api/v1/tools/git_clone',
@@ -145,7 +161,14 @@ describe('Git Operations Integration', () => {
             targetDir: testPushDir,
           }
         );
-        expect(cloneResponse.success).toBe(true);
+        expect(cloneResponse).toMatchObject({
+          success: true,
+          data: expect.objectContaining({
+            result: expect.objectContaining({
+              success: true,
+            }),
+          }),
+        });
 
         const pushResponse = await integrationTest.httpClient.post(
           '/api/v1/tools/git_push',
@@ -161,9 +184,15 @@ describe('Git Operations Integration', () => {
           }
         );
 
-        expect(pushResponse.success).toBe(true);
-        expect(pushResponse.data?.result?.success).toBe(true);
-        expect(pushResponse.data?.result?.commitSha).toBeDefined();
+        expect(pushResponse).toMatchObject({
+          success: true,
+          data: expect.objectContaining({
+            result: expect.objectContaining({
+              success: true,
+              commitSha: expect.any(String),
+            }),
+          }),
+        });
 
         if (fs.existsSync(testPushDir)) {
           fs.rmSync(testPushDir, { recursive: true, force: true });
@@ -173,13 +202,13 @@ describe('Git Operations Integration', () => {
     );
   });
 
-  describe('Error Handling', () => {
+  describe.concurrent('Error Handling', () => {
     test('should return error when no auth configured for clone', async () => {
-      // This test only runs when no auth is configured
       if (hasGitAuth) {
         return;
       }
 
+      const testDir = `./tmp/git-noauth-${Date.now()}`;
       const response = await integrationTest.httpClient.post(
         '/api/v1/tools/git_clone',
         {
@@ -188,31 +217,39 @@ describe('Git Operations Integration', () => {
         }
       );
 
-      expect(response.data?.result?.success).toBe(false);
-      expect(response.data?.result?.error).toContain('authentication');
+      expect(response).toMatchObject({
+        data: expect.objectContaining({
+          result: expect.objectContaining({
+            success: false,
+            error: expect.stringContaining('authentication'),
+          }),
+        }),
+      });
     });
 
     test('should validate required parameters for git_clone', async () => {
+      const testDir = `./tmp/git-validate-${Date.now()}`;
       const response = await integrationTest.httpClient.post(
         '/api/v1/tools/git_clone',
         {
-          // Missing repoUrl
           targetDir: testDir,
         }
       );
 
-      expect(response.success).toBe(false);
+      expect(response).toMatchObject({
+        success: false,
+      });
     });
 
     test('should validate required parameters for git_push', async () => {
       const response = await integrationTest.httpClient.post(
         '/api/v1/tools/git_push',
-        {
-          // Missing repoPath, files, commitMessage
-        }
+        {}
       );
 
-      expect(response.success).toBe(false);
+      expect(response).toMatchObject({
+        success: false,
+      });
     });
   });
 });
