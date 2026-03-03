@@ -79,10 +79,18 @@ export class GitOperations {
   private authConfig: GitAuthConfig;
   private logger: Console;
   private readonly fetchTimeoutMs = 30000;
+  private readonly gitTimeoutMs = 120000; // 2 minutes for git operations
 
   constructor(authConfig: GitAuthConfig) {
     this.authConfig = authConfig;
     this.logger = console;
+  }
+
+  /**
+   * Scrub credentials from error messages
+   */
+  private scrubCredentials(message: string): string {
+    return message.replace(/\/\/x-access-token:[^@]+@/g, '//***@');
   }
 
   /**
@@ -234,6 +242,7 @@ export class GitOperations {
         baseDir: process.cwd(),
         binary: 'git',
         maxConcurrentProcesses: 6,
+        timeout: { block: this.gitTimeoutMs },
       };
 
       const git: SimpleGit = simpleGit(options);
@@ -260,8 +269,8 @@ export class GitOperations {
         branch: currentBranch,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = this.scrubCredentials(rawMessage);
       this.logger.error('Clone failed', { error: errorMessage });
       return {
         success: false,
@@ -279,7 +288,13 @@ export class GitOperations {
     const { repoPath, files, commitMessage, branch, author } = params;
 
     try {
-      const git: SimpleGit = simpleGit(repoPath);
+      const options: Partial<SimpleGitOptions> = {
+        baseDir: repoPath,
+        binary: 'git',
+        maxConcurrentProcesses: 6,
+        timeout: { block: this.gitTimeoutMs },
+      };
+      const git: SimpleGit = simpleGit(options);
 
       if (branch) {
         const branches = await git.branchLocal();
@@ -360,8 +375,8 @@ export class GitOperations {
         filesAdded: files.map(f => f.path),
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = this.scrubCredentials(rawMessage);
       this.logger.error('Push failed', { error: errorMessage });
       return {
         success: false,
@@ -393,7 +408,7 @@ export class GitOperations {
  * Get git auth configuration from environment variables
  */
 export function getGitAuthConfigFromEnv(): GitAuthConfig {
-  const pat = process.env.GIT_TOKEN;
+  const pat = process.env.DOT_AI_GIT_TOKEN;
   const githubAppEnabled = process.env.GITHUB_APP_ENABLED === 'true';
 
   if (pat) {

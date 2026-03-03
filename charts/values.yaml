@@ -47,10 +47,10 @@ secrets:
   customEmbeddings:
     keyName: custom-embeddings-api-key # Key name within the secret for custom embeddings endpoint
     apiKey: '' # API key value (only needed if chart should create the secret)
-  git:
-    token: '' # Git PAT token for git_clone/git_push tools (PRD #362)
+  # GitHub App authentication for git operations (PRD #362)
+  # Note: PAT token uses DOT_AI_GIT_TOKEN env var configured via extraEnv
   githubApp:
-    enabled: false # Enable GitHub App authentication (alternative to PAT)
+    enabled: false # Enable GitHub App authentication
     appId: '' # GitHub App ID
     privateKey: '' # GitHub App private key (PEM format)
     installationId: '' # GitHub App installation ID (optional, auto-detected if not provided)
@@ -192,9 +192,10 @@ ai:
 # When configured, query tool responses include a visualizationUrl that opens
 # rich visualizations in the Web UI (resource topology, relationships, health)
 webUI:
-  baseUrl: '' # Web UI base URL (e.g., "https://dot-ai-ui.example.com")
-  # When set, query responses include visualizationUrl field
-  # Format: {baseUrl}/v/{sessionId}
+  baseUrl:
+    '' # Web UI base URL (e.g., "https://dot-ai-ui.example.com")
+    # When set, query responses include visualizationUrl field
+    # Format: {baseUrl}/v/{sessionId}
 
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server

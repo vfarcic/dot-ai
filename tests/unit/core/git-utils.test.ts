@@ -139,7 +139,7 @@ describe('getGitAuthConfigFromEnv', () => {
   });
 
   it('should return PAT from environment', () => {
-    process.env.GIT_TOKEN = 'test-pat-token';
+    process.env.DOT_AI_GIT_TOKEN = 'test-pat-token';
 
     const config = getGitAuthConfigFromEnv();
 
@@ -152,7 +152,7 @@ describe('getGitAuthConfigFromEnv', () => {
     process.env.GITHUB_APP_PRIVATE_KEY =
       '-----BEGIN RSA PRIVATE KEY-----\ntest\n-----END RSA PRIVATE KEY-----';
     process.env.GITHUB_APP_INSTALLATION_ID = '67890';
-    delete process.env.GIT_TOKEN;
+    delete process.env.DOT_AI_GIT_TOKEN;
 
     const config = getGitAuthConfigFromEnv();
 
@@ -165,13 +165,13 @@ describe('getGitAuthConfigFromEnv', () => {
     process.env.GITHUB_APP_ENABLED = 'true';
     process.env.GITHUB_APP_ID = '';
     process.env.GITHUB_APP_PRIVATE_KEY = '';
-    delete process.env.GIT_TOKEN;
+    delete process.env.DOT_AI_GIT_TOKEN;
 
     expect(() => getGitAuthConfigFromEnv()).toThrow('GitHub App enabled but');
   });
 
   it('should return empty config when no auth configured', () => {
-    delete process.env.GIT_TOKEN;
+    delete process.env.DOT_AI_GIT_TOKEN;
     delete process.env.GITHUB_APP_ENABLED;
 
     const config = getGitAuthConfigFromEnv();

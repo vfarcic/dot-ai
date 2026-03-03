@@ -125,12 +125,7 @@ spec:
               key: {{ .Values.secrets.auth.keyName }}
               optional: true
         # Git authentication (PRD #362: Git Operations)
-        - name: GIT_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.secrets.name }}
-              key: git-token
-              optional: true
+        # Note: DOT_AI_GIT_TOKEN is configured via extraEnv - reused from user-prompts feature
         - name: GITHUB_APP_ENABLED
           valueFrom:
             secretKeyRef:
