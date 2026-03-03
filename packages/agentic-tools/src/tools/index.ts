@@ -48,10 +48,6 @@ import { VECTOR_TOOLS } from './vector';
 // PRD #356: Knowledge base tools (document chunking)
 import { KNOWLEDGE_TOOLS, KnowledgeTool } from './knowledge';
 
-// PRD #362: Git operations tools
-import { gitClone } from './git-clone';
-import { gitPush } from './git-push';
-
 /**
  * All kubectl and helm tools in a single array
  * Add new tools here to register them automatically
@@ -88,9 +84,6 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
   helmInstallDryrun,
   // PRD #251: Helm Day-2 operation tools
   helmRollback,
-  // PRD #362: Git operations
-  gitClone,
-  gitPush,
 ];
 
 /**
