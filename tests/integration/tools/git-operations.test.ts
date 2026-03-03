@@ -2,7 +2,7 @@
  * Integration Test: Git Operations Tools
  *
  * Tests git_clone and git_push tools via REST API.
- * These tools require GIT_TOKEN or GitHub App authentication.
+ * These tools require DOT_AI_GIT_TOKEN or GitHub App authentication.
  *
  * PRD #362: Git Operations for Recommend Tool
  */
@@ -15,7 +15,7 @@ import * as path from 'path';
 describe('Git Operations Integration', () => {
   const integrationTest = new IntegrationTest();
   const hasGitAuth =
-    !!process.env.GIT_TOKEN || process.env.GITHUB_APP_ENABLED === 'true';
+    !!process.env.DOT_AI_GIT_TOKEN || process.env.GITHUB_APP_ENABLED === 'true';
   const testRepo = 'https://github.com/octocat/Hello-World.git';
   const testDir = './tmp/git-integration-test';
 
@@ -127,33 +127,27 @@ describe('Git Operations Integration', () => {
   });
 
   describe.skipIf(!hasGitAuth)('Git Push Operations', () => {
-    test.skip('should push files to repository (requires test repo)', async () => {
-      // This test is skipped by default as it requires:
-      // 1. A test repository with write access
-      // 2. GIT_TOKEN with push permissions
-      //
-      // To enable: set GIT_TOKEN and TEST_REPO_URL environment variables
-
+    test('should push files to repository (requires test repo)', async () => {
       const testRepoUrl = process.env.TEST_REPO_URL;
       if (!testRepoUrl) {
         return;
       }
 
-      // Clone first
+      const testPushDir = `${testDir}-push-${Date.now()}`;
+
       const cloneResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/git_clone',
         {
           repoUrl: testRepoUrl,
-          targetDir: testDir,
+          targetDir: testPushDir,
         }
       );
       expect(cloneResponse.success).toBe(true);
 
-      // Push a test file
       const pushResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/git_push',
         {
-          repoPath: testDir,
+          repoPath: testPushDir,
           files: [
             {
               path: `test-file-${Date.now()}.txt`,
@@ -167,6 +161,10 @@ describe('Git Operations Integration', () => {
       expect(pushResponse.success).toBe(true);
       expect(pushResponse.data?.result?.success).toBe(true);
       expect(pushResponse.data?.result?.commitSha).toBeDefined();
+
+      if (fs.existsSync(testPushDir)) {
+        fs.rmSync(testPushDir, { recursive: true, force: true });
+      }
     }, 120000);
   });
 

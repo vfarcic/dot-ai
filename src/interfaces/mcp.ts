@@ -68,22 +68,6 @@ import {
 } from '../tools/manage-knowledge';
 
 import {
-  GIT_CLONE_TOOL_NAME,
-  GIT_CLONE_TOOL_DESCRIPTION,
-  GIT_CLONE_TOOL_INPUT_SCHEMA,
-  handleGitCloneTool,
-  type GitCloneInput,
-} from '../tools/git-clone';
-
-import {
-  GIT_PUSH_TOOL_NAME,
-  GIT_PUSH_TOOL_DESCRIPTION,
-  GIT_PUSH_TOOL_INPUT_SCHEMA,
-  handleGitPushTool,
-  type GitPushInput,
-} from '../tools/git-push';
-
-import {
   handlePromptsListRequest,
   handlePromptsGetRequest,
   type PromptsListArgs,
@@ -453,47 +437,7 @@ export class MCPServer {
       ['knowledge', 'documents', 'ingest', 'semantic', 'search']
     );
 
-    // Register git_clone tool (PRD #362: Git Operations)
-    this.registerTool(
-      GIT_CLONE_TOOL_NAME,
-      GIT_CLONE_TOOL_DESCRIPTION,
-      GIT_CLONE_TOOL_INPUT_SCHEMA,
-      async (args: ToolArgs) => {
-        const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${GIT_CLONE_TOOL_NAME} tool request`, {
-          requestId,
-        });
-        return await handleGitCloneTool(
-          args as unknown as GitCloneInput,
-          this.logger,
-          requestId
-        );
-      },
-      'Git',
-      ['git', 'clone', 'repository', 'gitops']
-    );
-
-    // Register git_push tool (PRD #362: Git Operations)
-    this.registerTool(
-      GIT_PUSH_TOOL_NAME,
-      GIT_PUSH_TOOL_DESCRIPTION,
-      GIT_PUSH_TOOL_INPUT_SCHEMA,
-      async (args: ToolArgs) => {
-        const requestId = this.generateRequestId();
-        this.logger.info(`Processing ${GIT_PUSH_TOOL_NAME} tool request`, {
-          requestId,
-        });
-        return await handleGitPushTool(
-          args as unknown as GitPushInput,
-          this.logger,
-          requestId
-        );
-      },
-      'Git',
-      ['git', 'push', 'commit', 'gitops']
-    );
-
-    // NOTE: Plugin tools (kubectl_*, helm_*, shell_exec) are NOT registered as MCP tools.
+    // NOTE: Plugin tools (kubectl_*, helm_*, shell_exec, git_clone, git_push) are NOT registered as MCP tools.
     // They are internal implementation details used by built-in tools like remediate/query.
     // Plugin tools are invoked via invokePluginTool() from the unified registry.
     // Only the 7 built-in MCP tools are exposed to clients.
@@ -507,8 +451,6 @@ export class MCPServer {
       PROJECT_SETUP_TOOL_NAME,
       QUERY_TOOL_NAME,
       MANAGE_KNOWLEDGE_TOOL_NAME,
-      GIT_CLONE_TOOL_NAME,
-      GIT_PUSH_TOOL_NAME,
     ];
 
     // Log summary of tool registration

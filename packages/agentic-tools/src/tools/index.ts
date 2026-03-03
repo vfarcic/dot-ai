@@ -48,6 +48,10 @@ import { VECTOR_TOOLS } from './vector';
 // PRD #356: Knowledge base tools (document chunking)
 import { KNOWLEDGE_TOOLS, KnowledgeTool } from './knowledge';
 
+// PRD #362: Git operations tools
+import { gitClone } from './git-clone';
+import { gitPush } from './git-push';
+
 /**
  * All kubectl and helm tools in a single array
  * Add new tools here to register them automatically
@@ -84,6 +88,9 @@ const ALL_KUBECTL_HELM_TOOLS: KubectlTool[] = [
   helmInstallDryrun,
   // PRD #251: Helm Day-2 operation tools
   helmRollback,
+  // PRD #362: Git operations
+  gitClone,
+  gitPush,
 ];
 
 /**
@@ -94,13 +101,17 @@ type AnyTool = KubectlTool | QdrantTool | KnowledgeTool;
 /**
  * Combined list of all tools
  */
-const ALL_TOOLS: AnyTool[] = [...ALL_KUBECTL_HELM_TOOLS, ...VECTOR_TOOLS, ...KNOWLEDGE_TOOLS];
+const ALL_TOOLS: AnyTool[] = [
+  ...ALL_KUBECTL_HELM_TOOLS,
+  ...VECTOR_TOOLS,
+  ...KNOWLEDGE_TOOLS,
+];
 
 /**
  * Tool definitions for the describe hook
  * Extracted from each tool's definition property
  */
-export const TOOLS: ToolDefinition[] = ALL_TOOLS.map((tool) => tool.definition);
+export const TOOLS: ToolDefinition[] = ALL_TOOLS.map(tool => tool.definition);
 
 /**
  * Tool handler function type
@@ -112,5 +123,5 @@ export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
  * Built automatically from the ALL_TOOLS array
  */
 export const TOOL_HANDLERS: Record<string, ToolHandler> = Object.fromEntries(
-  ALL_TOOLS.map((tool) => [tool.definition.name, tool.handler])
+  ALL_TOOLS.map(tool => [tool.definition.name, tool.handler])
 );
