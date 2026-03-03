@@ -12,6 +12,11 @@ import { IntegrationTest } from '../helpers/test-base.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
+interface Tool {
+  name: string;
+  description: string;
+}
+
 describe('Git Operations Integration', () => {
   const integrationTest = new IntegrationTest();
   const hasGitAuth =
@@ -45,7 +50,7 @@ describe('Git Operations Integration', () => {
       expect(response.data?.tools).toBeDefined();
 
       const gitCloneTool = response.data.tools.find(
-        (t: any) => t.name === 'git_clone'
+        (t: Tool) => t.name === 'git_clone'
       );
       expect(gitCloneTool).toBeDefined();
       expect(gitCloneTool?.description).toContain('Clone a git repository');
@@ -58,7 +63,7 @@ describe('Git Operations Integration', () => {
       expect(response.data?.tools).toBeDefined();
 
       const gitPushTool = response.data.tools.find(
-        (t: any) => t.name === 'git_push'
+        (t: Tool) => t.name === 'git_push'
       );
       expect(gitPushTool).toBeDefined();
       expect(gitPushTool?.description).toContain(
@@ -127,45 +132,45 @@ describe('Git Operations Integration', () => {
   });
 
   describe.skipIf(!hasGitAuth)('Git Push Operations', () => {
-    test('should push files to repository (requires test repo)', async () => {
-      const testRepoUrl = process.env.TEST_REPO_URL;
-      if (!testRepoUrl) {
-        return;
-      }
+    test.skipIf(!process.env.TEST_REPO_URL)(
+      'should push files to repository (requires test repo)',
+      async () => {
+        const testRepoUrl = process.env.TEST_REPO_URL!;
+        const testPushDir = `${testDir}-push-${Date.now()}`;
 
-      const testPushDir = `${testDir}-push-${Date.now()}`;
+        const cloneResponse = await integrationTest.httpClient.post(
+          '/api/v1/tools/git_clone',
+          {
+            repoUrl: testRepoUrl,
+            targetDir: testPushDir,
+          }
+        );
+        expect(cloneResponse.success).toBe(true);
 
-      const cloneResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/git_clone',
-        {
-          repoUrl: testRepoUrl,
-          targetDir: testPushDir,
+        const pushResponse = await integrationTest.httpClient.post(
+          '/api/v1/tools/git_push',
+          {
+            repoPath: testPushDir,
+            files: [
+              {
+                path: `test-file-${Date.now()}.txt`,
+                content: `Test file created at ${new Date().toISOString()}`,
+              },
+            ],
+            commitMessage: 'test: integration test file',
+          }
+        );
+
+        expect(pushResponse.success).toBe(true);
+        expect(pushResponse.data?.result?.success).toBe(true);
+        expect(pushResponse.data?.result?.commitSha).toBeDefined();
+
+        if (fs.existsSync(testPushDir)) {
+          fs.rmSync(testPushDir, { recursive: true, force: true });
         }
-      );
-      expect(cloneResponse.success).toBe(true);
-
-      const pushResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/git_push',
-        {
-          repoPath: testPushDir,
-          files: [
-            {
-              path: `test-file-${Date.now()}.txt`,
-              content: `Test file created at ${new Date().toISOString()}`,
-            },
-          ],
-          commitMessage: 'test: integration test file',
-        }
-      );
-
-      expect(pushResponse.success).toBe(true);
-      expect(pushResponse.data?.result?.success).toBe(true);
-      expect(pushResponse.data?.result?.commitSha).toBeDefined();
-
-      if (fs.existsSync(testPushDir)) {
-        fs.rmSync(testPushDir, { recursive: true, force: true });
-      }
-    }, 120000);
+      },
+      120000
+    );
   });
 
   describe('Error Handling', () => {

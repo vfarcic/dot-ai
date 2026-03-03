@@ -107,8 +107,11 @@ export const gitPush: KubectlTool = {
       } else {
         return errorResult(result.error || 'Push failed', 'Git push failed');
       }
-    } catch (error: any) {
-      const message = error.message || 'Unknown error during git push';
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unknown error during git push';
       return errorResult(message, 'Git push failed');
     }
   }),

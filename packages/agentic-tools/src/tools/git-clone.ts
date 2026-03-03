@@ -79,8 +79,11 @@ export const gitClone: KubectlTool = {
       } else {
         return errorResult(result.error || 'Clone failed', 'Git clone failed');
       }
-    } catch (error: any) {
-      const message = error.message || 'Unknown error during git clone';
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unknown error during git clone';
       return errorResult(message, 'Git clone failed');
     }
   }),
