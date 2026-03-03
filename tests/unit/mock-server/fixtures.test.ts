@@ -114,6 +114,71 @@ describe('Mock Server Fixtures', () => {
     });
   });
 
+  describe('GET /api/v1/users - List Users', () => {
+    test('should have valid fixture with users array and total', async () => {
+      const fixture = (await loadFixture('users/list-success.json')) as any;
+
+      expect(fixture).toMatchObject({
+        success: true,
+        data: {
+          users: expect.arrayContaining([
+            expect.objectContaining({
+              email: expect.any(String),
+            }),
+          ]),
+          total: expect.any(Number),
+        },
+        meta: {
+          timestamp: expect.any(String),
+          version: '1.0.0',
+        },
+      });
+
+      // Verify total matches actual array length
+      expect(fixture.data.total).toBe(fixture.data.users.length);
+
+      // Verify admin user exists
+      const emails = fixture.data.users.map((u: any) => u.email);
+      expect(emails).toContain('admin@dot-ai.local');
+    });
+  });
+
+  describe('POST /api/v1/users - Create User', () => {
+    test('should have valid fixture with created user email and message', async () => {
+      const fixture = (await loadFixture('users/create-success.json')) as any;
+
+      expect(fixture).toMatchObject({
+        success: true,
+        data: {
+          email: expect.any(String),
+          message: expect.any(String),
+        },
+        meta: {
+          timestamp: expect.any(String),
+          version: '1.0.0',
+        },
+      });
+    });
+  });
+
+  describe('DELETE /api/v1/users/:email - Delete User', () => {
+    test('should have valid fixture with deleted user email and message', async () => {
+      const fixture = (await loadFixture('users/delete-success.json')) as any;
+
+      expect(fixture).toMatchObject({
+        success: true,
+        data: {
+          email: expect.any(String),
+          message: expect.any(String),
+        },
+        meta: {
+          timestamp: expect.any(String),
+          version: '1.0.0',
+        },
+      });
+    });
+  });
+
   describe('POST /api/v1/prompts/:promptName - Get Prompt', () => {
     test('should have valid fixture with messages array', async () => {
       const fixture = (await loadFixture('prompts/get-success.json')) as any;

@@ -130,6 +130,26 @@ export const routes: RouteDefinition[] = [
     fixture: 'knowledge/ask-success.json',
   },
 
+  // User Management Endpoints
+  {
+    path: '/api/v1/users',
+    method: 'POST',
+    description: 'Create a new Dex static user',
+    fixture: 'users/create-success.json',
+  },
+  {
+    path: '/api/v1/users',
+    method: 'GET',
+    description: 'List all Dex static users (emails only)',
+    fixture: 'users/list-success.json',
+  },
+  {
+    path: '/api/v1/users/:email',
+    method: 'DELETE',
+    description: 'Delete a Dex static user by email',
+    fixture: 'users/delete-success.json',
+  },
+
   // Visualization Endpoint
   {
     path: '/api/v1/visualize/:sessionId',

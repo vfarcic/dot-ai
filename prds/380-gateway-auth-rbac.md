@@ -297,7 +297,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 #### Task 3.4: User Management Documentation
 - [x] Updated `docs/ai-engine/setup/authentication.md` — removed `user-management.md` references, added "coming soon" to CLI/Web UI links
 - [x] No separate `user-management.md` needed — user management docs belong in CLI and Web UI projects
-- [ ] **Pending (external):** Create PRDs in dot-ai-cli and dot-ai-ui for OAuth + user management support. Those PRDs should include sending a feature request back to this project to update auth doc links to their specific user management pages.
+- [x] **External:** Created PRDs in dot-ai-cli ([#6](https://github.com/vfarcic/dot-ai-cli/issues/6)) and dot-ai-ui ([#18](https://github.com/vfarcic/dot-ai-ui/issues/18)) for OAuth + user management support. Both include milestone to send feature request back to update auth doc links.
 
 #### Task 3.5: Dex Connector Configuration & Validation
 - [x] New `docs/ai-engine/setup/connectors.md` — Google connector guide with validated example, domain restriction via `hostedDomains`, other connectors table with Dex docs reference
