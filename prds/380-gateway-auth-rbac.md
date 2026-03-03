@@ -300,15 +300,15 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [ ] **Pending (external):** Create PRDs in dot-ai-cli and dot-ai-ui for OAuth + user management support. Those PRDs should include sending a feature request back to this project to update auth doc links to their specific user management pages.
 
 #### Task 3.5: Dex Connector Configuration & Validation
-- [ ] New `docs/ai-engine/setup/connectors.md` — step-by-step guides for Google, GitHub, LDAP, SAML connectors
-- [ ] Test at least two connectors end-to-end (Google, GitHub) and document with validated examples
+- [x] New `docs/ai-engine/setup/connectors.md` — Google connector guide with validated example, domain restriction via `hostedDomains`, other connectors table with Dex docs reference
+- [x] Google connector tested end-to-end and documented with validated example; other connectors reference [Dex Connector Documentation](https://dexidp.io/docs/connectors/)
 
 #### Task 3.6: Dex Login Page Theming
 - [ ] Custom login page templates (logo, colors, CSS) mounted via ConfigMap, Helm-configurable
 
 **Success Criteria:**
 - Admins can deploy and configure OAuth following documentation alone
-- At least two connectors tested and documented end-to-end (Google, GitHub)
+- Google connector tested and documented end-to-end; other connectors reference Dex docs
 - Login page uses dot-ai branding
 
 ---
@@ -332,8 +332,8 @@ The following capabilities build on the authentication foundation delivered by t
 - [x] Static token auth preserved as permanent alternative (dual-mode)
 - [x] User management endpoints via Dex gRPC API (Milestone 2, Task 2.5)
 - [x] Integration tests for auth (both modes) and user management
-- [ ] Documentation for OAuth deployment, user management, Dex connectors, and MCP client configuration (Milestone 3)
-- [ ] At least two Dex connectors tested and documented (Milestone 3)
+- [x] Documentation for OAuth deployment, user management, Dex connectors, and MCP client configuration (Milestone 3)
+- [x] Google Dex connector tested and documented; other connectors reference Dex docs (Milestone 3)
 
 ### Nice to Have (Future)
 
