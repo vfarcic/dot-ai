@@ -130,6 +130,7 @@ export const InternalServerErrorSchema = ErrorResponseSchema.extend({
       'SESSION_RETRIEVAL_ERROR',
       'MIGRATION_ERROR',
       'PROMPTS_CACHE_REFRESH_ERROR',
+      'USER_MANAGEMENT_ERROR',
     ]),
   }),
 });

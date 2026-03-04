@@ -500,7 +500,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         }
       };
 
-      expect(deployResponse).toMatchObject(expectedDeployResponse);
+      expect(deployResponse, `Deploy failed: ${JSON.stringify(deployResponse.error || deployResponse.data?.result?.error || 'no error field')}`).toMatchObject(expectedDeployResponse);
 
       // PHASE 10: Verify resources were created in the cluster
       // Parse manifests to verify each resource exists
@@ -1144,7 +1144,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         }
       };
 
-      expect(generateResponse).toMatchObject(expectedGenerateResponse);
+      expect(generateResponse, `Helm generate failed: ${JSON.stringify(generateResponse.error || generateResponse.data?.result?.error || 'no error field')}`).toMatchObject(expectedGenerateResponse);
 
       // Validate Helm chart file structure
       const files = generateResponse.data.result.files;

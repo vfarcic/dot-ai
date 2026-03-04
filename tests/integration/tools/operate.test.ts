@@ -300,8 +300,8 @@ EOF`);
       );
 
       // Validate response structure
-      expect(analysisResponse.success).toBe(true);
-      expect(analysisResponse.data.result.status).toBe('awaiting_user_approval');
+      expect(analysisResponse.success, `Operate analysis failed: ${JSON.stringify(analysisResponse.error || analysisResponse.data?.result?.error || 'no error field')}`).toBe(true);
+      expect(analysisResponse.data.result.status, `Unexpected status: ${analysisResponse.data?.result?.status}, message: ${analysisResponse.data?.result?.message || 'none'}`).toBe('awaiting_user_approval');
       // PRD #320: Verify visualizationUrl is present (full visualization testing done in first test)
       expect(analysisResponse.data.result.visualizationUrl).toMatch(/^https:\/\/dot-ai-ui\.test\.local\/v\/opr-/);
 

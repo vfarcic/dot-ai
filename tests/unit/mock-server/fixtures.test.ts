@@ -115,6 +115,71 @@ describe('Mock Server Fixtures', () => {
     });
   });
 
+  describe('GET /api/v1/users - List Users', () => {
+    test('should have valid fixture with users array and total', async () => {
+      const fixture = (await loadFixture('users/list-success.json')) as any;
+
+      expect(fixture).toMatchObject({
+        success: true,
+        data: {
+          users: expect.arrayContaining([
+            expect.objectContaining({
+              email: expect.any(String),
+            }),
+          ]),
+          total: expect.any(Number),
+        },
+        meta: {
+          timestamp: expect.any(String),
+          version: '1.0.0',
+        },
+      });
+
+      // Verify total matches actual array length
+      expect(fixture.data.total).toBe(fixture.data.users.length);
+
+      // Verify admin user exists
+      const emails = fixture.data.users.map((u: any) => u.email);
+      expect(emails).toContain('admin@dot-ai.local');
+    });
+  });
+
+  describe('POST /api/v1/users - Create User', () => {
+    test('should have valid fixture with created user email and message', async () => {
+      const fixture = (await loadFixture('users/create-success.json')) as any;
+
+      expect(fixture).toMatchObject({
+        success: true,
+        data: {
+          email: expect.any(String),
+          message: expect.any(String),
+        },
+        meta: {
+          timestamp: expect.any(String),
+          version: '1.0.0',
+        },
+      });
+    });
+  });
+
+  describe('DELETE /api/v1/users/:email - Delete User', () => {
+    test('should have valid fixture with deleted user email and message', async () => {
+      const fixture = (await loadFixture('users/delete-success.json')) as any;
+
+      expect(fixture).toMatchObject({
+        success: true,
+        data: {
+          email: expect.any(String),
+          message: expect.any(String),
+        },
+        meta: {
+          timestamp: expect.any(String),
+          version: '1.0.0',
+        },
+      });
+    });
+  });
+
   describe('Route matching: /api/v1/prompts/refresh vs :promptName', () => {
     test('should match refresh route, not the wildcard', () => {
       const result = matchRoute('POST', '/api/v1/prompts/refresh');
@@ -195,6 +260,55 @@ describe('Mock Server Fixtures', () => {
         const decoded = Buffer.from(file.content, 'base64').toString('utf-8');
         expect(decoded.length).toBeGreaterThan(0);
       }
+    });
+  });
+
+  describe('OAuth Endpoints', () => {
+    test('GET /.well-known/oauth-authorization-server should have valid metadata', async () => {
+      const fixture = (await loadFixture('oauth/authorization-server-metadata.json')) as any;
+
+      expect(fixture).toMatchObject({
+        issuer: expect.any(String),
+        authorization_endpoint: expect.stringContaining('/authorize'),
+        token_endpoint: expect.stringContaining('/token'),
+        registration_endpoint: expect.stringContaining('/register'),
+        response_types_supported: ['code'],
+        grant_types_supported: ['authorization_code'],
+        code_challenge_methods_supported: ['S256'],
+      });
+    });
+
+    test('GET /.well-known/oauth-protected-resource should have valid metadata', async () => {
+      const fixture = (await loadFixture('oauth/protected-resource-metadata.json')) as any;
+
+      expect(fixture).toMatchObject({
+        resource: expect.any(String),
+        authorization_servers: expect.arrayContaining([expect.any(String)]),
+        bearer_methods_supported: ['header'],
+      });
+    });
+
+    test('POST /register should return client registration', async () => {
+      const fixture = (await loadFixture('oauth/register-success.json')) as any;
+
+      expect(fixture).toMatchObject({
+        client_id: expect.any(String),
+        client_id_issued_at: expect.any(Number),
+        client_name: expect.any(String),
+        redirect_uris: expect.arrayContaining([expect.any(String)]),
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+      });
+    });
+
+    test('POST /token should return access token', async () => {
+      const fixture = (await loadFixture('oauth/token-success.json')) as any;
+
+      expect(fixture).toMatchObject({
+        access_token: expect.any(String),
+        token_type: 'bearer',
+        expires_in: expect.any(Number),
+      });
     });
   });
 });
