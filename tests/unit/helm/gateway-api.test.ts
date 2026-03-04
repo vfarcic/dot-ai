@@ -81,7 +81,9 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
    * Helper function to run helm template and parse output
    */
   function helmTemplate(values: Record<string, unknown>): string {
-    const setArgs = Object.entries(values)
+    // Disable Dex by default — these tests focus on Gateway resources, not OAuth
+    const merged = { 'dex.enabled': false, ...values };
+    const setArgs = Object.entries(merged)
       .map(([key, value]) => `--set ${key}=${value}`)
       .join(' ');
     
