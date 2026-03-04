@@ -1,26 +1,26 @@
 /**
- * Git Operations Utility
+ * Git Utilities
  *
- * Provides git operations (clone, push) with support for:
- * - PAT (Personal Access Token) authentication
- * - GitHub App authentication (JWT + installation token)
+ * Shared git operations for the MCP server layer.
+ * Provides authenticated clone, pull, and push using simple-git.
  *
  * PRD #362: Git Operations for Recommend Tool
+ *
+ * Environment variables:
+ * - DOT_AI_GIT_TOKEN: PAT authentication token
+ * - GITHUB_APP_ENABLED: Enable GitHub App authentication
+ * - GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_INSTALLATION_ID: GitHub App config
  */
 
-import simpleGit, { SimpleGit, SimpleGitOptions } from 'simple-git';
+import simpleGit, { SimpleGitOptions } from 'simple-git';
 import * as jwt from 'jsonwebtoken';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const TMP_DIR = './tmp';
+const FETCH_TIMEOUT_MS = 30000;
+const GIT_TIMEOUT_MS = 120000; // 2 minutes for git operations
 
-function ensureTmpDir(): string {
-  if (!fs.existsSync(TMP_DIR)) {
-    fs.mkdirSync(TMP_DIR, { recursive: true });
-  }
-  return TMP_DIR;
-}
+// ─── Auth types ───
 
 export interface GitAuthConfig {
   pat?: string;
@@ -31,407 +31,130 @@ export interface GitAuthConfig {
   };
 }
 
-export interface GitCloneParams {
-  repoUrl: string;
-  branch?: string;
-  targetDir?: string;
-  depth?: number;
-}
-
-export interface GitCloneResult {
-  success: boolean;
-  localPath: string;
-  branch: string;
-  error?: string;
-}
-
-export interface GitPushParams {
-  repoPath: string;
-  files: Array<{
-    path: string;
-    content: string;
-  }>;
-  commitMessage: string;
-  branch?: string;
-  author?: {
-    name: string;
-    email: string;
-  };
-}
-
-export interface GitPushResult {
-  success: boolean;
-  commitSha?: string;
-  branch: string;
-  filesAdded: string[];
-  error?: string;
-}
-
-export interface GitHubAppToken {
+interface GitHubAppToken {
   token: string;
   expiresAt: string;
 }
 
-/**
- * GitOperations class handles git operations with multiple auth methods
- */
-export class GitOperations {
-  private authConfig: GitAuthConfig;
-  private logger: Console;
-  private readonly fetchTimeoutMs = 30000;
-  private readonly gitTimeoutMs = 120000; // 2 minutes for git operations
+// ─── Auth helpers ───
 
-  constructor(authConfig: GitAuthConfig) {
-    this.authConfig = authConfig;
-    this.logger = console;
+export function scrubCredentials(message: string): string {
+  return message
+    .replace(/\/\/x-access-token:[^@]+@/g, '//***@')
+    .replace(/\/\/[^/:][^@]*:[^@]+@/g, '//***@');
+}
+
+export function getAuthenticatedUrl(repoUrl: string, token: string): string {
+  const url = new URL(repoUrl);
+  url.username = 'x-access-token';
+  url.password = token;
+  return url.toString();
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs = FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
   }
+}
 
-  /**
-   * Scrub credentials from error messages
-   */
-  private scrubCredentials(message: string): string {
-    return message.replace(/\/\/x-access-token:[^@]+@/g, '//***@');
-  }
+function generateGitHubAppJWT(appId: string, privateKey: string): string {
+  const now = Math.floor(Date.now() / 1000);
+  return jwt.sign(
+    { iat: now - 60, exp: now + 10 * 60, iss: appId },
+    privateKey,
+    { algorithm: 'RS256' }
+  );
+}
 
-  /**
-   * Fetch with timeout to prevent indefinite hangs
-   */
-  private async fetchWithTimeout(
-    url: string,
-    options: RequestInit,
-    timeoutMs = this.fetchTimeoutMs
-  ): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
+async function getGitHubAppInstallationToken(
+  appId: string,
+  privateKey: string,
+  installationId?: string
+): Promise<GitHubAppToken> {
+  const appJWT = generateGitHubAppJWT(appId, privateKey);
 
-  /**
-   * Get authenticated URL with embedded credentials
-   */
-  private getAuthenticatedUrl(repoUrl: string, token: string): string {
-    const url = new URL(repoUrl);
-    url.username = 'x-access-token';
-    url.password = token;
-    return url.toString();
-  }
-
-  /**
-   * Generate JWT for GitHub App authentication
-   */
-  private generateGitHubAppJWT(appId: string, privateKey: string): string {
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-      iat: now - 60,
-      exp: now + 10 * 60,
-      iss: appId,
-    };
-    return jwt.sign(payload, privateKey, { algorithm: 'RS256' });
-  }
-
-  /**
-   * Get installation access token for GitHub App
-   */
-  private async getGitHubAppInstallationToken(
-    appId: string,
-    privateKey: string,
-    installationId?: string
-  ): Promise<GitHubAppToken> {
-    const appJWT = this.generateGitHubAppJWT(appId, privateKey);
-
-    let installId = installationId;
-
-    if (!installId) {
-      const installationsResponse = await this.fetchWithTimeout(
-        'https://api.github.com/app/installations',
-        {
-          headers: {
-            Authorization: `Bearer ${appJWT}`,
-            Accept: 'application/vnd.github.v3+json',
-          },
-        }
-      );
-
-      if (!installationsResponse.ok) {
-        throw new Error(
-          `Failed to list installations: ${installationsResponse.statusText}`
-        );
-      }
-
-      const installations = (await installationsResponse.json()) as Array<{
-        id: number;
-      }>;
-      if (installations.length === 0) {
-        throw new Error('No GitHub App installations found');
-      }
-
-      installId = String(installations[0].id);
-    }
-
-    const tokenResponse = await this.fetchWithTimeout(
-      `https://api.github.com/app/installations/${installId}/access_tokens`,
+  let installId = installationId;
+  if (!installId) {
+    const resp = await fetchWithTimeout(
+      'https://api.github.com/app/installations',
       {
-        method: 'POST',
         headers: {
           Authorization: `Bearer ${appJWT}`,
           Accept: 'application/vnd.github.v3+json',
         },
       }
     );
-
-    if (!tokenResponse.ok) {
-      throw new Error(
-        `Failed to get installation token: ${tokenResponse.statusText}`
-      );
+    if (!resp.ok) {
+      throw new Error(`Failed to list installations: ${resp.statusText}`);
     }
-
-    const tokenData = (await tokenResponse.json()) as {
-      token: string;
-      expires_at: string;
-    };
-    return {
-      token: tokenData.token,
-      expiresAt: tokenData.expires_at,
-    };
+    const installations = (await resp.json()) as Array<{ id: number }>;
+    if (installations.length === 0) {
+      throw new Error('No GitHub App installations found');
+    }
+    installId = String(installations[0].id);
   }
 
-  /**
-   * Get authentication token (PAT or GitHub App)
-   */
-  private async getAuthToken(): Promise<string> {
-    if (this.authConfig.pat) {
-      return this.authConfig.pat;
+  const tokenResp = await fetchWithTimeout(
+    `https://api.github.com/app/installations/${installId}/access_tokens`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${appJWT}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
     }
-
-    if (this.authConfig.githubApp) {
-      const { appId, privateKey, installationId } = this.authConfig.githubApp;
-      const tokenData = await this.getGitHubAppInstallationToken(
-        appId,
-        privateKey,
-        installationId
-      );
-      return tokenData.token;
-    }
-
+  );
+  if (!tokenResp.ok) {
     throw new Error(
-      'No authentication method configured. Provide either PAT or GitHub App credentials.'
+      `Failed to get installation token: ${tokenResp.statusText}`
     );
   }
-
-  /**
-   * Clone a git repository
-   */
-  async clone(params: GitCloneParams): Promise<GitCloneResult> {
-    const { repoUrl, branch, targetDir, depth } = params;
-
-    try {
-      const token = await this.getAuthToken();
-      const authUrl = this.getAuthenticatedUrl(repoUrl, token);
-
-      const localPath =
-        targetDir || path.join(ensureTmpDir(), `git-clone-${Date.now()}`);
-
-      const options: Partial<SimpleGitOptions> = {
-        baseDir: process.cwd(),
-        binary: 'git',
-        maxConcurrentProcesses: 6,
-        timeout: { block: this.gitTimeoutMs },
-      };
-
-      const git: SimpleGit = simpleGit(options);
-
-      const cloneOptions: string[] = [];
-      if (branch) {
-        cloneOptions.push('--branch', branch);
-      }
-      if (depth) {
-        cloneOptions.push('--depth', String(depth));
-      }
-
-      this.logger.log('Cloning repository', { repoUrl, branch, localPath });
-
-      await git.clone(authUrl, localPath, cloneOptions);
-
-      const repoGit = simpleGit(localPath);
-      const status = await repoGit.status();
-      const currentBranch = status.current || branch || 'main';
-
-      return {
-        success: true,
-        localPath,
-        branch: currentBranch,
-      };
-    } catch (error) {
-      const rawMessage = error instanceof Error ? error.message : String(error);
-      const errorMessage = this.scrubCredentials(rawMessage);
-      this.logger.error('Clone failed', { error: errorMessage });
-      return {
-        success: false,
-        localPath: '',
-        branch: '',
-        error: errorMessage,
-      };
-    }
-  }
-
-  /**
-   * Push files to a git repository
-   */
-  async push(params: GitPushParams): Promise<GitPushResult> {
-    const { repoPath, files, commitMessage, branch, author } = params;
-
-    try {
-      const options: Partial<SimpleGitOptions> = {
-        baseDir: repoPath,
-        binary: 'git',
-        maxConcurrentProcesses: 6,
-        timeout: { block: this.gitTimeoutMs },
-      };
-      const git: SimpleGit = simpleGit(options);
-
-      if (branch) {
-        const branches = await git.branchLocal();
-        if (!branches.all.includes(branch)) {
-          await git.checkoutLocalBranch(branch);
-        } else {
-          await git.checkout(branch);
-        }
-      }
-
-      for (const file of files) {
-        // Prevent path traversal attacks
-        const repoRoot = path.resolve(repoPath);
-        const fullPath = path.resolve(repoPath, file.path);
-
-        if (
-          !fullPath.startsWith(repoRoot + path.sep) &&
-          fullPath !== repoRoot
-        ) {
-          throw new Error(
-            `Path traversal detected: "${file.path}" attempts to write outside repository directory`
-          );
-        }
-
-        const dir = path.dirname(fullPath);
-
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-
-        fs.writeFileSync(fullPath, file.content);
-      }
-
-      await git.add(files.map(f => f.path));
-
-      // Configure git identity (use provided author or fallback to env vars/defaults)
-      const gitUserName =
-        author?.name || process.env.GIT_AUTHOR_NAME || 'dot-ai-bot';
-      const gitUserEmail =
-        author?.email ||
-        process.env.GIT_AUTHOR_EMAIL ||
-        'dot-ai@users.noreply.github.com';
-      await git.addConfig('user.name', gitUserName);
-      await git.addConfig('user.email', gitUserEmail);
-
-      const commitResult = await git.commit(commitMessage);
-
-      // Handle empty commit (no changes to commit)
-      if (!commitResult.commit) {
-        this.logger.log('No changes to commit, skipping push');
-        return {
-          success: true,
-          commitSha: undefined,
-          branch: (await git.status()).current || 'main',
-          filesAdded: [],
-        };
-      }
-
-      const commitSha = commitResult.commit;
-
-      const token = await this.getAuthToken();
-      const remotes = await git.getRemotes(true);
-      const origin = remotes.find(r => r.name === 'origin');
-      let originalOriginUrl: string | undefined;
-
-      if (origin) {
-        originalOriginUrl = origin.refs.fetch;
-        const authUrl = this.getAuthenticatedUrl(originalOriginUrl, token);
-        await git.remote(['set-url', 'origin', authUrl]);
-      }
-
-      try {
-        const currentBranch = (await git.status()).current || 'main';
-        await git.push('origin', currentBranch, ['--set-upstream']);
-        return {
-          success: true,
-          commitSha,
-          branch: currentBranch,
-          filesAdded: files.map(f => f.path),
-        };
-      } finally {
-        if (origin && originalOriginUrl) {
-          await git.remote(['set-url', 'origin', originalOriginUrl]);
-        }
-      }
-    } catch (error) {
-      const rawMessage = error instanceof Error ? error.message : String(error);
-      const errorMessage = this.scrubCredentials(rawMessage);
-      this.logger.error('Push failed', { error: errorMessage });
-      return {
-        success: false,
-        branch: '',
-        filesAdded: [],
-        error: errorMessage,
-      };
-    }
-  }
-
-  /**
-   * Check if a repository exists locally
-   */
-  static isRepo(localPath: string): boolean {
-    return fs.existsSync(path.join(localPath, '.git'));
-  }
-
-  /**
-   * Clean up a cloned repository
-   */
-  static cleanup(localPath: string): void {
-    if (fs.existsSync(localPath)) {
-      fs.rmSync(localPath, { recursive: true, force: true });
-    }
-  }
+  const data = (await tokenResp.json()) as {
+    token: string;
+    expires_at: string;
+  };
+  return { token: data.token, expiresAt: data.expires_at };
 }
 
-/**
- * Get git auth configuration from environment variables
- */
+export async function getAuthToken(authConfig: GitAuthConfig): Promise<string> {
+  if (authConfig.pat) return authConfig.pat;
+  if (authConfig.githubApp) {
+    const { appId, privateKey, installationId } = authConfig.githubApp;
+    const tokenData = await getGitHubAppInstallationToken(
+      appId,
+      privateKey,
+      installationId
+    );
+    return tokenData.token;
+  }
+  throw new Error(
+    'No authentication method configured. Provide either PAT or GitHub App credentials.'
+  );
+}
+
 export function getGitAuthConfigFromEnv(): GitAuthConfig {
   const pat = process.env.DOT_AI_GIT_TOKEN;
   const githubAppEnabled = process.env.GITHUB_APP_ENABLED === 'true';
 
-  if (pat) {
-    return { pat };
-  }
+  if (pat) return { pat };
 
   if (githubAppEnabled) {
     const appId = process.env.GITHUB_APP_ID;
     const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
     const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
-
     if (!appId || !privateKey) {
       throw new Error(
         'GitHub App enabled but GITHUB_APP_ID or GITHUB_APP_PRIVATE_KEY not set'
       );
     }
-
     return {
       githubApp: {
         appId,
@@ -444,19 +167,172 @@ export function getGitAuthConfigFromEnv(): GitAuthConfig {
   return {};
 }
 
-/**
- * Singleton instance for git operations
- */
-let gitOperationsInstance: GitOperations | null = null;
+// ─── Git options helper ───
 
-export function getGitOperations(): GitOperations {
-  if (!gitOperationsInstance) {
-    const authConfig = getGitAuthConfigFromEnv();
-    gitOperationsInstance = new GitOperations(authConfig);
-  }
-  return gitOperationsInstance;
+function gitOptions(baseDir?: string): Partial<SimpleGitOptions> {
+  return {
+    baseDir: baseDir || process.cwd(),
+    binary: 'git',
+    maxConcurrentProcesses: 6,
+    timeout: { block: GIT_TIMEOUT_MS },
+  };
 }
 
-export function resetGitOperations(): void {
-  gitOperationsInstance = null;
+// ─── Clone ───
+
+export interface CloneOptions {
+  branch?: string;
+  depth?: number;
+}
+
+export async function cloneRepo(
+  repoUrl: string,
+  targetDir: string,
+  opts?: CloneOptions
+): Promise<{ localPath: string; branch: string }> {
+  const authConfig = getGitAuthConfigFromEnv();
+  const token = await getAuthToken(authConfig);
+  const authUrl = getAuthenticatedUrl(repoUrl, token);
+
+  const git = simpleGit(gitOptions());
+
+  const cloneOptions: string[] = [];
+  if (opts?.branch) {
+    cloneOptions.push('--branch', opts.branch);
+  }
+  if (opts?.depth) {
+    cloneOptions.push('--depth', String(opts.depth));
+  }
+
+  await git.clone(authUrl, targetDir, cloneOptions);
+
+  const repoGit = simpleGit(targetDir);
+  const status = await repoGit.status();
+  const branch = status.current || opts?.branch || 'main';
+
+  return { localPath: targetDir, branch };
+}
+
+// ─── Pull ───
+
+export async function pullRepo(
+  repoPath: string
+): Promise<{ branch: string }> {
+  const authConfig = getGitAuthConfigFromEnv();
+  const token = await getAuthToken(authConfig);
+
+  const git = simpleGit(gitOptions(repoPath));
+
+  const remotes = await git.getRemotes(true);
+  const origin = remotes.find(r => r.name === 'origin');
+  const originalOriginUrl = origin?.refs.fetch;
+
+  if (originalOriginUrl) {
+    const authUrl = getAuthenticatedUrl(originalOriginUrl, token);
+    await git.remote(['set-url', 'origin', authUrl]);
+  }
+
+  try {
+    await git.pull('origin', undefined, ['--ff-only']);
+    const status = await git.status();
+    return { branch: status.current || 'main' };
+  } finally {
+    // Restore original origin URL to prevent auth tokens persisting in .git/config
+    if (originalOriginUrl) {
+      await git.remote(['set-url', 'origin', originalOriginUrl]);
+    }
+  }
+}
+
+// ─── Push ───
+
+export interface PushOptions {
+  branch?: string;
+  author?: { name: string; email: string };
+}
+
+export interface PushResult {
+  commitSha: string | undefined;
+  branch: string;
+  filesAdded: string[];
+}
+
+export async function pushRepo(
+  repoPath: string,
+  files: Array<{ path: string; content: string }>,
+  commitMessage: string,
+  opts?: PushOptions
+): Promise<PushResult> {
+  const git = simpleGit(gitOptions(repoPath));
+
+  if (opts?.branch) {
+    const branches = await git.branchLocal();
+    if (!branches.all.includes(opts.branch)) {
+      await git.checkoutLocalBranch(opts.branch);
+    } else {
+      await git.checkout(opts.branch);
+    }
+  }
+
+  for (const file of files) {
+    const repoRoot = path.resolve(repoPath);
+    const fullPath = path.resolve(repoPath, file.path);
+    if (!fullPath.startsWith(repoRoot + path.sep) && fullPath !== repoRoot) {
+      throw new Error(
+        `Path traversal detected: "${file.path}" attempts to write outside repository directory`
+      );
+    }
+    const dir = path.dirname(fullPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(fullPath, file.content);
+  }
+
+  await git.add(files.map(f => f.path));
+
+  const gitUserName =
+    opts?.author?.name || process.env.GIT_AUTHOR_NAME || 'dot-ai-bot';
+  const gitUserEmail =
+    opts?.author?.email ||
+    process.env.GIT_AUTHOR_EMAIL ||
+    'dot-ai@users.noreply.github.com';
+  await git.addConfig('user.name', gitUserName);
+  await git.addConfig('user.email', gitUserEmail);
+
+  const commitResult = await git.commit(commitMessage);
+
+  if (!commitResult.commit) {
+    return {
+      commitSha: undefined,
+      branch: (await git.status()).current || 'main',
+      filesAdded: [],
+    };
+  }
+
+  const authConfig = getGitAuthConfigFromEnv();
+  const token = await getAuthToken(authConfig);
+  const remotes = await git.getRemotes(true);
+  const origin = remotes.find(r => r.name === 'origin');
+  let originalOriginUrl: string | undefined;
+
+  if (origin) {
+    originalOriginUrl = origin.refs.fetch;
+    const authUrl = getAuthenticatedUrl(originalOriginUrl, token);
+    await git.remote(['set-url', 'origin', authUrl]);
+  }
+
+  try {
+    const currentBranch = (await git.status()).current || 'main';
+    await git.push('origin', currentBranch, ['--set-upstream']);
+    return {
+      commitSha: commitResult.commit,
+      branch: currentBranch,
+      filesAdded: files.map(f => f.path),
+    };
+  } finally {
+    if (origin && originalOriginUrl) {
+      await git.remote(['set-url', 'origin', originalOriginUrl]);
+    }
+  }
 }
