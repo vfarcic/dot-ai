@@ -29,6 +29,16 @@ import type { DexConfig, PendingAuthRequest, AuthorizationCode } from './types';
 import { buildAuthorizeUrl, exchangeDexCode, parseIdToken } from './dex-client';
 
 /**
+ * Safely extract a single string from an Express query parameter.
+ * Query params can be string, string[], or undefined when tampered.
+ */
+function extractQueryParam(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return undefined;
+}
+
+/**
  * In-memory client store for OAuth registered clients.
  * Clients re-register on server restart per the MCP Authorization spec.
  */
@@ -223,9 +233,9 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
    * creates a dot-ai authorization code, and redirects to the MCP client.
    */
   async handleCallback(req: Request, res: Response): Promise<void> {
-    const dexCode = req.query.code as string | undefined;
-    const encodedState = req.query.state as string | undefined;
-    const error = req.query.error as string | undefined;
+    const dexCode = extractQueryParam(req.query.code);
+    const encodedState = extractQueryParam(req.query.state);
+    const error = extractQueryParam(req.query.error);
 
     if (error) {
       const sessionId = encodedState?.split(STATE_SEPARATOR)[0];
@@ -235,7 +245,7 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
         const errUrl = new URL(pending.redirectUri);
         errUrl.searchParams.set('error', 'access_denied');
         errUrl.searchParams.set('error_description',
-          (req.query.error_description as string) ?? 'Authentication failed');
+          extractQueryParam(req.query.error_description) ?? 'Authentication failed');
         if (pending.state) errUrl.searchParams.set('state', pending.state);
         res.redirect(302, errUrl.toString());
       } else {
