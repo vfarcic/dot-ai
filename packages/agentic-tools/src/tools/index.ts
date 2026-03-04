@@ -94,17 +94,13 @@ type AnyTool = KubectlTool | QdrantTool | KnowledgeTool;
 /**
  * Combined list of all tools
  */
-const ALL_TOOLS: AnyTool[] = [
-  ...ALL_KUBECTL_HELM_TOOLS,
-  ...VECTOR_TOOLS,
-  ...KNOWLEDGE_TOOLS,
-];
+const ALL_TOOLS: AnyTool[] = [...ALL_KUBECTL_HELM_TOOLS, ...VECTOR_TOOLS, ...KNOWLEDGE_TOOLS];
 
 /**
  * Tool definitions for the describe hook
  * Extracted from each tool's definition property
  */
-export const TOOLS: ToolDefinition[] = ALL_TOOLS.map(tool => tool.definition);
+export const TOOLS: ToolDefinition[] = ALL_TOOLS.map((tool) => tool.definition);
 
 /**
  * Tool handler function type
@@ -116,5 +112,5 @@ export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
  * Built automatically from the ALL_TOOLS array
  */
 export const TOOL_HANDLERS: Record<string, ToolHandler> = Object.fromEntries(
-  ALL_TOOLS.map(tool => [tool.definition.name, tool.handler])
+  ALL_TOOLS.map((tool) => [tool.definition.name, tool.handler])
 );
