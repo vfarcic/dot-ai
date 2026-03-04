@@ -10,6 +10,16 @@
           "text": "Please help me troubleshoot the pod 'nginx-deployment-7d9c67b5f-abc12' in the 'default' namespace. Here's what I know:\n\n1. Check the pod status and recent events\n2. Look at container logs for errors\n3. Verify resource limits and requests\n4. Check if the pod can reach required services\n5. Examine any volume mounts or secrets\n\nProvide step-by-step guidance and kubectl commands I can run."
         }
       }
+    ],
+    "files": [
+      {
+        "path": "troubleshoot.sh",
+        "content": "IyEvYmluL2Jhc2gKIyBUcm91Ymxlc2hvb3QgcG9kIGlzc3VlcwplY2hvICJDaGVja2luZyBwb2Qgc3RhdHVzLi4uIgprdWJlY3RsIGdldCBwb2QgIiQxIiAtbiAiJHsyOi1kZWZhdWx0fSIgLW8gd2lkZQplY2hvICJDaGVja2luZyBwb2QgZXZlbnRzLi4uIgprdWJlY3RsIGRlc2NyaWJlIHBvZCAiJDEiIC1uICIkezI6LWRlZmF1bHR9IiB8IGdyZXAgLUEgMjAgIkV2ZW50czoiCmVjaG8gIkNoZWNraW5nIHBvZCBsb2dzLi4uIgprdWJlY3RsIGxvZ3MgIiQxIiAtbiAiJHsyOi1kZWZhdWx0fSIgLS10YWlsPTUwCg=="
+      },
+      {
+        "path": "templates/pod-debug.yaml",
+        "content": "YXBpVmVyc2lvbjogdjEKa2luZDogUG9kCm1ldGFkYXRhOgogIG5hbWU6IGRlYnVnLXBvZAogIG5hbWVzcGFjZTogZGVmYXVsdApzcGVjOgogIGNvbnRhaW5lcnM6CiAgICAtIG5hbWU6IGRlYnVnCiAgICAgIGltYWdlOiBidXN5Ym94OmxhdGVzdAogICAgICBjb21tYW5kOiBbInNsZWVwIiwgIjM2MDAiXQogICAgICByZXNvdXJjZXM6CiAgICAgICAgbGltaXRzOgogICAgICAgICAgbWVtb3J5OiAiMTI4TWkiCiAgICAgICAgICBjcHU6ICIyNTBtIgo="
+      }
     ]
   },
   "meta": {

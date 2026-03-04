@@ -126,6 +126,16 @@ For documentation-first PRDs:
 
 **⚠️ MANDATORY: Complete this step BEFORE proceeding to Step 4**
 
+### Issue Assignment
+
+**Assign the GitHub issue to yourself to signal that work is in progress:**
+
+```bash
+gh issue edit [issue-id] --add-assignee @me
+```
+
+This prevents others from picking up the same PRD and working on it in parallel.
+
 ### Git Branch Management
 
 1. **Check current branch**: Run `git branch --show-current`
@@ -146,6 +156,7 @@ For documentation-first PRDs:
 
 ```markdown
 ## Environment Setup ✅
+- **Assignee**: @[username] ✅
 - **Branch**: `[current-branch-name]` ✅
 - **Status**: [Created new branch / Already on correct branch / Staying on main (reason)]
 ```
@@ -160,6 +171,7 @@ Once the implementation context is set up, present this message to the user:
 ## Ready for Implementation 🚀
 
 **PRD**: [PRD Name] (#[PRD Number])
+**Assignee**: @[username]
 **Branch**: `[branch-name]`
 **Status**: Ready for development
 
@@ -181,6 +193,7 @@ To identify and start working on your first task, run `/prd-next`.
 This command should:
 - ✅ Successfully identify the target PRD for implementation
 - ✅ Validate that the PRD is ready for development work
+- ✅ Assign the GitHub issue to the current user to prevent duplicate work
 - ✅ Set up proper implementation context (branch, environment)
 - ✅ Hand off to `/prd-next` for task identification
 - ✅ Bridge the gap between PRD planning and development setup

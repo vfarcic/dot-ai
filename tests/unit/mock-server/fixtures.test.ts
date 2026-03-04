@@ -8,6 +8,7 @@
 import { describe, test, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { matchRoute } from '../../../mock-server/routes';
 
 const MOCK_SERVER_DIR = join(
   import.meta.dirname,
@@ -179,6 +180,38 @@ describe('Mock Server Fixtures', () => {
     });
   });
 
+  describe('Route matching: /api/v1/prompts/refresh vs :promptName', () => {
+    test('should match refresh route, not the wildcard', () => {
+      const result = matchRoute('POST', '/api/v1/prompts/refresh');
+
+      expect(result).not.toBeNull();
+      expect(result!.route.path).toBe('/api/v1/prompts/refresh');
+      expect(result!.route.fixture).toBe('prompts/refresh-success.json');
+      expect(result!.params).toEqual({});
+    });
+  });
+
+  describe('POST /api/v1/prompts/refresh - Refresh Prompts Cache', () => {
+    test('should have valid fixture with refresh data', async () => {
+      const fixture = (await loadFixture(
+        'prompts/refresh-success.json'
+      )) as any;
+
+      expect(fixture).toMatchObject({
+        success: true,
+        data: {
+          refreshed: expect.any(Boolean),
+          promptsLoaded: expect.any(Number),
+          source: expect.any(String),
+        },
+        meta: {
+          timestamp: expect.any(String),
+          version: '1.0.0',
+        },
+      });
+    });
+  });
+
   describe('POST /api/v1/prompts/:promptName - Get Prompt', () => {
     test('should have valid fixture with messages array', async () => {
       const fixture = (await loadFixture('prompts/get-success.json')) as any;
@@ -206,6 +239,27 @@ describe('Mock Server Fixtures', () => {
       // Verify messages content is non-empty
       expect(fixture.data.messages.length).toBeGreaterThan(0);
       expect(fixture.data.messages[0].content.text.length).toBeGreaterThan(0);
+
+      // Verify optional files array with base64-encoded supporting files
+      expect(fixture.data.files).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: expect.any(String),
+            content: expect.any(String),
+          }),
+        ])
+      );
+
+      // Verify files include a flat file and a nested path file
+      const filePaths = fixture.data.files.map((f: any) => f.path);
+      expect(filePaths).toContain('troubleshoot.sh');
+      expect(filePaths).toContain('templates/pod-debug.yaml');
+
+      // Verify content is valid base64
+      for (const file of fixture.data.files) {
+        const decoded = Buffer.from(file.content, 'base64').toString('utf-8');
+        expect(decoded.length).toBeGreaterThan(0);
+      }
     });
   });
 
