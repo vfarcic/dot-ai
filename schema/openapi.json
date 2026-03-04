@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -1906,6 +1906,149 @@
           }
         }
       }
+    },
+    "/api/v1/users": {
+      "post": {
+        "summary": "Create a new Dex static user",
+        "description": "Create a new Dex static user",
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersPostResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersPostError400"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersPostError409"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersPostError500"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsersPostRequest"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List all Dex static users (emails only)",
+        "description": "List all Dex static users (emails only)",
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersGetResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersGetError500"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{email}": {
+      "delete": {
+        "summary": "Delete a Dex static user by email",
+        "description": "Delete a Dex static user by email",
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersEmailDeleteResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersEmailDeleteError404"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersEmailDeleteError500"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "email",
+            "in": "path",
+            "required": true,
+            "description": "User email address",
+            "schema": {
+              "type": "string",
+              "description": "User email address"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2751,7 +2894,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -3088,7 +3232,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -3334,7 +3479,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -3537,7 +3683,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -3838,7 +3985,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -4112,7 +4260,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -4353,7 +4502,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -4532,7 +4682,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -4829,7 +4980,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -5071,7 +5223,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -5289,7 +5442,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -5654,7 +5808,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -6071,7 +6226,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -6324,7 +6480,8 @@
                   "VISUALIZATION_ERROR",
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR"
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
                 ]
               },
               "message": {
@@ -7123,6 +7280,537 @@
           "success",
           "error"
         ]
+      },
+      "UsersPostResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                "description": "Created user email"
+              },
+              "message": {
+                "type": "string",
+                "description": "Result message"
+              }
+            },
+            "required": [
+              "email",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "UsersPostRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "User email address"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "description": "User password (minimum 8 characters)"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "UsersPostError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "INVALID_REQUEST"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "UsersPostError409": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "USER_CONFLICT"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "UsersPostError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "USER_MANAGEMENT_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "UsersGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "users": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                      "description": "User email address"
+                    }
+                  },
+                  "required": [
+                    "email"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "List of users"
+              },
+              "total": {
+                "type": "number",
+                "description": "Total number of users"
+              }
+            },
+            "required": [
+              "users",
+              "total"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "UsersGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "USER_MANAGEMENT_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "UsersEmailDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                "description": "Created user email"
+              },
+              "message": {
+                "type": "string",
+                "description": "Result message"
+              }
+            },
+            "required": [
+              "email",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "UsersEmailDeleteError404": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "USER_NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "UsersEmailDeleteError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "USER_MANAGEMENT_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
       }
     }
   },
@@ -7194,6 +7882,10 @@
     {
       "name": "Tools",
       "description": "Tools endpoints"
+    },
+    {
+      "name": "Users",
+      "description": "Users endpoints"
     },
     {
       "name": "Visualization",

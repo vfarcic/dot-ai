@@ -102,6 +102,18 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   const { route, params } = match;
 
+  // Handle redirect routes (e.g., /authorize)
+  if (route.redirect) {
+    const redirectUri = url.searchParams.get('redirect_uri') || 'http://localhost:3000/callback';
+    const state = url.searchParams.get('state') || '';
+    const redirectUrl = new URL(redirectUri);
+    redirectUrl.searchParams.set('code', 'mock-authorization-code-12345');
+    if (state) redirectUrl.searchParams.set('state', state);
+    res.writeHead(302, { Location: redirectUrl.toString() });
+    res.end();
+    return;
+  }
+
   // Check if fixture is configured
   if (!route.fixture) {
     sendJson(res, 501, {

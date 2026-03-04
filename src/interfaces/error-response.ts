@@ -46,15 +46,20 @@ export function formatErrorResponse(
  * @param code - Error code
  * @param message - Human-readable error message
  * @param details - Optional additional details
+ * @param headers - Optional additional HTTP headers (e.g., WWW-Authenticate)
  */
 export function sendErrorResponse(
   res: ServerResponse,
   statusCode: number,
   code: string,
   message: string,
-  details?: unknown
+  details?: unknown,
+  headers?: Record<string, string>
 ): void {
   const body = formatErrorResponse(code, message, details);
-  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json',
+    ...headers,
+  });
   res.end(JSON.stringify(body));
 }

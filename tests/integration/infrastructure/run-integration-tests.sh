@@ -284,6 +284,12 @@ else
     log_info "Using public user prompts repo (no DOT_AI_GIT_TOKEN)"
 fi
 
+log_info "Updating Helm chart dependencies..."
+helm dependency update ./charts || {
+    log_error "Failed to update Helm dependencies"
+    exit 1
+}
+
 log_info "Deploying dot-ai via Helm chart..."
 log_info "AI Provider: ${AI_PROVIDER}"
 
@@ -307,6 +313,8 @@ kubectl create secret generic dot-ai-secrets \
     --dry-run=client -o yaml | kubectl apply -f -
 
 # Deploy via Helm with local images
+# Dex secrets (admin password, client secret, JWT secret) are auto-generated
+# on first install by the dex-secret.yaml template. Tests read them after install.
 helm upgrade --install dot-ai ./charts \
     --namespace dot-ai \
     --set image.repository=dot-ai \
@@ -317,14 +325,17 @@ helm upgrade --install dot-ai ./charts \
     --set ingress.enabled=true \
     --set ingress.className=nginx \
     --set ingress.host=dot-ai.127.0.0.1.nip.io \
+    --set externalUrl=http://dot-ai.127.0.0.1.nip.io:8180 \
+    --set dex.externalUrl=http://dex.dot-ai.127.0.0.1.nip.io:8180 \
     --set qdrant.enabled=false \
     --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
     $([[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]] && echo "--set localEmbeddings.enabled=true") \
     --set webUI.baseUrl="https://dot-ai-ui.test.local" \
+    --set dex.enabled=true \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
     --set plugins.agentic-tools.image.pullPolicy=Never \
-    --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"}]" \
+    --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"},{\"name\":\"MCP_DANGEROUSLY_ALLOW_INSECURE_ISSUER_URL\",\"value\":\"true\"}]" \
     --wait --timeout=300s || {
     log_error "Failed to deploy dot-ai via Helm"
     kubectl get pods -n dot-ai
@@ -340,6 +351,16 @@ kubectl wait --namespace dot-ai \
     log_error "dot-ai deployment failed to become ready"
     kubectl get pods -n dot-ai
     kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+    exit 1
+}
+
+log_info "Waiting for Dex OIDC provider to be ready (PRD #380)..."
+kubectl wait --namespace dot-ai \
+    --for=condition=available deployment/dot-ai-dex \
+    --timeout=120s || {
+    log_error "Dex failed to become ready"
+    kubectl get pods -n dot-ai
+    kubectl logs -n dot-ai -l app.kubernetes.io/name=dex --tail=50
     exit 1
 }
 
@@ -394,6 +415,12 @@ fi
 # Export configuration for tests
 export MCP_BASE_URL="${MCP_URL}"
 export DOT_AI_AUTH_TOKEN="${TEST_AUTH_TOKEN}"
+
+# Dex OAuth test credentials (PRD #380)
+# Read auto-generated admin password from the Secret created by Helm
+export DEX_TEST_USER_EMAIL="admin@dot-ai.local"
+export DEX_TEST_USER_PASSWORD=$(kubectl get secret dot-ai-dex -n dot-ai -o jsonpath='{.data.admin-password}' | base64 -d)
+export DEX_ISSUER_URL="http://dex.dot-ai.127.0.0.1.nip.io:8180"
 
 # Step 5: Run integration tests
 log_info "Running integration tests..."

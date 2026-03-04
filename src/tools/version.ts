@@ -19,6 +19,7 @@ import { loadTracingConfig } from '../core/tracing/config';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
 import { isPluginInitialized, invokePluginTool, getPluginManager } from '../core/plugin-registry';
+import { getCurrentIdentity } from '../interfaces/request-context';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
@@ -919,9 +920,13 @@ export async function handleVersionTool(
     // PRD #320: Generate visualization URL if configured
     const visualizationUrl = getVisualizationUrl(session.sessionId);
 
+    // PRD #380: Include authenticated user identity in output
+    const identity = getCurrentIdentity();
+
     // Build response with optional visualization URL in JSON
     const responseData = {
       status: 'success',
+      ...(identity ? { identity } : {}),
       system: systemStatus,
       summary,
       timestamp,

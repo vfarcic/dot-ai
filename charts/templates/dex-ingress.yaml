@@ -1,0 +1,41 @@
+{{/*
+Dex Ingress — automatically created when the main ingress is enabled.
+Derives host from the main ingress host (prepends "dex." prefix).
+*/}}
+{{- if and .Values.dex.enabled .Values.ingress.enabled }}
+{{- $dexHost := include "dot-ai.dexExternalHost" . }}
+{{- if $dexHost }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "dot-ai.fullname" . }}-dex
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+  - hosts:
+    - {{ $dexHost }}
+    secretName: {{ include "dot-ai.fullname" . }}-dex-tls
+  {{- end }}
+  rules:
+  - host: {{ $dexHost }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-dex
+            port:
+              number: 5556
+{{- end }}
+{{- end }}
