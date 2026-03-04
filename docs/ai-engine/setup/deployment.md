@@ -47,8 +47,7 @@ Export your API key and configure authentication:
 # Required
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
 
-# Optional — for static token auth (CI/CD, REST API, MCP clients without OAuth)
-# OAuth is enabled by default — see Authentication section below
+# Required — static token for REST API, CI/CD, and MCP clients without OAuth
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
 # Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
@@ -94,7 +93,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 ```
 
 **Notes**:
-- **Authentication**: OAuth is enabled by default — an admin account is auto-generated on install and credentials are shown in the Helm output. `DOT_AI_AUTH_TOKEN` is optional and enables [static token](authentication.md#static-token) auth alongside OAuth. See [Authentication](authentication.md) for details.
+- **Authentication**: `DOT_AI_AUTH_TOKEN` is required and provides shared token auth for REST API, CI/CD, and MCP clients without OAuth. When Dex is enabled (default), OAuth is also available — an admin account is auto-generated on install and credentials are shown in the Helm output. See [Authentication](authentication.md) for details.
 - `localEmbeddings.enabled=true` deploys an in-cluster embedding service ([HuggingFace TEI](https://github.com/huggingface/text-embeddings-inference)) so semantic search works without any embedding API keys. See [Local Embeddings](#local-embeddings-zero-config) for details.
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `auth-token` instead of using `--set` arguments.

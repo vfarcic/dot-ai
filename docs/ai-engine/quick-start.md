@@ -91,8 +91,7 @@ kubectl wait --namespace ingress-nginx \
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-api03-your-key-here"
 
-# Optional — for static token auth (CI/CD, REST API, MCP clients without OAuth)
-# OAuth is enabled by default — see the Authentication guide for details
+# Required — static token for REST API, CI/CD, and MCP clients without OAuth
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
 # Ingress class - change to match your ingress controller (traefik, haproxy, etc.)

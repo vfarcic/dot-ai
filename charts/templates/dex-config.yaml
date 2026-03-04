@@ -24,8 +24,8 @@ independent randAlphaNum calls producing mismatched credentials.
   {{- $dexClientSecret = randAlphaNum 32 }}
   {{- $adminPassword = randAlphaNum 16 }}
 {{- end }}
-{{- $dexExternalUrl := include "dot-ai.dexExternalUrl" . }}
-{{- $dotAiExternalUrl := include "dot-ai.externalUrl" . }}
+{{- $dexExternalUrl := required "Dex issuer URL is required. Set .Values.dex.externalUrl or configure ingress/gateway hostnames." (include "dot-ai.dexExternalUrl" . | trim) }}
+{{- $dotAiExternalUrl := required "dot-ai external URL is required. Set .Values.externalUrl or configure ingress/gateway hostnames." (include "dot-ai.externalUrl" . | trim) }}
 ---
 apiVersion: v1
 kind: Secret
@@ -44,7 +44,7 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: dex
+  name: {{ default "dex" .Values.dex.configSecret.name }}
   labels:
     {{- include "dot-ai.labels" . | nindent 4 }}
 type: Opaque

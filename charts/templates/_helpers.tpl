@@ -109,7 +109,7 @@ Used as the Dex issuer URL and for browser redirects.
 {{- else -}}
 {{- $host := include "dot-ai.dexExternalHost" . -}}
 {{- if $host -}}
-{{- if .Values.ingress.tls.enabled -}}
+{{- if or .Values.ingress.tls.enabled .Values.gateway.listeners.https.hostname -}}
 https://{{ $host }}
 {{- else -}}
 http://{{ $host }}

@@ -117,13 +117,12 @@ spec:
               key: {{ .Values.secrets.customEmbeddings.keyName | default "custom-embeddings-api-key" }}
               optional: true
         # PRD #359: QDRANT_URL moved to agentic-tools plugin (all vector ops go through plugin)
-        # Bearer token authentication (optional, legacy — replaced by Dex OAuth)
+        # Bearer token authentication (required)
         - name: DOT_AI_AUTH_TOKEN
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.auth.keyName }}
-              optional: true
 {{- if .Values.dex.enabled }}
         # Dex OIDC configuration (PRD #380)
         - name: DEX_ISSUER_URL

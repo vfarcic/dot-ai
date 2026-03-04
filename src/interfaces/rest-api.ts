@@ -2992,7 +2992,7 @@ export class RestApiRouter {
         },
       });
 
-      this.logger.info('User created', { requestId, email });
+      this.logger.info('User created', { requestId });
     } catch (error) {
       const err = error as Error & { statusCode?: number };
       if (err.statusCode === 409) {
@@ -3064,7 +3064,7 @@ export class RestApiRouter {
         },
       });
 
-      this.logger.info('User deleted', { requestId, email: decodedEmail });
+      this.logger.info('User deleted', { requestId });
     } catch (error) {
       const err = error as Error & { statusCode?: number };
       if (err.statusCode === 404) {

@@ -1582,10 +1582,14 @@ ${resourceDetails}`;
           ) {
             if (q.type === 'select' && !q.options.includes(q.suggestedAnswer as string)) {
               q.suggestedAnswer = q.options[0];
-            } else if (q.type === 'multiselect' && Array.isArray(q.suggestedAnswer)) {
-              q.suggestedAnswer = (q.suggestedAnswer as string[]).filter(a => q.options!.includes(a));
-              if ((q.suggestedAnswer as string[]).length === 0) {
+            } else if (q.type === 'multiselect') {
+              if (!Array.isArray(q.suggestedAnswer)) {
                 q.suggestedAnswer = [q.options[0]];
+              } else {
+                q.suggestedAnswer = (q.suggestedAnswer as string[]).filter(a => q.options!.includes(a));
+                if ((q.suggestedAnswer as string[]).length === 0) {
+                  q.suggestedAnswer = [q.options[0]];
+                }
               }
             }
           }

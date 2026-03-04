@@ -26,11 +26,12 @@ export function checkBearerAuth(req: IncomingMessage): AuthResult {
   const legacyToken = process.env.DOT_AI_AUTH_TOKEN;
   const jwtSecret = process.env.DOT_AI_JWT_SECRET;
 
-  // If no auth is configured, authentication is disabled (backward compatible)
+  // If no auth is configured, reject — DOT_AI_AUTH_TOKEN is required
   if (!legacyToken && !jwtSecret) {
     return {
-      authorized: true,
-      identity: { userId: 'anonymous', groups: [], source: 'token' },
+      authorized: false,
+      message:
+        'Authentication is not configured. Set DOT_AI_AUTH_TOKEN in your deployment.',
     };
   }
 

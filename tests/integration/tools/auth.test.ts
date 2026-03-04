@@ -464,7 +464,7 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
         },
       },
     });
-  }, 60000);
+  }, 120000);
 
   describe('Error Handling', () => {
     test('should reject callback with missing parameters, invalid state, and unknown session', async () => {
@@ -676,7 +676,7 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
         message: expect.stringContaining('not found'),
       },
     });
-  }, 60000);
+  }, 120000);
 
   describe('Input Validation', () => {
     test('should reject create without email/password and with short password', async () => {

@@ -89,11 +89,46 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
   private authCodes = new Map<string, AuthorizationCode>();
   private dexConfig: DexConfig | null;
   private dotAiExternalUrl: string;
+  private pruneTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.clientsStore = new DotAIClientsStore();
     this.dexConfig = this.loadDexConfig();
     this.dotAiExternalUrl = (process.env.DOT_AI_EXTERNAL_URL || '').replace(/\/$/, '');
+    this.startPruning();
+  }
+
+  /**
+   * Periodically remove expired entries from pendingRequests and authCodes
+   * to prevent unbounded memory growth from abandoned OAuth flows.
+   */
+  private startPruning(): void {
+    // Run every 60 seconds — lightweight scan of small maps
+    this.pruneTimer = setInterval(() => this.pruneExpired(), 60_000);
+    this.pruneTimer.unref(); // Don't prevent Node.js from exiting
+  }
+
+  /** Remove expired pending requests and authorization codes. */
+  private pruneExpired(): void {
+    const now = Date.now();
+    for (const [key, req] of this.pendingRequests) {
+      if (now - req.createdAt > PENDING_REQUEST_TTL_MS) {
+        this.pendingRequests.delete(key);
+      }
+    }
+    for (const [key, code] of this.authCodes) {
+      if (now > code.expiresAt) {
+        this.authCodes.delete(key);
+      }
+    }
+  }
+
+  /** Stop the pruning timer. For testing only. @internal */
+  _stopPruning(): void {
+    if (this.pruneTimer) {
+      clearInterval(this.pruneTimer);
+      this.pruneTimer = null;
+    }
   }
 
   private loadDexConfig(): DexConfig | null {
@@ -122,6 +157,10 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
   ): Promise<void> {
     if (!this.dexConfig) {
       throw new ServerError('Dex not configured (set DEX_ISSUER_URL, DEX_CLIENT_ID, DEX_CLIENT_SECRET)');
+    }
+
+    if (!this.dotAiExternalUrl) {
+      throw new ServerError('DOT_AI_EXTERNAL_URL is required for OAuth. Set it to the external URL of the dot-ai server.');
     }
 
     const sessionId = randomBytes(16).toString('hex');
@@ -154,7 +193,7 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
    * Do NOT delete the code here — it is consumed in exchangeAuthorizationCode.
    */
   async challengeForAuthorizationCode(
-    _client: OAuthClientInformationFull,
+    client: OAuthClientInformationFull,
     authorizationCode: string
   ): Promise<string> {
     const record = this.authCodes.get(authorizationCode);
@@ -165,6 +204,12 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     if (Date.now() > record.expiresAt) {
       this.authCodes.delete(authorizationCode);
       throw new InvalidGrantError('Authorization code expired');
+    }
+
+    // Verify the code was issued to the requesting client (RFC 6749 §4.1.3)
+    if (record.clientId !== client.client_id) {
+      this.authCodes.delete(authorizationCode);
+      throw new InvalidGrantError('Authorization code was not issued to this client');
     }
 
     return record.codeChallenge;
@@ -178,10 +223,10 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
    * containing the user's identity from the Dex ID token.
    */
   async exchangeAuthorizationCode(
-    _client: OAuthClientInformationFull,
+    client: OAuthClientInformationFull,
     authorizationCode: string,
     _codeVerifier?: string,
-    _redirectUri?: string,
+    redirectUri?: string,
     _resource?: URL
   ): Promise<OAuthTokens> {
     const record = this.authCodes.get(authorizationCode);
@@ -192,6 +237,18 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     if (Date.now() > record.expiresAt) {
       this.authCodes.delete(authorizationCode);
       throw new InvalidGrantError('Authorization code expired');
+    }
+
+    // Verify client_id matches (RFC 6749 §4.1.3)
+    if (record.clientId !== client.client_id) {
+      this.authCodes.delete(authorizationCode);
+      throw new InvalidGrantError('Authorization code was not issued to this client');
+    }
+
+    // Verify redirect_uri matches the original request (RFC 6749 §4.1.3)
+    if (redirectUri && redirectUri !== record.redirectUri) {
+      this.authCodes.delete(authorizationCode);
+      throw new InvalidGrantError('redirect_uri does not match the original authorization request');
     }
 
     // Consume the authorization code (one-time use)

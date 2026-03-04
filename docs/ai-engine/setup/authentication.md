@@ -52,7 +52,7 @@ To connect your organization's identity provider (Google, GitHub, LDAP, SAML), s
 
 ## Static Token
 
-Set `DOT_AI_AUTH_TOKEN` to enable shared token authentication. All users share the same token — there's no individual identity.
+`DOT_AI_AUTH_TOKEN` is required in the Kubernetes secret referenced by the Helm chart. All users sharing this token get anonymous identity — there's no individual user tracking.
 
 **Option A — via Helm values** (chart creates the secret):
 

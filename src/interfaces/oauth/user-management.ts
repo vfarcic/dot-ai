@@ -83,6 +83,9 @@ function getDexGrpcEndpoint(): string {
 
 const BCRYPT_ROUNDS = 10;
 
+/** gRPC deadline for Dex calls (10 seconds). */
+const GRPC_DEADLINE_MS = 10_000;
+
 // ---------------------------------------------------------------------------
 // Internal: promisified gRPC calls
 // ---------------------------------------------------------------------------
@@ -90,8 +93,9 @@ const BCRYPT_ROUNDS = 10;
 function grpcCall<TReq, TResp>(method: string, request: TReq): Promise<TResp> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = getDexClient() as Record<string, (...args: any[]) => void>;
+  const deadline = new Date(Date.now() + GRPC_DEADLINE_MS);
   return new Promise((resolve, reject) => {
-    client[method](request, (err: grpc.ServiceError | null, response: TResp) => {
+    client[method](request, { deadline }, (err: grpc.ServiceError | null, response: TResp) => {
       if (err) {
         reject(err);
       } else {

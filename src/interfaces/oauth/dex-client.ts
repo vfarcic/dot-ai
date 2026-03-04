@@ -74,6 +74,9 @@ export async function exchangeDexCode(
         });
       }
     );
+    req.setTimeout(10_000, () => {
+      req.destroy(new Error('Dex token exchange timed out'));
+    });
     req.on('error', reject);
     req.write(body);
     req.end();
@@ -112,8 +115,15 @@ export function parseIdToken(idToken: string): {
     throw new Error('Invalid JWT format — expected 3 segments');
   }
   const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-  if (!payload.sub) {
+  const now = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp !== 'number' || payload.exp <= now) {
+    throw new Error('ID token is expired or missing exp claim');
+  }
+  if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
     throw new Error('ID token missing sub claim');
+  }
+  if (payload.groups !== undefined && !Array.isArray(payload.groups)) {
+    throw new Error('ID token groups claim must be an array');
   }
   return {
     sub: payload.sub,

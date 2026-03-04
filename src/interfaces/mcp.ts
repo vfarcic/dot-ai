@@ -105,7 +105,6 @@ export interface MCPServerConfig {
   author?: string;
   port?: number;
   host?: string;
-  sessionMode?: 'stateful' | 'stateless';
   /** Optional PluginManager for plugin-based tools (PRD #343) */
   pluginManager?: PluginManager;
 }
@@ -424,9 +423,7 @@ export class MCPServer {
   }
 
   async start(): Promise<void> {
-    this.logger.info('Starting MCP Server', {
-      sessionMode: this.config.sessionMode || 'stateful'
-    });
+    this.logger.info('Starting MCP Server');
 
     await this.startHttpTransport();
 
@@ -440,9 +437,7 @@ export class MCPServer {
   private async startHttpTransport(): Promise<void> {
     const port = process.env.PORT ? parseInt(process.env.PORT) : (this.config.port !== undefined ? this.config.port : 3456);
     const host = process.env.HOST || this.config.host || '0.0.0.0';
-    const sessionMode = process.env.SESSION_MODE || this.config.sessionMode || 'stateful';
-    
-    this.logger.info('Using HTTP/SSE transport', { port, host, sessionMode });
+    this.logger.info('Using HTTP/SSE transport', { port, host });
 
     // Create OAuth provider and Express sub-app with SDK router
     // Issuer URL: DOT_AI_EXTERNAL_URL for production (HTTPS), localhost for dev/test
@@ -461,11 +456,6 @@ export class MCPServer {
     this.oauthApp.get('/callback', async (req, res) => {
       await oauthProvider.handleCallback(req, res);
     });
-
-    // Session mode determines transport creation strategy:
-    // - stateful: new transport per client, tracked by session ID
-    // - stateless: single transport (legacy mode)
-    const isStateful = sessionMode === 'stateful';
 
     // Create HTTP server
     this.httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
@@ -580,7 +570,7 @@ export class MCPServer {
               ? (body as unknown[]).some(m => isInitializeRequest(m))
               : isInitializeRequest(body));
 
-          if (isInit && isStateful) {
+          if (isInit) {
             // Create a new McpServer + transport pair for this client session.
             // Each session gets its own McpServer instance because the SDK's
             // Protocol class only supports one transport at a time.
@@ -604,7 +594,7 @@ export class MCPServer {
             await server.connect(transport);
             await transport.handleRequest(req, res, body);
             endSpan(res.statusCode || 200);
-          } else if (isStateful) {
+          } else {
             // Route to existing session by Mcp-Session-Id header
             const sessionId = req.headers['mcp-session-id'] as string | undefined;
             const session = sessionId ? this.sessions.get(sessionId) : undefined;
@@ -615,22 +605,6 @@ export class MCPServer {
             }
             session.lastActivity = Date.now();
             await session.transport.handleRequest(req, res, body);
-            endSpan(res.statusCode || 200);
-          } else {
-            // Stateless fallback — single session (legacy)
-            if (!this.sessions.has('_stateless')) {
-              const session: McpSession = {} as McpSession;
-              const transport = new StreamableHTTPServerTransport({
-                sessionIdGenerator: undefined,
-                enableJsonResponse: false,
-              });
-              const server = this.createSessionServer(session);
-              session.server = server;
-              session.transport = transport;
-              await server.connect(transport);
-              this.sessions.set('_stateless', session);
-            }
-            await this.sessions.get('_stateless')!.transport.handleRequest(req, res, body);
             endSpan(res.statusCode || 200);
           }
         } catch (error) {

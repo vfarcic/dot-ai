@@ -159,7 +159,7 @@ export interface ExecutionChoice {
 }
 
 export interface RemediateOutput {
-  status: 'success' | 'failed' | 'awaiting_user_approval';
+  status: 'success' | 'failed' | 'awaiting_user_approval' | 'partially_resolved';
   sessionId: string;
   investigation: {
     iterations: number;
@@ -859,7 +859,7 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
 
         const enhancedResponse = {
           ...validationOutput,
-          status: 'success' as const,
+          status: 'partially_resolved' as const,
           executed: true,
           results: results,
           executedCommands: results.map(r => r.action),

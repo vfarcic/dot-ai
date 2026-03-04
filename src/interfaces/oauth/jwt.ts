@@ -100,9 +100,17 @@ export function verifyJwt(token: string, secret: string): JwtClaims | null {
     return null;
   }
 
-  // Check expiration
+  // Validate identity claims
+  if (typeof claims.sub !== 'string' || claims.sub.length === 0) {
+    return null;
+  }
+  if (claims.groups !== undefined && !Array.isArray(claims.groups)) {
+    return null;
+  }
+
+  // Check expiration (strict: exp === now is treated as expired)
   const now = Math.floor(Date.now() / 1000);
-  if (typeof claims.exp !== 'number' || claims.exp < now) {
+  if (typeof claims.exp !== 'number' || claims.exp <= now) {
     return null;
   }
 
