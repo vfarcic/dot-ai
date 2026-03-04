@@ -522,6 +522,36 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
   });
 });
 
+// --- Login Page Theming Tests (PRD #380 Task 3.6) ---
+// Verifies Dex serves the branded DevOps AI Toolkit login page.
+
+describe.skipIf(!dexConfigured)('Login Page Theming (PRD #380 Task 3.6)', () => {
+  const dexIssuerUrl = process.env.DEX_ISSUER_URL!;
+
+  test('should serve branded login page with DevOps AI Toolkit theme', async () => {
+    // Hit Dex's auth endpoint directly to get the login page
+    const authUrl = `${dexIssuerUrl}/auth/local?req=test`;
+    const res = await rawHttp(authUrl);
+
+    // Dex may redirect or return 200 — follow up to 3 redirects
+    let body = res.body;
+    let currentUrl = authUrl;
+    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      const nextUrl = res.headers.location.startsWith('http')
+        ? res.headers.location
+        : new URL(res.headers.location, currentUrl).toString();
+      const followRes = await rawHttp(nextUrl);
+      body = followRes.body;
+    }
+
+    // Verify branded theme elements
+    expect(body).toContain('DevOps AI Toolkit');
+    expect(body).toContain('#FACB00');
+    expect(body).toContain('#2D2D2D');
+    expect(body).toContain('data:image/jpeg;base64,');
+  }, 30000);
+});
+
 // --- User Management Tests (PRD #380 Task 2.5) ---
 // Skipped when Dex env vars are not set so existing CI without Dex still passes.
 

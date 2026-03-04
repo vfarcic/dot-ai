@@ -262,6 +262,9 @@ dex:
     name: dex
   grpc:
     enabled: true                     # Enable gRPC API for user management (PRD #380 Task 2.5)
+  image:                                  # Custom image with branded login page (PRD #380 Task 3.6)
+    repository: ghcr.io/vfarcic/dot-ai-dex
+    tag: "v2.44.0"
 
 # Plugin configuration (PRD #343)
 # Plugins are configured as a map, allowing users to customize defaults or add their own.

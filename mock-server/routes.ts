@@ -12,6 +12,7 @@ export interface RouteDefinition {
   method: HttpMethod;
   description: string;
   fixture?: string; // Path to fixture file (relative to fixtures/)
+  redirect?: boolean; // If true, respond with 302 redirect instead of JSON
 }
 
 /**
@@ -19,6 +20,38 @@ export interface RouteDefinition {
  * Routes without a fixture will return 501 Not Implemented.
  */
 export const routes: RouteDefinition[] = [
+  // OAuth Endpoints (MCP Authorization spec)
+  {
+    path: '/.well-known/oauth-authorization-server',
+    method: 'GET',
+    description: 'OAuth authorization server metadata',
+    fixture: 'oauth/authorization-server-metadata.json',
+  },
+  {
+    path: '/.well-known/oauth-protected-resource',
+    method: 'GET',
+    description: 'OAuth protected resource metadata',
+    fixture: 'oauth/protected-resource-metadata.json',
+  },
+  {
+    path: '/register',
+    method: 'POST',
+    description: 'Dynamic client registration',
+    fixture: 'oauth/register-success.json',
+  },
+  {
+    path: '/authorize',
+    method: 'GET',
+    description: 'OAuth authorization endpoint (redirects to callback with mock code)',
+    redirect: true,
+  },
+  {
+    path: '/token',
+    method: 'POST',
+    description: 'OAuth token endpoint',
+    fixture: 'oauth/token-success.json',
+  },
+
   // Tool Endpoints
   {
     path: '/api/v1/tools',

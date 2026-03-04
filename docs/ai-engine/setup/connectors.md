@@ -59,21 +59,37 @@ The following walks through connecting Google as an identity provider. For other
 
 > **Note**: If your Google Workspace restricts OAuth apps to verified apps, you may need to add the app to the allowlist or publish it for internal use. See [Google's OAuth verification docs](https://support.google.com/cloud/answer/9110914).
 
-### Step 2: Configure Helm Values
+### Step 2: Store Credentials in a Kubernetes Secret
 
-Add the Google connector to your values file:
+Store the OAuth credentials in a Kubernetes Secret — never put them in plain text in your values file:
+
+```bash
+kubectl create secret generic dex-google-oauth \
+  --namespace dot-ai \
+  --from-literal=GOOGLE_CLIENT_ID="YOUR_GOOGLE_CLIENT_ID" \
+  --from-literal=GOOGLE_CLIENT_SECRET="YOUR_GOOGLE_CLIENT_SECRET"
+```
+
+### Step 3: Configure Helm Values
+
+Add the Google connector to your values file. Dex supports `$ENV_VAR` references in connector config — it resolves them at runtime from environment variables:
 
 ```yaml
 dex:
+  envFrom:
+    - secretRef:
+        name: dex-google-oauth
   connectors:
     - type: google
       id: google
       name: Google
       config:
-        clientID: "YOUR_GOOGLE_CLIENT_ID"
-        clientSecret: "YOUR_GOOGLE_CLIENT_SECRET"
+        clientID: $GOOGLE_CLIENT_ID
+        clientSecret: $GOOGLE_CLIENT_SECRET
         redirectURI: "https://dex.<your-host>/callback"
 ```
+
+`envFrom` mounts the Secret as environment variables on the Dex pod. The `$GOOGLE_CLIENT_ID` and `$GOOGLE_CLIENT_SECRET` references are resolved by Dex at startup.
 
 ### Restricting by Domain
 
@@ -81,13 +97,16 @@ By default, any Google account can authenticate. To restrict login to specific d
 
 ```yaml
 dex:
+  envFrom:
+    - secretRef:
+        name: dex-google-oauth
   connectors:
     - type: google
       id: google
       name: Google
       config:
-        clientID: "YOUR_GOOGLE_CLIENT_ID"
-        clientSecret: "YOUR_GOOGLE_CLIENT_SECRET"
+        clientID: $GOOGLE_CLIENT_ID
+        clientSecret: $GOOGLE_CLIENT_SECRET
         redirectURI: "https://dex.<your-host>/callback"
         hostedDomains:
           - example.com
@@ -95,7 +114,7 @@ dex:
 
 > **Note**: `hostedDomains` controls which domains can authenticate — not individual users. Per-user access control will be available when [RBAC enforcement](https://github.com/vfarcic/dot-ai/issues/392) is implemented, allowing fine-grained permissions based on user identity and groups.
 
-### Step 3: Upgrade
+### Step 4: Upgrade
 
 Apply the connector configuration:
 
@@ -107,7 +126,7 @@ helm upgrade dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --wait
 ```
 
-### Step 4: Verify
+### Step 5: Verify
 
 1. Open your MCP client (e.g., Claude Code)
 2. Authenticate — you should see a **"Log in with Google"** option alongside the password form
@@ -116,16 +135,21 @@ helm upgrade dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 ## Other Connectors
 
-Dex supports 30+ identity providers. All connectors use the same Helm pattern — add entries to the `dex.connectors` array:
+Dex supports 30+ identity providers. All connectors use the same Helm pattern — store credentials in a Kubernetes Secret, mount them via `envFrom`, and reference them with `$ENV_VAR` syntax in the connector config:
 
 ```yaml
 dex:
+  envFrom:
+    - secretRef:
+        name: dex-idp-credentials
   connectors:
     - type: <connector-type>    # e.g., github, ldap, saml
       id: <unique-id>           # e.g., github, my-ldap
       name: <display-name>      # Shown on the login page
       config:
-        # Connector-specific configuration
+        clientID: $IDP_CLIENT_ID
+        clientSecret: $IDP_CLIENT_SECRET
+        # Additional connector-specific configuration
 ```
 
 Common connectors:

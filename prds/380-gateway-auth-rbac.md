@@ -1,10 +1,10 @@
 # PRD: MCP OAuth Authentication & User Identity
 
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **GitHub Issue**: [#380](https://github.com/vfarcic/dot-ai/issues/380)
 **Created**: 2026-02-18
-**Last Updated**: 2026-03-02
+**Last Updated**: 2026-03-04
 **Supersedes**: [PRD #360 - User Authentication](./done/360-user-authentication.md) (closed)
 
 ---
@@ -304,7 +304,7 @@ On `helm upgrade`, the existing Secret is preserved — credentials are only gen
 - [x] Google connector tested end-to-end and documented with validated example; other connectors reference [Dex Connector Documentation](https://dexidp.io/docs/connectors/)
 
 #### Task 3.6: Dex Login Page Theming
-- [ ] Custom login page templates (logo, colors, CSS) mounted via ConfigMap, Helm-configurable
+- [x] Custom Dex Docker image (`ghcr.io/vfarcic/dot-ai-dex:v2.44.0`) with branded login page (logo, colors, CSS) baked in at `/srv/dex/web/`
 
 **Success Criteria:**
 - Admins can deploy and configure OAuth following documentation alone
