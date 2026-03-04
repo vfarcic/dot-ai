@@ -122,8 +122,13 @@ export function parseIdToken(idToken: string): {
   if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
     throw new Error('ID token missing sub claim');
   }
-  if (payload.groups !== undefined && !Array.isArray(payload.groups)) {
-    throw new Error('ID token groups claim must be an array');
+  if (payload.email !== undefined && typeof payload.email !== 'string') {
+    throw new Error('ID token email claim must be a string');
+  }
+  if (payload.groups !== undefined) {
+    if (!Array.isArray(payload.groups) || !payload.groups.every((g: unknown) => typeof g === 'string')) {
+      throw new Error('ID token groups claim must be an array of strings');
+    }
   }
   return {
     sub: payload.sub,

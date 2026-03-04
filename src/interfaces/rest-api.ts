@@ -2964,10 +2964,10 @@ export class RestApiRouter {
 
       const { email, password } = body as { email: string; password: string };
 
-      if (!email || typeof email !== 'string') {
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
         await this.sendErrorResponse(
           res, requestId, HttpStatus.BAD_REQUEST,
-          'INVALID_REQUEST', 'email is required and must be a string'
+          'INVALID_REQUEST', 'A valid email address is required'
         );
         return;
       }
@@ -3051,7 +3051,16 @@ export class RestApiRouter {
     email: string
   ): Promise<void> {
     try {
-      const decodedEmail = decodeURIComponent(email);
+      let decodedEmail: string;
+      try {
+        decodedEmail = decodeURIComponent(email);
+      } catch {
+        await this.sendErrorResponse(
+          res, requestId, HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST', 'Malformed URL-encoded email'
+        );
+        return;
+      }
       const result = await deleteUser(decodedEmail);
 
       await this.sendJsonResponse(res, HttpStatus.OK, {

@@ -140,6 +140,7 @@ export class MCPServer {
   private restApiRouter: RestApiRouter;
   private pluginManager?: PluginManager;
   private oauthApp?: ReturnType<typeof express>;
+  private oauthProvider?: DotAIOAuthProvider;
   private issuerUrl?: URL;
 
   constructor(dotAI: DotAI, config: MCPServerConfig) {
@@ -444,15 +445,16 @@ export class MCPServer {
     // SDK exempts localhost from HTTPS requirement
     const externalUrl = process.env.DOT_AI_EXTERNAL_URL || `http://localhost:${port}`;
     this.issuerUrl = new URL(externalUrl);
-    const oauthProvider = new DotAIOAuthProvider();
+    this.oauthProvider = new DotAIOAuthProvider();
     this.oauthApp = express();
     this.oauthApp.set('trust proxy', 1);
     this.oauthApp.use(mcpAuthRouter({
-      provider: oauthProvider,
+      provider: this.oauthProvider,
       issuerUrl: this.issuerUrl,
     }));
 
     // Dex OIDC callback — receives redirect from Dex after user authenticates (Task 2.3)
+    const oauthProvider = this.oauthProvider;
     this.oauthApp.get('/callback', async (req, res) => {
       await oauthProvider.handleCallback(req, res);
     });
@@ -653,6 +655,12 @@ export class MCPServer {
   }
 
   async stop(): Promise<void> {
+    // Stop OAuth provider pruning timer
+    if (this.oauthProvider) {
+      this.oauthProvider._stopPruning();
+      this.oauthProvider = undefined;
+    }
+
     // Stop session GC timer
     if (this.sessionGcTimer) {
       clearInterval(this.sessionGcTimer);

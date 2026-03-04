@@ -89,10 +89,10 @@ Prepends "dex." to the main host (e.g., dot-ai.example.com → dex.dot-ai.exampl
 {{- $host := "" -}}
 {{- if .Values.ingress.enabled -}}
   {{- $host = .Values.ingress.host -}}
-{{- else if .Values.gateway.listeners.http.hostname -}}
-  {{- $host = .Values.gateway.listeners.http.hostname -}}
 {{- else if .Values.gateway.listeners.https.hostname -}}
   {{- $host = .Values.gateway.listeners.https.hostname -}}
+{{- else if .Values.gateway.listeners.http.hostname -}}
+  {{- $host = .Values.gateway.listeners.http.hostname -}}
 {{- end -}}
 {{- if $host -}}
 dex.{{ $host }}
