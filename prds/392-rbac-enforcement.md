@@ -5,7 +5,7 @@
 **GitHub Issue**: [#392](https://github.com/vfarcic/dot-ai/issues/392)
 **Created**: 2026-03-02
 **Last Updated**: 2026-03-02
-**Depends on**: [PRD #380 - MCP OAuth Authentication & User Identity](./380-gateway-auth-rbac.md)
+**Depends on**: [PRD #380 - MCP OAuth Authentication & User Identity](./done/380-gateway-auth-rbac.md)
 
 ---
 
@@ -312,10 +312,10 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 
 - [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
 - [SubjectAccessReview API](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/subject-access-review-v1/)
-- [PRD #380 - MCP OAuth Authentication & User Identity](./380-gateway-auth-rbac.md)
+- [PRD #380 - MCP OAuth Authentication & User Identity](./done/380-gateway-auth-rbac.md)
 
 ## Related Resources
 
 - **GitHub Issue**: [#392](https://github.com/vfarcic/dot-ai/issues/392)
-- **Depends on**: [PRD #380 - MCP OAuth Authentication & User Identity](./380-gateway-auth-rbac.md)
+- **Depends on**: [PRD #380 - MCP OAuth Authentication & User Identity](./done/380-gateway-auth-rbac.md)
 - **Dependent PRD**: [PRD #361 - User-Specific Permissions](./361-user-specific-permissions.md)
