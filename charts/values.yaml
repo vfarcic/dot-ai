@@ -242,8 +242,11 @@ localEmbeddings:
 # MCP clients authenticate via Dex and receive JWT access tokens.
 # Initial admin credentials are auto-generated on install (shown in Helm notes).
 # Routing (Ingress/Gateway) is automatically derived from the main server's config.
+# NOTE: OAuth requires HTTPS. Enable Dex only when HTTPS is configured
+# (via ingress.tls, gateway HTTPS listener, or an upstream reverse proxy/load balancer).
+# Without Dex, authentication falls back to static token (DOT_AI_AUTH_TOKEN).
 dex:
-  enabled: true                       # Deploy Dex for OAuth authentication
+  enabled: false                      # Deploy Dex for OAuth authentication (requires HTTPS)
   # Production IdP connectors (optional)
   # When configured, users authenticate via their organization's identity provider.
   # See https://dexidp.io/docs/connectors/ for available connectors.

@@ -27,7 +27,7 @@ Access these tools through [MCP clients](/docs/mcp) or the [CLI](https://devopst
 - **Integrated Qdrant Database** — Vector database for capability and pattern management
 - **External Access** — Ingress configuration for team collaboration
 - **Resource Management** — Proper CPU/memory limits and requests
-- **Authentication** — [OAuth](authentication.md#oauth) (enabled by default) and [static token](authentication.md#static-token) authentication
+- **Authentication** — [Static token](authentication.md#static-token) (default) and [OAuth](authentication.md#oauth) (opt-in, requires HTTPS)
 - **Security** — RBAC and ServiceAccount configuration
 
 ## Prerequisites
@@ -93,7 +93,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 ```
 
 **Notes**:
-- **Authentication**: `DOT_AI_AUTH_TOKEN` is required and provides shared token auth for REST API, CI/CD, and MCP clients without OAuth. When Dex is enabled (default), OAuth is also available — an admin account is auto-generated on install and credentials are shown in the Helm output. See [Authentication](authentication.md) for details.
+- **Authentication**: `DOT_AI_AUTH_TOKEN` is required and provides shared token auth for REST API, CI/CD, and MCP clients without OAuth. To enable OAuth with individual user identity, set `dex.enabled: true` (requires HTTPS). See [Authentication](authentication.md) for details.
 - `localEmbeddings.enabled=true` deploys an in-cluster embedding service ([HuggingFace TEI](https://github.com/huggingface/text-embeddings-inference)) so semantic search works without any embedding API keys. See [Local Embeddings](#local-embeddings-zero-config) for details.
 - Replace `dot-ai.127.0.0.1.nip.io` with your desired hostname for external access.
 - For enhanced security, create a secret named `dot-ai-secrets` with keys `anthropic-api-key` and `auth-token` instead of using `--set` arguments.
@@ -424,7 +424,11 @@ Get your OpenRouter API key at [https://openrouter.ai/](https://openrouter.ai/)
 
 ## TLS Configuration
 
-To enable HTTPS, add these values (requires [cert-manager](https://cert-manager.io/) with a ClusterIssuer):
+HTTPS is required for OAuth authentication (`dex.enabled: true`). If you only use static token authentication, HTTPS is optional.
+
+### Ingress-Level TLS (cert-manager)
+
+To terminate TLS at the Ingress (requires [cert-manager](https://cert-manager.io/) with a ClusterIssuer):
 
 ```yaml
 ingress:
@@ -434,6 +438,17 @@ ingress:
 ```
 
 Then update your `.mcp.json` URL to use `https://`.
+
+### Reverse Proxy / External TLS Termination
+
+If TLS terminates upstream (Traefik, nginx, cloud load balancer), leave `ingress.tls.enabled: false` and set the external URLs explicitly:
+
+```yaml
+externalUrl: "https://dot-ai.example.com"
+dex:
+  enabled: true
+  externalUrl: "https://dex.dot-ai.example.com"
+```
 
 ## Web UI Visualization
 
@@ -543,7 +558,7 @@ See **[Gateway API Deployment Guide](gateway-api.md)** for:
 Once the server is running:
 
 ### 1. Configure Authentication
-- **[Authentication](authentication.md)** — Understand OAuth vs static token, retrieve initial admin credentials, add users, or connect your identity provider
+- **[Authentication](authentication.md)** — Understand static token vs OAuth, enable Dex for per-user identity, or connect your identity provider
 
 ### 2. Explore Tools
 - **[Tools Overview](../tools/overview.md)** — Complete guide to all available tools, how they work together, and recommended usage flow
