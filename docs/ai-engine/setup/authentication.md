@@ -8,7 +8,7 @@ sidebar_position: 3
 
 ## Overview
 
-**What it does**: Authenticates users before they can access any toolkit tools. Supports two modes that coexist — OAuth is enabled by default, and static tokens work alongside it.
+**What it does**: Authenticates users before they can access any toolkit tools. Supports two modes that coexist — static token (default) and OAuth for teams that need individual user identity.
 
 **Use when**: You're deploying the AI Engine and need to understand how authentication works or configure it for your team.
 
@@ -16,11 +16,11 @@ sidebar_position: 3
 
 The AI Engine supports two authentication modes simultaneously. Both can be active at the same time — the server tries OAuth (JWT) first, then falls back to static token.
 
-| | OAuth (default) | Static Token |
+| | OAuth (opt-in) | Static Token (default) |
 |--|----------------|--------------|
 | **How it works** | Browser-based login via OIDC | Shared Bearer token (`DOT_AI_AUTH_TOKEN`) |
 | **Identity** | Individual — each user has their own identity | Anonymous — all users share one token |
-| **Setup** | Enabled by default with auto-generated admin | One environment variable |
+| **Setup** | Set `dex.enabled: true` (requires HTTPS) | One environment variable |
 | **User management** | Create/list/delete users via [CLI](https://devopstoolkit.ai/docs/cli) *(coming soon)* and [Web UI](https://devopstoolkit.ai/docs/ui) *(coming soon)* | N/A — single shared token |
 | **Best for** | Teams, enterprise SSO, per-user audit trail | Local dev, CI/CD, quick start |
 
@@ -38,7 +38,14 @@ The AI Engine supports two authentication modes simultaneously. Both can be acti
 
 ## OAuth
 
-On `helm install`, the AI Engine automatically:
+OAuth requires HTTPS for all external URLs. Enable it by setting `dex.enabled: true` in your Helm values when HTTPS is configured (via `ingress.tls`, a [gateway HTTPS listener](gateway-api.md#reference-pattern-https---recommended), or an upstream reverse proxy/load balancer). See the [Deployment Guide TLS section](deployment.md#tls-configuration) for configuration details.
+
+```yaml
+dex:
+  enabled: true
+```
+
+On `helm install` with Dex enabled, the AI Engine automatically:
 
 1. Generates a random admin password
 2. Creates an `admin@dot-ai.local` account

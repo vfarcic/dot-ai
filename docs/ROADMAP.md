@@ -4,7 +4,6 @@ This document outlines the planned direction and priorities for DevOps AI Toolki
 
 This roadmap is a living document and may change based on community feedback and project priorities.
 
-
 ## Short-term (Next 1-3 Months)
 
 - Modular plugin architecture - transform dot-ai into extensible orchestrator (PRD #342)
@@ -12,6 +11,7 @@ This roadmap is a living document and may change based on community feedback and
 - Guided setup system to simplify onboarding (PRD #165)
 - Standardized embedding architecture on Vercel AI SDK (PRD #176)
 - Git operations for recommend tool - push generated manifests to Git repos (PRD #362)
+- Git push recommend integration - pushToGit stage for GitOps workflows (PRD #395)
 - Deployment documentation generation for knowledge base - organizational memory of deployment decisions (PRD #377)
 - Argo CD support for operate tool - detect managed resources and modify source repos (PRD #363)
 - Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
@@ -22,7 +22,6 @@ This roadmap is a living document and may change based on community feedback and
 - User-specific permissions - align AI view with user's Kubernetes RBAC (PRD #361)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
 - Add Alibaba Qwen 3.5 Plus AI provider (PRD #382)
-
 
 ## Medium-term (3-6 Months)
 
@@ -38,7 +37,6 @@ This roadmap is a living document and may change based on community feedback and
 - Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
 - Retire legacy collection migration from unified knowledge base (PRD #376)
 
-
 ## How to Contribute
 
 We welcome contributions toward any roadmap items:
@@ -49,4 +47,4 @@ We welcome contributions toward any roadmap items:
 
 ---
 
-*This roadmap reflects current plans but is subject to change.*
+_This roadmap reflects current plans but is subject to change._

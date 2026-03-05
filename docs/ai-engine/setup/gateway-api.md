@@ -233,6 +233,9 @@ ingress:
 gateway:
   name: "cluster-gateway"
   namespace: "gateway-system"
+  listeners:
+    http:
+      hostname: "dot-ai.example.com"  # Optional: adds host matching to HTTPRoute
   timeouts:
     request: "3600s"
     backendRequest: "3600s"
@@ -296,20 +299,14 @@ helm install dot-ai \
   --create-namespace \
   --set gateway.name=cluster-gateway \
   --set gateway.namespace=gateway-system \
+  --set gateway.listeners.http.hostname="dot-ai.example.com" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   --set localEmbeddings.enabled=true \
   --wait
 ```
 
-**Output:**
-```
-NAME: dot-ai
-LAST DEPLOYED: Sun Dec 22 09:39:45 2025
-NAMESPACE: dot-ai
-STATUS: deployed
-REVISION: 1
-```
+> **Note:** Setting `gateway.listeners.http.hostname` adds host-based matching to the HTTPRoute. Without it, the HTTPRoute matches all hostnames on the referenced Gateway.
 
 Verify deployment:
 
@@ -436,7 +433,7 @@ kubectl wait --for=condition=Programmed gateway/cluster-gateway -n gateway-syste
 
 ### Step 2: Application Team Deploys dot-ai
 
-Same as HTTP deployment - the HTTPRoute will work with both HTTP and HTTPS listeners:
+Set the HTTPS hostname so the chart generates correct URLs for HTTPRoute matching and OAuth callbacks:
 
 ```bash
 helm install dot-ai \
@@ -445,11 +442,39 @@ helm install dot-ai \
   --create-namespace \
   --set gateway.name=cluster-gateway \
   --set gateway.namespace=gateway-system \
+  --set gateway.listeners.https.hostname="dot-ai.example.com" \
   --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   --set localEmbeddings.enabled=true \
   --wait
 ```
+
+Setting `gateway.listeners.https.hostname` tells the chart to:
+- Generate `https://` URLs for OAuth issuer and callback URIs
+- Use the hostname for HTTPRoute host matching
+
+### Enabling OAuth (Optional)
+
+With HTTPS configured, you can enable OAuth for per-user identity:
+
+```bash
+helm install dot-ai \
+  oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:0.168.0 \
+  --namespace dot-ai \
+  --create-namespace \
+  --set gateway.name=cluster-gateway \
+  --set gateway.namespace=gateway-system \
+  --set gateway.listeners.https.hostname="dot-ai.example.com" \
+  --set dex.enabled=true \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set localEmbeddings.enabled=true \
+  --wait
+```
+
+This auto-derives both the Dex issuer URL (`https://dex.dot-ai.example.com`) and the OAuth callback URI (`https://dot-ai.example.com/callback`) from the hostname.
+
+> **Note:** Make sure your Gateway's HTTPS listener and wildcard certificate cover both `dot-ai.example.com` and `dex.dot-ai.example.com`. See [Authentication](authentication.md) and [Identity Provider Connectors](connectors.md) for full OAuth setup.
 
 ## Configuration Reference
 

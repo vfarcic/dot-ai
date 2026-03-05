@@ -9,7 +9,7 @@ annotations: {}
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "1.6.0"                     # Container image tag - set by CI pipeline during release
+  tag: "1.6.1"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
@@ -249,8 +249,11 @@ localEmbeddings:
 # MCP clients authenticate via Dex and receive JWT access tokens.
 # Initial admin credentials are auto-generated on install (shown in Helm notes).
 # Routing (Ingress/Gateway) is automatically derived from the main server's config.
+# NOTE: OAuth requires HTTPS. Enable Dex only when HTTPS is configured
+# (via ingress.tls, gateway HTTPS listener, or an upstream reverse proxy/load balancer).
+# Without Dex, authentication falls back to static token (DOT_AI_AUTH_TOKEN).
 dex:
-  enabled: true                       # Deploy Dex for OAuth authentication
+  enabled: false                      # Deploy Dex for OAuth authentication (requires HTTPS)
   # Production IdP connectors (optional)
   # When configured, users authenticate via their organization's identity provider.
   # See https://dexidp.io/docs/connectors/ for available connectors.
@@ -284,7 +287,7 @@ plugins:
     enabled: true
     image:
       repository: ghcr.io/vfarcic/dot-ai-agentic-tools
-      tag: "1.6.0"
+      tag: "1.6.1"
     port: 8080
     # RBAC created automatically by chart (hardcoded for agentic-tools)
     env: []                         # Additional environment variables
