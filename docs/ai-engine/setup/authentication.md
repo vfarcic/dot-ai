@@ -38,7 +38,7 @@ The AI Engine supports two authentication modes simultaneously. Both can be acti
 
 ## OAuth
 
-OAuth requires HTTPS for all external URLs. Enable it by setting `dex.enabled: true` in your Helm values when HTTPS is configured (via `ingress.tls`, a gateway HTTPS listener, or an upstream reverse proxy/load balancer).
+OAuth requires HTTPS for all external URLs. Enable it by setting `dex.enabled: true` in your Helm values when HTTPS is configured (via `ingress.tls`, a [gateway HTTPS listener](gateway-api.md#reference-pattern-https---recommended), or an upstream reverse proxy/load balancer). See the [Deployment Guide TLS section](deployment.md#tls-configuration) for configuration details.
 
 ```yaml
 dex:
