@@ -55,11 +55,7 @@ import {
   type SearchKnowledgeBaseResult,
 } from '../tools/manage-knowledge';
 import type { AITool } from '../core/ai-provider.interface';
-import {
-  createUser,
-  listUsers,
-  deleteUser,
-} from './oauth/user-management';
+import { createUser, listUsers, deleteUser } from './oauth/user-management';
 
 /**
  * HTTP status codes for REST responses
@@ -439,8 +435,7 @@ export class RestApiRouter {
       // User management (PRD #380 Task 2.5)
       'POST:/api/v1/users': () =>
         this.handleCreateUser(req, res, requestId, body),
-      'GET:/api/v1/users': () =>
-        this.handleListUsers(req, res, requestId),
+      'GET:/api/v1/users': () => this.handleListUsers(req, res, requestId),
       'DELETE:/api/v1/users/:email': () =>
         this.handleDeleteUser(req, res, requestId, params.email),
     };
@@ -1096,39 +1091,51 @@ export class RestApiRouter {
         result.resources.length > 0 &&
         isPluginInitialized()
       ) {
-        const statusPromises = result.resources.map(async resource => {
-          const resourceType = resource.apiGroup
-            ? `${resource.kind.toLowerCase()}.${resource.apiGroup}`
-            : resource.kind.toLowerCase();
-          const resourceId = `${resourceType}/${resource.name}`;
+        // Process status fetches in batches to avoid overwhelming the
+        // agentic-tools pod with concurrent kubectl processes
+        const batchSize = 5;
+        const enrichedResources = [];
+        for (let i = 0; i < result.resources.length; i += batchSize) {
+          const batch = result.resources.slice(i, i + batchSize);
+          const batchResults = await Promise.all(
+            batch.map(async resource => {
+              const resourceType = resource.apiGroup
+                ? `${resource.kind.toLowerCase()}.${resource.apiGroup}`
+                : resource.kind.toLowerCase();
+              const resourceId = `${resourceType}/${resource.name}`;
 
-          const pluginResponse = await invokePluginTool(
-            'agentic-tools',
-            'kubectl_get_resource_json',
-            {
-              resource: resourceId,
-              namespace: resource.namespace,
-              field: 'status',
-            }
-          );
+              const pluginResponse = await invokePluginTool(
+                'agentic-tools',
+                'kubectl_get_resource_json',
+                {
+                  resource: resourceId,
+                  namespace: resource.namespace,
+                  field: 'status',
+                }
+              );
 
-          if (pluginResponse.success && pluginResponse.result) {
-            const pluginResult = pluginResponse.result as {
-              success: boolean;
-              data: string;
-            };
-            if (pluginResult.success && pluginResult.data) {
-              try {
-                return { ...resource, status: JSON.parse(pluginResult.data) };
-              } catch {
-                return resource;
+              if (pluginResponse.success && pluginResponse.result) {
+                const pluginResult = pluginResponse.result as {
+                  success: boolean;
+                  data: string;
+                };
+                if (pluginResult.success && pluginResult.data) {
+                  try {
+                    return {
+                      ...resource,
+                      status: JSON.parse(pluginResult.data),
+                    };
+                  } catch {
+                    return resource;
+                  }
+                }
               }
-            }
-          }
-          return resource;
-        });
-
-        result.resources = await Promise.all(statusPromises);
+              return resource;
+            })
+          );
+          enrichedResources.push(...batchResults);
+        }
+        result.resources = enrichedResources;
       }
 
       const response: RestApiResponse = {
@@ -1870,7 +1877,9 @@ export class RestApiRouter {
     requestId: string
   ): Promise<void> {
     try {
-      this.logger.info('Processing prompts cache refresh request', { requestId });
+      this.logger.info('Processing prompts cache refresh request', {
+        requestId,
+      });
 
       const prompts = await loadAllPrompts(this.logger, undefined, true);
 
@@ -2954,10 +2963,18 @@ export class RestApiRouter {
     body: unknown
   ): Promise<void> {
     try {
-      if (!body || typeof body !== 'object' || !('email' in body) || !('password' in body)) {
+      if (
+        !body ||
+        typeof body !== 'object' ||
+        !('email' in body) ||
+        !('password' in body)
+      ) {
         await this.sendErrorResponse(
-          res, requestId, HttpStatus.BAD_REQUEST,
-          'INVALID_REQUEST', 'Request body must include email and password'
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST',
+          'Request body must include email and password'
         );
         return;
       }
@@ -2966,16 +2983,22 @@ export class RestApiRouter {
 
       if (!email || typeof email !== 'string' || !email.includes('@')) {
         await this.sendErrorResponse(
-          res, requestId, HttpStatus.BAD_REQUEST,
-          'INVALID_REQUEST', 'A valid email address is required'
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST',
+          'A valid email address is required'
         );
         return;
       }
 
       if (!password || typeof password !== 'string' || password.length < 8) {
         await this.sendErrorResponse(
-          res, requestId, HttpStatus.BAD_REQUEST,
-          'INVALID_REQUEST', 'password is required and must be at least 8 characters'
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST',
+          'password is required and must be at least 8 characters'
         );
         return;
       }
@@ -2997,14 +3020,20 @@ export class RestApiRouter {
       const err = error as Error & { statusCode?: number };
       if (err.statusCode === 409) {
         await this.sendErrorResponse(
-          res, requestId, 409 as HttpStatus,
-          'USER_CONFLICT', err.message
+          res,
+          requestId,
+          409 as HttpStatus,
+          'USER_CONFLICT',
+          err.message
         );
       } else {
         this.logger.error('Failed to create user', err, { requestId });
         await this.sendErrorResponse(
-          res, requestId, HttpStatus.INTERNAL_SERVER_ERROR,
-          'USER_MANAGEMENT_ERROR', 'Failed to create user'
+          res,
+          requestId,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'USER_MANAGEMENT_ERROR',
+          'Failed to create user'
         );
       }
     }
@@ -3035,8 +3064,11 @@ export class RestApiRouter {
     } catch (error) {
       this.logger.error('Failed to list users', error as Error, { requestId });
       await this.sendErrorResponse(
-        res, requestId, HttpStatus.INTERNAL_SERVER_ERROR,
-        'USER_MANAGEMENT_ERROR', 'Failed to list users'
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'USER_MANAGEMENT_ERROR',
+        'Failed to list users'
       );
     }
   }
@@ -3056,8 +3088,11 @@ export class RestApiRouter {
         decodedEmail = decodeURIComponent(email);
       } catch {
         await this.sendErrorResponse(
-          res, requestId, HttpStatus.BAD_REQUEST,
-          'INVALID_REQUEST', 'Malformed URL-encoded email'
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'INVALID_REQUEST',
+          'Malformed URL-encoded email'
         );
         return;
       }
@@ -3078,14 +3113,20 @@ export class RestApiRouter {
       const err = error as Error & { statusCode?: number };
       if (err.statusCode === 404) {
         await this.sendErrorResponse(
-          res, requestId, HttpStatus.NOT_FOUND,
-          'USER_NOT_FOUND', err.message
+          res,
+          requestId,
+          HttpStatus.NOT_FOUND,
+          'USER_NOT_FOUND',
+          err.message
         );
       } else {
         this.logger.error('Failed to delete user', err, { requestId });
         await this.sendErrorResponse(
-          res, requestId, HttpStatus.INTERNAL_SERVER_ERROR,
-          'USER_MANAGEMENT_ERROR', 'Failed to delete user'
+          res,
+          requestId,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'USER_MANAGEMENT_ERROR',
+          'Failed to delete user'
         );
       }
     }
