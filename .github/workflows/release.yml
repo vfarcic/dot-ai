@@ -38,7 +38,7 @@ jobs:
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.DOT_AI_GIT_TOKEN }}
         submodules: true
 
     - name: Determine version and mode
@@ -316,7 +316,7 @@ jobs:
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.DOT_AI_GIT_TOKEN }}
         submodules: true
 
     - name: Setup git config
@@ -447,7 +447,7 @@ jobs:
             --notes-file release_body.md
         fi
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}
 
     - name: Trigger CLI Release
       uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
@@ -496,7 +496,7 @@ jobs:
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.DOT_AI_GIT_TOKEN }}
         submodules: true
 
     - name: Download release notes artifact
@@ -535,7 +535,7 @@ jobs:
             --notes-file release_body.md
         fi
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}
 
   # =============================================================================
   # UPDATE UMBRELLA: Update dot-ai-stack umbrella chart
