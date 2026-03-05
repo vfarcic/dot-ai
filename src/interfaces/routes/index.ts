@@ -62,6 +62,16 @@ import {
   EmbeddingMigrationBadRequestErrorSchema,
   EmbeddingMigrationServiceUnavailableErrorSchema,
   EmbeddingMigrationErrorSchema,
+  // Users schemas (PRD #380 Task 2.5)
+  UserCreateRequestSchema,
+  UserCreateResponseSchema,
+  UserListResponseSchema,
+  UserDeleteResponseSchema,
+  UserEmailParamsSchema,
+  UserConflictErrorSchema,
+  UserNotFoundErrorSchema,
+  UserBadRequestErrorSchema,
+  UserManagementErrorSchema,
   // Common schemas
   NotFoundErrorSchema,
   InternalServerErrorSchema,
@@ -478,6 +488,45 @@ export const routeDefinitions: RouteDefinition<
       400: EmbeddingMigrationBadRequestErrorSchema,
       503: EmbeddingMigrationServiceUnavailableErrorSchema,
       500: EmbeddingMigrationErrorSchema,
+    },
+  },
+
+  // ============================================
+  // User Management Endpoints (PRD #380 Task 2.5)
+  // ============================================
+  {
+    path: '/api/v1/users',
+    method: 'POST',
+    description: 'Create a new Dex static user',
+    tags: ['Users'],
+    body: UserCreateRequestSchema,
+    response: UserCreateResponseSchema,
+    errorResponses: {
+      400: UserBadRequestErrorSchema,
+      409: UserConflictErrorSchema,
+      500: UserManagementErrorSchema,
+    },
+  },
+  {
+    path: '/api/v1/users',
+    method: 'GET',
+    description: 'List all Dex static users (emails only)',
+    tags: ['Users'],
+    response: UserListResponseSchema,
+    errorResponses: {
+      500: UserManagementErrorSchema,
+    },
+  },
+  {
+    path: '/api/v1/users/:email',
+    method: 'DELETE',
+    description: 'Delete a Dex static user by email',
+    tags: ['Users'],
+    params: UserEmailParamsSchema,
+    response: UserDeleteResponseSchema,
+    errorResponses: {
+      404: UserNotFoundErrorSchema,
+      500: UserManagementErrorSchema,
     },
   },
 ];

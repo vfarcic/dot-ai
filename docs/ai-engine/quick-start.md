@@ -90,6 +90,8 @@ kubectl wait --namespace ingress-nginx \
 ### Step 1: Set Environment Variables
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-api03-your-key-here"
+
+# Required — static token for REST API, CI/CD, and MCP clients without OAuth
 export DOT_AI_AUTH_TOKEN=$(openssl rand -base64 32)
 
 # Ingress class - change to match your ingress controller (traefik, haproxy, etc.)
@@ -139,7 +141,9 @@ cat > .mcp.json << EOF
 EOF
 ```
 
-**Note:** The `$DOT_AI_AUTH_TOKEN` variable is expanded when creating the file. Make sure you're in the same terminal session where you set the environment variables in Step 1.
+**Notes:**
+- The `$DOT_AI_AUTH_TOKEN` variable is expanded when creating the file. Make sure you're in the same terminal session where you set the environment variables in Step 1.
+- **OAuth is enabled by default.** MCP clients with OAuth support (Claude Code, Codex, Windsurf) can authenticate via browser instead of using the static token — see [Authentication](setup/authentication.md) for details.
 
 ### Step 4: Start Your MCP Client
 
@@ -160,7 +164,7 @@ You should see a status report showing all components are healthy.
 - ✅ **Automatic Capability Discovery**: Controller watches for CRD changes and scans automatically
 - ✅ **Team Collaboration**: Shared MCP server accessible by multiple developers
 
-**Full Configuration**: See the [Deployment Guide](setup/deployment.md) for advanced configuration options.
+**Full Configuration**: See the [Deployment Guide](setup/deployment.md) for advanced configuration options and the [Authentication Guide](setup/authentication.md) for OAuth setup and user management.
 
 ### Step 5: Start Using Conversational Workflows
 

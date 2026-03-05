@@ -66,13 +66,14 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
   /**
    * Helper function to find a resource by kind in parsed YAML documents
    */
-  function findResourceByKind<T>(docs: unknown[], kind: string): T | undefined {
+  function findResourceByKind<T>(docs: unknown[], kind: string, nameExcludes?: string): T | undefined {
     return docs.find(
       (doc: unknown) =>
         typeof doc === 'object' &&
         doc !== null &&
         'kind' in doc &&
-        doc.kind === kind
+        doc.kind === kind &&
+        (!nameExcludes || !('metadata' in doc && typeof (doc as any).metadata?.name === 'string' && (doc as any).metadata.name.includes(nameExcludes)))
     ) as T | undefined;
   }
 
@@ -80,7 +81,9 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
    * Helper function to run helm template and parse output
    */
   function helmTemplate(values: Record<string, unknown>): string {
-    const setArgs = Object.entries(values)
+    // Disable Dex by default — these tests focus on Gateway resources, not OAuth
+    const merged = { 'dex.enabled': false, ...values };
+    const setArgs = Object.entries(merged)
       .map(([key, value]) => `--set ${key}=${value}`)
       .join(' ');
     
@@ -347,7 +350,7 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
         });
 
         const docs = parseYamlDocs(output);
-        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute');
+        const httproute = findResourceByKind<HTTPRouteResource>(docs, 'HTTPRoute', '-dex');
 
         expect(httproute).toBeDefined();
         expect(httproute?.spec.hostnames).toContain('dot-ai.example.com');

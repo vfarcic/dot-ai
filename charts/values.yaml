@@ -9,7 +9,7 @@ annotations: {}
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "1.5.0"                     # Container image tag - set by CI pipeline during release
+  tag: "1.6.0"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
@@ -244,6 +244,35 @@ localEmbeddings:
       cpu: "1"
       memory: "512Mi"
 
+# Dex OIDC Provider (PRD #380)
+# Deploys Dex as the identity provider for OAuth2/OIDC authentication.
+# MCP clients authenticate via Dex and receive JWT access tokens.
+# Initial admin credentials are auto-generated on install (shown in Helm notes).
+# Routing (Ingress/Gateway) is automatically derived from the main server's config.
+dex:
+  enabled: true                       # Deploy Dex for OAuth authentication
+  # Production IdP connectors (optional)
+  # When configured, users authenticate via their organization's identity provider.
+  # See https://dexidp.io/docs/connectors/ for available connectors.
+  connectors: []
+  # Example:
+  # connectors:
+  #   - type: github
+  #     id: github
+  #     name: GitHub
+  #     config:
+  #       clientID: "xxx"
+  #       clientSecret: "xxx"
+  #       redirectURI: "https://dex.example.com/callback"
+  configSecret:
+    create: false
+    name: dex
+  grpc:
+    enabled: true                     # Enable gRPC API for user management (PRD #380 Task 2.5)
+  image:                                  # Custom image with branded login page (PRD #380 Task 3.6)
+    repository: ghcr.io/vfarcic/dot-ai-dex
+    tag: "v2.44.0"
+
 # Plugin configuration (PRD #343)
 # Plugins are configured as a map, allowing users to customize defaults or add their own.
 # Two modes:
@@ -255,7 +284,7 @@ plugins:
     enabled: true
     image:
       repository: ghcr.io/vfarcic/dot-ai-agentic-tools
-      tag: "1.5.0"
+      tag: "1.6.0"
     port: 8080
     # RBAC created automatically by chart (hardcoded for agentic-tools)
     env: []                         # Additional environment variables
@@ -273,7 +302,7 @@ plugins:
   #   enabled: true
   #   image:
   #     repository: myregistry/my-tools
-  #     tag: "1.5.0"
+  #     tag: "1.6.0"
   #   port: 8082
   #   serviceAccountName: "my-tools-sa"  # You create this SA with needed permissions
   #   env:

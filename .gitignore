@@ -115,7 +115,8 @@ eval/datasets/*.jsonl
 eval/results/*.jsonl
 .env.vals
 
-# Build artifacts
+# Build artifacts (except Helm subchart dependencies)
 *.tgz
+!charts/charts/*.tgz
 
 /aws-creds.conf
