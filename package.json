@@ -90,6 +90,7 @@
     "@types/express": "^5.0.6",
     "@types/glob": "^9.0.0",
     "@types/handlebars": "^4.0.40",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.0.0",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
@@ -126,8 +127,10 @@
     "ai": "^5.0.60",
     "bcryptjs": "^3.0.3",
     "handlebars": "^4.7.8",
+    "jsonwebtoken": "^9.0.3",
     "mermaid": "^10.9.5",
     "posthog-node": "^5.23.0",
+    "simple-git": "^3.32.3",
     "yaml": "^2.8.0"
   },
   "optionalDependencies": {

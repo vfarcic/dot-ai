@@ -1,9 +1,10 @@
 # PRD: Git Operations for Recommend Tool
 
 **Issue**: [#362](https://github.com/vfarcic/dot-ai/issues/362)
-**Status**: Draft
+**Status**: In Progress (Milestone 1 Complete)
 **Priority**: High
 **Created**: 2026-01-30
+**Updated**: 2026-03-02
 
 ---
 
@@ -23,8 +24,8 @@ This PRD adds Git capabilities to enable the recommend tool to push generated ma
 
 ### Two Components
 
-1. **Git Tools in Plugin**: Add `git-clone` and `git-push` tools to the existing kubectl/helm plugin
-2. **Recommend Integration**: Extend recommend workflow to optionally push manifests to Git
+1. **Git Tools in MCP Server**: `git-clone` and `git-push` tools registered directly in MCP server
+2. **Recommend Integration**: Extend recommend workflow to optionally push manifests to Git (pending)
 
 ### Architecture
 
@@ -34,24 +35,24 @@ This PRD adds Git capabilities to enable the recommend tool to push generated ma
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              Recommend Tool                          │   │
 │  │  - Generates manifests                               │   │
-│  │  - Asks: "Push to Git repo?"                        │   │
+│  │  - Asks: "Push to Git repo?" (pending)              │   │
 │  │  - Invokes Git tools if yes                         │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                           │                                 │
 │                           ▼                                 │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │           kubectl/helm Plugin                        │   │
-│  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────┐ │   │
-│  │  │ kubectl │ │  helm   │ │git-clone │ │ git-push │ │   │
-│  │  └─────────┘ └─────────┘ └──────────┘ └──────────┘ │   │
+│  │              Built-in MCP Tools                      │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌─────────┐ ┌────────┐  │   │
+│  │  │recommend │ │  query   │ │git-clone│ │git-push│  │   │
+│  │  └──────────┘ └──────────┘ └─────────┘ └────────┘  │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Authentication
 
-- **Initial approach**: PAT (Personal Access Token) provided to MCP server via configuration
-- **Token propagation**: MCP server passes token to plugin tools
+- **Implemented**: PAT (Personal Access Token) and GitHub App authentication
+- **Token propagation**: Environment variables from Helm chart
 - **Future enhancement**: Per-user settings (see PRD #360/#361 for auth infrastructure)
 
 ---
@@ -83,22 +84,22 @@ User: "deploy postgresql database"
 
 ## Technical Design
 
-### Git Tools in Plugin
+### Git Tools in MCP Server
 
 #### Tool: `git-clone`
 
 ```typescript
 interface GitCloneParams {
-  repoUrl: string;           // Repository URL (HTTPS)
-  branch?: string;           // Branch to clone (default: default branch)
-  targetDir: string;         // Local directory to clone into
-  token?: string;            // PAT for authentication (from MCP config)
+  repoUrl: string; // Repository URL (HTTPS)
+  branch?: string; // Branch to clone (default: default branch)
+  targetDir?: string; // Local directory to clone into (default: ./tmp)
+  depth?: number; // Shallow clone depth
 }
 
 interface GitCloneResult {
   success: boolean;
-  localPath: string;         // Full path to cloned repo
-  branch: string;            // Branch that was checked out
+  localPath: string; // Full path to cloned repo
+  branch: string; // Branch that was checked out
   error?: string;
 }
 ```
@@ -107,38 +108,56 @@ interface GitCloneResult {
 
 ```typescript
 interface GitPushParams {
-  repoPath: string;          // Local repo path
+  repoPath: string; // Local repo path
   files: Array<{
-    path: string;            // Relative path within repo
-    content: string;         // File content
+    path: string; // Relative path within repo
+    content: string; // File content
   }>;
-  commitMessage: string;     // Commit message
-  branch?: string;           // Branch to push to (default: current branch)
-  token?: string;            // PAT for authentication
+  commitMessage: string; // Commit message
+  branch?: string; // Branch to push to (default: current branch)
+  author?: {
+    name: string;
+    email: string;
+  };
 }
 
 interface GitPushResult {
   success: boolean;
-  commitSha?: string;        // SHA of the created commit
-  branch: string;            // Branch pushed to
-  filesAdded: string[];      // List of files added/modified
+  commitSha?: string; // SHA of the created commit
+  branch: string; // Branch pushed to
+  filesAdded: string[]; // List of files added/modified
   error?: string;
 }
 ```
 
 ### Token Configuration
 
-Token provided via MCP server configuration:
+Token provided via Helm values:
 
-```json
-{
-  "git": {
-    "token": "${GIT_TOKEN}"
-  }
-}
+```yaml
+secrets:
+  git:
+    token: '' # PAT token
+  githubApp:
+    enabled: false
+    appId: ''
+    privateKey: ''
+    installationId: ''
 ```
 
-MCP server propagates token to plugin tools when invoking them.
+Environment variables:
+
+- `GIT_TOKEN` - PAT token
+- `GITHUB_APP_ENABLED` - Enable GitHub App auth
+- `GITHUB_APP_ID` - GitHub App ID
+- `GITHUB_APP_PRIVATE_KEY` - GitHub App private key (PEM format)
+- `GITHUB_APP_INSTALLATION_ID` - Installation ID (optional)
+
+### Security Features
+
+- **Path traversal protection**: Prevents malicious file paths from writing outside repository directory
+- **GitHub API timeout**: 30s timeout to prevent indefinite hangs
+- **Helm validation**: Fails at deploy-time if GitHub App enabled but missing required fields
 
 ### Recommend Workflow Extension
 
@@ -155,38 +174,22 @@ Add new stage after `generateManifests`:
                                             Clone → Add files → Commit → Push
 ```
 
-### Session Extension
-
-```typescript
-interface RecommendSession {
-  // ... existing fields ...
-
-  // Git push options (populated in pushToGit stage)
-  gitConfig?: {
-    repoUrl: string;
-    path: string;
-    branch: string;
-    commitMessage: string;
-  };
-}
-```
-
 ---
 
 ## Success Criteria
 
-1. **Git tools functional**: `git-clone` and `git-push` work with PAT authentication
-2. **Recommend integration**: Users can push manifests to Git from recommend workflow
-3. **Error handling**: Clear error messages for auth failures, network issues, conflicts
-4. **GitOps agnostic**: Works with any GitOps tool (Argo CD, Flux, or manual sync)
-5. **Clean workflow**: Non-GitOps users unaffected - Git push is optional
+1. **Git tools functional**: `git-clone` and `git-push` work with PAT authentication ✅
+2. **Recommend integration**: Users can push manifests to Git from recommend workflow (Pending)
+3. **Error handling**: Clear error messages for auth failures, network issues, conflicts ✅
+4. **GitOps agnostic**: Works with any GitOps tool (Argo CD, Flux, or manual sync) ✅
+5. **Clean workflow**: Non-GitOps users unaffected - Git push is optional ✅
 
 ---
 
 ## Out of Scope
 
 1. **PR workflow**: Creating pull requests instead of direct push (future enhancement)
-2. **SSH authentication**: Only HTTPS with PAT initially
+2. **SSH authentication**: Only HTTPS with PAT/GitHub App initially
 3. **Conflict resolution**: If push fails due to conflicts, user must resolve manually
 4. **Argo CD/Flux integration**: This PRD doesn't detect or create Application CRs (see Argo CD PRD)
 5. **Per-user tokens**: Initial implementation uses server-wide token (per-user comes with PRD #360/#361)
@@ -195,47 +198,59 @@ interface RecommendSession {
 
 ## Dependencies
 
-| Dependency | Type | Notes |
-|------------|------|-------|
-| kubectl/helm plugin | Internal | Git tools added to existing plugin |
-| PRD #360/#361 | Future | Per-user authentication (not blocking) |
+| Dependency    | Type     | Notes                                  |
+| ------------- | -------- | -------------------------------------- |
+| simple-git    | External | Git operations wrapper                 |
+| jsonwebtoken  | External | JWT generation for GitHub App auth     |
+| PRD #360/#361 | Future   | Per-user authentication (not blocking) |
 
 ---
 
 ## Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Token exposure | High | Token passed securely, not logged, environment variable |
-| Push conflicts | Medium | Clear error message, user resolves manually |
-| Wrong branch/path | Medium | Confirm details before push, show preview |
-| Large repos slow to clone | Low | Shallow clone option, clone to temp directory |
+| Risk                      | Impact   | Mitigation                                              | Status       |
+| ------------------------- | -------- | ------------------------------------------------------- | ------------ |
+| Token exposure            | High     | Token passed securely, not logged, environment variable | ✅ Mitigated |
+| Push conflicts            | Medium   | Clear error message, user resolves manually             | ✅ Mitigated |
+| Wrong branch/path         | Medium   | Confirm details before push, show preview               | Pending      |
+| Large repos slow to clone | Low      | Shallow clone option, clone to temp directory           | ✅ Mitigated |
+| Path traversal attacks    | Critical | Validate file paths don't escape repo directory         | ✅ Mitigated |
 
 ---
 
 ## Milestones
 
-### Milestone 1: Git Tools in Plugin
-- [ ] Implement `git-clone` tool with PAT authentication
-- [ ] Implement `git-push` tool (add files, commit, push)
-- [ ] Token configuration and propagation from MCP server
-- [ ] Error handling for common failures (auth, network, conflicts)
-- [ ] Unit tests for Git tools
+### Milestone 1: Git Tools in MCP Server ✅ COMPLETE
 
-### Milestone 2: Recommend Integration
+- [x] Implement `git-clone` tool with PAT authentication
+- [x] Implement `git-push` tool (add files, commit, push)
+- [x] GitHub App authentication (JWT + installation token)
+- [x] Token configuration via Helm values
+- [x] Error handling for common failures (auth, network, conflicts)
+- [x] Unit tests for Git tools (20 tests)
+- [x] Integration tests for Git tools (6 tests)
+- [x] Path traversal protection
+- [x] GitHub API timeout (30s)
+
+**PR**: [#393](https://github.com/vfarcic/dot-ai/pull/393)
+
+### Milestone 2: Recommend Integration (Pending)
+
 - [ ] Add `pushToGit` stage to recommend workflow
 - [ ] Collect Git configuration (repo URL, path, branch, message)
 - [ ] Invoke Git tools to clone, add manifests, push
 - [ ] Session management for Git config
 - [ ] Integration tests for recommend → Git flow
 
-### Milestone 3: User Experience Polish
+### Milestone 3: User Experience Polish (Pending)
+
 - [ ] Clear confirmation before push (show what will be pushed where)
 - [ ] Success message with repo URL and path
 - [ ] Helpful error messages with remediation steps
 - [ ] Documentation for Git push feature
 
 ### Milestone 4: Future Enhancements (Separate PRDs)
+
 - [ ] **Task**: Create PRD for PR workflow (create PR instead of direct push)
 - [ ] **Task**: Update PRD #360/#361 to include Git token in per-user settings
 
@@ -244,8 +259,23 @@ interface RecommendSession {
 ## Work Log
 
 ### 2026-01-30: PRD Creation
+
 - Created PRD based on discussion about GitOps integration
 - Decided on plugin-based Git tools (`git-clone`, `git-push`)
 - Scoped to PAT authentication and direct push initially
 - PR workflow and per-user tokens deferred to future PRDs
 
+### 2026-03-02: Milestone 1 Implementation
+
+- Implemented `git-clone` tool with PAT and GitHub App authentication
+- Implemented `git-push` tool with commit/push functionality
+- Added Helm chart configuration for git.token and githubApp.\*
+- Added environment variables in deployment.yaml
+- Implemented security features:
+  - Path traversal protection
+  - GitHub API timeout (30s)
+  - Helm validation for GitHub App config
+- Unit tests: 20 tests, all passing
+- Integration tests: 6 tests, all passing
+- Dependencies added: simple-git, jsonwebtoken
+- PR #393 opened for review

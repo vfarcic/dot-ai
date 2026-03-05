@@ -36,6 +36,7 @@ export const helmList: KubectlTool = {
           description: 'List releases across all namespaces (default: true when no namespace specified)',
         },
       },
+      required: [],
     },
   },
 

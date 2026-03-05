@@ -47,6 +47,13 @@ secrets:
   customEmbeddings:
     keyName: custom-embeddings-api-key  # Key name within the secret for custom embeddings endpoint
     apiKey: ""                      # API key value (only needed if chart should create the secret)
+  # GitHub App authentication for git operations (PRD #362)
+  # Note: PAT token uses DOT_AI_GIT_TOKEN env var configured via extraEnv
+  githubApp:
+    enabled: false                  # Enable GitHub App authentication
+    appId: ""                       # GitHub App ID
+    privateKey: ""                  # GitHub App private key (PEM format)
+    installationId: ""              # GitHub App installation ID (optional, auto-detected if not provided)
 
 # ServiceAccount configuration
 serviceAccount:
