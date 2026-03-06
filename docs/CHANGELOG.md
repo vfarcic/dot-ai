@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.6.7] - 2026-03-06
+
+### Bug Fixes
+
+- ## Preserve dex-credentials secret across Helm upgrades
+
+  Added `helm.sh/resource-policy: keep` to the `dex-credentials` secret so Helm preserves it across upgrades. Previously, each upgrade deleted and recreated the secret, but the Dex pod kept stale environment variables in memory — causing "invalid client_secret" errors until the pod was manually restarted.
+
+
 ## [1.6.6] - 2026-03-06
 
 ### Documentation
