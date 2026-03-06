@@ -92,6 +92,13 @@ Update the appropriate PRD sections:
 - **Workflow Updates**: Update process examples when user interaction patterns or step sequences change
 - **Mark for Verification**: Flag code examples that need manual testing to ensure they still work
 
+### Task and Milestone Updates
+- **Create new tasks** when decisions introduce work not covered by existing tasks (e.g., a new integration, migration step, or validation requirement)
+- **Add new milestones** when decisions significantly change project scope or phasing (e.g., a new phase for a deferred feature, or an additional delivery checkpoint)
+- **Update existing tasks** when decisions change what a task requires or how it should be implemented
+- **Remove or defer tasks** that are no longer relevant due to scope changes or eliminated requirements
+- **Reorder priorities** when decisions shift what should be delivered first
+
 ### Risk and Dependency Updates
 - Add new risks introduced by design decisions
 - Update mitigation strategies if approach changed
