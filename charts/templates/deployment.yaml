@@ -125,22 +125,13 @@ spec:
               key: {{ .Values.secrets.auth.keyName }}
 {{- if .Values.dex.enabled }}
         # Dex OIDC configuration (PRD #380)
+        # DEX_CLIENT_SECRET and DOT_AI_JWT_SECRET injected via envFrom below
         - name: DEX_ISSUER_URL
           value: {{ include "dot-ai.dexExternalUrl" . | quote }}
         - name: DEX_TOKEN_ENDPOINT
           value: {{ include "dot-ai.dexTokenEndpoint" . | quote }}
         - name: DEX_CLIENT_ID
           value: "dot-ai"
-        - name: DEX_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "dot-ai.fullname" . }}-dex
-              key: dex-client-secret
-        - name: DOT_AI_JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "dot-ai.fullname" . }}-dex
-              key: jwt-secret
         - name: DOT_AI_EXTERNAL_URL
           value: {{ include "dot-ai.externalUrl" . | quote }}
         - name: DEX_GRPC_ENDPOINT
@@ -206,6 +197,11 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 5
           timeoutSeconds: 5
+{{- if .Values.dex.enabled }}
+        envFrom:
+          - secretRef:
+              name: {{ .Values.dex.existingSecret }}
+{{- end }}
 {{- $pluginsConfig := include "dot-ai.pluginsConfig" . -}}
 {{- if and $pluginsConfig (ne $pluginsConfig "[]") }}
         volumeMounts:

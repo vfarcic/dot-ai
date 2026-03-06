@@ -247,13 +247,23 @@ localEmbeddings:
 # Dex OIDC Provider (PRD #380)
 # Deploys Dex as the identity provider for OAuth2/OIDC authentication.
 # MCP clients authenticate via Dex and receive JWT access tokens.
-# Initial admin credentials are auto-generated on install (shown in Helm notes).
 # Routing (Ingress/Gateway) is automatically derived from the main server's config.
 # NOTE: OAuth requires HTTPS. Enable Dex only when HTTPS is configured
 # (via ingress.tls, gateway HTTPS listener, or an upstream reverse proxy/load balancer).
 # Without Dex, authentication falls back to static token (DOT_AI_AUTH_TOKEN).
 dex:
   enabled: false                      # Deploy Dex for OAuth authentication (requires HTTPS)
+  # REQUIRED when enabled: name of a pre-existing Secret containing:
+  #   DEX_CLIENT_SECRET   — OAuth2 client secret (shared between MCP server and Dex)
+  #   DOT_AI_JWT_SECRET   — JWT signing key for MCP server tokens
+  # Generate with:
+  #   kubectl create secret generic dot-ai-dex-auth --namespace <ns> \
+  #     --from-literal=DEX_CLIENT_SECRET="$(openssl rand -hex 32)" \
+  #     --from-literal=DOT_AI_JWT_SECRET="$(openssl rand -hex 32)"
+  existingSecret: ""
+  # REQUIRED when enabled: bcrypt hash for the built-in admin@dot-ai.local password.
+  # Generate with: htpasswd -nbBC 10 "" "your-password" | cut -d: -f2
+  adminPasswordHash: ""
   # Production IdP connectors (optional)
   # When configured, users authenticate via their organization's identity provider.
   # See https://dexidp.io/docs/connectors/ for available connectors.
@@ -270,19 +280,15 @@ dex:
   configSecret:
     create: false
     name: dex
-  # Inject DEX_CLIENT_SECRET env var so Dex reads it via secretEnv in config.yaml.
-  # This keeps the config content stable across upgrades (no embedded credentials).
-  # IMPORTANT: If you override envFrom (e.g., to add connector secrets), you MUST
-  # include dex-credentials in the list, otherwise OAuth authentication will fail.
-  # Example:
+  # envFrom for the Dex pod — MUST include existingSecret so Dex reads DEX_CLIENT_SECRET.
+  # Add connector secrets after it.
+  # Example (with Google connector):
   #   envFrom:
   #     - secretRef:
-  #         name: dex-credentials       # Required - created by chart
+  #         name: dot-ai-dex-auth         # Must match existingSecret
   #     - secretRef:
-  #         name: my-connector-secret   # Your additional secrets
-  envFrom:
-    - secretRef:
-        name: dex-credentials           # Required - created by dex-config.yaml template
+  #         name: my-connector-secret
+  envFrom: []
   grpc:
     enabled: true                     # Enable gRPC API for user management (PRD #380 Task 2.5)
   image:                                  # Custom image with branded login page (PRD #380 Task 3.6)

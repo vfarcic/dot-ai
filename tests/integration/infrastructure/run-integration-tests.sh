@@ -318,9 +318,18 @@ kubectl create secret generic dot-ai-secrets \
     --from-literal=auth-token="${TEST_AUTH_TOKEN}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
+# Create Dex auth secret (required by chart when dex.enabled=true)
+TEST_DEX_CLIENT_SECRET="test-client-secret-$(date +%s)"
+TEST_JWT_SECRET="test-jwt-secret-$(date +%s)"
+TEST_ADMIN_PASSWORD="test-admin-pass"
+TEST_ADMIN_HASH=$(htpasswd -nbBC 10 "" "${TEST_ADMIN_PASSWORD}" | cut -d: -f2)
+kubectl create secret generic dot-ai-dex-auth \
+    --namespace dot-ai \
+    --from-literal=DEX_CLIENT_SECRET="${TEST_DEX_CLIENT_SECRET}" \
+    --from-literal=DOT_AI_JWT_SECRET="${TEST_JWT_SECRET}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
 # Deploy via Helm with local images
-# Dex secrets (admin password, client secret, JWT secret) are auto-generated
-# on first install by the dex-secret.yaml template. Tests read them after install.
 helm upgrade --install dot-ai ./charts \
     --namespace dot-ai \
     --set image.repository=dot-ai \
@@ -338,6 +347,9 @@ helm upgrade --install dot-ai ./charts \
     $([[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]] && echo "--set localEmbeddings.enabled=true") \
     --set webUI.baseUrl="https://dot-ai-ui.test.local" \
     --set dex.enabled=true \
+    --set dex.existingSecret=dot-ai-dex-auth \
+    --set dex.adminPasswordHash="${TEST_ADMIN_HASH}" \
+    --set-json 'dex.envFrom=[{"secretRef":{"name":"dot-ai-dex-auth"}}]' \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
     --set plugins.agentic-tools.image.pullPolicy=Never \
@@ -423,9 +435,8 @@ export MCP_BASE_URL="${MCP_URL}"
 export DOT_AI_AUTH_TOKEN="${TEST_AUTH_TOKEN}"
 
 # Dex OAuth test credentials (PRD #380)
-# Read auto-generated admin password from the Secret created by Helm
 export DEX_TEST_USER_EMAIL="admin@dot-ai.local"
-export DEX_TEST_USER_PASSWORD=$(kubectl get secret dot-ai-dex -n dot-ai -o jsonpath='{.data.admin-password}' | base64 -d)
+export DEX_TEST_USER_PASSWORD="${TEST_ADMIN_PASSWORD}"
 export DEX_ISSUER_URL="http://dex.dot-ai.127.0.0.1.nip.io:8180"
 
 # Step 5: Run integration tests
