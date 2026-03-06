@@ -175,6 +175,12 @@ docker build -t dot-ai:test . || {
 # Clean up package tarball
 rm -f vfarcic-dot-ai-*.tgz
 
+log_info "Pre-building agentic-tools (native build avoids QEMU issues)..."
+(cd packages/agentic-tools && npm ci && npm run build && npm prune --omit=dev) || {
+    log_error "Failed to pre-build agentic-tools"
+    exit 1
+}
+
 log_info "Building agentic-tools plugin Docker image (PRD #343)..."
 docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools || {
     log_error "Failed to build agentic-tools image"
