@@ -97,6 +97,8 @@ metadata:
   name: dex-credentials
   labels:
     {{- include "dot-ai.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
 type: Opaque
 stringData:
   DEX_CLIENT_SECRET: {{ $dexClientSecret | quote }}
