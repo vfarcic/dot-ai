@@ -6,12 +6,12 @@
     "url": "https://github.com/vfarcic/dot-ai",
     "source": "github"
   },
-  "version": "1.6.6",
+  "version": "1.6.7",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@vfarcic/dot-ai",
-      "version": "1.6.6",
+      "version": "1.6.7",
       "transport": {
         "type": "http",
         "port": 3456
