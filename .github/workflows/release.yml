@@ -239,6 +239,20 @@ jobs:
       with:
         submodules: true
 
+    - name: Setup Node.js
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+        cache-dependency-path: packages/agentic-tools/package-lock.json
+
+    - name: Pre-build agentic-tools on native runner
+      working-directory: packages/agentic-tools
+      run: |
+        npm ci
+        npm run build
+        npm prune --omit=dev
+
     - name: Set up QEMU
       uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
