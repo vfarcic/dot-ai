@@ -78,6 +78,8 @@ Add the Google connector to your values file. Dex supports `$ENV_VAR` references
 dex:
   envFrom:
     - secretRef:
+        name: dex-credentials         # Required - created by chart (OAuth client secret)
+    - secretRef:
         name: dex-google-oauth
   connectors:
     - type: google
@@ -89,7 +91,7 @@ dex:
         redirectURI: "https://dex.<your-host>/callback"
 ```
 
-`envFrom` mounts the Secret as environment variables on the Dex pod. The `$GOOGLE_CLIENT_ID` and `$GOOGLE_CLIENT_SECRET` references are resolved by Dex at startup.
+`envFrom` mounts Secrets as environment variables on the Dex pod. The `dex-credentials` secret is created by the chart and **must always be included** â€” it provides the OAuth client secret that Dex needs for token exchange. The `$GOOGLE_CLIENT_ID` and `$GOOGLE_CLIENT_SECRET` references are resolved by Dex at startup.
 
 ### Restricting by Domain
 
@@ -98,6 +100,8 @@ By default, any Google account can authenticate. To restrict login to specific d
 ```yaml
 dex:
   envFrom:
+    - secretRef:
+        name: dex-credentials         # Required - created by chart (OAuth client secret)
     - secretRef:
         name: dex-google-oauth
   connectors:
@@ -140,6 +144,8 @@ Dex supports 30+ identity providers. All connectors use the same Helm pattern â€
 ```yaml
 dex:
   envFrom:
+    - secretRef:
+        name: dex-credentials         # Required - created by chart (OAuth client secret)
     - secretRef:
         name: dex-idp-credentials
   connectors:

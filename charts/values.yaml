@@ -270,12 +270,19 @@ dex:
   configSecret:
     create: false
     name: dex
-  # Inject credentials as env vars so Dex reads them via secretEnv in config.yaml.
+  # Inject DEX_CLIENT_SECRET env var so Dex reads it via secretEnv in config.yaml.
   # This keeps the config content stable across upgrades (no embedded credentials).
-  # The DEX_CLIENT_SECRET env var is referenced by secretEnv in the static client config.
+  # IMPORTANT: If you override envFrom (e.g., to add connector secrets), you MUST
+  # include dex-credentials in the list, otherwise OAuth authentication will fail.
+  # Example:
+  #   envFrom:
+  #     - secretRef:
+  #         name: dex-credentials       # Required - created by chart
+  #     - secretRef:
+  #         name: my-connector-secret   # Your additional secrets
   envFrom:
     - secretRef:
-        name: dex-credentials           # Created by dex-config.yaml template (fixed name)
+        name: dex-credentials           # Required - created by dex-config.yaml template
   grpc:
     enabled: true                     # Enable gRPC API for user management (PRD #380 Task 2.5)
   image:                                  # Custom image with branded login page (PRD #380 Task 3.6)
