@@ -191,8 +191,15 @@ export async function cloneRepo(
   opts?: CloneOptions
 ): Promise<{ localPath: string; branch: string }> {
   const authConfig = getGitAuthConfigFromEnv();
-  const token = await getAuthToken(authConfig);
-  const authUrl = getAuthenticatedUrl(repoUrl, token);
+  let cloneUrl: string;
+
+  // Use authenticated URL if credentials are available, otherwise clone unauthenticated (public repos)
+  if (authConfig.pat || authConfig.githubApp) {
+    const token = await getAuthToken(authConfig);
+    cloneUrl = getAuthenticatedUrl(repoUrl, token);
+  } else {
+    cloneUrl = repoUrl;
+  }
 
   const git = simpleGit(gitOptions());
 
@@ -204,7 +211,7 @@ export async function cloneRepo(
     cloneOptions.push('--depth', String(opts.depth));
   }
 
-  await git.clone(authUrl, targetDir, cloneOptions);
+  await git.clone(cloneUrl, targetDir, cloneOptions);
 
   const repoGit = simpleGit(targetDir);
   const status = await repoGit.status();
@@ -215,21 +222,24 @@ export async function cloneRepo(
 
 // ─── Pull ───
 
-export async function pullRepo(
-  repoPath: string
-): Promise<{ branch: string }> {
+export async function pullRepo(repoPath: string): Promise<{ branch: string }> {
   const authConfig = getGitAuthConfigFromEnv();
-  const token = await getAuthToken(authConfig);
+  const hasAuth = !!(authConfig.pat || authConfig.githubApp);
 
   const git = simpleGit(gitOptions(repoPath));
 
-  const remotes = await git.getRemotes(true);
-  const origin = remotes.find(r => r.name === 'origin');
-  const originalOriginUrl = origin?.refs.fetch;
+  let originalOriginUrl: string | undefined;
 
-  if (originalOriginUrl) {
-    const authUrl = getAuthenticatedUrl(originalOriginUrl, token);
-    await git.remote(['set-url', 'origin', authUrl]);
+  if (hasAuth) {
+    const token = await getAuthToken(authConfig);
+    const remotes = await git.getRemotes(true);
+    const origin = remotes.find(r => r.name === 'origin');
+    originalOriginUrl = origin?.refs.fetch;
+
+    if (originalOriginUrl) {
+      const authUrl = getAuthenticatedUrl(originalOriginUrl, token);
+      await git.remote(['set-url', 'origin', authUrl]);
+    }
   }
 
   try {
@@ -238,7 +248,7 @@ export async function pullRepo(
     return { branch: status.current || 'main' };
   } finally {
     // Restore original origin URL to prevent auth tokens persisting in .git/config
-    if (originalOriginUrl) {
+    if (hasAuth && originalOriginUrl) {
       await git.remote(['set-url', 'origin', originalOriginUrl]);
     }
   }
