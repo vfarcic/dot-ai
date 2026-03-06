@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.6.6] - 2026-03-06
+
+### Documentation
+
+- ## Update connector docs with dex-credentials requirement
+
+  Identity Provider Connectors documentation now shows `dex-credentials` in all `envFrom` examples. When overriding `dex.envFrom` to add connector secrets (e.g., Google OAuth), `dex-credentials` must be included in the list — otherwise OAuth authentication fails because Dex cannot read the client secret environment variable. ([#380](https://github.com/vfarcic/dot-ai/issues/380))
+
+
 ## [1.6.5] - 2026-03-06
 
 ### Bug Fixes
