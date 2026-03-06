@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.6.5] - 2026-03-06
+
+### Bug Fixes
+
+- ## Fix OAuth login failure after Helm upgrades
+
+  Helm upgrades no longer break OAuth authentication. Previously, the Dex OIDC config embedded the client secret directly, and the Dex pod didn't restart on upgrades — causing a credential mismatch that produced "invalid client_secret" errors. The chart now uses Dex's `secretEnv` feature to inject the client secret via environment variable (`DEX_CLIENT_SECRET`), keeping the config content stable across upgrades. A dedicated `dex-credentials` secret and `envFrom` injection ensure Dex always reads the correct credentials at runtime without requiring pod restarts. ([#380](https://github.com/vfarcic/dot-ai/issues/380))
+- ## Fix agentic-tools arm64 Docker image build failure
+
+  The agentic-tools plugin Docker image now builds reliably for both amd64 and arm64 architectures. Previously, `npm ci` ran inside the Docker build under QEMU arm64 emulation, which could hang or crash with "Illegal instruction". The build now runs `npm ci` and TypeScript compilation on the native CI runner, then copies the pre-built artifacts into the Docker image. All agentic-tools dependencies are pure JavaScript, so the pre-built output works on both architectures.
+
+
 ## [1.6.4] - 2026-03-06
 
 ### Bug Fixes
