@@ -28,7 +28,7 @@ Update the OpenAI model configuration from `gpt-5.1-codex` to `gpt-5.4`. This is
 1. Model name updated to `gpt-5.4` in `model-config.ts` (both `openai` and `custom` entries)
 2. Build succeeds without errors
 3. Integration tests pass with `npm run test:integration:gpt`
-4. Documentation updated in `docs/setup/mcp-setup.md`
+4. Documentation updated in `docs/ai-engine/setup/deployment.md`
 
 ## Technical Details
 
@@ -58,7 +58,7 @@ custom: 'gpt-5.4',
 ### Files to Update
 
 - `src/core/model-config.ts` - Update model names (2 entries)
-- `docs/setup/mcp-setup.md` - Update model name in Available Models table
+- `docs/ai-engine/setup/deployment.md` - Update model name in Available Models table
 
 ### No Changes Required
 
@@ -69,7 +69,7 @@ custom: 'gpt-5.4',
 ## Milestones
 
 - [x] **Milestone 1**: Update model names in `model-config.ts` to `gpt-5.4`
-- [x] **Milestone 2**: Run integration tests with `npm run test:integration:gpt`
+- [x] **Milestone 2**: Run integration tests with `npm run test:integration`
 - [x] **Milestone 3**: Update documentation to reflect GPT-5.4
 - [x] **Milestone 4**: Verify version tool reports correct model name
 
