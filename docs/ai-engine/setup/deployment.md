@@ -148,7 +148,7 @@ All AI models must meet these minimum requirements:
 | **Host** | Host Environment LLM | `host` | None (uses host's AI) | Yes (if supported) |
 | **Moonshot AI** | Kimi K2 | `kimi` | `MOONSHOT_API_KEY` | Yes |
 | **Moonshot AI** | Kimi K2 Thinking | `kimi_thinking` | `MOONSHOT_API_KEY` | Yes (might be slow) |
-| **OpenAI** | GPT-5.1 Codex | `openai` | `OPENAI_API_KEY` | No * |
+| **OpenAI** | GPT-5.4 | `openai` | `OPENAI_API_KEY` | No * |
 | **xAI** | Grok-4 | `xai` | `XAI_API_KEY` | No * |
 
 \* **Note**: These models may not perform as well as other providers for complex DevOps reasoning tasks.

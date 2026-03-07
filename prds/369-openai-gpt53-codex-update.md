@@ -1,6 +1,6 @@
 # PRD #369: Update OpenAI Model to GPT-5.4
 
-**Status: Ready for Implementation**
+**Status: Complete**
 
 ## Problem Statement
 
@@ -68,10 +68,10 @@ custom: 'gpt-5.4',
 
 ## Milestones
 
-- [ ] **Milestone 1**: Update model names in `model-config.ts` to `gpt-5.4`
-- [ ] **Milestone 2**: Run integration tests with `npm run test:integration:gpt`
-- [ ] **Milestone 3**: Update documentation to reflect GPT-5.4
-- [ ] **Milestone 4**: Verify version tool reports correct model name
+- [x] **Milestone 1**: Update model names in `model-config.ts` to `gpt-5.4`
+- [x] **Milestone 2**: Run integration tests with `npm run test:integration:gpt`
+- [x] **Milestone 3**: Update documentation to reflect GPT-5.4
+- [x] **Milestone 4**: Verify version tool reports correct model name
 
 ## Risk Assessment
 
