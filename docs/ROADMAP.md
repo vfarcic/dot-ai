@@ -17,7 +17,6 @@ This roadmap is a living document and may change based on community feedback and
 - Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Update to Kimi K2.5 model support (PRD #353)
-- Update OpenAI model to GPT-5.3-Codex when API available (PRD #369)
 - Kubernetes RBAC enforcement for tool-level and namespace-level authorization (PRD #392)
 - User-specific permissions - align AI view with user's Kubernetes RBAC (PRD #361)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
