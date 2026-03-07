@@ -21,7 +21,7 @@ The AI Engine supports two authentication modes simultaneously. Both can be acti
 | **How it works** | Browser-based login via OIDC | Shared Bearer token (`DOT_AI_AUTH_TOKEN`) |
 | **Identity** | Individual — each user has their own identity | Anonymous — all users share one token |
 | **Setup** | Set `dex.enabled: true` (requires HTTPS) | One environment variable |
-| **User management** | Create/list/delete users via [CLI](https://devopstoolkit.ai/docs/cli) *(coming soon)* and [Web UI](https://devopstoolkit.ai/docs/ui) *(coming soon)* | N/A — single shared token |
+| **User management** | Create/list/delete users via [CLI](https://devopstoolkit.ai/docs/cli/guides/user-management) or [Web UI](https://devopstoolkit.ai/docs/ui/#user-management) | N/A — single shared token |
 | **Best for** | Teams, enterprise SSO, per-user audit trail | Local dev, CI/CD, quick start |
 
 ### When to Use Which
@@ -54,6 +54,8 @@ On `helm install` with Dex enabled, the AI Engine automatically:
 No passwords are stored in chart values or Git. See the [Deployment Guide](deployment.md) for retrieving the initial credentials.
 
 For MCP client setup with OAuth (which clients support it, how to authenticate), see [MCP Client Setup](/docs/mcp#oauth-authentication).
+
+The [Web UI](https://devopstoolkit.ai/docs/ui/#oauth--sso-login-recommended) also supports OAuth login — click "Login with SSO" to authenticate through Dex. Once logged in, admins can [manage users](https://devopstoolkit.ai/docs/ui/#user-management) (create, list, and delete static Dex accounts) directly from the browser.
 
 To connect your organization's identity provider (Google, GitHub, LDAP, SAML), see [Identity Provider Connectors](connectors.md).
 
@@ -94,4 +96,6 @@ Every authenticated request carries a user identity. The `version` tool includes
 
 - **[Deployment Guide](deployment.md)** — Install the AI Engine and retrieve initial admin credentials
 - **[MCP Client Setup](/docs/mcp)** — Connect your MCP client with OAuth or static token
+- **[CLI Authentication](https://devopstoolkit.ai/docs/cli/setup/authentication)** — Authenticate the CLI with OAuth login, static tokens, or headless mode
+- **[CLI User Management](https://devopstoolkit.ai/docs/cli/guides/user-management)** — Manage Dex static users from the command line
 - **[Identity Provider Connectors](connectors.md)** — Connect Google, GitHub, LDAP, or SAML
