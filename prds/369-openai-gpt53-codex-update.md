@@ -1,23 +1,23 @@
-# PRD #369: Update OpenAI Model to GPT-5.3-Codex
+# PRD #369: Update OpenAI Model to GPT-5.4
 
-**Status: Pending** - Blocked on OpenAI enabling API access for GPT-5.3-Codex (expected within weeks of Feb 5, 2026 release).
+**Status: Ready for Implementation**
 
 ## Problem Statement
 
-The codebase currently uses `gpt-5.1-codex` as the default OpenAI model. OpenAI has released GPT-5.3-Codex on February 5, 2026, with significant improvements:
+The codebase currently uses `gpt-5.1-codex` as the default OpenAI model. OpenAI released GPT-5.4 on March 5, 2026, their most capable general-purpose model:
 
-- 25% faster than GPT-5.2-Codex
-- State-of-the-art on SWE-Bench Pro and Terminal-Bench 2.0
-- Advanced agentic coding capabilities
-- First model that was instrumental in creating itself (self-improving)
+- Incorporates GPT-5.3-Codex coding capabilities into a general-purpose model
+- 33% fewer factual errors vs GPT-5.2
+- More token-efficient reasoning (fewer tokens to solve problems)
+- 1M+ token context window (1,050,000 tokens)
+- Native computer-use capabilities
+- $2.50/1M input tokens, $15.00/1M output tokens
 
-However, API access for GPT-5.3-Codex is **not yet available**. OpenAI is delaying full developer access due to cybersecurity concerns (first model rated "high" on their Preparedness Framework). API access is expected "in the coming weeks."
-
-The recommended interim model is `gpt-5.2-codex`, which is already available via API.
+GPT-5.4 is available via API now. The previous Codex-specific model line (gpt-5.1-codex, gpt-5.2-codex, gpt-5.3-codex) has been superseded — GPT-5.4 absorbs the Codex coding capabilities into the main model.
 
 ## Solution Overview
 
-Update the OpenAI model configuration from `gpt-5.1-codex` to `gpt-5.3-codex` once API access is enabled. This is a minimal change:
+Update the OpenAI model configuration from `gpt-5.1-codex` to `gpt-5.4`. This is a minimal change:
 
 - Same API endpoint and authentication (`OPENAI_API_KEY`)
 - Same OpenAI-compatible API format
@@ -25,7 +25,7 @@ Update the OpenAI model configuration from `gpt-5.1-codex` to `gpt-5.3-codex` on
 
 ## Success Criteria
 
-1. Model name updated to `gpt-5.3-codex` in `model-config.ts` (both `openai` and `custom` entries)
+1. Model name updated to `gpt-5.4` in `model-config.ts` (both `openai` and `custom` entries)
 2. Build succeeds without errors
 3. Integration tests pass with `npm run test:integration:gpt`
 4. Documentation updated in `docs/setup/mcp-setup.md`
@@ -44,9 +44,16 @@ custom: 'gpt-5.1-codex',
 
 **File: `src/core/model-config.ts`**
 ```typescript
-openai: 'gpt-5.3-codex',
-custom: 'gpt-5.3-codex',
+openai: 'gpt-5.4',
+custom: 'gpt-5.4',
 ```
+
+### Available GPT-5.4 Variants
+
+| Model ID | Description | Context Window |
+|----------|-------------|----------------|
+| `gpt-5.4` | Most capable general-purpose model | 1,050,000 tokens |
+| `gpt-5.4-pro` | Smarter, more precise responses (higher cost) | 1,050,000 tokens |
 
 ### Files to Update
 
@@ -61,11 +68,10 @@ custom: 'gpt-5.3-codex',
 
 ## Milestones
 
-- [ ] **Milestone 1**: Confirm GPT-5.3-Codex API access is enabled (check OpenAI status/changelog)
-- [ ] **Milestone 2**: Update model names in `model-config.ts`
-- [ ] **Milestone 3**: Run integration tests with `npm run test:integration:gpt`
-- [ ] **Milestone 4**: Update documentation to reflect GPT-5.3-Codex
-- [ ] **Milestone 5**: Verify version tool reports correct model name
+- [ ] **Milestone 1**: Update model names in `model-config.ts` to `gpt-5.4`
+- [ ] **Milestone 2**: Run integration tests with `npm run test:integration:gpt`
+- [ ] **Milestone 3**: Update documentation to reflect GPT-5.4
+- [ ] **Milestone 4**: Verify version tool reports correct model name
 
 ## Risk Assessment
 
@@ -76,26 +82,12 @@ custom: 'gpt-5.3-codex',
 - Existing integration tests will validate the model works
 
 **Potential Issues:**
-- API access may be further delayed by OpenAI's cybersecurity review
-- GPT-5.3-Codex may have different behavior on complex agentic workflows due to new capabilities
-- OpenAI may gate certain features behind a "trusted access" program
-
-## Interim Option
-
-If GPT-5.3-Codex API access is significantly delayed, consider updating to `gpt-5.2-codex` as an intermediate step:
-- Already available via API
-- Improvement over `gpt-5.1-codex`
-- Same minimal change process
+- GPT-5.4 is a general-purpose model vs the previous Codex-specific models — verify coding-focused tasks still perform well
+- Pricing change: GPT-5.4 may have different cost profile than gpt-5.1-codex
+- Token-efficient reasoning may produce different output formats
 
 ## References
 
-- [Introducing GPT-5.3-Codex - OpenAI](https://openai.com/index/introducing-gpt-5-3-codex/)
-- [Codex Models - OpenAI Developers](https://developers.openai.com/codex/models/)
-- [GPT-5.3-Codex System Card](https://openai.com/index/gpt-5-3-codex-system-card/)
-- [Codex Changelog](https://developers.openai.com/codex/changelog/)
-
----
-
-## Action Required
-
-**Monitor for API availability:** Check the [Codex Changelog](https://developers.openai.com/codex/changelog/) periodically for GPT-5.3-Codex API access announcement. Once available, this PRD can be implemented in a single session.
+- [Introducing GPT-5.4 - OpenAI](https://openai.com/index/introducing-gpt-5-4/)
+- [GPT-5.4 Model - OpenAI API](https://developers.openai.com/api/docs/models/gpt-5.4)
+- [OpenAI Models - API Docs](https://developers.openai.com/api/docs/models)
