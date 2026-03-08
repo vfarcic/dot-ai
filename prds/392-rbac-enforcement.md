@@ -1,6 +1,6 @@
 # PRD: Kubernetes RBAC Enforcement & Audit Logging
 
-**Status**: Draft
+**Status**: In Progress
 **Priority**: High
 **GitHub Issue**: [#392](https://github.com/vfarcic/dot-ai/issues/392)
 **Created**: 2026-03-02
@@ -36,12 +36,26 @@ When an OAuth-authenticated user invokes a tool:
 
 **Static token users bypass RBAC** — they get full tool access as today (shared anonymous identity, no user/group to evaluate).
 
+### RBAC-Filtered Tool Discovery
+
+The `GET /api/v1/tools` endpoint returns only tools the authenticated user is authorized for. This is the foundation for all client-side filtering — MCP, CLI, and Web UI all consume this filtered response.
+
+For **MCP clients** (Claude Code, Cursor, etc.), dot-ai only registers the tools returned by the filtered discovery at session startup. An OAuth user with `dotai-viewer` binding only sees `query` and `version` — `operate`, `recommend`, etc. are never loaded. The AI agent can't attempt unauthorized calls because it doesn't know the tools exist.
+
+For **CLI and Web UI**, the same filtered endpoint means these clients can hide commands/UI elements for tools the user can't access (handled by feature requests to those projects).
+
+**Tradeoff**: For MCP, permission changes don't take effect until the user reconnects their session. This is acceptable since RBAC changes are infrequent administrative operations.
+
+**Static token users** see all tools (no filtering) since they bypass RBAC.
+
+Invocation-time RBAC checks remain as a second layer of defense — if a tool is registered but permissions were revoked mid-session, the call is still denied.
+
 ### SubjectAccessReview Call
 
 ```typescript
 const review = await k8sApi.createSubjectAccessReview({
     spec: {
-        user: identity.userId,
+        user: identity.email,              // email for human-readable bindings
         groups: identity.groups,
         resourceAttributes: {
             namespace: targetNamespace,     // from tool args, or cluster-scoped
@@ -57,6 +71,10 @@ if (!review.body.status.allowed) {
     // Return structured error with reason
 }
 ```
+
+> **Design Decision**: RBAC bindings use `identity.email` (not the opaque Dex `sub` claim) so admins can configure human-readable ClusterRoleBindings (e.g., `subjects[].name: viktor@farcic.com`).
+
+> **RBAC Toggle**: Controlled by `DOT_AI_RBAC_ENABLED` env var (default `false`). When disabled, all authenticated users have full access — backward-compatible with pre-RBAC deployments.
 
 The virtual API group `dot-ai.devopstoolkit.ai` requires no CRDs — SubjectAccessReview evaluates RBAC rules as pure string matching.
 
@@ -156,17 +174,67 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 5. **Namespace scoping for free** — K8s RBAC already supports namespace-scoped Roles
 6. **Familiar UX** — admins manage permissions with `kubectl`
 
+## Open Design Decisions
+
+### Namespace & Resource-Level Enforcement Strategy
+
+**Context**: This PRD defines tool-level authorization ("can this user use `recommend`?") via SubjectAccessReview on the virtual API group `dot-ai.devopstoolkit.ai`. But there's a second layer: **namespace and resource-level enforcement** ("can this user deploy to `production`?", "can they see pods in `team-b` namespace?"). See also [#397](https://github.com/vfarcic/dot-ai/issues/397) (closed as duplicate).
+
+**The problem**: Currently dot-ai uses a single shared kubeconfig (the ServiceAccount). Even if a user is restricted to `dotai-viewer` at the tool level, the underlying kubectl calls still run with the ServiceAccount's full cluster permissions. A user could `query` resources in namespaces they shouldn't have visibility into.
+
+**Options under consideration:**
+
+#### Option A: SubjectAccessReview for Namespaces (Virtual RBAC)
+Extend the existing SubjectAccessReview approach — before executing a tool in a namespace, check if the user has permission on the virtual API group for that namespace.
+
+- **Pro**: Consistent with tool-level enforcement, single mechanism
+- **Pro**: Admins use familiar Role/RoleBinding per namespace
+- **Con**: The actual kubectl calls still run as the ServiceAccount — enforcement is application-level only
+- **Con**: Discovery (`query`) would need to filter results post-fetch, since kubectl runs as ServiceAccount
+
+#### Option B: Per-User Kubeconfig
+Associate each OAuth user with their own kubeconfig (mapped to their own ServiceAccount or credentials). All kubectl calls execute with the user's own permissions.
+
+- **Pro**: Kubernetes itself enforces everything — no application-level checks needed for namespaces
+- **Pro**: `query` naturally only returns what the user can see
+- **Pro**: `recommend` only suggests actions the user can perform
+- **Con**: Operationally heavier — managing per-user kubeconfigs or ServiceAccounts
+- **Con**: Requires mapping OAuth identity → Kubernetes credentials
+
+#### Option C: Kubernetes User Impersonation
+dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation). All kubectl calls include `--as=<user> --as-group=<group>` headers.
+
+- **Pro**: Kubernetes-native enforcement without per-user kubeconfigs
+- **Pro**: Uses the user's actual RBAC bindings for all operations
+- **Pro**: Single ServiceAccount, no credential management
+- **Con**: ServiceAccount needs impersonation privileges (powerful permission)
+- **Con**: User identities must match between OAuth provider and K8s RBAC bindings
+
+#### Option D: Hybrid — Tool-Level Virtual RBAC + Resource-Level Impersonation
+- Tool access (`can you use recommend?`) → SubjectAccessReview on virtual API group (this PRD, Milestone 1)
+- Resource access (`can you deploy to production?`) → Kubernetes impersonation for actual kubectl calls
+
+- **Pro**: Clean separation of concerns — dot-ai controls tool access, Kubernetes controls resource access
+- **Pro**: No post-fetch filtering needed, results are naturally scoped
+- **Con**: Two enforcement mechanisms to understand and configure
+
+**Decision**: TBD — to be resolved before Milestone 2 (Verb Mapping) since namespace enforcement affects how verbs and workflow phases interact with permissions.
+
+---
+
 ## Milestones
 
 ### Milestone 1: RBAC Enforcement Module
 **Objective**: Create the authorization check module and integrate it into tool dispatch.
 
-- [ ] Create `src/core/rbac/` module — SubjectAccessReview helper using `@kubernetes/client-node`
-- [ ] Integrate RBAC check into REST API tool dispatch (`rest-api.ts`, before tool handler invocation)
-- [ ] Integrate RBAC check into MCP tool handlers (`mcp.ts`)
-- [ ] RBAC check on user management endpoints (`POST/GET/DELETE /api/v1/users`)
-- [ ] Token users bypass RBAC — only OAuth users are checked
-- [ ] Structured error response for denied tool calls (tool name, namespace, user, reason)
+- [x] Create `src/core/rbac/` module — SubjectAccessReview helper using `@kubernetes/client-node`
+- [x] Integrate RBAC check into REST API tool dispatch (`rest-api.ts`, before tool handler invocation)
+- [x] RBAC-filtered tool discovery — `GET /api/v1/tools` returns only tools the authenticated user is authorized for
+- [x] Integrate RBAC check into MCP tool handlers (`mcp.ts`)
+- [x] MCP dynamic tool filtering — only register tools the user is authorized for at session startup (consumes filtered tool discovery)
+- [x] RBAC check on user management endpoints (`POST/GET/DELETE /api/v1/users`)
+- [x] Token users bypass RBAC — only OAuth users are checked
+- [x] Structured error response for denied tool calls (tool name, namespace, user, reason)
 - [ ] Integration tests: authorized calls succeed, unauthorized rejected
 
 **Success Criteria:**
@@ -174,7 +242,28 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 - OAuth user with `dotai-viewer` binding can only use `query` and `version`
 - Token users retain full access (no regression)
 
-### Milestone 2: Helm Chart ClusterRoles & ServiceAccount
+### Milestone 2: Verb Mapping Per Tool
+**Objective**: Define which RBAC verbs (`read`, `write`, etc.) gate which phases of each tool's workflow. This determines the granularity of permissions — e.g., a user with `read` on `recommend` can generate recommendations but not apply them.
+
+- [ ] Define verb mapping for `query`
+- [ ] Define verb mapping for `version`
+- [ ] Define verb mapping for `recommend`
+- [ ] Define verb mapping for `operate`
+- [ ] Define verb mapping for `remediate`
+- [ ] Define verb mapping for `manageOrgData`
+- [ ] Define verb mapping for `manageKnowledge`
+- [ ] Define verb mapping for `projectSetup`
+- [ ] Define verb mapping for `validateDocs`
+- [ ] Define verb mapping for user management (`users` resource)
+- [ ] Update ClusterRole definitions to use verbs instead of single `execute`
+- [ ] Update RBAC enforcement module to check verb per workflow phase
+
+**Success Criteria:**
+- Each tool has a clear verb-to-workflow-phase mapping
+- ClusterRoles use granular verbs (not just `execute`)
+- Users can be granted read-only access to mutating tools (e.g., recommend without apply)
+
+### Milestone 3: Helm Chart ClusterRoles & ServiceAccount
 **Objective**: Ship pre-built ClusterRoles and grant dot-ai's ServiceAccount permission to create SubjectAccessReviews.
 
 - [ ] Add `dotai-viewer`, `dotai-operator`, `dotai-admin` ClusterRoles to Helm templates
@@ -187,7 +276,7 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 - dot-ai ServiceAccount can create SubjectAccessReviews
 - RBAC enforcement can be toggled via Helm values
 
-### Milestone 3: Performance & Caching
+### Milestone 4: Performance & Caching
 **Objective**: Ensure RBAC checks add minimal latency.
 
 - [ ] Evaluate SubjectAccessReview latency under load
@@ -197,7 +286,7 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 **Success Criteria:**
 - SubjectAccessReview adds <10ms latency per request (p99)
 
-### Milestone 4: Audit Logging
+### Milestone 5: Audit Logging
 **Objective**: Log all authorization decisions for traceability.
 
 - [ ] Log allowed tool invocations with user identity (userId, email, tool, namespace)
@@ -209,7 +298,7 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 - All operations traceable to specific user
 - Denied access attempts logged with reason
 
-### Milestone 5: Documentation
+### Milestone 6: Documentation
 **Objective**: Document RBAC setup so admins can configure permissions.
 
 - [ ] Documentation: RBAC concepts (virtual API group, SubjectAccessReview, default deny)
@@ -221,6 +310,14 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 
 **Success Criteria:**
 - Admins can configure RBAC by following documentation alone
+
+### Milestone 7: Client-Side RBAC Integration (Feature Requests)
+**Objective**: Ensure CLI and Web UI consume the RBAC-filtered tool discovery endpoint so users only see tools they're authorized for.
+
+- [ ] Send feature request to CLI (`dot-ai-cli`): hide/disable commands for tools not returned by RBAC-filtered `GET /api/v1/tools`
+- [ ] Send feature request to Web UI (`dot-ai-ui`): hide/disable UI elements for tools not returned by RBAC-filtered `GET /api/v1/tools`
+
+**Note:** These are cross-project tasks. This PRD delivers the RBAC-filtered API; CLI and Web UI need to consume it on their side.
 
 ---
 
@@ -259,7 +356,7 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 | Location | File | What Changes |
 |----------|------|-------------|
 | REST API tool dispatch | `src/interfaces/rest-api.ts` | RBAC check before `toolMetadata.handler()` call |
-| MCP tool handlers | `src/interfaces/mcp.ts` | RBAC wrapper in `registerMcpTool()` |
+| MCP tool handlers | `src/interfaces/mcp.ts` | RBAC wrapper in `registerMcpTool()` + dynamic tool filtering at session startup |
 | User management | `src/interfaces/rest-api.ts` | RBAC check on `handleCreateUser`, `handleListUsers`, `handleDeleteUser` |
 | Identity access | `src/interfaces/request-context.ts` | Use existing `getCurrentIdentity()` |
 | Helm chart | `charts/templates/` | New ClusterRole templates |
