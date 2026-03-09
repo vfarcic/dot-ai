@@ -24,7 +24,7 @@ spec:
         {{- $podAnnotations | nindent 8 }}
       {{- end }}
     spec:
-      {{- /* MCP server no longer needs K8s RBAC - all K8s ops go through plugins (PRD #343) */}}
+      serviceAccountName: {{ include "dot-ai.serviceAccountName" . }}
       containers:
       - name: mcp-server
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -123,6 +123,11 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.auth.keyName }}
+{{- if .Values.rbac.enforcement.enabled }}
+        # RBAC enforcement (PRD #392)
+        - name: DOT_AI_RBAC_ENABLED
+          value: "true"
+{{- end }}
 {{- if .Values.dex.enabled }}
         # Dex OIDC configuration (PRD #380)
         # DEX_CLIENT_SECRET and DOT_AI_JWT_SECRET injected via envFrom below

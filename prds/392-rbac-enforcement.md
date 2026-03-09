@@ -268,10 +268,10 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 ### Milestone 3: Helm Chart ClusterRoles & ServiceAccount
 **Objective**: Ship pre-built ClusterRoles and grant dot-ai's ServiceAccount permission to create SubjectAccessReviews.
 
-- [ ] Add `dotai-viewer`, `dotai-operator`, `dotai-admin` ClusterRoles to Helm templates
-- [ ] Add `dotai-auth-checker` ClusterRole (allows `create` on `subjectaccessreviews`) and bind to dot-ai ServiceAccount
-- [ ] Helm values for enabling/disabling RBAC enforcement (`rbac.enforcement.enabled`, default `false`)
-- [ ] Integration tests: namespace-scoped permissions, group-based RoleBindings
+- [x] Add `dotai-viewer`, `dotai-operator`, `dotai-admin` ClusterRoles to Helm templates
+- [x] Add `dotai-auth-checker` ClusterRole (allows `create` on `subjectaccessreviews`) and bind to dot-ai ServiceAccount
+- [x] Helm values for enabling/disabling RBAC enforcement (`rbac.enforcement.enabled`, default `false`)
+- [x] Integration tests: group-based RoleBindings
 
 **Success Criteria:**
 - `helm install` creates all ClusterRoles

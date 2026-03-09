@@ -251,6 +251,14 @@ localEmbeddings:
 # NOTE: OAuth requires HTTPS. Enable Dex only when HTTPS is configured
 # (via ingress.tls, gateway HTTPS listener, or an upstream reverse proxy/load balancer).
 # Without Dex, authentication falls back to static token (DOT_AI_AUTH_TOKEN).
+# RBAC Enforcement (PRD #392)
+# When enabled, OAuth-authenticated users are checked against Kubernetes RBAC
+# before tool execution. Token users always bypass RBAC.
+# Requires dex.enabled=true (OAuth must be configured for RBAC to have effect).
+rbac:
+  enforcement:
+    enabled: false                    # Enable RBAC enforcement (default deny for OAuth users)
+
 dex:
   enabled: false                      # Deploy Dex for OAuth authentication (requires HTTPS)
   # REQUIRED when enabled: name of a pre-existing Secret containing:

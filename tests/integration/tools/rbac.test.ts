@@ -1,5 +1,5 @@
 /**
- * Integration Test: RBAC Enforcement (PRD #392 Milestone 1)
+ * Integration Test: RBAC Enforcement (PRD #392 Milestones 1-3)
  *
  * Tests binary tool-level authorization via SubjectAccessReview:
  * - Token users bypass RBAC (no regression)
@@ -7,6 +7,7 @@
  * - OAuth user without any bindings is denied on everything (default deny)
  * - Tool discovery returns only authorized tools for OAuth users
  * - User management endpoints enforce RBAC
+ * - Group-based RoleBindings (Milestone 3)
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
@@ -69,6 +70,13 @@ const remediateApplyUser = {
   userId: 'rbac-remediate-apply-test',
   email: 'remediate-apply@rbac-test.local',
   groups: [] as string[],
+};
+
+// Milestone 3: User with permissions granted via group binding
+const groupUser = {
+  userId: 'rbac-group-test',
+  email: 'group-user@rbac-test.local',
+  groups: ['dotai-operators'],
 };
 
 function mintTestJwt(user: {
@@ -343,6 +351,40 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
         },
       },
     });
+
+    // Milestone 3: Group-based binding
+    // ClusterRole for the group (query + version + operate)
+    await rbacApi.createClusterRole({
+      body: {
+        metadata: { name: 'rbac-test-group-operator' },
+        rules: [
+          {
+            apiGroups: [RBAC_API_GROUP],
+            resources: ['tools'],
+            resourceNames: ['query', 'version', 'operate'],
+            verbs: ['execute', 'apply'],
+          },
+        ],
+      },
+    });
+
+    await rbacApi.createClusterRoleBinding({
+      body: {
+        metadata: { name: 'rbac-test-group-operator-binding' },
+        subjects: [
+          {
+            kind: 'Group',
+            name: 'dotai-operators',
+            apiGroup: 'rbac.authorization.k8s.io',
+          },
+        ],
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'rbac-test-group-operator',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+      },
+    });
   }, 30000);
 
   test('should allow token user full access (RBAC bypass)', async () => {
@@ -592,5 +634,57 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
       expect(responseText).not.toContain('FORBIDDEN');
       expect(responseText).not.toContain("'apply' permission");
     }, 120000);
+  });
+
+  // Milestone 3: Group-based RoleBindings
+  describe('Group-Based RoleBindings (PRD #392 Milestone 3)', () => {
+    test('should grant access based on group membership', async () => {
+      const client = jwtClient(groupUser);
+
+      // groupUser is in 'dotai-operators' group, bound to query + version + operate
+      const versionResponse = await client.post('/api/v1/tools/version', {
+        interaction_id: `rbac_group_version_${Date.now()}`,
+      });
+
+      expect(versionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: { status: 'success' },
+          tool: 'version',
+        },
+      });
+
+      // recommend is NOT in the group's ClusterRole
+      const recommendResponse = await client.post('/api/v1/tools/recommend', {
+        intent: 'deploy nginx',
+      });
+
+      expect(recommendResponse).toMatchObject({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: expect.stringContaining('not authorized'),
+        },
+      });
+    }, 120000);
+
+    test('should include group-authorized tools in discovery', async () => {
+      const client = jwtClient(groupUser);
+
+      const response = await client.get('/api/v1/tools');
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          tools: expect.any(Array),
+        },
+      });
+
+      const toolNames = response.data.tools.map((t: { name: string }) => t.name);
+      expect(toolNames).toContain('version');
+      expect(toolNames).toContain('query');
+      expect(toolNames).toContain('operate');
+      expect(toolNames).not.toContain('recommend');
+    });
   });
 });
