@@ -1,8 +1,10 @@
 # PRD 307: Elicitation Enhancement Across MCP Tools
 
-## Status: Draft
+## Status: Complete
 ## Priority: Medium
 ## GitHub Issue: #307
+## Closed: 2026-03-09
+## Last Updated: 2026-03-09
 
 ---
 
