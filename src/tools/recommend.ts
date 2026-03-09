@@ -13,6 +13,8 @@ import { handleAnswerQuestionTool } from './answer-question';
 import { handleGenerateManifestsTool } from './generate-manifests';
 import { handleDeployManifestsTool } from './deploy-manifests';
 import { loadPrompt } from '../core/shared-prompt-loader';
+import { getCurrentIdentity } from '../interfaces/request-context';
+import { checkToolAccess } from '../core/rbac';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
 import { getVisualizationUrl } from '../core/visualization';
 import { ArtifactHubService } from '../core/artifacthub';
@@ -209,6 +211,28 @@ export async function handleRecommendTool(
       }
 
       if (stage === 'deployManifests') {
+        // PRD #392 Milestone 2: deployManifests requires 'apply' verb
+        const identity = getCurrentIdentity();
+        const rbacResult = await checkToolAccess(identity, {
+          toolName: 'recommend',
+          verb: 'apply',
+        });
+        if (!rbacResult.allowed) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  error: 'FORBIDDEN',
+                  message: `Access denied: deploying manifests requires 'apply' permission on 'recommend'. Save the files locally or push to Git to apply them through your own workflow.`,
+                  tool: 'recommend',
+                  stage: 'deployManifests',
+                  user: identity?.email,
+                }),
+              },
+            ],
+          };
+        }
         // PRD #359: Uses unified plugin registry for kubectl operations
         return await handleDeployManifestsTool(args as { solutionId: string }, dotAI, logger, requestId);
       }

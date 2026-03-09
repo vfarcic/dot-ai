@@ -82,11 +82,11 @@ The virtual API group `dot-ai.devopstoolkit.ai` requires no CRDs — SubjectAcce
 
 The Helm chart ships pre-built ClusterRoles. Admins only need to create bindings:
 
-| ClusterRole | Tools Allowed | Use Case |
-|-------------|---------------|----------|
-| `dotai-viewer` | `query`, `version` | Read-only cluster visibility |
-| `dotai-operator` | `query`, `version`, `operate`, `remediate` | Day-2 operations |
-| `dotai-admin` | All tools + user management | Full access |
+| ClusterRole | Tools Allowed | Verbs | Use Case |
+|-------------|---------------|-------|----------|
+| `dotai-viewer` | `query`, `version` | `execute` | Read-only cluster visibility |
+| `dotai-operator` | `query`, `version`, `operate`, `remediate` | `execute`, `apply` | Day-2 operations (plan + apply) |
+| `dotai-admin` | All tools + user management | `execute`, `apply` | Full access |
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -107,7 +107,7 @@ rules:
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["tools"]
     resourceNames: ["query", "version", "operate", "remediate"]
-    verbs: ["execute"]
+    verbs: ["execute", "apply"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -117,11 +117,11 @@ rules:
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["tools"]
     resourceNames: ["query", "version", "recommend", "operate", "remediate",
-                     "manageOrgData", "manageKnowledge", "projectSetup", "validateDocs"]
-    verbs: ["execute"]
+                     "manageOrgData", "manageKnowledge", "projectSetup"]
+    verbs: ["execute", "apply"]
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["users"]
-    verbs: ["create", "delete", "list"]
+    verbs: ["execute"]
 ```
 
 **Namespace scoping comes for free** — same user, different Roles per namespace. **Group bindings** leverage groups from the identity provider (Dex).
@@ -245,22 +245,24 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 ### Milestone 2: Verb Mapping Per Tool
 **Objective**: Define which RBAC verbs (`read`, `write`, etc.) gate which phases of each tool's workflow. This determines the granularity of permissions — e.g., a user with `read` on `recommend` can generate recommendations but not apply them.
 
-- [ ] Define verb mapping for `query`
-- [ ] Define verb mapping for `version`
-- [ ] Define verb mapping for `recommend`
-- [ ] Define verb mapping for `operate`
-- [ ] Define verb mapping for `remediate`
-- [ ] Define verb mapping for `manageOrgData`
-- [ ] Define verb mapping for `manageKnowledge`
-- [ ] Define verb mapping for `projectSetup`
-- [ ] Define verb mapping for `validateDocs`
-- [ ] Define verb mapping for user management (`users` resource)
-- [ ] Update ClusterRole definitions to use verbs instead of single `execute`
-- [ ] Update RBAC enforcement module to check verb per workflow phase
+**Design Principle**: Single-phase tools (read-only or all-or-nothing) retain the `execute` verb from Milestone 1 — verb granularity adds no value when there's only one access level. Verb mapping only applies to multi-phase tools where distinguishing `read` vs `write` enables meaningful partial access (e.g., generate but not apply).
+
+- [~] Define verb mapping for `query` — single-phase read-only tool, retains `execute` (no change needed)
+- [~] Define verb mapping for `version` — single-phase read-only tool, retains `execute` (no change needed)
+- [x] Define verb mapping for `recommend` — `execute` for all phases up to and including `generateManifests`; `apply` verb required for `deployManifests` stage. When user lacks `apply`, the `generateManifests` response includes a message explaining that deploying requires `apply` permission and suggests saving files locally or pushing to Git instead. Invocations of `deployManifests` without `apply` return structured denial.
+- [x] Define verb mapping for `operate` — `execute` for analysis and refinement routes; `apply` verb required for execution route (sessionId + executeChoice). When user lacks `apply`, analysis response explains that executing requires `apply` permission and suggests applying manually via kubectl or GitOps. Execution without `apply` returns structured denial.
+- [x] Define verb mapping for `remediate` — `execute` for investigation and diagnosis; `apply` verb required for executing remediation commands (both manual executeChoice and automatic mode). When user lacks `apply`: manual mode omits execution choices and explains the restriction; automatic mode downgrades to awaiting_user_approval with explanation. Direct executeChoice calls without `apply` return structured denial.
+- [~] Define verb mapping for `manageOrgData` — all operations (create, delete, scan, list, get, search) are independent CRUD with no plan-then-apply workflow; retains `execute` (no change needed)
+- [~] Define verb mapping for `manageKnowledge` — independent operations (ingest, search, deleteByUri) with no plan-then-apply workflow; retains `execute` (no change needed)
+- [~] Define verb mapping for `projectSetup` — multi-step workflow but generateScope only returns content (no cluster/disk mutation); retains `execute` (no change needed)
+- [~] Define verb mapping for user management (`users` resource) — admin-only tool with no plan-then-apply workflow; retains `execute` (no change needed)
+- [x] Update ClusterRole definitions to use verbs where applicable
+- [x] Update RBAC enforcement module to check verb per workflow phase
 
 **Success Criteria:**
-- Each tool has a clear verb-to-workflow-phase mapping
-- ClusterRoles use granular verbs (not just `execute`)
+- Each tool assessed for verb granularity; single-phase tools documented as retaining `execute`
+- Multi-phase tools have clear verb-to-workflow-phase mappings
+- ClusterRoles updated for tools where granular verbs add value
 - Users can be granted read-only access to mutating tools (e.g., recommend without apply)
 
 ### Milestone 3: Helm Chart ClusterRoles & ServiceAccount
