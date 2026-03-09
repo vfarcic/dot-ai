@@ -235,7 +235,7 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 - [x] RBAC check on user management endpoints (`POST/GET/DELETE /api/v1/users`)
 - [x] Token users bypass RBAC — only OAuth users are checked
 - [x] Structured error response for denied tool calls (tool name, namespace, user, reason)
-- [ ] Integration tests: authorized calls succeed, unauthorized rejected
+- [x] Integration tests: authorized calls succeed, unauthorized rejected
 
 **Success Criteria:**
 - OAuth user without RoleBindings cannot execute any tool

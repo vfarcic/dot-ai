@@ -431,6 +431,33 @@ if [ $WAITED -ge $MAX_WAIT ]; then
     exit 1
 fi
 
+# Wait for agentic-tools plugin to be discovered by MCP server
+log_info "Waiting for agentic-tools plugin discovery..."
+PLUGIN_MAX_WAIT=120
+PLUGIN_WAITED=0
+while [ $PLUGIN_WAITED -lt $PLUGIN_MAX_WAIT ]; do
+    PLUGIN_COUNT=$(curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+        -d '{}' 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('result',{}).get('system',{}).get('plugins',{}).get('pluginCount',0))" 2>/dev/null || echo "0")
+    if [ "$PLUGIN_COUNT" -ge 1 ] 2>/dev/null; then
+        log_info "Plugin discovery complete: ${PLUGIN_COUNT} plugin(s) available"
+        break
+    fi
+    sleep 3
+    PLUGIN_WAITED=$((PLUGIN_WAITED + 3))
+done
+
+if [ $PLUGIN_WAITED -ge $PLUGIN_MAX_WAIT ]; then
+    log_error "Plugin discovery failed within ${PLUGIN_MAX_WAIT} seconds"
+    curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+        -d '{}' 2>/dev/null | python3 -m json.tool || true
+    kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+    exit 1
+fi
+
 # Export configuration for tests
 export MCP_BASE_URL="${MCP_URL}"
 export DOT_AI_AUTH_TOKEN="${TEST_AUTH_TOKEN}"
