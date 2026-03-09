@@ -28,7 +28,6 @@ This roadmap is a living document and may change based on community feedback and
 - MCP server integration for extended tool capabilities - observability, tracing, logging (PRD #358)
 - MCP tool filtering - server-side allow/deny lists to control tool exposure (PRD #347)
 - Elicitation enhancement across MCP tools - systematic review and improvement of confirmation, clarification, and adaptive questioning (PRD #307)
-- Multi-step workflow distributed tracing (PRD #197)
 - Integrate patterns & policies into remediation tool (PRD #227)
 
 ## Long-term (6-12 Months)
