@@ -26,7 +26,6 @@ This roadmap is a living document and may change based on community feedback and
 
 - Auto-generated Go CLI as alternative to MCP - self-contained multi-arch binaries from OpenAPI spec (PRD #371)
 - MCP server integration for extended tool capabilities - observability, tracing, logging (PRD #358)
-- MCP tool filtering - server-side allow/deny lists to control tool exposure (PRD #347)
 - Integrate patterns & policies into remediation tool (PRD #227)
 
 ## Long-term (6-12 Months)
