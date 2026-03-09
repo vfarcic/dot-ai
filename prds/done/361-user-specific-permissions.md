@@ -1,10 +1,11 @@
 # PRD: User-Specific Permissions
 
-**Status**: Planning
+**Status**: No Longer Needed
 **Priority**: High
 **GitHub Issue**: [#361](https://github.com/vfarcic/dot-ai/issues/361)
 **Created**: 2026-01-30
-**Last Updated**: 2026-01-30
+**Last Updated**: 2026-03-10
+**Closed**: 2026-03-10
 **Depends On**: [PRD #360 - User Authentication](./360-user-authentication.md)
 
 ---
