@@ -20,7 +20,6 @@ metadata:
 rules:
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["tools"]
-    resourceNames: ["query", "version"]
     verbs: ["execute"]
 ---
 # dotai-operator: Day-2 operations (plan + apply)
@@ -39,7 +38,6 @@ metadata:
 rules:
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["tools"]
-    resourceNames: ["query", "version", "operate", "remediate"]
     verbs: ["execute", "apply"]
 ---
 # dotai-admin: Full access including user management
@@ -58,8 +56,6 @@ metadata:
 rules:
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["tools"]
-    resourceNames: ["query", "version", "recommend", "operate", "remediate",
-                     "manageOrgData", "manageKnowledge", "projectSetup"]
     verbs: ["execute", "apply"]
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["users"]

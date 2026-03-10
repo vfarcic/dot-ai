@@ -4,7 +4,7 @@
 **Priority**: High
 **GitHub Issue**: [#392](https://github.com/vfarcic/dot-ai/issues/392)
 **Created**: 2026-03-02
-**Last Updated**: 2026-03-02
+**Last Updated**: 2026-03-10
 **Depends on**: [PRD #380 - MCP OAuth Authentication & User Identity](./done/380-gateway-auth-rbac.md)
 
 ---
@@ -40,7 +40,7 @@ When an OAuth-authenticated user invokes a tool:
 
 The `GET /api/v1/tools` endpoint returns only tools the authenticated user is authorized for. This is the foundation for all client-side filtering — MCP, CLI, and Web UI all consume this filtered response.
 
-For **MCP clients** (Claude Code, Cursor, etc.), dot-ai only registers the tools returned by the filtered discovery at session startup. An OAuth user with `dotai-viewer` binding only sees `query` and `version` — `operate`, `recommend`, etc. are never loaded. The AI agent can't attempt unauthorized calls because it doesn't know the tools exist.
+For **MCP clients** (Claude Code, Cursor, etc.), dot-ai only registers the tools returned by the filtered discovery at session startup. An OAuth user with `dotai-viewer` binding sees all tools but can only execute read/plan phases — the AI agent can't trigger mutations because `apply` verb checks block them at invocation time.
 
 For **CLI and Web UI**, the same filtered endpoint means these clients can hide commands/UI elements for tools the user can't access (handled by feature requests to those projects).
 
@@ -80,13 +80,17 @@ The virtual API group `dot-ai.devopstoolkit.ai` requires no CRDs — SubjectAcce
 
 ### Pre-built ClusterRoles
 
-The Helm chart ships pre-built ClusterRoles. Admins only need to create bindings:
+The Helm chart ships pre-built ClusterRoles that match **all tools** (no `resourceNames` — automatically covers current and future tools). Admins only need to create bindings:
 
-| ClusterRole | Tools Allowed | Verbs | Use Case |
-|-------------|---------------|-------|----------|
-| `dotai-viewer` | `query`, `version` | `execute` | Read-only cluster visibility |
-| `dotai-operator` | `query`, `version`, `operate`, `remediate` | `execute`, `apply` | Day-2 operations (plan + apply) |
-| `dotai-admin` | All tools + user management | `execute`, `apply` | Full access |
+| ClusterRole | Tools | Verbs | Use Case |
+|-------------|-------|-------|----------|
+| `dotai-viewer` | All tools | `execute` | Read, plan, query — no mutations anywhere |
+| `dotai-operator` | All tools | `execute`, `apply` | Can also apply mutations (deploy, remediate, manage org data/knowledge) |
+| `dotai-admin` | All tools + user management | `execute`, `apply` | Full access including user management |
+
+**Verb meanings:**
+- **`execute`** — use any tool for reading, planning, querying (non-mutating)
+- **`apply`** — perform mutations (cluster changes, org data create/delete, knowledge ingest/delete)
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -96,7 +100,6 @@ metadata:
 rules:
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["tools"]
-    resourceNames: ["query", "version"]
     verbs: ["execute"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -106,7 +109,6 @@ metadata:
 rules:
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["tools"]
-    resourceNames: ["query", "version", "operate", "remediate"]
     verbs: ["execute", "apply"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -116,13 +118,13 @@ metadata:
 rules:
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["tools"]
-    resourceNames: ["query", "version", "recommend", "operate", "remediate",
-                     "manageOrgData", "manageKnowledge", "projectSetup"]
     verbs: ["execute", "apply"]
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["users"]
     verbs: ["execute"]
 ```
+
+Admins who want fine-grained control can still create custom Roles with `resourceNames` to restrict access to specific tools — that's standard Kubernetes RBAC.
 
 **Namespace scoping comes for free** — same user, different Roles per namespace. **Group bindings** leverage groups from the identity provider (Dex).
 
@@ -173,6 +175,7 @@ This builds on the existing `UserIdentity` propagation (AsyncLocalStorage reques
 4. **Token users unaffected** — static token bypasses RBAC (backward-compatible)
 5. **Namespace scoping for free** — K8s RBAC already supports namespace-scoped Roles
 6. **Familiar UX** — admins manage permissions with `kubectl`
+7. **User-facing only** — RBAC applies to user-invoked tool calls (via MCP, CLI, Web UI). Internal AI engine calls (e.g., fetching org data for recommendations) and controller operations are not subject to RBAC
 
 ## Open Design Decisions
 
@@ -239,21 +242,21 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 
 **Success Criteria:**
 - OAuth user without RoleBindings cannot execute any tool
-- OAuth user with `dotai-viewer` binding can only use `query` and `version`
+- OAuth user with `dotai-viewer` binding can use all tools for read/plan operations but cannot apply mutations
 - Token users retain full access (no regression)
 
 ### Milestone 2: Verb Mapping Per Tool
 **Objective**: Define which RBAC verbs (`read`, `write`, etc.) gate which phases of each tool's workflow. This determines the granularity of permissions — e.g., a user with `read` on `recommend` can generate recommendations but not apply them.
 
-**Design Principle**: Single-phase tools (read-only or all-or-nothing) retain the `execute` verb from Milestone 1 — verb granularity adds no value when there's only one access level. Verb mapping only applies to multi-phase tools where distinguishing `read` vs `write` enables meaningful partial access (e.g., generate but not apply).
+**Design Principle**: The `apply` verb gates **all mutations**, not just Kubernetes cluster changes. Any tool operation that creates, deletes, or modifies state requires `apply`. Read-only operations use `execute`. This provides a simple mental model: `execute` = read, `apply` = write.
 
 - [~] Define verb mapping for `query` — single-phase read-only tool, retains `execute` (no change needed)
 - [~] Define verb mapping for `version` — single-phase read-only tool, retains `execute` (no change needed)
 - [x] Define verb mapping for `recommend` — `execute` for all phases up to and including `generateManifests`; `apply` verb required for `deployManifests` stage. When user lacks `apply`, the `generateManifests` response includes a message explaining that deploying requires `apply` permission and suggests saving files locally or pushing to Git instead. Invocations of `deployManifests` without `apply` return structured denial.
 - [x] Define verb mapping for `operate` — `execute` for analysis and refinement routes; `apply` verb required for execution route (sessionId + executeChoice). When user lacks `apply`, analysis response explains that executing requires `apply` permission and suggests applying manually via kubectl or GitOps. Execution without `apply` returns structured denial.
 - [x] Define verb mapping for `remediate` — `execute` for investigation and diagnosis; `apply` verb required for executing remediation commands (both manual executeChoice and automatic mode). When user lacks `apply`: manual mode omits execution choices and explains the restriction; automatic mode downgrades to awaiting_user_approval with explanation. Direct executeChoice calls without `apply` return structured denial.
-- [~] Define verb mapping for `manageOrgData` — all operations (create, delete, scan, list, get, search) are independent CRUD with no plan-then-apply workflow; retains `execute` (no change needed)
-- [~] Define verb mapping for `manageKnowledge` — independent operations (ingest, search, deleteByUri) with no plan-then-apply workflow; retains `execute` (no change needed)
+- [x] Define verb mapping for `manageOrgData` — read operations (list, get, search) use `execute`; write operations (create, delete, deleteAll) require `apply`
+- [x] Define verb mapping for `manageKnowledge` — read operations (search) use `execute`; write operations (ingest, deleteByUri) require `apply`
 - [~] Define verb mapping for `projectSetup` — multi-step workflow but generateScope only returns content (no cluster/disk mutation); retains `execute` (no change needed)
 - [~] Define verb mapping for user management (`users` resource) — admin-only tool with no plan-then-apply workflow; retains `execute` (no change needed)
 - [x] Update ClusterRole definitions to use verbs where applicable
@@ -320,6 +323,23 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 - [ ] Send feature request to Web UI (`dot-ai-ui`): hide/disable UI elements for tools not returned by RBAC-filtered `GET /api/v1/tools`
 
 **Note:** These are cross-project tasks. This PRD delivers the RBAC-filtered API; CLI and Web UI need to consume it on their side.
+
+### Milestone 8: ClusterRole Simplification & Mutation Verb Enforcement
+**Objective**: Remove hardcoded `resourceNames` from pre-built ClusterRoles so they automatically cover all tools (current and future). Extend `apply` verb enforcement to all mutating operations, not just cluster changes.
+
+- [x] Remove `resourceNames` from `dotai-viewer`, `dotai-operator`, `dotai-admin` ClusterRoles in Helm template
+- [x] Add `apply` verb checking to `manageOrgData` — create, delete, deleteAll require `apply`; list, get, search use `execute`
+- [x] Add `apply` verb checking to `manageKnowledge` — ingest, deleteByUri require `apply`; search uses `execute`
+- [x] Update integration tests for new ClusterRole definitions (no `resourceNames`)
+- [x] Update integration tests for `manageOrgData` and `manageKnowledge` verb enforcement
+- [x] Verify that internal AI engine calls and controller calls are not affected by RBAC (only user-invoked tool calls are checked)
+
+**Success Criteria:**
+- Pre-built ClusterRoles match all tools without hardcoded tool lists
+- New tools added in the future are automatically covered by existing ClusterRoles
+- `dotai-viewer` users can search knowledge and list org data but cannot create/delete
+- `dotai-operator` users can perform all mutations on all tools
+- Internal/controller tool invocations are unaffected by RBAC
 
 ---
 

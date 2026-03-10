@@ -72,6 +72,48 @@ const remediateApplyUser = {
   groups: [] as string[],
 };
 
+// Milestone 8: User with execute but not apply on manageOrgData
+const orgDataExecuteUser = {
+  userId: 'rbac-orgdata-execute-test',
+  email: 'orgdata-execute@rbac-test.local',
+  groups: [] as string[],
+};
+
+// Milestone 8: User with execute and apply on manageOrgData
+const orgDataApplyUser = {
+  userId: 'rbac-orgdata-apply-test',
+  email: 'orgdata-apply@rbac-test.local',
+  groups: [] as string[],
+};
+
+// Milestone 8: User with execute but not apply on manageKnowledge
+const knowledgeExecuteUser = {
+  userId: 'rbac-knowledge-execute-test',
+  email: 'knowledge-execute@rbac-test.local',
+  groups: [] as string[],
+};
+
+// Milestone 8: User with execute and apply on manageKnowledge
+const knowledgeApplyUser = {
+  userId: 'rbac-knowledge-apply-test',
+  email: 'knowledge-apply@rbac-test.local',
+  groups: [] as string[],
+};
+
+// Milestone 8: User bound to ClusterRole without resourceNames (viewer-style)
+const m8ViewerUser = {
+  userId: 'rbac-m8-viewer-test',
+  email: 'm8-viewer@rbac-test.local',
+  groups: [] as string[],
+};
+
+// Milestone 8: User bound to ClusterRole without resourceNames (operator-style)
+const m8OperatorUser = {
+  userId: 'rbac-m8-operator-test',
+  email: 'm8-operator@rbac-test.local',
+  groups: [] as string[],
+};
+
 // Milestone 3: User with permissions granted via group binding
 const groupUser = {
   userId: 'rbac-group-test',
@@ -347,6 +389,202 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
         roleRef: {
           kind: 'ClusterRole',
           name: 'rbac-test-remediate-apply',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+      },
+    });
+
+    // Milestone 8: ClusterRole with execute-only on manageOrgData (no apply)
+    await rbacApi.createClusterRole({
+      body: {
+        metadata: { name: 'rbac-test-orgdata-execute' },
+        rules: [
+          {
+            apiGroups: [RBAC_API_GROUP],
+            resources: ['tools'],
+            resourceNames: ['manageOrgData'],
+            verbs: ['execute'],
+          },
+        ],
+      },
+    });
+
+    await rbacApi.createClusterRoleBinding({
+      body: {
+        metadata: { name: 'rbac-test-orgdata-execute-binding' },
+        subjects: [
+          {
+            kind: 'User',
+            name: orgDataExecuteUser.email,
+            apiGroup: 'rbac.authorization.k8s.io',
+          },
+        ],
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'rbac-test-orgdata-execute',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+      },
+    });
+
+    // Milestone 8: ClusterRole with execute AND apply on manageOrgData
+    await rbacApi.createClusterRole({
+      body: {
+        metadata: { name: 'rbac-test-orgdata-apply' },
+        rules: [
+          {
+            apiGroups: [RBAC_API_GROUP],
+            resources: ['tools'],
+            resourceNames: ['manageOrgData'],
+            verbs: ['execute', 'apply'],
+          },
+        ],
+      },
+    });
+
+    await rbacApi.createClusterRoleBinding({
+      body: {
+        metadata: { name: 'rbac-test-orgdata-apply-binding' },
+        subjects: [
+          {
+            kind: 'User',
+            name: orgDataApplyUser.email,
+            apiGroup: 'rbac.authorization.k8s.io',
+          },
+        ],
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'rbac-test-orgdata-apply',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+      },
+    });
+
+    // Milestone 8: ClusterRole with execute-only on manageKnowledge (no apply)
+    await rbacApi.createClusterRole({
+      body: {
+        metadata: { name: 'rbac-test-knowledge-execute' },
+        rules: [
+          {
+            apiGroups: [RBAC_API_GROUP],
+            resources: ['tools'],
+            resourceNames: ['manageKnowledge'],
+            verbs: ['execute'],
+          },
+        ],
+      },
+    });
+
+    await rbacApi.createClusterRoleBinding({
+      body: {
+        metadata: { name: 'rbac-test-knowledge-execute-binding' },
+        subjects: [
+          {
+            kind: 'User',
+            name: knowledgeExecuteUser.email,
+            apiGroup: 'rbac.authorization.k8s.io',
+          },
+        ],
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'rbac-test-knowledge-execute',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+      },
+    });
+
+    // Milestone 8: ClusterRole with execute AND apply on manageKnowledge
+    await rbacApi.createClusterRole({
+      body: {
+        metadata: { name: 'rbac-test-knowledge-apply' },
+        rules: [
+          {
+            apiGroups: [RBAC_API_GROUP],
+            resources: ['tools'],
+            resourceNames: ['manageKnowledge'],
+            verbs: ['execute', 'apply'],
+          },
+        ],
+      },
+    });
+
+    await rbacApi.createClusterRoleBinding({
+      body: {
+        metadata: { name: 'rbac-test-knowledge-apply-binding' },
+        subjects: [
+          {
+            kind: 'User',
+            name: knowledgeApplyUser.email,
+            apiGroup: 'rbac.authorization.k8s.io',
+          },
+        ],
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'rbac-test-knowledge-apply',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+      },
+    });
+
+    // Milestone 8: ClusterRole WITHOUT resourceNames (viewer-style — matches all tools)
+    await rbacApi.createClusterRole({
+      body: {
+        metadata: { name: 'rbac-test-m8-viewer' },
+        rules: [
+          {
+            apiGroups: [RBAC_API_GROUP],
+            resources: ['tools'],
+            verbs: ['execute'],
+          },
+        ],
+      },
+    });
+
+    await rbacApi.createClusterRoleBinding({
+      body: {
+        metadata: { name: 'rbac-test-m8-viewer-binding' },
+        subjects: [
+          {
+            kind: 'User',
+            name: m8ViewerUser.email,
+            apiGroup: 'rbac.authorization.k8s.io',
+          },
+        ],
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'rbac-test-m8-viewer',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+      },
+    });
+
+    // Milestone 8: ClusterRole WITHOUT resourceNames (operator-style — matches all tools)
+    await rbacApi.createClusterRole({
+      body: {
+        metadata: { name: 'rbac-test-m8-operator' },
+        rules: [
+          {
+            apiGroups: [RBAC_API_GROUP],
+            resources: ['tools'],
+            verbs: ['execute', 'apply'],
+          },
+        ],
+      },
+    });
+
+    await rbacApi.createClusterRoleBinding({
+      body: {
+        metadata: { name: 'rbac-test-m8-operator-binding' },
+        subjects: [
+          {
+            kind: 'User',
+            name: m8OperatorUser.email,
+            apiGroup: 'rbac.authorization.k8s.io',
+          },
+        ],
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'rbac-test-m8-operator',
           apiGroup: 'rbac.authorization.k8s.io',
         },
       },
@@ -812,6 +1050,304 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
       expect(toolNames).toContain('query');
       expect(toolNames).toContain('operate');
       expect(toolNames).not.toContain('recommend');
+    });
+  });
+
+  // Milestone 8: Verb mapping tests for manageOrgData
+  describe('Verb Mapping - manageOrgData (PRD #392 Milestone 8)', () => {
+    test('should deny create for user with execute but not apply on manageOrgData', async () => {
+      const client = jwtClient(orgDataExecuteUser);
+
+      // create requires apply verb — should be denied
+      const createResponse = await client.post('/api/v1/tools/manageOrgData', {
+        dataType: 'pattern',
+        operation: 'create',
+        interaction_id: `rbac_orgdata_create_denied_${Date.now()}`,
+      });
+
+      expect(createResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            error: 'FORBIDDEN',
+            message: expect.stringContaining('apply'),
+          },
+        },
+      });
+    }, 120000);
+
+    test('should deny delete for user with execute but not apply on manageOrgData', async () => {
+      const client = jwtClient(orgDataExecuteUser);
+
+      // delete requires apply verb — should be denied
+      const deleteResponse = await client.post('/api/v1/tools/manageOrgData', {
+        dataType: 'pattern',
+        operation: 'delete',
+        id: 'nonexistent-id',
+        interaction_id: `rbac_orgdata_delete_denied_${Date.now()}`,
+      });
+
+      expect(deleteResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            error: 'FORBIDDEN',
+            message: expect.stringContaining('apply'),
+          },
+        },
+      });
+    }, 120000);
+
+    test('should deny deleteAll for user with execute but not apply on manageOrgData', async () => {
+      const client = jwtClient(orgDataExecuteUser);
+
+      const deleteAllResponse = await client.post('/api/v1/tools/manageOrgData', {
+        dataType: 'pattern',
+        operation: 'deleteAll',
+        interaction_id: `rbac_orgdata_deleteall_denied_${Date.now()}`,
+      });
+
+      expect(deleteAllResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            error: 'FORBIDDEN',
+            message: expect.stringContaining('apply'),
+          },
+        },
+      });
+    }, 120000);
+
+    test('should allow list for user with execute on manageOrgData', async () => {
+      const client = jwtClient(orgDataExecuteUser);
+
+      // list uses default execute verb — should be allowed
+      const listResponse = await client.post('/api/v1/tools/manageOrgData', {
+        dataType: 'pattern',
+        operation: 'list',
+        interaction_id: `rbac_orgdata_list_allowed_${Date.now()}`,
+      });
+
+      // Should NOT get FORBIDDEN
+      const responseText = JSON.stringify(listResponse);
+      expect(responseText).not.toContain('FORBIDDEN');
+      expect(responseText).not.toContain("'apply' permission");
+    }, 120000);
+
+    test('should allow create for user with apply verb on manageOrgData', async () => {
+      const client = jwtClient(orgDataApplyUser);
+
+      // create passes RBAC (has apply verb) — may fail downstream but not on RBAC
+      const createResponse = await client.post('/api/v1/tools/manageOrgData', {
+        dataType: 'pattern',
+        operation: 'create',
+        interaction_id: `rbac_orgdata_create_allowed_${Date.now()}`,
+      });
+
+      const responseText = JSON.stringify(createResponse);
+      expect(responseText).not.toContain('FORBIDDEN');
+      expect(responseText).not.toContain("'apply' permission");
+    }, 120000);
+
+    test('should allow token user to perform mutating operations on manageOrgData', async () => {
+      // Token users bypass RBAC — mutating operations should succeed (not FORBIDDEN)
+      const createResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'pattern',
+          operation: 'create',
+          interaction_id: `rbac_orgdata_token_${Date.now()}`,
+        }
+      );
+
+      const responseText = JSON.stringify(createResponse);
+      expect(responseText).not.toContain('FORBIDDEN');
+      expect(responseText).not.toContain("'apply' permission");
+    }, 120000);
+  });
+
+  // Milestone 8: Verb mapping tests for manageKnowledge
+  describe('Verb Mapping - manageKnowledge (PRD #392 Milestone 8)', () => {
+    test('should deny ingest for user with execute but not apply on manageKnowledge', async () => {
+      const client = jwtClient(knowledgeExecuteUser);
+
+      // ingest requires apply verb — should be denied
+      const ingestResponse = await client.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        content: 'test content',
+        uri: 'https://example.com/test-doc',
+        interaction_id: `rbac_knowledge_ingest_denied_${Date.now()}`,
+      });
+
+      expect(ingestResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            error: 'FORBIDDEN',
+            message: expect.stringContaining('apply'),
+          },
+        },
+      });
+    }, 120000);
+
+    test('should deny deleteByUri for user with execute but not apply on manageKnowledge', async () => {
+      const client = jwtClient(knowledgeExecuteUser);
+
+      const deleteResponse = await client.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        uri: 'https://example.com/test-doc',
+        interaction_id: `rbac_knowledge_delete_denied_${Date.now()}`,
+      });
+
+      expect(deleteResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            error: 'FORBIDDEN',
+            message: expect.stringContaining('apply'),
+          },
+        },
+      });
+    }, 120000);
+
+    test('should allow search for user with execute on manageKnowledge', async () => {
+      const client = jwtClient(knowledgeExecuteUser);
+
+      // search uses default execute verb — should NOT get FORBIDDEN
+      const searchResponse = await client.post('/api/v1/tools/manageKnowledge', {
+        operation: 'search',
+        query: 'test query',
+        interaction_id: `rbac_knowledge_search_allowed_${Date.now()}`,
+      });
+
+      const responseText = JSON.stringify(searchResponse);
+      expect(responseText).not.toContain('FORBIDDEN');
+      expect(responseText).not.toContain("'apply' permission");
+    }, 120000);
+
+    test('should allow ingest for user with apply verb on manageKnowledge', async () => {
+      const client = jwtClient(knowledgeApplyUser);
+
+      // ingest passes RBAC (has apply verb) — may fail downstream but not on RBAC
+      const ingestResponse = await client.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        content: 'test content',
+        uri: 'https://example.com/test-doc',
+        interaction_id: `rbac_knowledge_ingest_allowed_${Date.now()}`,
+      });
+
+      const responseText = JSON.stringify(ingestResponse);
+      expect(responseText).not.toContain('FORBIDDEN');
+      expect(responseText).not.toContain("'apply' permission");
+    }, 120000);
+  });
+
+  // Milestone 8: ClusterRole simplification tests (no resourceNames)
+  describe('ClusterRole Simplification (PRD #392 Milestone 8)', () => {
+    test('should allow viewer without resourceNames to execute any tool', async () => {
+      const client = jwtClient(m8ViewerUser);
+
+      // version — previously allowed by resourceNames viewer
+      const versionResponse = await client.post('/api/v1/tools/version', {
+        interaction_id: `rbac_m8_viewer_version_${Date.now()}`,
+      });
+
+      expect(versionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: { status: 'success' },
+          tool: 'version',
+        },
+      });
+
+      // recommend — would have been DENIED with resourceNames viewer, now ALLOWED
+      // (execute verb on all tools, no resourceNames restriction)
+      const recommendResponse = await client.post('/api/v1/tools/recommend', {
+        intent: 'deploy nginx with 2 replicas',
+        final: true,
+        interaction_id: `rbac_m8_viewer_recommend_${Date.now()}`,
+      });
+
+      expect(recommendResponse).toMatchObject({
+        success: true,
+        data: {
+          result: expect.objectContaining({
+            solutions: expect.any(Array),
+          }),
+        },
+      });
+    }, 120000);
+
+    test('should deny apply for viewer without resourceNames', async () => {
+      const client = jwtClient(m8ViewerUser);
+
+      // deployManifests requires apply — viewer only has execute
+      const deployResponse = await client.post('/api/v1/tools/recommend', {
+        stage: 'deployManifests',
+        solutionId: 'sol-0000000000000-00000000',
+        interaction_id: `rbac_m8_viewer_deploy_denied_${Date.now()}`,
+      });
+
+      expect(deployResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            error: 'FORBIDDEN',
+            message: expect.stringContaining('apply'),
+          },
+        },
+      });
+    }, 120000);
+
+    test('should allow operator without resourceNames to execute and apply on any tool', async () => {
+      const client = jwtClient(m8OperatorUser);
+
+      // execute on any tool
+      const versionResponse = await client.post('/api/v1/tools/version', {
+        interaction_id: `rbac_m8_operator_version_${Date.now()}`,
+      });
+
+      expect(versionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: { status: 'success' },
+          tool: 'version',
+        },
+      });
+
+      // apply on recommend — operator has both execute and apply
+      const deployResponse = await client.post('/api/v1/tools/recommend', {
+        stage: 'deployManifests',
+        solutionId: 'sol-0000000000000-00000000',
+        interaction_id: `rbac_m8_operator_deploy_${Date.now()}`,
+      });
+
+      // Should NOT get FORBIDDEN — may fail downstream for other reasons
+      const responseText = JSON.stringify(deployResponse);
+      expect(responseText).not.toContain('FORBIDDEN');
+      expect(responseText).not.toContain("'apply' permission");
+    }, 120000);
+
+    test('should show all tools in discovery for viewer without resourceNames', async () => {
+      const client = jwtClient(m8ViewerUser);
+
+      const response = await client.get('/api/v1/tools');
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          tools: expect.any(Array),
+        },
+      });
+
+      const toolNames = response.data.tools.map((t: { name: string }) => t.name);
+      // Without resourceNames, viewer sees ALL tools (has execute on all)
+      expect(toolNames).toContain('version');
+      expect(toolNames).toContain('query');
+      expect(toolNames).toContain('recommend');
+      expect(toolNames).toContain('operate');
+      expect(toolNames).toContain('manageOrgData');
+      expect(toolNames).toContain('manageKnowledge');
     });
   });
 });
