@@ -636,6 +636,133 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
     }, 120000);
   });
 
+  // Milestone 5: Audit Logging
+  describe('Audit Logging (PRD #392 Milestone 5)', () => {
+    async function fetchRecentLogs(): Promise<string> {
+      return integrationTest.kubectl(
+        'logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=500'
+      );
+    }
+
+    // Split logs into blocks (each block starts with a timestamp line)
+    // so we can match multi-line pretty-printed JSON entries.
+    function findAuditBlocks(
+      logs: string,
+      ...patterns: string[]
+    ): string[] {
+      // Split on timestamp boundaries to get individual log entries
+      const blocks = logs.split(/(?=\[\d{4}-\d{2}-\d{2}T)/);
+      return blocks.filter(block =>
+        block.includes('[RBAC-Audit]') &&
+        patterns.every(p => block.includes(p))
+      );
+    }
+
+    test('should log allowed tool invocations with user identity', async () => {
+      const client = jwtClient(viewerUser);
+
+      await client.post('/api/v1/tools/version', {
+        interaction_id: `audit_allowed_${Date.now()}`,
+      });
+
+      const logs = await fetchRecentLogs();
+      const matches = findAuditBlocks(
+        logs,
+        'tool.access.allowed',
+        viewerUser.email,
+        '"tool": "version"'
+      );
+
+      expect(matches.length).toBeGreaterThan(0);
+    });
+
+    test('should log denied tool invocations with reason', async () => {
+      const client = jwtClient(viewerUser);
+
+      await client.post('/api/v1/tools/recommend', {
+        intent: 'deploy nginx',
+      });
+
+      const logs = await fetchRecentLogs();
+      const matches = findAuditBlocks(
+        logs,
+        'tool.access.denied',
+        viewerUser.email,
+        '"tool": "recommend"'
+      );
+
+      expect(matches.length).toBeGreaterThan(0);
+      expect(matches.some(block => block.includes('"reason"'))).toBe(true);
+    });
+
+    test('should log user management operations', async () => {
+      const auditAdminUser = {
+        userId: 'rbac-audit-admin-test',
+        email: 'audit-admin@rbac-test.local',
+        groups: [] as string[],
+      };
+
+      await rbacApi.createClusterRole({
+        body: {
+          metadata: { name: 'rbac-test-audit-admin' },
+          rules: [
+            {
+              apiGroups: [RBAC_API_GROUP],
+              resources: ['tools', 'users'],
+              verbs: ['execute', 'apply'],
+            },
+          ],
+        },
+      });
+
+      await rbacApi.createClusterRoleBinding({
+        body: {
+          metadata: { name: 'rbac-test-audit-admin-binding' },
+          subjects: [
+            {
+              kind: 'User',
+              name: auditAdminUser.email,
+              apiGroup: 'rbac.authorization.k8s.io',
+            },
+          ],
+          roleRef: {
+            kind: 'ClusterRole',
+            name: 'rbac-test-audit-admin',
+            apiGroup: 'rbac.authorization.k8s.io',
+          },
+        },
+      });
+
+      const adminClient = jwtClient(auditAdminUser);
+      const testEmail = `audit-target-${Date.now()}@rbac-test.local`;
+
+      await adminClient.post('/api/v1/users', {
+        email: testEmail,
+        password: 'test-password-12345',
+      });
+
+      await adminClient.delete(
+        `/api/v1/users/${encodeURIComponent(testEmail)}`
+      );
+
+      const logs = await fetchRecentLogs();
+
+      const createdMatches = findAuditBlocks(logs, 'user.created', testEmail);
+      const deletedMatches = findAuditBlocks(logs, 'user.deleted', testEmail);
+
+      expect(createdMatches.length).toBeGreaterThan(0);
+      expect(deletedMatches.length).toBeGreaterThan(0);
+
+      // Cleanup RBAC resources
+      await rbacApi
+        .deleteClusterRoleBinding({ name: 'rbac-test-audit-admin-binding' })
+        .catch(() => {});
+      await rbacApi
+        .deleteClusterRole({ name: 'rbac-test-audit-admin' })
+        .catch(() => {});
+    }, 60000);
+  });
+
   // Milestone 3: Group-based RoleBindings
   describe('Group-Based RoleBindings (PRD #392 Milestone 3)', () => {
     test('should grant access based on group membership', async () => {

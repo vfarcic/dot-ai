@@ -11,6 +11,7 @@
 
 import * as k8s from '@kubernetes/client-node';
 import type { UserIdentity } from '../../interfaces/oauth/types';
+import { logToolAccessDecision } from './audit-logger';
 
 const RBAC_API_GROUP = 'dot-ai.devopstoolkit.ai';
 const RBAC_VERB = 'execute';
@@ -61,12 +62,16 @@ export async function checkToolAccess(
 ): Promise<RbacCheckResult> {
   // No identity — deny
   if (!identity) {
-    return { allowed: false, reason: 'No identity available' };
+    const result: RbacCheckResult = { allowed: false, reason: 'No identity available' };
+    logToolAccessDecision(identity, params, result);
+    return result;
   }
 
   // Token users bypass RBAC (backward-compatible)
   if (identity.source === 'token') {
-    return { allowed: true };
+    const result: RbacCheckResult = { allowed: true };
+    logToolAccessDecision(identity, params, result);
+    return result;
   }
 
   // RBAC disabled — all authenticated users have full access
@@ -98,19 +103,23 @@ export async function checkToolAccess(
     });
 
     const status = review.status;
-    return {
+    const result: RbacCheckResult = {
       allowed: status?.allowed ?? false,
       reason:
         status?.reason ||
         (status?.allowed ? undefined : 'Access denied by RBAC policy'),
     };
+    logToolAccessDecision(identity, params, result);
+    return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return {
+    const result: RbacCheckResult = {
       allowed: false,
       reason: 'RBAC evaluation failed',
       evaluationError: message,
     };
+    logToolAccessDecision(identity, params, result);
+    return result;
   }
 }
 

@@ -57,7 +57,7 @@ import {
 import type { AITool } from '../core/ai-provider.interface';
 import { createUser, listUsers, deleteUser } from './oauth/user-management';
 import { getCurrentIdentity } from './request-context';
-import { checkToolAccess, filterAuthorizedTools } from '../core/rbac';
+import { checkToolAccess, filterAuthorizedTools, logUserManagementOperation } from '../core/rbac';
 
 /**
  * HTTP status codes for REST responses
@@ -3047,6 +3047,8 @@ export class RestApiRouter {
 
       const result = await createUser(email, password);
 
+      logUserManagementOperation(identity, 'created', email);
+
       await this.sendJsonResponse(res, HttpStatus.OK, {
         success: true,
         data: result,
@@ -3177,6 +3179,8 @@ export class RestApiRouter {
         return;
       }
       const result = await deleteUser(decodedEmail);
+
+      logUserManagementOperation(identity, 'deleted', decodedEmail);
 
       await this.sendJsonResponse(res, HttpStatus.OK, {
         success: true,

@@ -281,9 +281,9 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 ### Milestone 4: Performance & Caching
 **Objective**: Ensure RBAC checks add minimal latency.
 
-- [ ] Evaluate SubjectAccessReview latency under load
-- [ ] Implement caching strategy if needed (short TTL, per-request dedup)
-- [ ] Performance benchmarks: <10ms p99 for RBAC evaluation
+- [~] Evaluate SubjectAccessReview latency under load — deferred: SAR evaluates in-memory RBAC rules on kube-apiserver, expected <5ms per call; benchmark if latency issues surface in production
+- [~] Implement caching strategy if needed — deferred: caching adds cache-invalidation risk (stale permissions) for marginal gain; revisit only if benchmarks show >10ms p99
+- [~] Performance benchmarks: <10ms p99 for RBAC evaluation — deferred: pending production load data
 
 **Success Criteria:**
 - SubjectAccessReview adds <10ms latency per request (p99)
@@ -291,10 +291,10 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 ### Milestone 5: Audit Logging
 **Objective**: Log all authorization decisions for traceability.
 
-- [ ] Log allowed tool invocations with user identity (userId, email, tool, namespace)
-- [ ] Log denied tool invocations with reason
-- [ ] Log user management operations (who created/deleted which user)
-- [ ] Integration tests: verify audit log entries for allowed and denied operations
+- [x] Log allowed tool invocations with user identity (userId, email, tool, namespace)
+- [x] Log denied tool invocations with reason
+- [x] Log user management operations (who created/deleted which user)
+- [x] Integration tests: verify audit log entries for allowed and denied operations
 
 **Success Criteria:**
 - All operations traceable to specific user
