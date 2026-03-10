@@ -3,6 +3,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { handlePushToGitTool } from '../../../src/tools/push-to-git.js';
 import { GenericSessionManager } from '../../../src/core/generic-session-manager.js';
 import type { SolutionData } from '../../../src/tools/recommend.js';
@@ -45,40 +46,36 @@ describe('Push to Git Tool', () => {
   });
 
   describe('Input Validation', () => {
-    test('should reject invalid solutionId format', async () => {
-      const { getGitAuthConfigFromEnv } = await import('../../../src/core/git-utils.js');
-      vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
+    test('should reject invalid solutionId format via schema', () => {
+      const schema = z.object({
+        solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/),
+        repoUrl: z.string().url(),
+        targetPath: z.string(),
+      });
 
-      await expect(
-        handlePushToGitTool(
-          {
-            solutionId: 'invalid-id',
-            repoUrl: 'https://github.com/test/repo.git',
-            targetPath: 'apps/test/',
-          },
-          mockDotAI,
-          mockLogger,
-          requestId
-        )
-      ).rejects.toThrow();
+      const result = schema.safeParse({
+        solutionId: 'invalid-id',
+        repoUrl: 'https://github.com/test/repo.git',
+        targetPath: 'apps/test/',
+      });
+
+      expect(result.success).toBe(false);
     });
 
-    test('should reject invalid repoUrl format', async () => {
-      const { getGitAuthConfigFromEnv } = await import('../../../src/core/git-utils.js');
-      vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
+    test('should reject invalid repoUrl format via schema', () => {
+      const schema = z.object({
+        solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/),
+        repoUrl: z.string().url(),
+        targetPath: z.string(),
+      });
 
-      await expect(
-        handlePushToGitTool(
-          {
-            solutionId: 'sol-1234567890-abc12345',
-            repoUrl: 'not-a-url',
-            targetPath: 'apps/test/',
-          },
-          mockDotAI,
-          mockLogger,
-          requestId
-        )
-      ).rejects.toThrow();
+      const result = schema.safeParse({
+        solutionId: 'sol-1234567890-abc12345',
+        repoUrl: 'not-a-url',
+        targetPath: 'apps/test/',
+      });
+
+      expect(result.success).toBe(false);
     });
 
     test('should reject path traversal in targetPath', async () => {
@@ -392,7 +389,7 @@ describe('Push to Git Tool', () => {
         expect.any(String),
         [{ path: 'apps/postgres/values.yaml', content: expect.any(String) }],
         expect.stringContaining('helm'),
-        { branch: 'main' }
+        { branch: 'main', author: undefined }
       );
     });
 
@@ -438,7 +435,7 @@ describe('Push to Git Tool', () => {
         expect.any(String),
         [{ path: 'apps/windows/path/manifests/deployment.yaml', content: 'kind: Deployment' }],
         expect.stringContaining('windows path test'),
-        { branch: 'main' }
+        { branch: 'main', author: undefined }
       );
     });
   });

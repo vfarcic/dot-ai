@@ -11,6 +11,7 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import {
   ErrorHandler,
   ErrorCategory,
@@ -63,6 +64,17 @@ interface PushToGitArgs {
   authorName?: string;
   authorEmail?: string;
   interaction_id?: string;
+}
+
+function sanitizeRelativePath(relativePath: string): string {
+  if (relativePath.startsWith('/')) {
+    throw new Error('Relative path cannot be absolute');
+  }
+  const normalized = path.posix.normalize(relativePath);
+  if (normalized.startsWith('..') || path.posix.isAbsolute(normalized)) {
+    throw new Error('Relative path cannot escape target directory');
+  }
+  return normalized;
 }
 
 export async function handlePushToGitTool(
@@ -172,7 +184,7 @@ export async function handlePushToGitTool(
 
       const targetPath = rawTargetPath.replace(/\/+$/, '');
 
-      const tmpDir = path.join(os.tmpdir(), `dot-ai-git-${args.solutionId}`);
+      const tmpDir = path.join(os.tmpdir(), `dot-ai-git-${args.solutionId}-${randomUUID()}`);
       logger.info('Cloning repository', {
         repoUrl: scrubCredentials(args.repoUrl),
         branch,
@@ -223,8 +235,9 @@ export async function handlePushToGitTool(
           const manifestFiles = solution.generatedManifests.files;
           if (manifestFiles && manifestFiles.length > 0) {
             for (const file of manifestFiles) {
+              const sanitizedPath = sanitizeRelativePath(file.relativePath);
               files.push({
-                path: path.posix.join(targetPath, file.relativePath),
+                path: path.posix.join(targetPath, sanitizedPath),
                 content: file.content,
               });
             }
