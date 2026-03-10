@@ -739,6 +739,19 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
+          nextActions: [
+            {
+              action: 'pushToGit',
+              description: 'Push to Git repository (recommended for GitOps)',
+              stage: 'pushToGit',
+              requiredParams: ['repoUrl', 'targetPath'],
+            },
+            {
+              action: 'deployManifests',
+              description: 'Apply directly to cluster',
+              stage: 'deployManifests',
+            },
+          ],
           ...(visualizationUrl ? { visualizationUrl } : {}),
         };
 
@@ -1308,7 +1321,20 @@ export async function handleGenerateManifestsTool(
                 validationAttempts: attempt,
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
-                agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
+                nextActions: [
+                  {
+                    action: 'pushToGit',
+                    description: 'Push to Git repository (recommended for GitOps)',
+                    stage: 'pushToGit',
+                    requiredParams: ['repoUrl', 'targetPath'],
+                  },
+                  {
+                    action: 'deployManifests',
+                    description: 'Apply directly to cluster',
+                    stage: 'deployManifests',
+                  },
+                ],
+                agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}.`,
                 ...(visualizationUrl ? { visualizationUrl } : {}),
               };
 
@@ -1356,7 +1382,20 @@ export async function handleGenerateManifestsTool(
               files: [{ relativePath: 'manifests.yaml', content: manifests }],
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
-              agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
+              nextActions: [
+                {
+                  action: 'pushToGit',
+                  description: 'Push to Git repository (recommended for GitOps)',
+                  stage: 'pushToGit',
+                  requiredParams: ['repoUrl', 'targetPath'],
+                },
+                {
+                  action: 'deployManifests',
+                  description: 'Apply directly to cluster',
+                  stage: 'deployManifests',
+                },
+              ],
+              agentInstructions: `Write the files to "${outputPath}".`,
               ...(visualizationUrl ? { visualizationUrl } : {}),
             };
 
