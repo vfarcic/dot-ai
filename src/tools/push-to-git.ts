@@ -231,6 +231,24 @@ export async function handlePushToGitTool(
           }
         }
 
+        if (files.length === 0) {
+          throw ErrorHandler.createError(
+            ErrorCategory.VALIDATION,
+            ErrorSeverity.HIGH,
+            'No files to push. Manifests may be empty or missing content.',
+            {
+              operation: 'push_to_git',
+              component: 'PushToGitTool',
+              requestId,
+              input: { solutionId: args.solutionId },
+              suggestedActions: [
+                'Verify generateManifests completed successfully',
+                'Check that manifests contain content',
+              ],
+            }
+          );
+        }
+
         logger.info('Pushing files to repository', {
           fileCount: files.length,
           targetPath,

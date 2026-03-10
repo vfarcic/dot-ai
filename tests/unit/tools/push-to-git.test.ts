@@ -342,7 +342,7 @@ describe('Push to Git Tool', () => {
           { path: 'apps/postgres/service.yaml', content: expect.any(String) },
         ]),
         expect.stringContaining('postgresql deployment'),
-        { branch: 'main' }
+        { branch: 'main', author: undefined }
       );
     });
 
