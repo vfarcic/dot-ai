@@ -40,7 +40,21 @@ describe.concurrent('Recommend Tool Integration', () => {
 
   const gitHubRepo = parseGitHubRepo(gitRepoUrl);
 
-  async function getGitHubFile(filePath: string): Promise<any | null> {
+  interface GitHubFileContent {
+    name: string;
+    path: string;
+    sha: string;
+    size: number;
+    url: string;
+    html_url: string;
+    git_url: string;
+    download_url: string | null;
+    type: 'file' | 'dir' | 'symlink' | 'submodule';
+    content?: string;
+    encoding?: string;
+  }
+
+  async function getGitHubFile(filePath: string): Promise<GitHubFileContent | null> {
     const response = await fetch(
       `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/contents/${filePath}`,
       {

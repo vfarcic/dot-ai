@@ -6,6 +6,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { handlePushToGitTool } from '../../../src/tools/push-to-git.js';
 import { GenericSessionManager } from '../../../src/core/generic-session-manager.js';
 import type { SolutionData } from '../../../src/tools/recommend.js';
+import type { Logger } from '../../../src/core/error-handling.js';
 
 vi.mock('../../../src/core/git-utils.js', () => ({
   cloneRepo: vi.fn(),
@@ -24,8 +25,8 @@ vi.mock('../../../src/core/visualization.js', () => ({
 
 describe('Push to Git Tool', () => {
   let sessionManager: GenericSessionManager<SolutionData>;
-  let mockDotAI: any;
-  let mockLogger: any;
+  let mockDotAI: { ai: { isInitialized: () => boolean }; discovery: Record<string, unknown> };
+  let mockLogger: Partial<Logger>;
   const requestId = 'test-request-id';
 
   beforeEach(() => {
