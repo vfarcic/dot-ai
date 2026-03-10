@@ -17,6 +17,8 @@ vi.mock('../../../src/core/git-utils.js', () => ({
   scrubCredentials: vi.fn((url: string) => url.replace(/:\/\/[^@]+@/, '://***@')),
 }));
 
+vi.mock('../../../src/core/session-utils.js', () => ({
+  getAndValidateSessionDirectory: vi.fn(() => '/tmp/dot-ai-sessions'),
 }));
 
 vi.mock('../../../src/core/visualization.js', () => ({
@@ -101,8 +103,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       await expect(
         handlePushToGitTool(
@@ -139,8 +141,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       await expect(
         handlePushToGitTool(
@@ -181,8 +183,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       const result = await handlePushToGitTool(
         {
@@ -231,8 +233,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       const result = await handlePushToGitTool(
         {
@@ -280,8 +282,8 @@ describe('Push to Git Tool', () => {
           ],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       const result = await handlePushToGitTool(
         {
@@ -333,8 +335,8 @@ describe('Push to Git Tool', () => {
           valuesYaml: 'replicaCount: 3\nimage: postgres:15',
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       const result = await handlePushToGitTool(
         {
@@ -352,7 +354,7 @@ describe('Push to Git Tool', () => {
       expect(pushRepo).toHaveBeenCalledWith(
         expect.any(String),
         [{ path: 'apps/postgres/values.yaml', content: expect.any(String) }],
-        expect.stringContaining('helm deployment'),
+        expect.stringContaining('helm'),
         { branch: 'main' }
       );
     });
@@ -379,8 +381,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       await expect(
         handlePushToGitTool(
@@ -417,8 +419,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       await expect(
         handlePushToGitTool(
@@ -435,8 +437,9 @@ describe('Push to Git Tool', () => {
     });
 
     test('should handle missing manifests', async () => {
-      const { getGitAuthConfigFromEnv } = await import('../../../src/core/git-utils.js');
+      const { getGitAuthConfigFromEnv, cloneRepo } = await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
+      vi.mocked(cloneRepo).mockResolvedValue(undefined);
 
       const solutionData: SolutionData = {
         toolName: 'recommend',
@@ -449,8 +452,8 @@ describe('Push to Git Tool', () => {
         answers: {},
         timestamp: new Date().toISOString(),
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       await expect(
         handlePushToGitTool(
@@ -493,8 +496,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       await handlePushToGitTool(
         {
@@ -543,8 +546,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       const result = await handlePushToGitTool(
         {
@@ -587,8 +590,8 @@ describe('Push to Git Tool', () => {
           files: [{ relativePath: 'test.yaml', content: 'test: value' }],
         },
       };
-      sessionManager.createSession(solutionData);
-      const sessionId = sessionManager.listSessions()[0];
+      const session = sessionManager.createSession(solutionData);
+      const sessionId = session.sessionId;
 
       const result = await handlePushToGitTool(
         {

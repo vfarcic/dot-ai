@@ -198,7 +198,24 @@ webUI:
 
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server
-# Example use cases: tracing configuration, custom integrations, feature flags, telemetry
+# Example use cases: tracing configuration, custom integrations, Git authentication
+#
+# Git Authentication for pushToGit stage (PRD #395):
+# To enable GitOps workflows, configure one of the following:
+#
+# Option 1: Personal Access Token (PAT)
+# extraEnv:
+#   - name: DOT_AI_GIT_TOKEN
+#     value: "ghp_your_token_here"
+#
+# Option 2: GitHub App (recommended for production)
+# - Set secrets.githubApp.enabled: true
+# - Configure secrets.githubApp.appId and secrets.githubApp.privateKey
+#
+# Required token scopes:
+# - repo (for private repositories)
+# - public_repo (for public repositories)
+#
 extraEnv: []
   # OpenTelemetry tracing:
   # - name: OTEL_TRACING_ENABLED

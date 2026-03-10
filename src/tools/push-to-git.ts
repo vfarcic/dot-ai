@@ -223,6 +223,12 @@ export async function handlePushToGitTool(
         branch,
       });
 
+      const filesPreview = files.map(f => ({
+        path: f.path,
+        size: f.content.length,
+        lines: f.content.split('\n').length,
+      }));
+
       let pushResult;
       try {
         pushResult = await pushRepo(tmpDir, files, commitMessage, {
@@ -287,6 +293,7 @@ export async function handlePushToGitTool(
           filesPushed: pushResult.filesAdded,
           pushedAt: new Date().toISOString(),
         },
+        filesPreview,
         gitopsMessage: `Manifests pushed successfully. Your GitOps controller (Argo CD/Flux) will sync these changes automatically.`,
         timestamp: new Date().toISOString(),
         ...(visualizationUrl ? { visualizationUrl } : {}),
