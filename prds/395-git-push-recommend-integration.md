@@ -207,30 +207,30 @@ Modify `generate-manifests.ts` response to prompt for Git push:
 
 ### Milestone 1: Core Implementation
 
-- [ ] Create `src/tools/push-to-git.ts` with `handlePushToGitTool`
-- [ ] Add `pushToGit` stage routing in `recommend.ts`
-- [ ] Update `SolutionData` interface with `gitPush` field
-- [ ] Add Zod schema validation for `pushToGit` parameters
-- [ ] Wire auth config from environment (`getGitAuthConfigFromEnv`)
+- [x] Create `src/tools/push-to-git.ts` with `handlePushToGitTool`
+- [x] Add `pushToGit` stage routing in `recommend.ts`
+- [x] Update `SolutionData` interface with `gitPush` field
+- [x] Add Zod schema validation for `pushToGit` parameters
+- [x] Wire auth config from environment (`getGitAuthConfigFromEnv`)
 
 ### Milestone 2: User Experience
 
-- [ ] Add confirmation prompt before push
-- [ ] Show preview of files that will be pushed
-- [ ] Success message with Git URL and commit SHA
-- [ ] Helpful error messages with remediation steps
+- [x] Add confirmation prompt before push (via MCP agent)
+- [x] Show preview of files that will be pushed
+- [x] Success message with Git URL and commit SHA
+- [x] Helpful error messages with remediation steps
 
 ### Milestone 3: Testing
 
-- [ ] Unit tests for `handlePushToGitTool` function
+- [x] Unit tests for `handlePushToGitTool` function
 - [ ] Integration tests for recommend → pushToGit flow
 - [ ] Test with real Git repo (test organization)
 - [ ] Test error scenarios (auth failures, conflicts, network issues)
 
 ### Milestone 4: Documentation
 
-- [ ] Update recommend tool documentation with Git push flow
-- [ ] Add GitOps setup guide (Argo CD, Flux integration)
+- [x] Update recommend tool documentation with Git push flow
+- [x] Add GitOps setup guide (Argo CD, Flux integration)
 - [ ] Document token configuration in Helm values
 
 ---
@@ -244,6 +244,21 @@ Modify `generate-manifests.ts` response to prompt for Git push:
 - Defined architecture and technical design
 - Documented 4 major milestones
 - Ready for implementation
+
+### 2026-03-10: Milestone 1 & 2 Implementation
+
+- Created `src/tools/push-to-git.ts` with `handlePushToGitTool` function
+- Added `pushToGit` stage routing in `recommend.ts`
+- Extended `SolutionData` interface with `gitPush` field
+- Added Zod schema validation for `pushToGit` parameters
+- Wired auth config from environment
+- Added success message with Git URL and commit SHA
+- Added helpful error messages with remediation steps
+- Updated `generate-manifests.ts` with `nextActions` for pushToGit option
+- Created unit tests in `tests/unit/tools/push-to-git.test.ts`
+- Created GitOps documentation in `docs/gitops-push-to-git.md`
+- Build passing, unit tests passing (212 tests)
+- Committed: feat(recommend): add pushToGit stage for GitOps workflows (PRD #395 Milestone 1)
 
 ---
 
