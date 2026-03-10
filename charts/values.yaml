@@ -206,6 +206,14 @@ webUI:
 # Option 1: Personal Access Token (PAT)
 # extraEnv:
 #   - name: DOT_AI_GIT_TOKEN
+#     valueFrom:
+#       secretKeyRef:
+#         name: dot-ai-secrets
+#         key: git-token
+#
+# Less secure inline alternative:
+# extraEnv:
+#   - name: DOT_AI_GIT_TOKEN
 #     value: "ghp_your_token_here"
 #
 # Option 2: GitHub App (recommended for production)

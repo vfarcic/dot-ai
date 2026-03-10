@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
@@ -145,21 +146,31 @@ export async function handlePushToGitTool(
       const defaultCommitMessage = `Add ${solution.intent || 'deployment'} manifests`;
       const commitMessage = args.commitMessage || defaultCommitMessage;
 
-      const targetPath = args.targetPath.replace(/\/+$/, '');
-      if (targetPath.includes('..')) {
+      const rawTargetPath = args.targetPath.trim();
+      if (
+        rawTargetPath === '' ||
+        rawTargetPath.startsWith('/') ||
+        rawTargetPath.startsWith('~') ||
+        rawTargetPath.includes('\\') ||
+        rawTargetPath.includes('..')
+      ) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.HIGH,
-          'Invalid target path: path traversal not allowed',
+          'Invalid target path: use a relative repository path without "/", "~", "\\", or ".."',
           {
             operation: 'push_to_git',
             component: 'PushToGitTool',
             requestId,
             input: { targetPath: args.targetPath },
-            suggestedActions: ['Use a valid path without ".." sequences'],
+            suggestedActions: [
+              'Use a relative repository path such as "apps/postgresql"',
+            ],
           }
         );
       }
+
+      const targetPath = rawTargetPath.replace(/\/+$/, '');
 
       const tmpDir = path.join(os.tmpdir(), `dot-ai-git-${args.solutionId}`);
       logger.info('Cloning repository', {
@@ -169,155 +180,171 @@ export async function handlePushToGitTool(
       });
 
       try {
-        await cloneRepo(args.repoUrl, tmpDir, { branch, depth: 1 });
-      } catch (cloneError) {
-        const errorMessage =
-          cloneError instanceof Error ? cloneError.message : String(cloneError);
-        logger.error('Failed to clone repository', cloneError as Error, {
-          repoUrl: scrubCredentials(args.repoUrl),
-          branch,
-        });
+        fs.rmSync(tmpDir, { recursive: true, force: true });
 
-        throw ErrorHandler.createError(
-          ErrorCategory.NETWORK,
-          ErrorSeverity.HIGH,
-          `Failed to clone repository: ${errorMessage}`,
-          {
-            operation: 'push_to_git',
-            component: 'PushToGitTool',
-            requestId,
-            input: { repoUrl: scrubCredentials(args.repoUrl), branch },
-            suggestedActions: [
-              'Verify the repository URL is correct',
-              'Check that the branch exists',
-              'Ensure your token has read access to the repository',
-            ],
-          }
-        );
-      }
-
-      const files: Array<{ path: string; content: string }> = [];
-
-      if (solution.generatedManifests.type === 'helm') {
-        if (solution.generatedManifests.valuesYaml) {
-          files.push({
-            path: path.join(targetPath, 'values.yaml'),
-            content: solution.generatedManifests.valuesYaml,
+        try {
+          await cloneRepo(args.repoUrl, tmpDir, { branch, depth: 1 });
+        } catch (cloneError) {
+          const errorMessage =
+            cloneError instanceof Error ? cloneError.message : String(cloneError);
+          logger.error('Failed to clone repository', cloneError as Error, {
+            repoUrl: scrubCredentials(args.repoUrl),
+            branch,
           });
+
+          throw ErrorHandler.createError(
+            ErrorCategory.NETWORK,
+            ErrorSeverity.HIGH,
+            `Failed to clone repository: ${errorMessage}`,
+            {
+              operation: 'push_to_git',
+              component: 'PushToGitTool',
+              requestId,
+              input: { repoUrl: scrubCredentials(args.repoUrl), branch },
+              suggestedActions: [
+                'Verify the repository URL is correct',
+                'Check that the branch exists',
+                'Ensure your token has read access to the repository',
+              ],
+            }
+          );
         }
-      } else {
-        const manifestFiles = solution.generatedManifests.files;
-        if (manifestFiles && manifestFiles.length > 0) {
-          for (const file of manifestFiles) {
+
+        const files: Array<{ path: string; content: string }> = [];
+
+        if (solution.generatedManifests.type === 'helm') {
+          if (solution.generatedManifests.valuesYaml) {
             files.push({
-              path: path.join(targetPath, file.relativePath),
-              content: file.content,
+              path: path.posix.join(targetPath, 'values.yaml'),
+              content: solution.generatedManifests.valuesYaml,
             });
           }
+        } else {
+          const manifestFiles = solution.generatedManifests.files;
+          if (manifestFiles && manifestFiles.length > 0) {
+            for (const file of manifestFiles) {
+              files.push({
+                path: path.posix.join(targetPath, file.relativePath),
+                content: file.content,
+              });
+            }
+          }
+        }
+
+        logger.info('Pushing files to repository', {
+          fileCount: files.length,
+          targetPath,
+          branch,
+        });
+
+        const filesPreview = files.map(f => ({
+          path: f.path,
+          size: f.content.length,
+          lines: f.content.split('\n').length,
+        }));
+
+        let pushResult;
+        try {
+          pushResult = await pushRepo(tmpDir, files, commitMessage, {
+            branch,
+            author: args.authorName
+              ? { name: args.authorName, email: args.authorEmail || '' }
+              : undefined,
+          });
+        } catch (pushError) {
+          const errorMessage =
+            pushError instanceof Error ? pushError.message : String(pushError);
+          logger.error('Failed to push to repository', pushError as Error, {
+            repoUrl: scrubCredentials(args.repoUrl),
+            branch,
+            targetPath,
+          });
+
+          throw ErrorHandler.createError(
+            ErrorCategory.NETWORK,
+            ErrorSeverity.HIGH,
+            `Failed to push to repository: ${errorMessage}`,
+            {
+              operation: 'push_to_git',
+              component: 'PushToGitTool',
+              requestId,
+              input: {
+                repoUrl: scrubCredentials(args.repoUrl),
+                branch,
+                targetPath,
+              },
+              suggestedActions: [
+                'Ensure your token has write access to the repository',
+                'Check for merge conflicts (pull latest changes first)',
+                'Verify the branch exists or can be created',
+              ],
+            }
+          );
+        }
+
+        sessionManager.updateSession(args.solutionId, {
+          stage: 'pushed',
+          gitPush: {
+            repoUrl: args.repoUrl,
+            path: targetPath,
+            branch: pushResult.branch,
+            commitSha: pushResult.commitSha,
+            pushedAt: new Date().toISOString(),
+          },
+        });
+
+        const visualizationUrl = getVisualizationUrl(args.solutionId);
+
+        const response = {
+          success: true,
+          status: 'manifests_pushed',
+          solutionId: args.solutionId,
+          gitPush: {
+            repoUrl: scrubCredentials(args.repoUrl),
+            path: targetPath,
+            branch: pushResult.branch,
+            commitSha: pushResult.commitSha,
+            filesPushed: pushResult.filesAdded,
+            pushedAt: new Date().toISOString(),
+          },
+          filesPreview,
+          gitopsMessage: `Manifests pushed successfully. Your GitOps controller (Argo CD/Flux) will sync these changes automatically.`,
+          timestamp: new Date().toISOString(),
+          ...(visualizationUrl ? { visualizationUrl } : {}),
+        };
+
+        logger.info('Push to Git completed successfully', {
+          solutionId: args.solutionId,
+          commitSha: pushResult.commitSha,
+          branch: pushResult.branch,
+        });
+
+        const content: Array<{ type: 'text'; text: string }> = [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(response, null, 2),
+          },
+        ];
+
+        const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
+        if (agentDisplayBlock) {
+          content.push(agentDisplayBlock);
+        }
+
+        return { content };
+      } finally {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch (cleanupError) {
+          logger.warn('Failed to cleanup temporary git directory', {
+            tmpDir,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+          });
         }
       }
-
-      logger.info('Pushing files to repository', {
-        fileCount: files.length,
-        targetPath,
-        branch,
-      });
-
-      const filesPreview = files.map(f => ({
-        path: f.path,
-        size: f.content.length,
-        lines: f.content.split('\n').length,
-      }));
-
-      let pushResult;
-      try {
-        pushResult = await pushRepo(tmpDir, files, commitMessage, {
-          branch,
-          author: args.authorName
-            ? { name: args.authorName, email: args.authorEmail || '' }
-            : undefined,
-        });
-      } catch (pushError) {
-        const errorMessage =
-          pushError instanceof Error ? pushError.message : String(pushError);
-        logger.error('Failed to push to repository', pushError as Error, {
-          repoUrl: scrubCredentials(args.repoUrl),
-          branch,
-          targetPath,
-        });
-
-        throw ErrorHandler.createError(
-          ErrorCategory.NETWORK,
-          ErrorSeverity.HIGH,
-          `Failed to push to repository: ${errorMessage}`,
-          {
-            operation: 'push_to_git',
-            component: 'PushToGitTool',
-            requestId,
-            input: {
-              repoUrl: scrubCredentials(args.repoUrl),
-              branch,
-              targetPath,
-            },
-            suggestedActions: [
-              'Ensure your token has write access to the repository',
-              'Check for merge conflicts (pull latest changes first)',
-              'Verify the branch exists or can be created',
-            ],
-          }
-        );
-      }
-
-      sessionManager.updateSession(args.solutionId, {
-        stage: 'pushed',
-        gitPush: {
-          repoUrl: args.repoUrl,
-          path: targetPath,
-          branch: pushResult.branch,
-          commitSha: pushResult.commitSha,
-          pushedAt: new Date().toISOString(),
-        },
-      });
-
-      const visualizationUrl = getVisualizationUrl(args.solutionId);
-
-      const response = {
-        success: true,
-        status: 'manifests_pushed',
-        solutionId: args.solutionId,
-        gitPush: {
-          repoUrl: scrubCredentials(args.repoUrl),
-          path: targetPath,
-          branch: pushResult.branch,
-          commitSha: pushResult.commitSha,
-          filesPushed: pushResult.filesAdded,
-          pushedAt: new Date().toISOString(),
-        },
-        filesPreview,
-        gitopsMessage: `Manifests pushed successfully. Your GitOps controller (Argo CD/Flux) will sync these changes automatically.`,
-        timestamp: new Date().toISOString(),
-        ...(visualizationUrl ? { visualizationUrl } : {}),
-      };
-
-      logger.info('Push to Git completed successfully', {
-        solutionId: args.solutionId,
-        commitSha: pushResult.commitSha,
-        branch: pushResult.branch,
-      });
-
-      const content: Array<{ type: 'text'; text: string }> = [
-        {
-          type: 'text' as const,
-          text: JSON.stringify(response, null, 2),
-        },
-      ];
-
-      const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
-      if (agentDisplayBlock) {
-        content.push(agentDisplayBlock);
-      }
-
-      return { content };
     },
     {
       operation: 'push_to_git',

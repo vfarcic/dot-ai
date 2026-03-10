@@ -21,6 +21,68 @@ import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('Recommend Tool Integration', () => {
   const integrationTest = new IntegrationTest();
+  const gitToken = process.env.DOT_AI_GIT_TOKEN;
+  const gitRepoUrl = process.env.DOT_AI_GIT_TEST_REPO || 'https://github.com/vfarcic/dot-ai-test-prompts.git';
+
+  function parseGitHubRepo(repoUrl: string): { owner: string; repo: string } {
+    const url = new URL(repoUrl);
+    const [owner, repoName] = url.pathname.replace(/^\/+/, '').split('/');
+
+    if (!owner || !repoName) {
+      throw new Error(`Invalid GitHub repository URL: ${repoUrl}`);
+    }
+
+    return {
+      owner,
+      repo: repoName.replace(/\.git$/, ''),
+    };
+  }
+
+  const gitHubRepo = parseGitHubRepo(gitRepoUrl);
+
+  async function getGitHubFile(filePath: string): Promise<any | null> {
+    const response = await fetch(
+      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/contents/${filePath}`,
+      {
+        headers: {
+          Authorization: `token ${gitToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    );
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    expect(response.ok).toBe(true);
+    return response.json();
+  }
+
+  async function deleteGitHubFile(filePath: string, message: string): Promise<void> {
+    const existingFile = await getGitHubFile(filePath);
+    if (!existingFile) {
+      return;
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/contents/${filePath}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `token ${gitToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.github.v3+json',
+        },
+        body: JSON.stringify({
+          message,
+          sha: existingFile.sha,
+        }),
+      }
+    );
+
+    expect(response.ok).toBe(true);
+  }
 
   beforeAll(() => {
     // Verify we're using the test cluster
@@ -570,6 +632,184 @@ describe.concurrent('Recommend Tool Integration', () => {
         ])
       );
     }, 1200000); // 20 minutes for full AI workflow (accommodates slower AI models like OpenAI)
+  });
+
+  describe.skipIf(!gitToken)('GitOps Push Workflow', () => {
+    test('should complete generateManifests → pushToGit against a real GitHub repository', async () => {
+      const testRunId = Date.now();
+      const targetPath = `integration-tests/push-to-git-${testRunId}`;
+      const cleanupMessage = `test: cleanup pushToGit integration ${testRunId}`;
+      let pushedFiles: string[] = [];
+
+      try {
+        const solutionsResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          intent: 'deploy nginx web server',
+          final: true,
+          interaction_id: `push_to_git_solutions_${testRunId}`
+        });
+
+        expect(solutionsResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              solutions: expect.any(Array)
+            }
+          }
+        });
+
+        const capabilitySolution = solutionsResponse.data.result.solutions.find((s: any) => s.type !== 'helm');
+        expect(capabilitySolution).toBeDefined();
+
+        const solutionId = capabilitySolution.solutionId;
+
+        const chooseResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: 'chooseSolution',
+          solutionId,
+          interaction_id: `push_to_git_choose_${testRunId}`
+        });
+
+        expect(chooseResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              status: 'stage_questions',
+              currentStage: 'required',
+              questions: expect.any(Array)
+            }
+          }
+        });
+
+        const requiredAnswers: Record<string, any> = {};
+        chooseResponse.data.result.questions.forEach((question: any) => {
+          if (question.id === 'outputFormat') {
+            requiredAnswers[question.id] = 'raw';
+          } else if (question.id === 'outputPath') {
+            requiredAnswers[question.id] = './gitops-manifests';
+          } else {
+            requiredAnswers[question.id] = question.suggestedAnswer;
+          }
+        });
+
+        await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: 'answerQuestion:required',
+          solutionId,
+          answers: requiredAnswers,
+          interaction_id: `push_to_git_required_${testRunId}`
+        });
+
+        await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: 'answerQuestion:basic',
+          solutionId,
+          answers: {},
+          interaction_id: `push_to_git_basic_${testRunId}`
+        });
+
+        await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: 'answerQuestion:advanced',
+          solutionId,
+          answers: {},
+          interaction_id: `push_to_git_advanced_${testRunId}`
+        });
+
+        await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: 'answerQuestion:open',
+          solutionId,
+          answers: { open: 'N/A' },
+          interaction_id: `push_to_git_open_${testRunId}`
+        });
+
+        const generateResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: 'generateManifests',
+          solutionId,
+          interaction_id: `push_to_git_generate_${testRunId}`
+        });
+
+        expect(generateResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              status: 'manifests_generated',
+              solutionId,
+              outputFormat: 'raw',
+              files: expect.arrayContaining([
+                expect.objectContaining({
+                  relativePath: 'manifests.yaml',
+                })
+              ])
+            }
+          }
+        });
+
+        const pushResponse = await integrationTest.httpClient.post('/api/v1/tools/recommend', {
+          stage: 'pushToGit',
+          solutionId,
+          repoUrl: gitRepoUrl,
+          targetPath,
+          commitMessage: `test: pushToGit integration ${testRunId}`,
+          interaction_id: `push_to_git_stage_${testRunId}`
+        });
+
+        expect(pushResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              status: 'manifests_pushed',
+              solutionId,
+              gitPush: {
+                repoUrl: gitRepoUrl,
+                path: targetPath,
+                branch: 'main',
+                commitSha: expect.any(String),
+                filesPushed: expect.arrayContaining([`${targetPath}/manifests.yaml`]),
+                pushedAt: expect.any(String)
+              },
+              filesPreview: expect.arrayContaining([
+                expect.objectContaining({
+                  path: `${targetPath}/manifests.yaml`,
+                  size: expect.any(Number),
+                  lines: expect.any(Number)
+                })
+              ]),
+              gitopsMessage: expect.stringContaining('Argo CD'),
+              timestamp: expect.any(String)
+            },
+            tool: 'recommend',
+            executionTime: expect.any(Number)
+          }
+        });
+
+        pushedFiles = [...pushResponse.data.result.gitPush.filesPushed];
+
+        const sessionResponse = await integrationTest.httpClient.get(`/api/v1/sessions/${solutionId}`);
+        expect(sessionResponse).toMatchObject({
+          success: true,
+          data: {
+            sessionId: solutionId,
+            data: {
+              stage: 'pushed',
+              gitPush: {
+                repoUrl: gitRepoUrl,
+                path: targetPath,
+                branch: 'main',
+                commitSha: expect.any(String)
+              }
+            }
+          }
+        });
+
+        const pushedFile = await getGitHubFile(`${targetPath}/manifests.yaml`);
+        expect(pushedFile).toBeDefined();
+        const pushedContent = Buffer.from(pushedFile.content, pushedFile.encoding).toString('utf8');
+        expect(pushedContent).toContain('apiVersion:');
+        expect(pushedContent).toContain('kind:');
+      } finally {
+        for (const filePath of pushedFiles.reverse()) {
+          await deleteGitHubFile(filePath, cleanupMessage);
+        }
+      }
+    }, 900000);
   });
 
   describe('Helm Chart Discovery', () => {

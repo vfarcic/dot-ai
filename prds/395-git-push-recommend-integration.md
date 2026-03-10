@@ -223,8 +223,8 @@ Modify `generate-manifests.ts` response to prompt for Git push:
 ### Milestone 3: Testing
 
 - [x] Unit tests for `handlePushToGitTool` function (14 tests)
-- [ ] Integration tests for recommend → pushToGit flow
-- [ ] Test with real Git repo (test organization)
+- [x] Integration tests for recommend → pushToGit flow
+- [x] Test with real Git repo (test organization)
 - [x] Test error scenarios (auth failures, conflicts, network issues)
 
 ### Milestone 4: Documentation
@@ -256,7 +256,7 @@ Modify `generate-manifests.ts` response to prompt for Git push:
 - Added helpful error messages with remediation steps
 - Updated `generate-manifests.ts` with `nextActions` for pushToGit option
 - Created unit tests in `tests/unit/tools/push-to-git.test.ts`
-- Created GitOps documentation in `docs/gitops-push-to-git.md`
+- Created GitOps documentation for the recommend workflow
 - Build passing, unit tests passing (212 tests)
 - Committed: feat(recommend): add pushToGit stage for GitOps workflows (PRD #395 Milestone 1)
 
@@ -270,6 +270,16 @@ Modify `generate-manifests.ts` response to prompt for Git push:
 - All milestones 1-4 completed (integration tests pending)
 - Build passing, unit tests passing (14 push-to-git tests)
 - Ready for PR creation
+
+### 2026-03-10: PR Review Follow-up
+
+- Added stricter `targetPath` validation for `/`, `~`, `\\`, and `..`
+- Switched Git file path generation to `path.posix.join()` for cross-platform consistency
+- Added `finally` cleanup for temporary cloned repositories
+- Expanded unit coverage for invalid target paths and POSIX path generation
+- Added integration coverage for `recommend -> generateManifests -> pushToGit` using a real GitHub repository
+- Removed standalone `docs/gitops-push-to-git.md` and consolidated guidance into `docs/ai-engine/tools/recommend.md`
+- Updated Helm values examples to recommend `secretKeyRef` for PAT usage
 
 ---
 

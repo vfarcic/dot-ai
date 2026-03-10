@@ -2,13 +2,10 @@
  * Unit Tests for Push to Git Tool (PRD #395)
  */
 
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { handlePushToGitTool } from '../../../src/tools/push-to-git.js';
 import { GenericSessionManager } from '../../../src/core/generic-session-manager.js';
 import type { SolutionData } from '../../../src/tools/recommend.js';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 
 vi.mock('../../../src/core/git-utils.js', () => ({
   cloneRepo: vi.fn(),
@@ -117,7 +114,46 @@ describe('Push to Git Tool', () => {
           mockLogger,
           requestId
         )
-      ).rejects.toThrow('path traversal');
+      ).rejects.toThrow('Invalid target path');
+    });
+
+    test.each([
+      '/apps/test/',
+      '~/apps/test/',
+      'apps\\test/',
+    ])('should reject invalid targetPath %s', async (targetPath) => {
+      const { getGitAuthConfigFromEnv } = await import('../../../src/core/git-utils.js');
+      vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
+
+      const solutionData: SolutionData = {
+        toolName: 'recommend',
+        intent: 'test',
+        type: 'single',
+        score: 1,
+        description: 'test',
+        reasons: [],
+        questions: {},
+        answers: {},
+        timestamp: new Date().toISOString(),
+        generatedManifests: {
+          type: 'raw',
+          files: [{ relativePath: 'test.yaml', content: 'test: value' }],
+        },
+      };
+      const session = sessionManager.createSession(solutionData);
+
+      await expect(
+        handlePushToGitTool(
+          {
+            solutionId: session.sessionId,
+            repoUrl: 'https://github.com/test/repo.git',
+            targetPath,
+          },
+          mockDotAI,
+          mockLogger,
+          requestId
+        )
+      ).rejects.toThrow('Invalid target path');
     });
   });
 
@@ -355,6 +391,52 @@ describe('Push to Git Tool', () => {
         expect.any(String),
         [{ path: 'apps/postgres/values.yaml', content: expect.any(String) }],
         expect.stringContaining('helm'),
+        { branch: 'main' }
+      );
+    });
+
+    test('should use posix paths when building Git file paths', async () => {
+      const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } = await import('../../../src/core/git-utils.js');
+      vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
+      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(pushRepo).mockResolvedValue({
+        branch: 'main',
+        commitSha: 'abc123',
+        filesAdded: ['apps/windows/path/manifests/deployment.yaml'],
+      });
+
+      const solutionData: SolutionData = {
+        toolName: 'recommend',
+        intent: 'windows path test',
+        type: 'single',
+        score: 1,
+        description: 'test',
+        reasons: [],
+        questions: {},
+        answers: {},
+        timestamp: new Date().toISOString(),
+        generatedManifests: {
+          type: 'raw',
+          files: [{ relativePath: 'manifests/deployment.yaml', content: 'kind: Deployment' }],
+        },
+      };
+      const session = sessionManager.createSession(solutionData);
+
+      await handlePushToGitTool(
+        {
+          solutionId: session.sessionId,
+          repoUrl: 'https://github.com/test/repo.git',
+          targetPath: 'apps/windows/path/',
+        },
+        mockDotAI,
+        mockLogger,
+        requestId
+      );
+
+      expect(pushRepo).toHaveBeenCalledWith(
+        expect.any(String),
+        [{ path: 'apps/windows/path/manifests/deployment.yaml', content: 'kind: Deployment' }],
+        expect.stringContaining('windows path test'),
         { branch: 'main' }
       );
     });

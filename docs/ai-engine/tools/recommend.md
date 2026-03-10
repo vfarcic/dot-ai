@@ -455,7 +455,7 @@ Agent: Pushing manifests to your GitOps repository...
 - GitOps controller will sync automatically based on its configuration
 
 **Prerequisites for pushToGit:**
-- Git authentication configured (see [GitOps Setup Guide](../gitops-push-to-git.md))
+- Git authentication configured via `DOT_AI_GIT_TOKEN` or GitHub App credentials
 - Write access to the target repository
 - GitOps controller (Argo CD/Flux) configured to watch the repository
 
