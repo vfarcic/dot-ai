@@ -814,8 +814,8 @@ describe.concurrent('Recommend Tool Integration', () => {
         });
 
         const pushedFile = await getGitHubFile(`${targetPath}/manifests.yaml`);
-        expect(pushedFile).toBeDefined();
-        const pushedContent = Buffer.from(pushedFile.content, pushedFile.encoding).toString('utf8');
+        expect(pushedFile).not.toBeNull();
+        const pushedContent = Buffer.from(pushedFile!.content!, pushedFile!.encoding!).toString('utf8');
         expect(pushedContent).toContain('apiVersion:');
         expect(pushedContent).toContain('kind:');
       } finally {
