@@ -306,12 +306,12 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 ### Milestone 6: Documentation
 **Objective**: Document RBAC setup so admins can configure permissions.
 
-- [ ] Documentation: RBAC concepts (virtual API group, SubjectAccessReview, default deny)
-- [ ] Documentation: ClusterRole reference (viewer, operator, admin — what each allows)
-- [ ] Documentation: Creating custom Roles and RoleBindings (with examples)
-- [ ] Documentation: Namespace-scoped permissions (with examples)
-- [ ] Documentation: Group-based bindings (Dex groups → K8s RBAC)
-- [ ] Documentation: Troubleshooting denied access
+- [x] Documentation: RBAC concepts (virtual API group, SubjectAccessReview, default deny)
+- [x] Documentation: ClusterRole reference (viewer, operator, admin — what each allows)
+- [x] Documentation: Creating custom Roles and RoleBindings (with examples)
+- [~] Documentation: Namespace-scoped permissions (with examples) — deferred: namespace enforcement is an open design decision (see Open Design Decisions section); documenting when implementation is ready
+- [x] Documentation: Group-based bindings (Dex groups → K8s RBAC)
+- [x] Documentation: Troubleshooting denied access
 
 **Success Criteria:**
 - Admins can configure RBAC by following documentation alone

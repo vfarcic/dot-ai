@@ -557,8 +557,9 @@ See **[Gateway API Deployment Guide](gateway-api.md)** for:
 
 Once the server is running:
 
-### 1. Configure Authentication
+### 1. Configure Authentication & Authorization
 - **[Authentication](authentication.md)** — Understand static token vs OAuth, enable Dex for per-user identity, or connect your identity provider
+- **[Authorization (RBAC)](authorization.md)** — Control what each user can do with per-user and per-group permissions (requires OAuth)
 
 ### 2. Explore Tools
 - **[Tools Overview](../tools/overview.md)** — Complete guide to all available tools, how they work together, and recommended usage flow
