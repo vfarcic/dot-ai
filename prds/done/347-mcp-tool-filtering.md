@@ -1,5 +1,9 @@
 # PRD #347: MCP Tool Filtering
 
+**Status**: Closed - Superseded by PRD #392
+**Last Updated**: 2026-03-09
+**Closed**: 2026-03-09
+
 ## Problem Statement
 
 Users connecting to the dot-ai MCP server receive all available tools in the `tools/list` response, regardless of whether they need them. This has several implications:

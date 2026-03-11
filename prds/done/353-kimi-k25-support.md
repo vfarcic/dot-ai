@@ -1,6 +1,6 @@
 # PRD #353: Update to Kimi K2.5 Model Support
 
-**Status: Deferred** - Blocked on Vercel AI SDK compatibility issues with tool calling.
+**Status: Complete**
 
 ## Problem Statement
 
@@ -60,10 +60,10 @@ kimi: 'kimi-k2.5', // Single model - thinking mode is default (NOT kimi-k2.5-pre
 
 ## Milestones
 
-- [ ] **Milestone 1**: Update model names in `model-config.ts`
-- [ ] **Milestone 2**: Verify build succeeds
-- [ ] **Milestone 3**: Run integration tests against Kimi K2.5
-- [ ] **Milestone 4**: Update documentation to reflect K2.5
+- [x] **Milestone 1**: Update model names in `model-config.ts`
+- [x] **Milestone 2**: Verify build succeeds
+- [x] **Milestone 3**: Run integration tests against Kimi K2.5 (162/163 pass)
+- [x] **Milestone 4**: Update documentation to reflect K2.5
 
 ## Implementation Notes
 
@@ -166,8 +166,15 @@ K2.5 is a **single model** (`kimi-k2.5`) with 256K context. Thinking mode is ena
 | Server crashes/timeouts | 9 | `socket hang up`, `ECONNREFUSED` |
 | Other assertion failures | 7 | Downstream effects |
 
-### Conclusion
+### Resolution (March 2026)
 
-Kimi K2.5 **partially works** for simple chat operations but **fails for agentic tool-calling workflows** due to Vercel AI SDK incompatibilities. Recommend deferring until:
-1. Vercel fixes `ROLE_UNSPECIFIED` issue
-2. We migrate to `@ai-sdk/openai-compatible` and retest
+Both issues resolved by:
+1. Switching Kimi provider from `@ai-sdk/openai` to `@ai-sdk/openai-compatible` (v2.0.35) — preserves `reasoning_content` in multi-turn tool calls
+2. Upgrading Vercel AI SDK from v5 to v6 — required for `@ai-sdk/openai-compatible` v2.x (spec v3)
+
+**Final test results**: 162/163 integration tests pass (1 flaky AI response, not SDK-related).
+
+Additional changes:
+- Removed `kimi_thinking` provider (K2.5 has thinking by default)
+- Fixed `EmbeddingModel` generic type for AI SDK v6 compatibility
+- Updated all provider packages to v6-compatible versions
