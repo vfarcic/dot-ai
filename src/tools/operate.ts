@@ -12,6 +12,8 @@ import {
 } from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { PluginManager } from '../core/plugin-manager';
+import { getCurrentIdentity } from '../interfaces/request-context';
+import { checkToolAccess } from '../core/rbac';
 import { PatternVectorService } from '../core/pattern-vector-service';
 import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityVectorService } from '../core/capability-vector-service';
@@ -412,7 +414,44 @@ export async function handleOperateTool(
   args: OperateInput,
   pluginManager: PluginManager
 ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+  // PRD #392 Milestone 2: execution route requires 'apply' verb
+  if (args.sessionId && args.executeChoice) {
+    const identity = getCurrentIdentity();
+    const rbacResult = await checkToolAccess(identity, {
+      toolName: 'operate',
+      verb: 'apply',
+    });
+    if (!rbacResult.allowed) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              error: 'FORBIDDEN',
+              message: `Access denied: executing operations requires 'apply' permission on 'operate'. You can analyze and plan operations, but applying changes requires additional authorization.`,
+              tool: 'operate',
+              user: identity?.email,
+            }),
+          },
+        ],
+      };
+    }
+  }
+
   const result = await operate(args, pluginManager);
+
+  // PRD #392 Milestone 2: If analysis complete, check apply permission to adjust guidance
+  if (result.status === 'awaiting_user_approval') {
+    const identity = getCurrentIdentity();
+    const applyResult = await checkToolAccess(identity, {
+      toolName: 'operate',
+      verb: 'apply',
+    });
+    if (!applyResult.allowed) {
+      result.message = `Operational proposal generated successfully. Executing operations requires 'apply' permission on 'operate', which is not granted for the current user. Review the proposed changes and apply them manually using kubectl or your GitOps workflow.`;
+      result.nextAction = `Review the proposed changes. To apply them, use kubectl or push to Git — executing via operate requires 'apply' permission.`;
+    }
+  }
 
   // Build content blocks - JSON for REST API, agent instruction for MCP agents
   const content: Array<{ type: 'text'; text: string }> = [

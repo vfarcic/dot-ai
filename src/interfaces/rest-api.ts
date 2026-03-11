@@ -56,6 +56,8 @@ import {
 } from '../tools/manage-knowledge';
 import type { AITool } from '../core/ai-provider.interface';
 import { createUser, listUsers, deleteUser } from './oauth/user-management';
+import { getCurrentIdentity } from './request-context';
+import { checkToolAccess, filterAuthorizedTools, logUserManagementOperation } from '../core/rbac';
 
 /**
  * HTTP status codes for REST responses
@@ -472,7 +474,12 @@ export class RestApiRouter {
       const tag = searchParams.get('tag') || undefined;
       const search = searchParams.get('search') || undefined;
 
-      const tools = this.registry.getToolsFiltered({ category, tag, search });
+      let tools = this.registry.getToolsFiltered({ category, tag, search });
+
+      // RBAC-filtered tool discovery (PRD #392) — OAuth users only see authorized tools
+      const discoveryIdentity = getCurrentIdentity();
+      tools = await filterAuthorizedTools(discoveryIdentity, tools);
+
       const categories = this.registry.getCategories();
       const tags = this.registry.getTags();
 
@@ -532,6 +539,22 @@ export class RestApiRouter {
           `Tool '${toolName}' not found`
         );
         return;
+      }
+
+      // RBAC enforcement (PRD #392) — check tool-level authorization for OAuth users
+      const identity = getCurrentIdentity();
+      if (identity) {
+        const rbacResult = await checkToolAccess(identity, { toolName });
+        if (!rbacResult.allowed) {
+          await this.sendErrorResponse(
+            res,
+            requestId,
+            403 as HttpStatus,
+            'FORBIDDEN',
+            `Access denied: tool '${toolName}' not authorized for user '${identity.email}'`
+          );
+          return;
+        }
       }
 
       // Validate request body
@@ -2963,6 +2986,25 @@ export class RestApiRouter {
     body: unknown
   ): Promise<void> {
     try {
+      // RBAC enforcement (PRD #392) — user management requires dotai-admin role
+      const identity = getCurrentIdentity();
+      if (identity) {
+        const rbacResult = await checkToolAccess(identity, {
+          toolName: 'users',
+          resource: 'users',
+        });
+        if (!rbacResult.allowed) {
+          await this.sendErrorResponse(
+            res,
+            requestId,
+            403 as HttpStatus,
+            'FORBIDDEN',
+            'User management requires dotai-admin role'
+          );
+          return;
+        }
+      }
+
       if (
         !body ||
         typeof body !== 'object' ||
@@ -3004,6 +3046,8 @@ export class RestApiRouter {
       }
 
       const result = await createUser(email, password);
+
+      logUserManagementOperation(identity, 'created', email);
 
       await this.sendJsonResponse(res, HttpStatus.OK, {
         success: true,
@@ -3048,6 +3092,25 @@ export class RestApiRouter {
     requestId: string
   ): Promise<void> {
     try {
+      // RBAC enforcement (PRD #392) — user management requires dotai-admin role
+      const identity = getCurrentIdentity();
+      if (identity) {
+        const rbacResult = await checkToolAccess(identity, {
+          toolName: 'users',
+          resource: 'users',
+        });
+        if (!rbacResult.allowed) {
+          await this.sendErrorResponse(
+            res,
+            requestId,
+            403 as HttpStatus,
+            'FORBIDDEN',
+            'User management requires dotai-admin role'
+          );
+          return;
+        }
+      }
+
       const users = await listUsers();
 
       await this.sendJsonResponse(res, HttpStatus.OK, {
@@ -3083,6 +3146,25 @@ export class RestApiRouter {
     email: string
   ): Promise<void> {
     try {
+      // RBAC enforcement (PRD #392) — user management requires dotai-admin role
+      const identity = getCurrentIdentity();
+      if (identity) {
+        const rbacResult = await checkToolAccess(identity, {
+          toolName: 'users',
+          resource: 'users',
+        });
+        if (!rbacResult.allowed) {
+          await this.sendErrorResponse(
+            res,
+            requestId,
+            403 as HttpStatus,
+            'FORBIDDEN',
+            'User management requires dotai-admin role'
+          );
+          return;
+        }
+      }
+
       let decodedEmail: string;
       try {
         decodedEmail = decodeURIComponent(email);
@@ -3097,6 +3179,8 @@ export class RestApiRouter {
         return;
       }
       const result = await deleteUser(decodedEmail);
+
+      logUserManagementOperation(identity, 'deleted', decodedEmail);
 
       await this.sendJsonResponse(res, HttpStatus.OK, {
         success: true,

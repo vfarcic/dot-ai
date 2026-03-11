@@ -133,7 +133,7 @@ dex:
           - example.com
 ```
 
-> **Note**: `hostedDomains` controls which domains can authenticate — not individual users. Per-user access control will be available when [RBAC enforcement](https://github.com/vfarcic/dot-ai/issues/392) is implemented, allowing fine-grained permissions based on user identity and groups.
+> **Note**: `hostedDomains` controls which domains can authenticate — not individual users. For per-user access control, see [Authorization (RBAC)](authorization.md).
 
 ### Step 4: Upgrade
 

@@ -94,6 +94,7 @@ Every authenticated request carries a user identity. The `version` tool includes
 
 ## See Also
 
+- **[Authorization (RBAC)](authorization.md)** — Control what each user can do with per-user and per-group permissions
 - **[Deployment Guide](deployment.md)** — Install the AI Engine and retrieve initial admin credentials
 - **[MCP Client Setup](/docs/mcp)** — Connect your MCP client with OAuth or static token
 - **[CLI Authentication](https://devopstoolkit.ai/docs/cli/setup/authentication)** — Authenticate the CLI with OAuth login, static tokens, or headless mode

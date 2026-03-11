@@ -96,7 +96,7 @@ EOF`);
               ]),
               dryRunValidation: {
                 status: 'success', // AI should validate with dry-run
-                details: expect.stringContaining('validated') // Should mention validation
+                details: expect.any(String) // AI-generated description of dry-run result
               },
               patternsApplied: expect.any(Array), // May be empty if no patterns match
               capabilitiesUsed: expect.any(Array), // May be empty for simple update

@@ -107,18 +107,25 @@ Get user confirmation on the outline before proceeding.
 
 ### Step 4: Write Chunk-by-Chunk
 
+**🚨 CRITICAL: One section at a time. NEVER write multiple sections or the whole doc at once.**
+
 For each section:
 
-1. **Propose the section content** - Brief description of what this section covers
-2. **Execute or request execution**:
+1. **Execute first** — Run every command or ask user to run every MCP interaction that will appear in this section. Do this BEFORE writing any documentation prose.
    - **Bash commands**: Claude runs these directly using Bash tool
    - **MCP interactions**: Ask user to send intent and share output (these are the user-facing examples we're documenting)
-3. **Wait for output** - For MCP interactions, user shares the actual output
-4. **Write the chunk** - Create the documentation section using real output
-5. **Apply the edit** - Use Edit tool to add to the doc file
-6. **Proceed to next** - Move to the next section
+2. **Wait for output** — For MCP interactions, user shares the actual output. For bash commands, capture the real output.
+3. **Write and apply the chunk immediately** — Write the documentation section using real output and apply the edit directly (Write or Edit tool). Do NOT ask for permission — the user will cancel the edit if they want changes. Do NOT show the markdown in a code block and ask "should I write this?" — just write it.
+4. **Proceed to next section** — Move to the next section and repeat.
 
 **Key distinction**: Infrastructure/setup = Claude runs it. User-facing MCP examples = User runs it and shares output.
+
+**NEVER do these:**
+- ❌ Write the entire document in one go
+- ❌ Write multiple sections before getting confirmation
+- ❌ Show proposed markdown and ask "want me to write this?"
+- ❌ Write examples without executing the commands first
+- ❌ Skip execution for "simple" or "standard" commands — validate everything
 
 ### Step 5: Cross-Reference Check
 
@@ -164,6 +171,7 @@ Share the output.
 - **Keep sections small** - One concept per chunk for easy review
 - **Use user language** - Avoid internal/developer terminology
 - **Include error cases** - Document what happens when things go wrong
+- **Full flags in commands** - Always use long-form flags (e.g., `--filename` not `-f`, `--namespace` not `-n`, `--output` not `-o`). Full flags are more self-documenting for users unfamiliar with the tools.
 
 ## File Locations
 

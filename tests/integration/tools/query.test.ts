@@ -645,6 +645,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources/search - Semantic Search Endpoint
   test('GET /api/v1/resources/search?q=nginx should return test-web-deployment with score', async () => {
+    // Re-sync the test resource to ensure it exists (concurrent isResync:true tests may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     const response = await integrationTest.httpClient.get(
       `/api/v1/resources/search?q=nginx&namespace=${testNamespace}`
     );
@@ -686,6 +704,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources/search with kind filter
   test('GET /api/v1/resources/search?q=test&kind=Deployment should return only Deployments', async () => {
+    // Re-sync the test resource to ensure it exists (concurrent isResync:true tests may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     const response = await integrationTest.httpClient.get(
       `/api/v1/resources/search?q=test&kind=Deployment&apiVersion=apps/v1&namespace=${testNamespace}`
     );
@@ -723,6 +759,24 @@ spec:
 
   // PRD #328: GET /api/v1/resources/search with minScore filter
   test('GET /api/v1/resources/search with minScore should filter low-relevance results', async () => {
+    // Re-sync the test resource to ensure it exists (concurrent isResync:true tests may delete it)
+    await integrationTest.httpClient.post('/api/v1/resources/sync', {
+      upserts: [
+        {
+          namespace: testNamespace,
+          name: 'test-web-deployment',
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          apiGroup: 'apps',
+          labels: { app: 'nginx', tier: 'frontend', environment: 'test' },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      deletes: [],
+      isResync: false
+    });
+
     // First get results without minScore to see all scores
     const allResults = await integrationTest.httpClient.get(
       `/api/v1/resources/search?q=nginx&namespace=${testNamespace}`
