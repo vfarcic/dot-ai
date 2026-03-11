@@ -16,9 +16,6 @@ This roadmap is a living document and may change based on community feedback and
 - Argo CD support for operate tool - detect managed resources and modify source repos (PRD #363)
 - Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
-- Update to Kimi K2.5 model support (PRD #353)
-- Kubernetes user impersonation for namespace-level RBAC enforcement (PRD #401)
-- User-specific permissions - align AI view with user's Kubernetes RBAC (PRD #361)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
 - Add Alibaba Qwen 3.5 Plus AI provider (PRD #382)
 
@@ -26,14 +23,10 @@ This roadmap is a living document and may change based on community feedback and
 
 - Auto-generated Go CLI as alternative to MCP - self-contained multi-arch binaries from OpenAPI spec (PRD #371)
 - MCP server integration for extended tool capabilities - observability, tracing, logging (PRD #358)
-- MCP tool filtering - server-side allow/deny lists to control tool exposure (PRD #347)
-- Elicitation enhancement across MCP tools - systematic review and improvement of confirmation, clarification, and adaptive questioning (PRD #307)
-- Multi-step workflow distributed tracing (PRD #197)
 - Integrate patterns & policies into remediation tool (PRD #227)
 
 ## Long-term (6-12 Months)
 
-- Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
 - Retire legacy collection migration from unified knowledge base (PRD #376)
 
 ## How to Contribute
