@@ -319,8 +319,8 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 ### Milestone 7: Client-Side RBAC Integration (Feature Requests)
 **Objective**: Ensure CLI and Web UI consume the RBAC-filtered tool discovery endpoint so users only see tools they're authorized for.
 
-- [ ] Send feature request to CLI (`dot-ai-cli`): hide/disable commands for tools not returned by RBAC-filtered `GET /api/v1/tools`
-- [ ] Send feature request to Web UI (`dot-ai-ui`): hide/disable UI elements for tools not returned by RBAC-filtered `GET /api/v1/tools`
+- [x] Send feature request to CLI (`dot-ai-cli`): hide/disable commands for tools not returned by RBAC-filtered `GET /api/v1/tools`
+- [x] Send feature request to Web UI (`dot-ai-ui`): hide/disable UI elements for tools not returned by RBAC-filtered `GET /api/v1/tools`
 
 **Note:** These are cross-project tasks. This PRD delivers the RBAC-filtered API; CLI and Web UI need to consume it on their side.
 
