@@ -59,7 +59,7 @@ rules:
     verbs: ["execute", "apply"]
   - apiGroups: ["dot-ai.devopstoolkit.ai"]
     resources: ["users"]
-    verbs: ["execute"]
+    verbs: ["execute", "apply"]
 ---
 # dotai-auth-checker: Allows dot-ai ServiceAccount to create SubjectAccessReviews
 apiVersion: rbac.authorization.k8s.io/v1
