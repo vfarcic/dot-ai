@@ -221,7 +221,7 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 - **Pro**: No post-fetch filtering needed, results are naturally scoped
 - **Con**: Two enforcement mechanisms to understand and configure
 
-**Decision**: TBD — to be resolved before Milestone 2 (Verb Mapping) since namespace enforcement affects how verbs and workflow phases interact with permissions.
+**Decision**: **Option C — Kubernetes User Impersonation**, implemented as a separate PRD. See [PRD #401 - Namespace-Level RBAC via Impersonation](./401-namespace-rbac-impersonation.md). Impersonation appends `--as`/`--as-group` flags to kubectl commands so Kubernetes enforces namespace access natively. Opt-in via Helm value (`rbac.impersonation.enabled`), disabled by default.
 
 ---
 
@@ -309,7 +309,7 @@ dot-ai's ServiceAccount impersonates the OAuth user via [user impersonation](htt
 - [x] Documentation: RBAC concepts (virtual API group, SubjectAccessReview, default deny)
 - [x] Documentation: ClusterRole reference (viewer, operator, admin — what each allows)
 - [x] Documentation: Creating custom Roles and RoleBindings (with examples)
-- [~] Documentation: Namespace-scoped permissions (with examples) — deferred: namespace enforcement is an open design decision (see Open Design Decisions section); documenting when implementation is ready
+- [~] Documentation: Namespace-scoped permissions (with examples) — deferred to [PRD #401](./401-namespace-rbac-impersonation.md) which implements namespace enforcement via Kubernetes user impersonation
 - [x] Documentation: Group-based bindings (Dex groups → K8s RBAC)
 - [x] Documentation: Troubleshooting denied access
 
