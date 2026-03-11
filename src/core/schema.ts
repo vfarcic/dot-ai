@@ -1571,7 +1571,7 @@ ${resourceDetails}`;
         throw new Error('Invalid question structure from AI');
       }
 
-      // Sanitize select/multiselect questions: ensure suggestedAnswer matches options
+      // Sanitize questions: ensure suggestedAnswer passes its own validation constraints
       const sanitizeQuestions = (qs: Question[]) => {
         for (const q of qs) {
           if (
@@ -1591,6 +1591,19 @@ ${resourceDetails}`;
                   q.suggestedAnswer = [q.options[0]];
                 }
               }
+            }
+          }
+          // Clamp number suggestedAnswer to validation.min/max bounds
+          if (q.type === 'number' && q.suggestedAnswer !== undefined && q.validation) {
+            let num = Number(q.suggestedAnswer);
+            if (!isNaN(num)) {
+              if (q.validation.min !== undefined && num < q.validation.min) {
+                num = q.validation.min;
+              }
+              if (q.validation.max !== undefined && num > q.validation.max) {
+                num = q.validation.max;
+              }
+              q.suggestedAnswer = num;
             }
           }
         }

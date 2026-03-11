@@ -146,8 +146,10 @@ All AI models must meet these minimum requirements:
 | **Google** | Gemini 3.1 Pro | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes (might be slow) |
 | **Google** | Gemini 3 Flash | `google_flash` | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes (preview) |
 | **Host** | Host Environment LLM | `host` | None (uses host's AI) | Yes (if supported) |
-| **Moonshot AI** | Kimi K2 | `kimi` | `MOONSHOT_API_KEY` | Yes |
-| **Moonshot AI** | Kimi K2 Thinking | `kimi_thinking` | `MOONSHOT_API_KEY` | Yes (might be slow) |
+| **Moonshot AI** | Kimi K2.5 | `kimi` | `MOONSHOT_API_KEY` | Yes |
+
+> **Migration note**: `AI_PROVIDER=kimi_thinking` was removed. If you were using that value, switch to `AI_PROVIDER=kimi` — Kimi K2.5 includes thinking mode by default.
+
 | **OpenAI** | GPT-5.4 | `openai` | `OPENAI_API_KEY` | No * |
 | **xAI** | Grok-4 | `xai` | `XAI_API_KEY` | No * |
 
@@ -557,8 +559,9 @@ See **[Gateway API Deployment Guide](gateway-api.md)** for:
 
 Once the server is running:
 
-### 1. Configure Authentication
+### 1. Configure Authentication & Authorization
 - **[Authentication](authentication.md)** — Understand static token vs OAuth, enable Dex for per-user identity, or connect your identity provider
+- **[Authorization (RBAC)](authorization.md)** — Control what each user can do with per-user and per-group permissions (requires OAuth)
 
 ### 2. Explore Tools
 - **[Tools Overview](../tools/overview.md)** — Complete guide to all available tools, how they work together, and recommended usage flow

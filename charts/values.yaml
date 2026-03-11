@@ -9,7 +9,7 @@ annotations: {}
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "1.7.0"                     # Container image tag - set by CI pipeline during release
+  tag: "1.9.1"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
@@ -147,7 +147,7 @@ gateway:
 
 # AI Provider configuration
 ai:
-  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, kimi, kimi_thinking, xai, amazon_bedrock)
+  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, google_flash, host, kimi, xai, amazon_bedrock)
   model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
@@ -276,6 +276,14 @@ localEmbeddings:
 # NOTE: OAuth requires HTTPS. Enable Dex only when HTTPS is configured
 # (via ingress.tls, gateway HTTPS listener, or an upstream reverse proxy/load balancer).
 # Without Dex, authentication falls back to static token (DOT_AI_AUTH_TOKEN).
+# RBAC Enforcement (PRD #392)
+# When enabled, OAuth-authenticated users are checked against Kubernetes RBAC
+# before tool execution. Token users always bypass RBAC.
+# Requires dex.enabled=true (OAuth must be configured for RBAC to have effect).
+rbac:
+  enforcement:
+    enabled: false                    # Enable RBAC enforcement (default deny for OAuth users)
+
 dex:
   enabled: false                      # Deploy Dex for OAuth authentication (requires HTTPS)
   # REQUIRED when enabled: name of a pre-existing Secret containing:
@@ -331,7 +339,7 @@ plugins:
     enabled: true
     image:
       repository: ghcr.io/vfarcic/dot-ai-agentic-tools
-      tag: "1.7.0"
+      tag: "1.9.1"
     port: 8080
     # RBAC created automatically by chart (hardcoded for agentic-tools)
     env: []                         # Additional environment variables
@@ -349,7 +357,7 @@ plugins:
   #   enabled: true
   #   image:
   #     repository: myregistry/my-tools
-  #     tag: "1.7.0"
+  #     tag: "1.9.1"
   #   port: 8082
   #   serviceAccountName: "my-tools-sa"  # You create this SA with needed permissions
   #   env:

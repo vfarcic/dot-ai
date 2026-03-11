@@ -29,8 +29,32 @@ import { packageManifests, OutputFormat } from '../core/packaging';
 import { getVisualizationUrl } from '../core/visualization';
 import { invokePluginTool } from '../core/plugin-registry';
 import type { PluginManager } from '../core/plugin-manager';
+import { getCurrentIdentity } from '../interfaces/request-context';
+import { checkToolAccess } from '../core/rbac';
 
 // PRD #359: All helm operations via unified plugin registry
+
+/**
+ * PRD #392 Milestone 2: Build agent instructions based on deploy permission.
+ * When the user has 'apply' permission, includes the deploy option.
+ * When they don't, explains that deploying requires 'apply' permission.
+ */
+async function buildDeployInstructions(outputPath: string, outputFormat: string): Promise<string> {
+  const writeInstr = `Write the files to "${outputPath}".`;
+  const formatInstr = outputFormat === 'helm' ? ' The output is a Helm chart.' : outputFormat === 'raw' ? '' : ' The output is a Kustomize overlay.';
+
+  const identity = getCurrentIdentity();
+  const rbacResult = await checkToolAccess(identity, {
+    toolName: 'recommend',
+    verb: 'apply',
+  });
+
+  if (rbacResult.allowed) {
+    return `${writeInstr}${formatInstr} If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`;
+  }
+
+  return `${writeInstr}${formatInstr} Deploying manifests requires 'apply' permission on 'recommend', which is not granted for the current user. Save the files locally or push to Git to apply them through your own workflow.`;
+}
 
 /**
  * Ensure tmp directory exists
@@ -1334,7 +1358,7 @@ export async function handleGenerateManifestsTool(
                     stage: 'deployManifests',
                   },
                 ],
-                agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}.`,
+                agentInstructions: await buildDeployInstructions(outputPath, outputFormat),
                 ...(visualizationUrl ? { visualizationUrl } : {}),
               };
 
@@ -1395,7 +1419,7 @@ export async function handleGenerateManifestsTool(
                   stage: 'deployManifests',
                 },
               ],
-              agentInstructions: `Write the files to "${outputPath}".`,
+              agentInstructions: await buildDeployInstructions(outputPath, outputFormat),
               ...(visualizationUrl ? { visualizationUrl } : {}),
             };
 

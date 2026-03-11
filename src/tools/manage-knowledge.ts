@@ -19,6 +19,8 @@ import {
   KnowledgeSearchResultItem,
   DeleteByUriResponse,
 } from '../core/knowledge-types';
+import { getCurrentIdentity } from '../interfaces/request-context';
+import { checkToolAccess } from '../core/rbac';
 
 /**
  * Collection name for knowledge base chunks in Qdrant
@@ -722,6 +724,25 @@ export async function handleManageKnowledgeTool(
     requestId,
     operation: args.operation,
   });
+
+  // PRD #392 Milestone 8: Mutating operations require 'apply' verb
+  const MUTATING_KNOWLEDGE_OPS = new Set(['ingest', 'deleteByUri']);
+  if (MUTATING_KNOWLEDGE_OPS.has(args.operation)) {
+    const identity = getCurrentIdentity();
+    const rbacResult = await checkToolAccess(identity, {
+      toolName: 'manageKnowledge',
+      verb: 'apply',
+    });
+    if (!rbacResult.allowed) {
+      return wrapMcpResponse({
+        error: 'FORBIDDEN',
+        message: `Access denied: '${args.operation}' on knowledge base requires 'apply' permission on 'manageKnowledge'. Search is available with 'execute' permission.`,
+        tool: 'manageKnowledge',
+        operation: args.operation,
+        user: identity?.email,
+      });
+    }
+  }
 
   // Route to appropriate handler based on operation
   let response: unknown;

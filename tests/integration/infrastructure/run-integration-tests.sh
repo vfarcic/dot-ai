@@ -17,6 +17,7 @@ TEST_ARGS=("$@")
 
 # Configuration
 TEST_AUTH_TOKEN="test-auth-token-integration"
+RBAC_ENABLED="${RBAC_ENABLED:-true}"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -353,6 +354,7 @@ helm upgrade --install dot-ai ./charts \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
     --set plugins.agentic-tools.image.pullPolicy=Never \
+    --set rbac.enforcement.enabled="${RBAC_ENABLED}" \
     --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"},{\"name\":\"MCP_DANGEROUSLY_ALLOW_INSECURE_ISSUER_URL\",\"value\":\"true\"}]" \
     --wait --timeout=300s || {
     log_error "Failed to deploy dot-ai via Helm"
@@ -430,6 +432,33 @@ if [ $WAITED -ge $MAX_WAIT ]; then
     exit 1
 fi
 
+# Wait for agentic-tools plugin to be discovered by MCP server
+log_info "Waiting for agentic-tools plugin discovery..."
+PLUGIN_MAX_WAIT=120
+PLUGIN_WAITED=0
+while [ $PLUGIN_WAITED -lt $PLUGIN_MAX_WAIT ]; do
+    PLUGIN_COUNT=$(curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+        -d '{}' 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('result',{}).get('system',{}).get('plugins',{}).get('pluginCount',0))" 2>/dev/null || echo "0")
+    if [ "$PLUGIN_COUNT" -ge 1 ] 2>/dev/null; then
+        log_info "Plugin discovery complete: ${PLUGIN_COUNT} plugin(s) available"
+        break
+    fi
+    sleep 3
+    PLUGIN_WAITED=$((PLUGIN_WAITED + 3))
+done
+
+if [ $PLUGIN_WAITED -ge $PLUGIN_MAX_WAIT ]; then
+    log_error "Plugin discovery failed within ${PLUGIN_MAX_WAIT} seconds"
+    curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+        -d '{}' 2>/dev/null | python3 -m json.tool || true
+    kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+    exit 1
+fi
+
 # Export configuration for tests
 export MCP_BASE_URL="${MCP_URL}"
 export DOT_AI_AUTH_TOKEN="${TEST_AUTH_TOKEN}"
@@ -439,11 +468,49 @@ export DEX_TEST_USER_EMAIL="admin@dot-ai.local"
 export DEX_TEST_USER_PASSWORD="${TEST_ADMIN_PASSWORD}"
 export DEX_ISSUER_URL="http://dex.dot-ai.127.0.0.1.nip.io:8180"
 
-# Step 5: Run integration tests
-log_info "Running integration tests..."
+# RBAC test credentials (PRD #392)
+export DOT_AI_JWT_SECRET="${TEST_JWT_SECRET}"
+
+# RBAC test infrastructure (PRD #392)
+# SubjectAccessReview permission and DOT_AI_RBAC_ENABLED are now handled by
+# the Helm chart via rbac.enforcement.enabled (Milestone 3).
+
 # Export configuration so tests can validate server is using correct settings
 export AI_PROVIDER
 export USE_LOCAL_EMBEDDINGS
+export DOT_AI_RBAC_ENABLED="${RBAC_ENABLED}"
+
+# Create RBAC bindings for the Dex admin user (by email — SAR uses email as user field)
+log_info "Creating RBAC bindings for Dex admin user (admin@dot-ai.local)..."
+kubectl apply -f - <<RBAC_ADMIN_EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dot-ai-test-admin
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    verbs: ["execute"]
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["users"]
+    verbs: ["execute"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dot-ai-test-admin-binding
+subjects:
+  - kind: User
+    name: "admin@dot-ai.local"
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: dot-ai-test-admin
+  apiGroup: rbac.authorization.k8s.io
+RBAC_ADMIN_EOF
+
+# Step 5: Run integration tests
+log_info "Running integration tests (RBAC_ENABLED=${RBAC_ENABLED})..."
 npx vitest run --config=vitest.integration.config.ts --test-timeout=1200000 "${TEST_ARGS[@]}"
 
 TEST_EXIT_CODE=$?

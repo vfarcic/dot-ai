@@ -1,0 +1,100 @@
+{{- if .Values.rbac.enforcement.enabled }}
+# RBAC Enforcement (PRD #392)
+# Pre-built ClusterRoles for dot-ai tool-level authorization.
+# Admins create ClusterRoleBindings/RoleBindings to assign these roles to users.
+# Uses virtual API group "dot-ai.devopstoolkit.ai" — no CRDs required.
+
+# dotai-viewer: Read-only cluster visibility
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dotai-viewer
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+    dot-ai.devopstoolkit.ai/rbac-role: "viewer"
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    verbs: ["execute"]
+---
+# dotai-operator: Day-2 operations (plan + apply)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dotai-operator
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+    dot-ai.devopstoolkit.ai/rbac-role: "operator"
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    verbs: ["execute", "apply"]
+---
+# dotai-admin: Full access including user management
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dotai-admin
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+    dot-ai.devopstoolkit.ai/rbac-role: "admin"
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    verbs: ["execute", "apply"]
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["users"]
+    verbs: ["execute", "apply"]
+---
+# dotai-auth-checker: Allows dot-ai ServiceAccount to create SubjectAccessReviews
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "dot-ai.fullname" . }}-auth-checker
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "dot-ai.fullname" . }}-auth-checker
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "dot-ai.fullname" . }}-auth-checker
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "dot-ai.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

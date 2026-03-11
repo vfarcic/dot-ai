@@ -56,7 +56,7 @@ export interface EmbeddingProvider {
  * Options for the embed() function
  */
 interface EmbedOptions {
-  model: EmbeddingModel<string>;
+  model: EmbeddingModel;
   value: string;
   providerOptions?: {
     google?: {
@@ -76,7 +76,7 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
   private model: string;
   private dimensions: number;
   private available: boolean;
-  private modelInstance: EmbeddingModel<string> | undefined;
+  private modelInstance: EmbeddingModel | undefined;
 
   constructor(config: EmbeddingConfig & { provider: EmbeddingProviderType }) {
     this.providerType = config.provider;

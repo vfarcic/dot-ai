@@ -25,6 +25,8 @@ import { handleResourceSelection as handleResourceSelectionCore, handleResourceS
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getCurrentIdentity } from '../interfaces/request-context';
+import { checkToolAccess } from '../core/rbac';
 
 // Tool metadata for MCP registration
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
@@ -854,6 +856,32 @@ export async function handleOrganizationalDataTool(
           input: args
         }
       );
+    }
+
+    // PRD #392 Milestone 8: Mutating operations require 'apply' verb
+    const MUTATING_OPERATIONS = new Set(['create', 'delete', 'deleteAll']);
+    if (MUTATING_OPERATIONS.has(args.operation)) {
+      const identity = getCurrentIdentity();
+      const rbacResult = await checkToolAccess(identity, {
+        toolName: 'manageOrgData',
+        verb: 'apply',
+      });
+      if (!rbacResult.allowed) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                error: 'FORBIDDEN',
+                message: `Access denied: '${args.operation}' on organizational data requires 'apply' permission on 'manageOrgData'. Read operations (list, get, search) are available with 'execute' permission.`,
+                tool: 'manageOrgData',
+                operation: args.operation,
+                user: identity?.email,
+              }),
+            },
+          ],
+        };
+      }
     }
 
     // Route to appropriate handler based on data type
