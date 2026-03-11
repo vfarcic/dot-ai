@@ -8,6 +8,7 @@
 import { generateText, jsonSchema, tool, stepCountIs } from 'ai';
 import type { JSONSchema7 } from 'json-schema';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
@@ -147,15 +148,15 @@ export class VercelProvider implements AIProvider {
           provider = createXai({ apiKey: this.apiKey });
           break;
         case 'kimi':
-        case 'kimi_thinking':
-          // PRD #237: Moonshot AI Kimi K2 - uses OpenAI-compatible API
-          // Use .chat() explicitly to use /chat/completions instead of /responses
+          // PRD #353: Moonshot AI Kimi K2.5 - uses @ai-sdk/openai-compatible for proper
+          // reasoning_content preservation in multi-turn tool calling
           // Use global endpoint (api.moonshot.ai) - China endpoint (api.moonshot.cn) requires China-specific API keys
-          provider = createOpenAI({
+          provider = createOpenAICompatible({
+            name: 'kimi',
             apiKey: this.apiKey,
             baseURL: 'https://api.moonshot.ai/v1',
           });
-          this.modelInstance = provider.chat(this.model);
+          this.modelInstance = provider.chatModel(this.model);
           return; // Early return - model instance already set
         case 'amazon_bedrock':
           // PRD #175: Amazon Bedrock provider

@@ -147,7 +147,7 @@ gateway:
 
 # AI Provider configuration
 ai:
-  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, kimi, kimi_thinking, xai, amazon_bedrock)
+  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, google_flash, host, kimi, xai, amazon_bedrock)
   model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
