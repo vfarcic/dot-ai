@@ -57,6 +57,8 @@ describe('Mock Server Fixtures', () => {
       expect(toolNames).toContain('query');
       expect(toolNames).toContain('recommend');
       expect(toolNames).toContain('remediate');
+      expect(toolNames).toContain('operate');
+      expect(toolNames).toContain('users');
 
       // Verify parameters have required fields
       for (const tool of fixture.data.tools) {
@@ -265,7 +267,9 @@ describe('Mock Server Fixtures', () => {
 
   describe('OAuth Endpoints', () => {
     test('GET /.well-known/oauth-authorization-server should have valid metadata', async () => {
-      const fixture = (await loadFixture('oauth/authorization-server-metadata.json')) as any;
+      const fixture = (await loadFixture(
+        'oauth/authorization-server-metadata.json'
+      )) as any;
 
       expect(fixture).toMatchObject({
         issuer: expect.any(String),
@@ -279,7 +283,9 @@ describe('Mock Server Fixtures', () => {
     });
 
     test('GET /.well-known/oauth-protected-resource should have valid metadata', async () => {
-      const fixture = (await loadFixture('oauth/protected-resource-metadata.json')) as any;
+      const fixture = (await loadFixture(
+        'oauth/protected-resource-metadata.json'
+      )) as any;
 
       expect(fixture).toMatchObject({
         resource: expect.any(String),

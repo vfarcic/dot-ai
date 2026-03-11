@@ -57,7 +57,11 @@ import {
 import type { AITool } from '../core/ai-provider.interface';
 import { createUser, listUsers, deleteUser } from './oauth/user-management';
 import { getCurrentIdentity } from './request-context';
-import { checkToolAccess, filterAuthorizedTools, logUserManagementOperation } from '../core/rbac';
+import {
+  checkToolAccess,
+  filterAuthorizedTools,
+  logUserManagementOperation,
+} from '../core/rbac';
 
 /**
  * HTTP status codes for REST responses
@@ -479,6 +483,24 @@ export class RestApiRouter {
       // RBAC-filtered tool discovery (PRD #392) — OAuth users only see authorized tools
       const discoveryIdentity = getCurrentIdentity();
       tools = await filterAuthorizedTools(discoveryIdentity, tools);
+
+      // Check user management access and include as virtual "users" tool (PRD #392)
+      const userAccessResult = await checkToolAccess(discoveryIdentity, {
+        toolName: 'manageUsers',
+        resource: 'users',
+      });
+      if (userAccessResult.allowed) {
+        tools = [
+          ...tools,
+          {
+            name: 'users',
+            description: 'Manage users (create, list, delete)',
+            schema: { type: 'object', properties: {} },
+            category: 'Administration',
+            tags: ['users', 'administration', 'management'],
+          },
+        ];
+      }
 
       const categories = this.registry.getCategories();
       const tags = this.registry.getTags();

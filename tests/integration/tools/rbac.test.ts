@@ -704,6 +704,8 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
     expect(toolNames).toContain('query');
     expect(toolNames).not.toContain('recommend');
     expect(toolNames).not.toContain('operate');
+    // Viewer has no user management access — virtual "users" entry should be absent
+    expect(toolNames).not.toContain('users');
   });
 
   test('should return all tools in discovery for token users', async () => {
@@ -721,6 +723,8 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
     expect(toolNames).toContain('version');
     expect(toolNames).toContain('recommend');
     expect(toolNames).toContain('operate');
+    // Token users bypass RBAC, so virtual "users" entry should be included
+    expect(toolNames).toContain('users');
   });
 
   test('should deny viewer on user management endpoints', async () => {
@@ -744,7 +748,8 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
 
       // User can access recommend tool (has execute) — solutions phase works
       const recommendResponse = await client.post('/api/v1/tools/recommend', {
-        intent: 'deploy nginx web server with 2 replicas, expose on port 80, production ready',
+        intent:
+          'deploy nginx web server with 2 replicas, expose on port 80, production ready',
         final: true,
         interaction_id: `rbac_recommend_execute_${Date.now()}`,
       });
@@ -884,15 +889,13 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
 
     // Split logs into blocks (each block starts with a timestamp line)
     // so we can match multi-line pretty-printed JSON entries.
-    function findAuditBlocks(
-      logs: string,
-      ...patterns: string[]
-    ): string[] {
+    function findAuditBlocks(logs: string, ...patterns: string[]): string[] {
       // Split on timestamp boundaries to get individual log entries
       const blocks = logs.split(/(?=\[\d{4}-\d{2}-\d{2}T)/);
-      return blocks.filter(block =>
-        block.includes('[RBAC-Audit]') &&
-        patterns.every(p => block.includes(p))
+      return blocks.filter(
+        block =>
+          block.includes('[RBAC-Audit]') &&
+          patterns.every(p => block.includes(p))
       );
     }
 
@@ -1045,7 +1048,9 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
         },
       });
 
-      const toolNames = response.data.tools.map((t: { name: string }) => t.name);
+      const toolNames = response.data.tools.map(
+        (t: { name: string }) => t.name
+      );
       expect(toolNames).toContain('version');
       expect(toolNames).toContain('query');
       expect(toolNames).toContain('operate');
@@ -1101,11 +1106,14 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
     test('should deny deleteAll for user with execute but not apply on manageOrgData', async () => {
       const client = jwtClient(orgDataExecuteUser);
 
-      const deleteAllResponse = await client.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'deleteAll',
-        interaction_id: `rbac_orgdata_deleteall_denied_${Date.now()}`,
-      });
+      const deleteAllResponse = await client.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'pattern',
+          operation: 'deleteAll',
+          interaction_id: `rbac_orgdata_deleteall_denied_${Date.now()}`,
+        }
+      );
 
       expect(deleteAllResponse).toMatchObject({
         success: true,
@@ -1172,12 +1180,15 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
       const client = jwtClient(knowledgeExecuteUser);
 
       // ingest requires apply verb — should be denied
-      const ingestResponse = await client.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        content: 'test content',
-        uri: 'https://example.com/test-doc',
-        interaction_id: `rbac_knowledge_ingest_denied_${Date.now()}`,
-      });
+      const ingestResponse = await client.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'ingest',
+          content: 'test content',
+          uri: 'https://example.com/test-doc',
+          interaction_id: `rbac_knowledge_ingest_denied_${Date.now()}`,
+        }
+      );
 
       expect(ingestResponse).toMatchObject({
         success: true,
@@ -1193,11 +1204,14 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
     test('should deny deleteByUri for user with execute but not apply on manageKnowledge', async () => {
       const client = jwtClient(knowledgeExecuteUser);
 
-      const deleteResponse = await client.post('/api/v1/tools/manageKnowledge', {
-        operation: 'deleteByUri',
-        uri: 'https://example.com/test-doc',
-        interaction_id: `rbac_knowledge_delete_denied_${Date.now()}`,
-      });
+      const deleteResponse = await client.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'deleteByUri',
+          uri: 'https://example.com/test-doc',
+          interaction_id: `rbac_knowledge_delete_denied_${Date.now()}`,
+        }
+      );
 
       expect(deleteResponse).toMatchObject({
         success: true,
@@ -1214,11 +1228,14 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
       const client = jwtClient(knowledgeExecuteUser);
 
       // search uses default execute verb — should NOT get FORBIDDEN
-      const searchResponse = await client.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: 'test query',
-        interaction_id: `rbac_knowledge_search_allowed_${Date.now()}`,
-      });
+      const searchResponse = await client.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: 'test query',
+          interaction_id: `rbac_knowledge_search_allowed_${Date.now()}`,
+        }
+      );
 
       const responseText = JSON.stringify(searchResponse);
       expect(responseText).not.toContain('FORBIDDEN');
@@ -1229,12 +1246,15 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
       const client = jwtClient(knowledgeApplyUser);
 
       // ingest passes RBAC (has apply verb) — may fail downstream but not on RBAC
-      const ingestResponse = await client.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        content: 'test content',
-        uri: 'https://example.com/test-doc',
-        interaction_id: `rbac_knowledge_ingest_allowed_${Date.now()}`,
-      });
+      const ingestResponse = await client.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'ingest',
+          content: 'test content',
+          uri: 'https://example.com/test-doc',
+          interaction_id: `rbac_knowledge_ingest_allowed_${Date.now()}`,
+        }
+      );
 
       const responseText = JSON.stringify(ingestResponse);
       expect(responseText).not.toContain('FORBIDDEN');
@@ -1340,7 +1360,9 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
         },
       });
 
-      const toolNames = response.data.tools.map((t: { name: string }) => t.name);
+      const toolNames = response.data.tools.map(
+        (t: { name: string }) => t.name
+      );
       // Without resourceNames, viewer sees ALL tools (has execute on all)
       expect(toolNames).toContain('version');
       expect(toolNames).toContain('query');
@@ -1348,6 +1370,8 @@ describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
       expect(toolNames).toContain('operate');
       expect(toolNames).toContain('manageOrgData');
       expect(toolNames).toContain('manageKnowledge');
+      // m8 viewer only has tools resource, not users — no "users" entry
+      expect(toolNames).not.toContain('users');
     });
   });
 });
