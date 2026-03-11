@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.8.1] - 2026-03-11
+
+### Features
+
+- ## Kimi K2.5 Model Support
+
+  The Kimi AI provider now uses Kimi K2.5, Moonshot AI's latest model with 1T parameters (32B active) in a Mixture-of-Experts architecture and a 256K token context window. K2.5 brings improved coding benchmarks (76.8% SWE-Bench Verified, 85.0% LiveCodeBench v6), native multimodality, and agent swarm support for up to 100 specialized agents with 1,500 simultaneous tool calls.
+
+  K2.5 has thinking mode enabled by default, so the separate `kimi_thinking` provider has been removed — set `AI_PROVIDER=kimi` to use thinking mode directly. The Vercel AI SDK has been upgraded to v6 with `@ai-sdk/openai-compatible`, which resolves previous issues with multi-turn tool calling by properly preserving `reasoning_content` in conversation history.
+
+  The same `MOONSHOT_API_KEY` environment variable and API endpoint continue to work. If you were using `AI_PROVIDER=kimi_thinking`, switch to `AI_PROVIDER=kimi` — the separate thinking provider has been removed since K2.5 includes thinking by default. See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/setup/deployment) for provider configuration details. ([#353](https://github.com/vfarcic/dot-ai/issues/353))
+- ## OpenAI GPT-5.4 Model Update
+
+  The default OpenAI model is now GPT-5.4, replacing gpt-5.1-codex. GPT-5.4 is OpenAI's most capable general-purpose model, absorbing the Codex coding capabilities into the main model line with 33% fewer factual errors, more token-efficient reasoning, and a 1M+ token context window (1,050,000 tokens).
+
+  No configuration changes are required — the same `OPENAI_API_KEY` environment variable and API endpoint continue to work. Both the `openai` and `custom` provider entries now default to `gpt-5.4`. Users can override the model with the `AI_MODEL` environment variable if needed.
+
+  See the [Deployment Guide](https://devopstoolkit.ai/docs/ai-engine/setup/deployment) for the full list of supported models. ([#369](https://github.com/vfarcic/dot-ai/issues/369))
+- ## Kubernetes RBAC Enforcement
+
+  dot-ai now enforces tool-level authorization for OAuth-authenticated users using Kubernetes RBAC via SubjectAccessReview. Admins control who can use which tools by creating standard Kubernetes RoleBindings against pre-built ClusterRoles shipped in the Helm chart.
+
+  **Three pre-built ClusterRoles:**
+  - `dotai-viewer` — read-only access to all tools (query, plan, recommend without apply)
+  - `dotai-operator` — full access including mutations (deploy, remediate, manage org data/knowledge)
+  - `dotai-admin` — operator access plus user management
+
+  **Two-verb permission model:**
+  - `execute` — use any tool for reading, planning, querying (non-mutating)
+  - `apply` — perform mutations (deploy manifests, execute remediations, create/delete org data and knowledge)
+
+  **Key behaviors:**
+  - OAuth users without RoleBindings are denied all tool access (default deny)
+  - Static token users bypass RBAC entirely (backward-compatible)
+  - RBAC-filtered tool discovery — `GET /api/v1/tools` returns only authorized tools; MCP sessions only register authorized tools
+  - Multi-phase tools (recommend, operate, remediate) allow read phases with `execute` but require `apply` for mutations
+  - All authorization decisions (allowed and denied) are audit-logged with user identity, tool, namespace, and timestamp
+
+  **Setup:** Enable RBAC enforcement via Helm value `rbac.enforcement.enabled: true` (disabled by default). Create ClusterRoleBindings to grant users or groups access. See the [Authorization Guide](https://devopstoolkit.ai/docs/ai-engine/setup/authorization) for configuration details.
+
+  ([#392](https://github.com/vfarcic/dot-ai/issues/392))
+
+
 ## [1.7.0] - 2026-03-06
 
 ### Bug Fixes
