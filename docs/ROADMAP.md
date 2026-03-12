@@ -23,6 +23,9 @@ This roadmap is a living document and may change based on community feedback and
 - Auto-generated Go CLI as alternative to MCP - self-contained multi-arch binaries from OpenAPI spec (PRD #371)
 - MCP server integration for extended tool capabilities - observability, tracing, logging (PRD #358)
 - Integrate patterns & policies into remediation tool (PRD #227)
+- Cost estimation & optimization - integrate with OpenCost/Kubecost for cost insights in recommend and operate workflows (PRD #404)
+- Dependency & impact analysis - map resource dependencies before operations to prevent cascading failures (PRD #405)
+- Upgrade path analysis - assess cluster readiness for Kubernetes version upgrades using existing tools (PRD #406)
 
 ## Long-term (6-12 Months)
 
