@@ -211,6 +211,10 @@ export async function handleRecommendTool(
 
       logger.debug('Handling recommend request with stage routing', { requestId, stage, intent: args?.intent });
 
+      // Initialize session manager (shared across stages)
+      const sessionManager = new GenericSessionManager<SolutionData>('sol');
+      logger.debug('Session manager initialized', { requestId });
+
       // Route to appropriate handler based on stage
       if (stage === 'chooseSolution') {
         return await handleChooseSolutionTool(args as { solutionId: string }, dotAI, logger, requestId);
@@ -275,7 +279,8 @@ export async function handleRecommendTool(
           },
           dotAI,
           logger,
-          requestId
+          requestId,
+          sessionManager
         );
       }
 
@@ -283,11 +288,6 @@ export async function handleRecommendTool(
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
       // AI provider is already initialized and validated in dotAI.ai
-
-      // Initialize session manager
-      const sessionManager = new GenericSessionManager<SolutionData>('sol');
-      logger.debug('Session manager initialized', { requestId });
-
 
       logger.info('Starting resource recommendation process', {
         requestId,

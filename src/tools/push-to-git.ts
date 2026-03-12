@@ -81,7 +81,8 @@ export async function handlePushToGitTool(
   args: PushToGitArgs,
   dotAI: DotAI,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  sessionManager?: GenericSessionManager<SolutionData>
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   return await ErrorHandler.withErrorHandling(
     async () => {
@@ -93,9 +94,9 @@ export async function handlePushToGitTool(
         branch: args.branch,
       });
 
-      const sessionManager = new GenericSessionManager<SolutionData>('sol');
+      const sm = sessionManager || new GenericSessionManager<SolutionData>('sol');
 
-      const session = sessionManager.getSession(args.solutionId);
+      const session = sm.getSession(args.solutionId);
       if (!session) {
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
@@ -313,7 +314,7 @@ export async function handlePushToGitTool(
           );
         }
 
-        sessionManager.updateSession(args.solutionId, {
+        sm.updateSession(args.solutionId, {
           stage: 'pushed',
           gitPush: {
             repoUrl: args.repoUrl,
