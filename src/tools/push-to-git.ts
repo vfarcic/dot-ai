@@ -226,7 +226,7 @@ export async function handlePushToGitTool(
         const files: Array<{ path: string; content: string }> = [];
 
         if (solution.generatedManifests.type === 'helm') {
-          if (solution.generatedManifests.valuesYaml) {
+          if (solution.generatedManifests.valuesYaml && solution.generatedManifests.valuesYaml.trim()) {
             files.push({
               path: path.posix.join(targetPath, 'values.yaml'),
               content: solution.generatedManifests.valuesYaml,
@@ -280,7 +280,7 @@ export async function handlePushToGitTool(
           pushResult = await pushRepo(tmpDir, files, commitMessage, {
             branch,
             author: args.authorName
-              ? { name: args.authorName, email: args.authorEmail || '' }
+              ? { name: args.authorName, email: args.authorEmail || 'dot-ai@users.noreply.github.com' }
               : undefined,
           });
         } catch (pushError) {
