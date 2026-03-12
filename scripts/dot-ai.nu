@@ -7,7 +7,7 @@
 # > main apply dot-ai --provider openai --model gpt-4o
 # > main apply dot-ai --enable-tracing true
 def "main apply dot-ai" [
-    --stack-version = "0.18.0",
+    --stack-version = "0.44.0",
     --anthropic-api-key = "",
     --openai-api-key = "",
     --auth-token = "my-secret-token",
@@ -70,6 +70,8 @@ def "main apply dot-ai" [
 
     # Update .env with auth token for MCP clients
     $"export DOT_AI_AUTH_TOKEN=($auth_token)\n" | save --append .env
+
+    $"export DOT_AI_URL=http://($host)\n" | save --append .env
 
     if $enable_tracing {
         print $"Tracing enabled: Traces will be sent to (ansi yellow_bold)Jaeger in observability namespace(ansi reset)"
