@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.10.0] - 2026-03-13
+
+### Features
+
+- ## GitOps Push-to-Git for Recommend Workflow
+
+  The recommend tool now supports pushing generated manifests directly to a Git repository for GitOps workflows. After generating manifests, agents can use the new `pushToGit` stage to clone a target repository, write manifests to a specified path, and push — eliminating the manual copy-paste step for users running Argo CD, Flux, or similar GitOps controllers.
+
+  The `generateManifests` response now includes `nextActions` offering both `pushToGit` (for GitOps) and `deployManifests` (for direct cluster apply), letting agents guide users to the right deployment path. The push response includes a file preview with sizes and line counts, the commit SHA, and a reminder that the GitOps controller will sync automatically. GitOps push is currently supported for raw YAML and Kustomize manifests; Helm chart support (generating Argo CD Application or Flux HelmRelease CRs) is planned for a future release.
+
+  Authentication is configured via `DOT_AI_GIT_TOKEN` environment variable (PAT) or GitHub App credentials. See the Helm chart's `extraEnv` section for configuration examples.
+
+  See the [Recommend Tool Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/tools/recommend) for usage details and GitOps examples. ([#395](https://github.com/vfarcic/dot-ai/issues/395))
+
+
 ## [1.9.1] - 2026-03-11
 
 ### Bug Fixes
