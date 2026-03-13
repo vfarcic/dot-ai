@@ -41,7 +41,9 @@ export const PUSHTOGIT_TOOL_INPUT_SCHEMA = {
   repoUrl: z.string().url().describe('Git repository URL (HTTPS)'),
   targetPath: z
     .string()
-    .describe('Path within repository where manifests will be stored (e.g., "apps/postgresql/")'),
+    .describe(
+      'Path within repository where manifests will be stored (e.g., "apps/postgresql/")'
+    ),
   branch: z.string().optional().describe('Git branch (default: main)'),
   commitMessage: z
     .string()
@@ -52,7 +54,9 @@ export const PUSHTOGIT_TOOL_INPUT_SCHEMA = {
   interaction_id: z
     .string()
     .optional()
-    .describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'),
+    .describe(
+      'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
+    ),
 };
 
 interface PushToGitArgs {
@@ -94,7 +98,8 @@ export async function handlePushToGitTool(
         branch: args.branch,
       });
 
-      const sm = sessionManager || new GenericSessionManager<SolutionData>('sol');
+      const sm =
+        sessionManager || new GenericSessionManager<SolutionData>('sol');
 
       const session = sm.getSession(args.solutionId);
       if (!session) {
@@ -203,7 +208,10 @@ export async function handlePushToGitTool(
 
       const targetPath = rawTargetPath.replace(/\/+$/, '');
 
-      const tmpDir = path.join(os.tmpdir(), `dot-ai-git-${args.solutionId}-${randomUUID()}`);
+      const tmpDir = path.join(
+        os.tmpdir(),
+        `dot-ai-git-${args.solutionId}-${randomUUID()}`
+      );
       logger.info('Cloning repository', {
         repoUrl: scrubCredentials(args.repoUrl),
         branch,
@@ -217,7 +225,9 @@ export async function handlePushToGitTool(
           await cloneRepo(args.repoUrl, tmpDir, { branch, depth: 1 });
         } catch (cloneError) {
           const errorMessage =
-            cloneError instanceof Error ? cloneError.message : String(cloneError);
+            cloneError instanceof Error
+              ? cloneError.message
+              : String(cloneError);
           logger.error('Failed to clone repository', cloneError as Error, {
             repoUrl: scrubCredentials(args.repoUrl),
             branch,
@@ -290,7 +300,10 @@ export async function handlePushToGitTool(
           pushResult = await pushRepo(tmpDir, files, commitMessage, {
             branch,
             author: args.authorName
-              ? { name: args.authorName, email: args.authorEmail || 'dot-ai@users.noreply.github.com' }
+              ? {
+                  name: args.authorName,
+                  email: args.authorEmail || 'dot-ai@users.noreply.github.com',
+                }
               : undefined,
           });
         } catch (pushError) {
@@ -327,7 +340,7 @@ export async function handlePushToGitTool(
         sm.updateSession(args.solutionId, {
           stage: 'pushed',
           gitPush: {
-            repoUrl: args.repoUrl,
+            repoUrl: scrubCredentials(args.repoUrl),
             path: targetPath,
             branch: pushResult.branch,
             commitSha: pushResult.commitSha,
@@ -392,7 +405,7 @@ export async function handlePushToGitTool(
       operation: 'push_to_git',
       component: 'PushToGitTool',
       requestId,
-      input: args,
+      input: { ...args, repoUrl: scrubCredentials(args.repoUrl) },
     }
   );
 }

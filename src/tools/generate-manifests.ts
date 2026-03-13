@@ -35,13 +35,24 @@ import { checkToolAccess } from '../core/rbac';
 // PRD #359: All helm operations via unified plugin registry
 
 /**
- * PRD #392 Milestone 2: Build agent instructions based on deploy permission.
- * When the user has 'apply' permission, includes the deploy option.
- * When they don't, explains that deploying requires 'apply' permission.
+ * PRD #392 Milestone 2 + PRD #395: Build unified agent instructions.
+ * Presents save locally, deploy to cluster, and push to Git as equal options.
+ * RBAC determines whether deploy is available.
  */
-async function buildDeployInstructions(outputPath: string, outputFormat: string): Promise<string> {
-  const writeInstr = `Write the files to "${outputPath}".`;
-  const formatInstr = outputFormat === 'helm' ? ' The output is a Helm chart.' : outputFormat === 'raw' ? '' : ' The output is a Kustomize overlay.';
+async function buildAgentInstructions(
+  outputPath: string,
+  outputFormat: string
+): Promise<string> {
+  const formatNote =
+    outputFormat === 'helm'
+      ? ' (Helm chart)'
+      : outputFormat === 'kustomize'
+        ? ' (Kustomize overlay)'
+        : '';
+  const parts: string[] = [
+    `Manifests generated${formatNote}. Present the user with these options:`,
+    `1. **Save locally**: Write the files to "${outputPath}" — no further server call needed, you already have the file contents.`,
+  ];
 
   const identity = getCurrentIdentity();
   const rbacResult = await checkToolAccess(identity, {
@@ -50,10 +61,20 @@ async function buildDeployInstructions(outputPath: string, outputFormat: string)
   });
 
   if (rbacResult.allowed) {
-    return `${writeInstr}${formatInstr} If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`;
+    parts.push(
+      '2. **Deploy to cluster**: Call the recommend tool with stage: "deployManifests" to apply directly.'
+    );
+  } else {
+    parts.push(
+      "2. **Deploy to cluster**: Not available — requires 'apply' permission on 'recommend'."
+    );
   }
 
-  return `${writeInstr}${formatInstr} Deploying manifests requires 'apply' permission on 'recommend', which is not granted for the current user. Save the files locally or push to Git to apply them through your own workflow.`;
+  parts.push(
+    '3. **Push to Git** (GitOps): Call the recommend tool with stage: "pushToGit", providing repoUrl and targetPath. Recommended for Argo CD/Flux workflows.'
+  );
+
+  return parts.join('\n');
 }
 
 /**
@@ -105,18 +126,23 @@ function buildHelmCommandForDisplay(
 
 const execFileAsync = promisify(execFile);
 
-// PRD #395: Shared nextActions for GitOps workflow
+// PRD #395: Unified nextActions — save locally, deploy, or push to Git as equal options
 const NEXT_ACTIONS = [
   {
-    action: 'pushToGit',
-    description: 'Push to Git repository (recommended for GitOps)',
-    stage: 'pushToGit',
-    requiredParams: ['repoUrl', 'targetPath'],
+    action: 'saveLocally',
+    description:
+      'Save files locally (no server call needed — files are in the response)',
   },
   {
     action: 'deployManifests',
     description: 'Apply directly to cluster',
     stage: 'deployManifests',
+  },
+  {
+    action: 'pushToGit',
+    description: 'Push to Git repository for GitOps (Argo CD, Flux)',
+    stage: 'pushToGit',
+    requiredParams: ['repoUrl', 'targetPath'],
   },
 ];
 
@@ -778,7 +804,7 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
-          nextActions: [NEXT_ACTIONS[1]], // Only deployManifests for Helm - GitOps push not yet supported
+          nextActions: [NEXT_ACTIONS[0], NEXT_ACTIONS[1]], // saveLocally + deployManifests for Helm (pushToGit not yet supported)
           ...(visualizationUrl ? { visualizationUrl } : {}),
         };
 
@@ -1349,7 +1375,10 @@ export async function handleGenerateManifestsTool(
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
                 nextActions: NEXT_ACTIONS,
-                agentInstructions: await buildDeployInstructions(outputPath, outputFormat),
+                agentInstructions: await buildAgentInstructions(
+                  outputPath,
+                  outputFormat
+                ),
                 ...(visualizationUrl ? { visualizationUrl } : {}),
               };
 
@@ -1398,7 +1427,10 @@ export async function handleGenerateManifestsTool(
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
               nextActions: NEXT_ACTIONS,
-              agentInstructions: await buildDeployInstructions(outputPath, outputFormat),
+              agentInstructions: await buildAgentInstructions(
+                outputPath,
+                outputFormat
+              ),
               ...(visualizationUrl ? { visualizationUrl } : {}),
             };
 

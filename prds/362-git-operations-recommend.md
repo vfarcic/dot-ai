@@ -1,7 +1,7 @@
 # PRD: Git Operations for Recommend Tool
 
 **Issue**: [#362](https://github.com/vfarcic/dot-ai/issues/362)
-**Status**: In Progress (Milestone 1 Complete)
+**Status**: Complete
 **Priority**: High
 **Created**: 2026-01-30
 **Updated**: 2026-03-10
@@ -261,20 +261,20 @@ All other parameters are AI-suggested with sensible defaults:
 
 **PR**: [#393](https://github.com/vfarcic/dot-ai/pull/393)
 
-### Milestone 2: Recommend Integration (Pending)
+### Milestone 2: Recommend Integration ✅ COMPLETE (via PRD #395)
 
-- [ ] Add `pushToGit` stage to recommend workflow
-- [ ] Repo URL input with GitHub shorthand support (`user/repo` → `https://github.com/user/repo.git`)
-- [ ] AI-suggested defaults for path (root), branch (main), commit message, file name
-- [ ] Allow user to override any default
-- [ ] Invoke Git tools to clone, add manifests, push
-- [ ] Integration tests for recommend → Git flow
+- [x] Add `pushToGit` stage to recommend workflow
+- [x] Repo URL input with GitHub shorthand support (`user/repo` → `https://github.com/user/repo.git`)
+- [x] AI-suggested defaults for path (root), branch (main), commit message, file name
+- [x] Allow user to override any default
+- [x] Invoke Git tools to clone, add manifests, push
+- [x] Integration tests for recommend → Git flow
 
-### Milestone 3: User Experience Polish (Pending)
+### Milestone 3: User Experience Polish ✅ COMPLETE (via PRD #395)
 
-- [ ] Success message with repo URL, path, and branch
-- [ ] Helpful error messages with remediation steps
-- [ ] Documentation for Git push feature
+- [x] Success message with repo URL, path, and branch
+- [x] Helpful error messages with remediation steps
+- [x] Documentation for Git push feature
 
 ### Milestone 4: Future Enhancements (Separate PRDs)
 
