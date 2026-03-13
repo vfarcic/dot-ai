@@ -407,9 +407,9 @@ kubectl get ingress -n a-team
 - SQL resource triggers Crossplane to provision AWS RDS PostgreSQL instance
 - Provided next steps and verification commands
 
-#### Alternative: GitOps Deployment
+#### Option: GitOps Deployment
 
-For GitOps workflows with Argo CD or Flux, use the `pushToGit` stage instead of `deployManifests`:
+After `generateManifests`, agents present three equal options: **save locally** (write files from the response), **deploy to cluster** (`deployManifests` stage), or **push to Git** (`pushToGit` stage). For GitOps workflows with Argo CD or Flux, use `pushToGit`:
 
 ```md
 User: Push to GitOps repo instead
