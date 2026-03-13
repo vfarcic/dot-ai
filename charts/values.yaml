@@ -322,12 +322,6 @@ dex:
   #     - secretRef:
   #         name: my-connector-secret
   envFrom: []
-  readinessProbe:
-    httpGet:
-      path: /healthz/ready
-      port: 5556
-    timeoutSeconds: 5
-    failureThreshold: 5
   grpc:
     enabled: true                     # Enable gRPC API for user management (PRD #380 Task 2.5)
   image:                                  # Custom image with branded login page (PRD #380 Task 3.6)
