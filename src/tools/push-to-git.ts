@@ -136,6 +136,24 @@ export async function handlePushToGitTool(
         );
       }
 
+      if (solution.generatedManifests.type === 'helm') {
+        throw ErrorHandler.createError(
+          ErrorCategory.VALIDATION,
+          ErrorSeverity.HIGH,
+          'GitOps push for Helm charts is not yet supported. Use the deployManifests stage to install directly, or wait for a future release with Argo CD Application / Flux HelmRelease support.',
+          {
+            operation: 'push_to_git',
+            component: 'PushToGitTool',
+            requestId,
+            input: { solutionId: args.solutionId },
+            suggestedActions: [
+              'Use deployManifests stage to install Helm chart directly',
+              'Wait for future release with GitOps Helm support (Argo CD Application / Flux HelmRelease)',
+            ],
+          }
+        );
+      }
+
       const authConfig = getGitAuthConfigFromEnv();
       if (!authConfig.pat && !authConfig.githubApp) {
         throw ErrorHandler.createError(
@@ -225,23 +243,15 @@ export async function handlePushToGitTool(
 
         const files: Array<{ path: string; content: string }> = [];
 
-        if (solution.generatedManifests.type === 'helm') {
-          if (solution.generatedManifests.valuesYaml && solution.generatedManifests.valuesYaml.trim()) {
+        // Handle raw/kustomize manifests (Helm is rejected earlier in validation)
+        const manifestFiles = solution.generatedManifests.files;
+        if (manifestFiles && manifestFiles.length > 0) {
+          for (const file of manifestFiles) {
+            const sanitizedPath = sanitizeRelativePath(file.relativePath);
             files.push({
-              path: path.posix.join(targetPath, 'values.yaml'),
-              content: solution.generatedManifests.valuesYaml,
+              path: path.posix.join(targetPath, sanitizedPath),
+              content: file.content,
             });
-          }
-        } else {
-          const manifestFiles = solution.generatedManifests.files;
-          if (manifestFiles && manifestFiles.length > 0) {
-            for (const file of manifestFiles) {
-              const sanitizedPath = sanitizeRelativePath(file.relativePath);
-              files.push({
-                path: path.posix.join(targetPath, sanitizedPath),
-                content: file.content,
-              });
-            }
           }
         }
 

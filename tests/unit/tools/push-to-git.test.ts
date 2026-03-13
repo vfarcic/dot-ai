@@ -344,15 +344,9 @@ describe('Push to Git Tool', () => {
       );
     });
 
-    test('should push Helm values', async () => {
-      const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } = await import('../../../src/core/git-utils.js');
+    test('should reject Helm solutions with clear error', async () => {
+      const { getGitAuthConfigFromEnv } = await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
-      vi.mocked(pushRepo).mockResolvedValue({
-        branch: 'main',
-        commitSha: 'abc123',
-        filesAdded: ['apps/postgres/values.yaml'],
-      });
 
       const solutionData: SolutionData = {
         toolName: 'recommend',
@@ -372,25 +366,18 @@ describe('Push to Git Tool', () => {
       const session = sessionManager.createSession(solutionData);
       const sessionId = session.sessionId;
 
-      const result = await handlePushToGitTool(
-        {
-          solutionId: sessionId,
-          repoUrl: 'https://github.com/test/repo.git',
-          targetPath: 'apps/postgres/',
-        },
-        mockDotAI,
-        mockLogger,
-        requestId
-      );
-
-      const response = JSON.parse(result.content[0].text);
-      expect(response.success).toBe(true);
-      expect(pushRepo).toHaveBeenCalledWith(
-        expect.any(String),
-        [{ path: 'apps/postgres/values.yaml', content: expect.any(String) }],
-        expect.stringContaining('helm'),
-        { branch: 'main', author: undefined }
-      );
+      await expect(
+        handlePushToGitTool(
+          {
+            solutionId: sessionId,
+            repoUrl: 'https://github.com/test/repo.git',
+            targetPath: 'apps/postgres/',
+          },
+          mockDotAI,
+          mockLogger,
+          requestId
+        )
+      ).rejects.toThrow('GitOps push for Helm charts is not yet supported');
     });
 
     test('should use posix paths when building Git file paths', async () => {

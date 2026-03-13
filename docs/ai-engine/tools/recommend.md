@@ -454,6 +454,8 @@ Agent: Pushing manifests to your GitOps repository...
 - Session updated with gitPush state for tracking
 - GitOps controller will sync automatically based on its configuration
 
+> **Note**: GitOps push is currently supported for **raw YAML manifests and Kustomize only**. Helm chart support (generating Argo CD `Application` or Flux `HelmRelease` CRs) is planned for a future release. For Helm charts, use the `deployManifests` stage to install directly to the cluster.
+
 **Prerequisites for pushToGit:**
 - Git authentication configured via `DOT_AI_GIT_TOKEN` or GitHub App credentials
 - Write access to the target repository

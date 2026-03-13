@@ -778,7 +778,7 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
-          nextActions: NEXT_ACTIONS,
+          nextActions: [NEXT_ACTIONS[1]], // Only deployManifests for Helm - GitOps push not yet supported
           ...(visualizationUrl ? { visualizationUrl } : {}),
         };
 
