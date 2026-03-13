@@ -105,6 +105,21 @@ function buildHelmCommandForDisplay(
 
 const execFileAsync = promisify(execFile);
 
+// PRD #395: Shared nextActions for GitOps workflow
+const NEXT_ACTIONS = [
+  {
+    action: 'pushToGit',
+    description: 'Push to Git repository (recommended for GitOps)',
+    stage: 'pushToGit',
+    requiredParams: ['repoUrl', 'targetPath'],
+  },
+  {
+    action: 'deployManifests',
+    description: 'Apply directly to cluster',
+    stage: 'deployManifests',
+  },
+];
+
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
 export const GENERATEMANIFESTS_TOOL_DESCRIPTION =
@@ -763,6 +778,7 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
+          nextActions: [NEXT_ACTIONS[1]], // Only deployManifests for Helm - GitOps push not yet supported
           ...(visualizationUrl ? { visualizationUrl } : {}),
         };
 
@@ -1332,6 +1348,7 @@ export async function handleGenerateManifestsTool(
                 validationAttempts: attempt,
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
+                nextActions: NEXT_ACTIONS,
                 agentInstructions: await buildDeployInstructions(outputPath, outputFormat),
                 ...(visualizationUrl ? { visualizationUrl } : {}),
               };
@@ -1380,6 +1397,7 @@ export async function handleGenerateManifestsTool(
               files: [{ relativePath: 'manifests.yaml', content: manifests }],
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
+              nextActions: NEXT_ACTIONS,
               agentInstructions: await buildDeployInstructions(outputPath, outputFormat),
               ...(visualizationUrl ? { visualizationUrl } : {}),
             };
