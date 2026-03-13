@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.10.1] - 2026-03-13
+
+### Bug Fixes
+
+- ## Dex Readiness Probe Timeout
+
+  Fixed intermittent Dex unhealthy events caused by an overly tight readiness probe timeout. The `/healthz/ready` endpoint queries the Kubernetes API server (CRD storage), which can exceed the previous 1-second timeout under normal cluster load. The default readiness probe now uses `timeoutSeconds: 5` and `failureThreshold: 5`, preventing false-positive unhealthy events during routine operations. ([#dex-probe](https://github.com/vfarcic/dot-ai/issues/dex-probe))
+
+
 ## [1.10.0] - 2026-03-13
 
 ### Features
