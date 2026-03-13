@@ -35,8 +35,11 @@ export function checkBearerAuth(req: IncomingMessage): AuthResult {
     };
   }
 
-  // Extract Authorization header
-  const rawAuthHeader = req.headers['authorization'];
+  // Extract Authorization header, with X-Dot-AI-Authorization as fallback.
+  // The fallback supports Kubernetes API server proxy scenarios where the
+  // standard Authorization header is overwritten with a K8s bearer token.
+  const rawAuthHeader =
+    req.headers['x-dot-ai-authorization'] || req.headers['authorization'];
   if (!rawAuthHeader) {
     return {
       authorized: false,

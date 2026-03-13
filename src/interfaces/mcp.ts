@@ -630,7 +630,7 @@ export class MCPServer {
             );
             res.setHeader(
               'Access-Control-Allow-Headers',
-              'Content-Type, X-Session-Id, Authorization'
+              'Content-Type, X-Session-Id, Authorization, X-Dot-AI-Authorization'
             );
 
             if (req.method === 'OPTIONS') {
