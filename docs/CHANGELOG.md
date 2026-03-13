@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.10.2] - 2026-03-13
+
+### Other Changes
+
+- ## Proxy-Compatible Authentication Header
+
+  The REST API now supports `X-Dot-AI-Authorization` as a fallback authentication header. When accessing the API through the Kubernetes API server proxy (e.g., from Headlamp or other dashboard plugins), the standard `Authorization` header is overwritten with a Kubernetes bearer token. Clients can now send their dot-ai token via `X-Dot-AI-Authorization: Bearer <token>` to bypass this limitation.
+
+  The fallback header is checked first; if absent, the standard `Authorization` header is used as before. Existing clients require no changes. ([#proxy-auth](https://github.com/vfarcic/dot-ai/issues/proxy-auth))
+
+
 ## [1.10.1] - 2026-03-13
 
 ### Bug Fixes
