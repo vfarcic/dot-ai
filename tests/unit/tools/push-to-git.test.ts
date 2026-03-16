@@ -14,6 +14,13 @@ vi.mock('../../../src/core/git-utils.js', () => ({
   pushRepo: vi.fn(),
   getGitAuthConfigFromEnv: vi.fn(),
   scrubCredentials: vi.fn((url: string) => url.replace(/:\/\/[^@]+@/, '://***@')),
+  sanitizeRelativePath: vi.fn((p: string) => {
+    if (p.startsWith('/')) throw new Error('Relative path cannot be absolute');
+    const normalized = require('path').posix.normalize(p);
+    if (normalized.startsWith('..') || require('path').posix.isAbsolute(normalized))
+      throw new Error('Relative path cannot escape target directory');
+    return normalized;
+  }),
 }));
 
 vi.mock('../../../src/core/session-utils.js', () => ({

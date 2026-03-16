@@ -1,7 +1,7 @@
 # PRD: GitOps Discovery for Remediate Tool
 
 **Issue**: [#407](https://github.com/vfarcic/dot-ai/issues/407)
-**Status**: Draft
+**Status**: In Progress
 **Priority**: High
 **Created**: 2026-03-16
 
@@ -269,10 +269,12 @@ export interface RemediationAction {
   rationale: string;
   gitSource?: {              // NEW: Git-based action (GitOps path)
     repoURL: string;
-    path: string;
     branch: string;
-    fileToModify: string;
-    description: string;     // What to change in the file
+    files: Array<{
+      path: string;          // Path relative to repo root
+      content: string;       // Full corrected file content
+      description: string;   // What was changed and why
+    }>;
   };
 }
 ```
@@ -327,38 +329,32 @@ export interface RemediationAction {
 
 ## Milestones
 
-### Milestone 1: Internal Agentic-Loop Tool Definitions and Handlers
-- [ ] Implement `git_clone` tool definition and handler (using existing `cloneRepo()`)
-- [ ] Implement `fs_list` tool definition and handler (scoped to `./tmp/`)
-- [ ] Implement `fs_read` tool definition and handler (scoped to `./tmp/`)
-- [ ] Path security: validate all paths resolve within `./tmp/`
-- [ ] Unique session dirs: `./tmp/{sessionId}/{repo-name}/`
-- [ ] Unit tests for handlers and path validation
-
-### Milestone 2: Combined Tool Executor
-- [ ] Create combined executor that routes plugin tools to plugin, internal tools to local handlers
-- [ ] Wire into remediate's `conductInvestigation()` — add internal tools to the tools array
-- [ ] Verify existing kubectl tools still work through combined executor
-- [ ] Unit tests for routing logic
-
-### Milestone 3: TTL Cleanup
-- [ ] On new session start, scan `./tmp/` and delete dirs older than TTL
-- [ ] Unit tests for cleanup logic
-
-### Milestone 4: Prompt Extension and Remediate Integration
-- [ ] Extend `remediate-system.md` with GitOps detection instructions
-- [ ] Add `gitSource` field to `RemediationAction` interface
+### Milestone 1: Internal Agentic-Loop Tools, Executor, and Remediate Integration
+- [x] Implement `git_clone` tool definition and handler (using existing `cloneRepo()`)
+- [x] Implement `fs_list` tool definition and handler (scoped to `./tmp/`)
+- [x] Implement `fs_read` tool definition and handler (scoped to `./tmp/`)
+- [x] Path security: reuse `sanitizeRelativePath()` from `git-utils.ts`, validate all paths resolve within `./tmp/gitops-clones/`
+- [x] Repo name sanitization: reuse `sanitizeIntentForLabel()` from `solution-utils.ts`
+- [x] Credential scrubbing: reuse `scrubCredentials()` from `git-utils.ts`
+- [x] Unique session dirs: `./tmp/gitops-clones/{sessionId}/{repo-name}/`
+- [x] Combined executor that routes plugin tools to plugin, internal tools to local handlers (uses existing `fallbackExecutor` pattern in `pluginManager.createToolExecutor()`)
+- [x] Wire into remediate's `conductInvestigation()` — add internal tools to the tools array and pass combined executor
+- [x] TTL cleanup: on new session start, scan `./tmp/gitops-clones/` and delete dirs older than TTL
+- [x] Extend `remediate-system.md` with GitOps detection instructions
+- [x] Add `gitSource` field to `RemediationAction` interface
 - [ ] AI suggests Git-based remediation when GitOps management detected
 - [ ] AI falls back to kubectl suggestions when no GitOps management
 
-### Milestone 5: Integration Tests
-- [ ] Test: remediate on Argo CD-managed resource returns Git-aware suggestions with file references
-- [ ] Test: remediate on Flux-managed resource returns Git-aware suggestions
-- [ ] Test: remediate on non-GitOps resource behaves as before (no regression)
-- [ ] Test: cluster without Argo CD/Flux — no errors, standard behavior
+### Milestone 2: Integration Tests
+Test against a real cluster with Argo CD and Flux installed. Use a GitHub repo with known-broken manifests. Each GitOps controller syncs into a separate namespace.
+
+- [ ] Test infrastructure: install Argo CD and Flux in test cluster, create GitHub repo with broken manifests
+- [ ] Test: remediate on Argo CD-managed resource returns Git-aware suggestions with correct repo, directory, file, and change description
+- [ ] Test: remediate on Flux-managed resource returns Git-aware suggestions with correct repo, directory, file, and change description
+- [ ] Test: remediate on non-GitOps resource behaves as before (no regression, suggests kubectl commands)
 - [ ] Test: path traversal attempts are rejected
 
-### Milestone 6: Documentation
+### Milestone 3: Documentation
 - [ ] Document GitOps-aware remediation behavior
 - [ ] Document the internal agentic-loop tools (git_clone, fs_list, fs_read) for reuse by future PRDs
 - [ ] Update remediate tool documentation with GitOps examples
@@ -382,3 +378,10 @@ export interface RemediationAction {
 - Key design: no new plugin or MCP tools; internal agentic-loop tools (git_clone, fs_list, fs_read) added to toolLoop with combined executor
 - Path security via `./tmp/` scoping; TTL cleanup on session start
 - Supersedes discovery portions of #363; companion to Layer 2 PRD
+
+### 2026-03-16: Milestone Consolidation and Testing Strategy
+- Consolidated Milestones 1-4 into a single Milestone 1: tools, executor, wiring, prompt, and interface are one cohesive unit
+- Dropped unit tests in favor of integration tests: handlers are thin wrappers around existing tested functions (`cloneRepo`, `sanitizeRelativePath`, `sanitizeIntentForLabel`, `scrubCredentials`), so mocking them adds little value
+- Integration test strategy: install Argo CD + Flux in test cluster, create known-broken manifests in a GitHub repo, sync via both controllers into separate namespaces, run remediate, validate output includes correct repo/dir/file/change
+- Tool descriptions simplified to be generic (not GitOps-specific) since tools will be reused by future PRDs
+- Reuse decisions: `sanitizeRelativePath` extracted to `git-utils.ts` as shared utility (was private in `push-to-git.ts`), `sanitizeIntentForLabel` from `solution-utils.ts` for repo name sanitization, `scrubCredentials` from `git-utils.ts` for error messages

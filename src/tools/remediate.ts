@@ -27,6 +27,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
+import {
+  getInternalTools,
+  createInternalToolExecutor,
+  cleanupOldClones,
+} from '../core/internal-tools';
 
 // Plugin result data structure
 interface PluginResultData {
@@ -143,6 +148,15 @@ export interface RemediationAction {
   command?: string;
   risk: 'low' | 'medium' | 'high';
   rationale: string;
+  gitSource?: {
+    repoURL: string;
+    branch: string;
+    files: Array<{
+      path: string;
+      content: string;
+      description: string;
+    }>;
+  };
 }
 
 export interface ExecutionResult {
@@ -271,20 +285,27 @@ async function conductInvestigation(
       );
     }
 
+    // PRD #407: Combine plugin tools (allowlisted) with internal tools (git_clone, fs_list, fs_read)
+    const investigationTools = [...kubectlTools, ...getInternalTools()];
+
     logger.debug(
-      'Starting toolLoop with kubectl investigation tools from plugin',
+      'Starting toolLoop with investigation tools',
       {
         requestId,
         sessionId: session.sessionId,
-        toolCount: kubectlTools.length,
-        tools: kubectlTools.map(t => t.name),
+        toolCount: investigationTools.length,
+        tools: investigationTools.map(t => t.name),
       }
     );
 
-    // PRD #343: Create tool executor that routes through plugin
-    const toolExecutor = pluginManager.createToolExecutor();
+    // PRD #407: Clean up old clone directories (non-blocking)
+    cleanupOldClones();
 
-    // Use toolLoop for AI-driven investigation with kubectl tools
+    // PRD #407: Combined executor routes plugin tools to plugin, internal tools to local handlers
+    const internalExecutor = createInternalToolExecutor(session.sessionId);
+    const toolExecutor = pluginManager.createToolExecutor(internalExecutor);
+
+    // Use toolLoop for AI-driven investigation with all investigation tools
     // System prompt is static (cached), issue description is dynamic (userMessage)
     const operationName = isValidation
       ? 'remediate-validation'
@@ -292,7 +313,7 @@ async function conductInvestigation(
     const result = await aiProvider.toolLoop({
       systemPrompt: systemPrompt,
       userMessage: `Investigate this Kubernetes issue: ${session.data.issue}`,
-      tools: kubectlTools,
+      tools: investigationTools,
       toolExecutor: toolExecutor,
       maxIterations: maxIterations,
       operation: operationName,

@@ -26,6 +26,7 @@ import {
   pushRepo,
   getGitAuthConfigFromEnv,
   scrubCredentials,
+  sanitizeRelativePath,
 } from '../core/git-utils';
 import { getVisualizationUrl } from '../core/visualization';
 
@@ -70,16 +71,6 @@ interface PushToGitArgs {
   interaction_id?: string;
 }
 
-function sanitizeRelativePath(relativePath: string): string {
-  if (relativePath.startsWith('/')) {
-    throw new Error('Relative path cannot be absolute');
-  }
-  const normalized = path.posix.normalize(relativePath);
-  if (normalized.startsWith('..') || path.posix.isAbsolute(normalized)) {
-    throw new Error('Relative path cannot escape target directory');
-  }
-  return normalized;
-}
 
 export async function handlePushToGitTool(
   args: PushToGitArgs,

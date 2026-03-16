@@ -178,6 +178,23 @@ function gitOptions(baseDir?: string): Partial<SimpleGitOptions> {
   };
 }
 
+// ─── Path safety ───
+
+/**
+ * Sanitize a relative path to prevent directory traversal.
+ * Rejects absolute paths and paths that escape the base directory.
+ */
+export function sanitizeRelativePath(relativePath: string): string {
+  if (relativePath.startsWith('/')) {
+    throw new Error('Relative path cannot be absolute');
+  }
+  const normalized = path.posix.normalize(relativePath);
+  if (normalized.startsWith('..') || path.posix.isAbsolute(normalized)) {
+    throw new Error('Relative path cannot escape target directory');
+  }
+  return normalized;
+}
+
 // ─── Clone ───
 
 export interface CloneOptions {
