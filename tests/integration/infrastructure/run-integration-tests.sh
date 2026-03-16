@@ -90,6 +90,21 @@ else
     log_warn "Skipping Kyverno Policy Engine installation (SKIP_KYVERNO=true)"
 fi
 
+# Install Argo CD core (Application controller + CRDs only, no UI)
+log_info "Starting Argo CD core installation..."
+kubectl create namespace argocd 2>/dev/null || true
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/core-install.yaml || {
+    log_error "Failed to install Argo CD"
+    exit 1
+}
+
+# Install Flux (source-controller + kustomize-controller)
+log_info "Starting Flux installation..."
+kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml || {
+    log_error "Failed to install Flux"
+    exit 1
+}
+
 # Install nginx ingress controller
 log_info "Starting nginx ingress installation..."
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml || {
@@ -237,6 +252,29 @@ if [[ "${SKIP_KYVERNO}" != "true" ]]; then
         exit 1
     }
 fi
+
+log_info "Waiting for Argo CD application controller..."
+kubectl wait --for=condition=Available deployment/argocd-application-controller \
+    --namespace=argocd --timeout=300s 2>/dev/null || \
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-application-controller \
+    --namespace=argocd --timeout=300s || {
+    log_error "Argo CD application controller failed to become ready"
+    exit 1
+}
+
+log_info "Waiting for Flux source-controller..."
+kubectl wait --for=condition=Available deployment/source-controller \
+    --namespace=flux-system --timeout=300s || {
+    log_error "Flux source-controller failed to become ready"
+    exit 1
+}
+
+log_info "Waiting for Flux kustomize-controller..."
+kubectl wait --for=condition=Available deployment/kustomize-controller \
+    --namespace=flux-system --timeout=300s || {
+    log_error "Flux kustomize-controller failed to become ready"
+    exit 1
+}
 
 log_info "Waiting for nginx ingress controller..."
 kubectl wait --namespace ingress-nginx \

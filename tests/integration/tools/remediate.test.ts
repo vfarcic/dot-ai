@@ -181,6 +181,10 @@ EOF`);
       expect(investigationResponse.data.result.analysis.confidence).toBeGreaterThan(0.8);
       expect(remediationActions.length).toBeGreaterThan(0);
 
+      // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
+      const gitSourceActions = remediationActions.filter((a: any) => a.gitSource);
+      expect(gitSourceActions.length).toBe(0);
+
       // SESSION RETRIEVAL: Test GET /api/v1/sessions/{sessionId} for URL sharing/refresh support
       const sessionStartTime = Date.now();
       const sessionResponse = await integrationTest.httpClient.get(`/api/v1/sessions/${sessionId}`);
@@ -445,6 +449,11 @@ EOF`);
         expect(result.success).toBe(true);
       });
 
+      // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
+      const autoActions = autoResponse.data.result.remediation?.actions || [];
+      const autoGitSourceActions = autoActions.filter((a: any) => a.gitSource);
+      expect(autoGitSourceActions.length).toBe(0);
+
       // PHASE 2: Verify ACTUAL cluster remediation - outcome-based validation
       await new Promise(resolve => setTimeout(resolve, 15000)); // Wait for new pods to stabilize
 
@@ -618,6 +627,10 @@ EOF`);
       expect(investigationResponse.data.result.analysis.rootCause.toLowerCase()).toMatch(/image|pull|helm|upgrade|fail/);
       expect(investigationResponse.data.result.remediation.actions.length).toBeGreaterThan(0);
 
+      // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
+      const helmGitSourceActions = investigationResponse.data.result.remediation.actions.filter((a: any) => a.gitSource);
+      expect(helmGitSourceActions.length).toBe(0);
+
       // PHASE 2: Execute remediation via MCP (choice 1)
       const sessionId = investigationResponse.data.result.sessionId;
       const executionResponse = await integrationTest.httpClient.post(
@@ -676,6 +689,296 @@ EOF`);
 
       // Recovered pod should have zero restarts (fresh pod after rollback/fix)
       expect(healthyPods[0].status.containerStatuses[0].restartCount).toBe(0);
+
+    }, 1200000); // 20 minute timeout
+  });
+
+  describe('GitOps-Managed Resource: Argo CD', () => {
+    const argoNamespace = 'remediate-gitops-argocd';
+    const testRepoUrl = 'https://github.com/vfarcic/dot-ai.git';
+    const fixturePath = 'tests/integration/fixtures/gitops/broken-app';
+
+    test('should detect Argo CD management and return gitSource-based remediation', async () => {
+      // SETUP: Create target namespace and Argo CD Application
+      await integrationTest.kubectl(`create namespace ${argoNamespace}`);
+
+      await integrationTest.kubectl(`apply -f - <<'EOF'
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops-test-argocd
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ${testRepoUrl}
+    targetRevision: main
+    path: ${fixturePath}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${argoNamespace}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+EOF`);
+
+      // Wait for Argo CD to sync the broken deployment into the namespace
+      const maxWaitTime = 120000;
+      const checkInterval = 5000;
+      const startTime = Date.now();
+      let deploymentExists = false;
+
+      while (Date.now() - startTime < maxWaitTime) {
+        const deployJson = await integrationTest.kubectl(
+          `get deployment gitops-test-app -n ${argoNamespace} -o json 2>/dev/null`
+        );
+        if (deployJson && deployJson.trim() !== '') {
+          deploymentExists = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+
+      expect(deploymentExists).toBe(true);
+
+      // Wait for pods to enter ImagePullBackOff (broken image: nginx:v999-nonexistent)
+      let podInErrorState = false;
+      const podStartTime = Date.now();
+
+      while (Date.now() - podStartTime < maxWaitTime) {
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${argoNamespace} -l app=gitops-test-app -o json`
+        );
+        if (podsJson && podsJson.trim() !== '') {
+          const podsData = JSON.parse(podsJson);
+          for (const pod of podsData.items) {
+            for (const cs of (pod.status?.containerStatuses || [])) {
+              const waitReason = cs.state?.waiting?.reason;
+              if (waitReason === 'ImagePullBackOff' || waitReason === 'ErrImagePull') {
+                podInErrorState = true;
+                break;
+              }
+            }
+            if (podInErrorState) break;
+          }
+        }
+        if (podInErrorState) break;
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+
+      expect(podInErrorState).toBe(true);
+
+      // PHASE 1: AI Investigation
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/remediate',
+        {
+          issue: `deployment gitops-test-app in ${argoNamespace} namespace has pods failing with ImagePullBackOff`,
+          interaction_id: 'gitops_argocd_investigate'
+        }
+      );
+
+      expect(response, `Argo CD GitOps investigation failed: ${JSON.stringify(response.error || response.data?.result?.error || 'no error field')}`).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'awaiting_user_approval',
+            sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
+            investigation: {
+              iterations: expect.any(Number),
+              dataGathered: expect.any(Array)
+            },
+            analysis: {
+              rootCause: expect.any(String),
+              confidence: expect.any(Number),
+              factors: expect.any(Array)
+            },
+            remediation: {
+              summary: expect.any(String),
+              actions: expect.any(Array),
+              risk: expect.stringMatching(/^(low|medium|high)$/)
+            }
+          },
+          tool: 'remediate',
+          executionTime: expect.any(Number)
+        }
+      });
+
+      // PRD #407: AI should detect Argo CD management and return gitSource
+      const actions = response.data.result.remediation.actions;
+      const gitSourceActions = actions.filter((a: any) => a.gitSource);
+      expect(gitSourceActions.length, `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`).toBeGreaterThan(0);
+
+      // Verify gitSource points to the correct repo and file
+      const gitAction = gitSourceActions[0];
+      expect(gitAction.gitSource.repoURL).toContain('dot-ai');
+      expect(gitAction.gitSource.files.length).toBeGreaterThan(0);
+      expect(gitAction.gitSource.files[0]).toMatchObject({
+        path: expect.stringContaining('deployment.yaml'),
+        content: expect.any(String),
+        description: expect.any(String)
+      });
+
+      // PRD #407: AI should have used git_clone and fs_read/fs_list during investigation
+      const dataGathered: string[] = response.data.result.investigation.dataGathered;
+      const gitToolCalls = dataGathered.filter((entry: string) => entry.startsWith('git_clone'));
+      expect(gitToolCalls.length, `Expected git_clone in dataGathered but got: ${JSON.stringify(dataGathered)}`).toBeGreaterThan(0);
+
+      const fsToolCalls = dataGathered.filter((entry: string) =>
+        entry.startsWith('fs_list') || entry.startsWith('fs_read')
+      );
+      expect(fsToolCalls.length, `Expected fs_list/fs_read in dataGathered but got: ${JSON.stringify(dataGathered)}`).toBeGreaterThan(0);
+
+    }, 1200000); // 20 minute timeout
+  });
+
+  describe('GitOps-Managed Resource: Flux', () => {
+    const fluxNamespace = 'remediate-gitops-flux';
+    const testRepoUrl = 'https://github.com/vfarcic/dot-ai.git';
+    const fixturePath = './tests/integration/fixtures/gitops/broken-app';
+
+    test('should detect Flux management and return gitSource-based remediation', async () => {
+      // SETUP: Create target namespace
+      await integrationTest.kubectl(`create namespace ${fluxNamespace}`);
+
+      // Create Flux GitRepository pointing to the test repo
+      await integrationTest.kubectl(`apply -f - <<'EOF'
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: gitops-test-flux
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: ${testRepoUrl}
+  ref:
+    branch: main
+EOF`);
+
+      // Create Flux Kustomization pointing to the broken-app fixture path
+      await integrationTest.kubectl(`apply -f - <<'EOF'
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: gitops-test-flux
+  namespace: flux-system
+spec:
+  interval: 1m
+  sourceRef:
+    kind: GitRepository
+    name: gitops-test-flux
+  path: ${fixturePath}
+  prune: true
+  targetNamespace: ${fluxNamespace}
+EOF`);
+
+      // Wait for Flux to reconcile the broken deployment into the namespace
+      const maxWaitTime = 120000;
+      const checkInterval = 5000;
+      const startTime = Date.now();
+      let deploymentExists = false;
+
+      while (Date.now() - startTime < maxWaitTime) {
+        const deployJson = await integrationTest.kubectl(
+          `get deployment gitops-test-app -n ${fluxNamespace} -o json 2>/dev/null`
+        );
+        if (deployJson && deployJson.trim() !== '') {
+          deploymentExists = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+
+      expect(deploymentExists).toBe(true);
+
+      // Wait for pods to enter ImagePullBackOff
+      let podInErrorState = false;
+      const podStartTime = Date.now();
+
+      while (Date.now() - podStartTime < maxWaitTime) {
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${fluxNamespace} -l app=gitops-test-app -o json`
+        );
+        if (podsJson && podsJson.trim() !== '') {
+          const podsData = JSON.parse(podsJson);
+          for (const pod of podsData.items) {
+            for (const cs of (pod.status?.containerStatuses || [])) {
+              const waitReason = cs.state?.waiting?.reason;
+              if (waitReason === 'ImagePullBackOff' || waitReason === 'ErrImagePull') {
+                podInErrorState = true;
+                break;
+              }
+            }
+            if (podInErrorState) break;
+          }
+        }
+        if (podInErrorState) break;
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+
+      expect(podInErrorState).toBe(true);
+
+      // PHASE 1: AI Investigation
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/remediate',
+        {
+          issue: `deployment gitops-test-app in ${fluxNamespace} namespace has pods failing with ImagePullBackOff`,
+          interaction_id: 'gitops_flux_investigate'
+        }
+      );
+
+      expect(response, `Flux GitOps investigation failed: ${JSON.stringify(response.error || response.data?.result?.error || 'no error field')}`).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'awaiting_user_approval',
+            sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
+            investigation: {
+              iterations: expect.any(Number),
+              dataGathered: expect.any(Array)
+            },
+            analysis: {
+              rootCause: expect.any(String),
+              confidence: expect.any(Number),
+              factors: expect.any(Array)
+            },
+            remediation: {
+              summary: expect.any(String),
+              actions: expect.any(Array),
+              risk: expect.stringMatching(/^(low|medium|high)$/)
+            }
+          },
+          tool: 'remediate',
+          executionTime: expect.any(Number)
+        }
+      });
+
+      // PRD #407: AI should detect Flux management and return gitSource
+      const actions = response.data.result.remediation.actions;
+      const gitSourceActions = actions.filter((a: any) => a.gitSource);
+      expect(gitSourceActions.length, `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`).toBeGreaterThan(0);
+
+      // Verify gitSource points to the correct repo and file
+      const gitAction = gitSourceActions[0];
+      expect(gitAction.gitSource.repoURL).toContain('dot-ai');
+      expect(gitAction.gitSource.files.length).toBeGreaterThan(0);
+      expect(gitAction.gitSource.files[0]).toMatchObject({
+        path: expect.stringContaining('deployment.yaml'),
+        content: expect.any(String),
+        description: expect.any(String)
+      });
+
+      // PRD #407: AI should have used git_clone and fs_read/fs_list during investigation
+      const dataGathered: string[] = response.data.result.investigation.dataGathered;
+      const gitToolCalls = dataGathered.filter((entry: string) => entry.startsWith('git_clone'));
+      expect(gitToolCalls.length, `Expected git_clone in dataGathered but got: ${JSON.stringify(dataGathered)}`).toBeGreaterThan(0);
+
+      const fsToolCalls = dataGathered.filter((entry: string) =>
+        entry.startsWith('fs_list') || entry.startsWith('fs_read')
+      );
+      expect(fsToolCalls.length, `Expected fs_list/fs_read in dataGathered but got: ${JSON.stringify(dataGathered)}`).toBeGreaterThan(0);
 
     }, 1200000); // 20 minute timeout
   });
