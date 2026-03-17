@@ -352,7 +352,7 @@ Test against a real cluster with Argo CD and Flux installed. Use a GitHub repo w
 - [x] Test: remediate on Argo CD-managed resource returns Git-aware suggestions with correct repo, directory, file, and change description
 - [x] Test: remediate on Flux-managed resource returns Git-aware suggestions with correct repo, directory, file, and change description
 - [x] Test: remediate on non-GitOps resource behaves as before (no regression, suggests kubectl commands)
-- [ ] Test: path traversal attempts are rejected
+- [x] Test: path traversal attempts are rejected
 
 ### Milestone 3: Documentation
 - [ ] Document GitOps-aware remediation behavior
