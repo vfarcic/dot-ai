@@ -1,7 +1,7 @@
 # PRD: GitOps Discovery for Remediate Tool
 
 **Issue**: [#407](https://github.com/vfarcic/dot-ai/issues/407)
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **Created**: 2026-03-16
 
@@ -355,9 +355,9 @@ Test against a real cluster with Argo CD and Flux installed. Use a GitHub repo w
 - [x] Test: path traversal attempts are rejected
 
 ### Milestone 3: Documentation
-- [ ] Document GitOps-aware remediation behavior
-- [ ] Document the internal agentic-loop tools (git_clone, fs_list, fs_read) for reuse by future PRDs
-- [ ] Update remediate tool documentation with GitOps examples
+- [x] Document GitOps-aware remediation behavior
+- [~] Document the internal agentic-loop tools (git_clone, fs_list, fs_read) for reuse by future PRDs — deferred: developer-facing, not user-facing docs
+- [x] Update remediate tool documentation with GitOps examples
 
 ---
 

@@ -31,6 +31,7 @@ Before using this guide, complete the [Deployment Guide](../setup/deployment.md)
 The DevOps AI Toolkit remediate feature provides:
 - **AI-powered root cause analysis** - Multi-iteration investigation loop to understand Kubernetes issues
 - **Helm-aware diagnostics** - Detects and diagnoses issues with Helm-managed applications, including stuck releases and failed upgrades
+- **GitOps-aware remediation** - Detects Argo CD Applications and Flux Kustomizations, clones source repos, and returns Git-based remediation with specific file changes instead of kubectl commands
 - **Intelligent data gathering** - Safe, read-only cluster investigation with targeted operations
 - **Comprehensive remediation plans** - Step-by-step solutions with risk assessment and validation
 - **Dual execution modes** - Manual approval workflow or automatic execution based on confidence/risk thresholds
@@ -49,10 +50,11 @@ The DevOps AI Toolkit remediate feature provides:
 
 **Investigation Flow**:
 1. **Initial Analysis**: AI reviews issue description
-2. **Data Gathering Loop**: AI requests specific kubectl operations to gather targeted information  
+2. **Data Gathering Loop**: AI requests specific kubectl operations to gather targeted information
 3. **Iterative Analysis**: Each data point informs the next investigation step
 4. **Root Cause Identification**: AI synthesizes findings into comprehensive analysis
-5. **Remediation Generation**: Specific kubectl commands with risk assessment and validation instructions
+5. **GitOps Detection**: If the resource is managed by Argo CD or Flux, AI clones the source repo and reads the manifests
+6. **Remediation Generation**: Git-based file changes (GitOps-managed) or kubectl commands (standard), with risk assessment and validation instructions
 
 <!-- 
 Test Scenario Setup for Complex Cross-Resource Example:
@@ -104,6 +106,7 @@ This section demonstrates both manual and automatic execution modes:
 
 - **[Manual Mode Example](#manual-mode-example)** - User controls execution timing with approval choices
 - **[Automatic Mode Example](#automatic-mode-example)** - Tool executes automatically based on confidence/risk thresholds
+- **[GitOps-Aware Remediation Example](#gitops-remediation-example)** - Tool detects Argo CD/Flux management and returns Git-based file changes
 
 ---
 
@@ -170,6 +173,38 @@ The visualization URL opens an interactive analysis view in the Web UI:
 - AI generated kubectl apply command to create the required PVC with appropriate storage class and size (10Gi)
 - Risk assessment determined LOW risk as this is safe resource creation
 - **Cross-resource analysis**: Pod problem requires creating different resource type (PVC)
+
+#### GitOps-Aware Remediation {#gitops-remediation-example}
+
+If the resource were managed by a GitOps controller (Argo CD or Flux), the tool would detect this during investigation and adjust its remediation accordingly. Instead of suggesting kubectl commands, it identifies the source repository and specific file to change:
+
+```
+🔍 Root Cause (99% confidence): The deployment uses a non-existent image tag
+nginx:v999-nonexistent, causing all pods to fail with ImagePullBackOff.
+
+Key findings:
+- Pod stuck in ImagePullBackOff — Docker Hub returns "not found" for nginx:v999-nonexistent
+- Deployment is GitOps-managed via Argo CD application gitops-demo-app
+- Source repo: https://github.com/vfarcic/dot-ai.git
+- 0 of 1 desired replicas available
+
+Recommended fix: Update the image tag in the Git source from nginx:v999-nonexistent
+to nginx:latest in tests/integration/fixtures/gitops/broken-app/deployment.yaml.
+Argo CD has autoSync enabled, so it will automatically reconcile the change.
+```
+
+**How it works behind the scenes:**
+- AI queries for Argo CD Applications or Flux Kustomizations and finds the one managing the resource
+- AI clones the source repository and reads the manifests that need changing
+- Remediation points to the specific file and change needed in Git, rather than a kubectl command that would be reverted by the GitOps controller on the next sync
+
+| Aspect | Standard | GitOps-Aware |
+|--------|----------|--------------|
+| Investigation | kubectl only | kubectl + repo clone + file inspection |
+| Remediation | kubectl commands | Specific file changes in the source Git repo |
+| User action | Run kubectl or execute via MCP | Commit changes to Git; controller syncs automatically |
+
+> **Fallback**: If no GitOps controller is detected (CRDs not installed or no matching resource found), the tool returns standard kubectl-based remediation as shown above.
 
 At this point, we have two execution paths available. We'll explore both options to show the complete workflow:
 
