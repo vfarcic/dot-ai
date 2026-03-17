@@ -36,7 +36,14 @@ function getClonesDir(): string {
  * Exported for testing.
  */
 export function validatePathWithinClones(inputPath: string): string {
-  const sanitized = sanitizeRelativePath(inputPath);
+  // Decode URL-encoded characters (e.g., %2e%2e/ for ../) before validation
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(inputPath);
+  } catch {
+    decoded = inputPath;
+  }
+  const sanitized = sanitizeRelativePath(decoded);
   return path.resolve(getClonesDir(), sanitized);
 }
 

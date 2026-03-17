@@ -788,16 +788,19 @@ EOF`);
             sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
             investigation: {
               iterations: expect.any(Number),
-              dataGathered: expect.any(Array)
+              dataGathered: expect.arrayContaining([expect.any(String)])
             },
             analysis: {
-              rootCause: expect.any(String),
+              rootCause: expect.stringContaining('image'),
               confidence: expect.any(Number),
-              factors: expect.any(Array)
+              factors: expect.arrayContaining([expect.any(String)])
             },
             remediation: {
               summary: expect.any(String),
-              actions: expect.any(Array),
+              actions: expect.arrayContaining([expect.objectContaining({
+                description: expect.any(String),
+                risk: expect.stringMatching(/^(low|medium|high)$/),
+              })]),
               risk: expect.stringMatching(/^(low|medium|high)$/)
             }
           },
@@ -806,9 +809,14 @@ EOF`);
         }
       });
 
+      const { investigation, analysis, remediation } = response.data.result;
+      expect(investigation.iterations).toBeGreaterThan(0);
+      expect(analysis.confidence).toBeGreaterThanOrEqual(0.5);
+      expect(response.data.executionTime).toBeGreaterThan(0);
+
       // PRD #407: AI should detect Argo CD management and return gitSource
-      const actions = response.data.result.remediation.actions;
-      const gitSourceActions = actions.filter((a: any) => a.gitSource);
+      const actions = remediation.actions;
+      const gitSourceActions = actions.filter((a: Record<string, unknown>) => a.gitSource);
       expect(gitSourceActions.length, `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`).toBeGreaterThan(0);
 
       // Verify gitSource points to the correct repo and file
@@ -937,16 +945,19 @@ EOF`);
             sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
             investigation: {
               iterations: expect.any(Number),
-              dataGathered: expect.any(Array)
+              dataGathered: expect.arrayContaining([expect.any(String)])
             },
             analysis: {
-              rootCause: expect.any(String),
+              rootCause: expect.stringContaining('image'),
               confidence: expect.any(Number),
-              factors: expect.any(Array)
+              factors: expect.arrayContaining([expect.any(String)])
             },
             remediation: {
               summary: expect.any(String),
-              actions: expect.any(Array),
+              actions: expect.arrayContaining([expect.objectContaining({
+                description: expect.any(String),
+                risk: expect.stringMatching(/^(low|medium|high)$/),
+              })]),
               risk: expect.stringMatching(/^(low|medium|high)$/)
             }
           },
@@ -955,9 +966,14 @@ EOF`);
         }
       });
 
+      const { investigation, analysis, remediation } = response.data.result;
+      expect(investigation.iterations).toBeGreaterThan(0);
+      expect(analysis.confidence).toBeGreaterThanOrEqual(0.5);
+      expect(response.data.executionTime).toBeGreaterThan(0);
+
       // PRD #407: AI should detect Flux management and return gitSource
-      const actions = response.data.result.remediation.actions;
-      const gitSourceActions = actions.filter((a: any) => a.gitSource);
+      const actions = remediation.actions;
+      const gitSourceActions = actions.filter((a: Record<string, unknown>) => a.gitSource);
       expect(gitSourceActions.length, `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`).toBeGreaterThan(0);
 
       // Verify gitSource points to the correct repo and file

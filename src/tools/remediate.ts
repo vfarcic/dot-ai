@@ -724,6 +724,25 @@ async function executeRemediationCommands(
     const actionId = `action_${i + 1}`;
 
     try {
+      // PRD #407: Skip gitSource actions — these are Git-based remediation
+      // instructions for GitOps-managed resources, not executable commands
+      if (action.gitSource && !action.command) {
+        logger.info('Skipping gitSource remediation action (not executable)', {
+          requestId,
+          sessionId: session.sessionId,
+          actionId,
+          repoURL: action.gitSource.repoURL,
+        });
+        results.push({
+          action: `${actionId}: ${action.description}`,
+          success: true,
+          output:
+            'Git-based remediation — apply changes in the source repository',
+          timestamp: new Date(),
+        });
+        continue;
+      }
+
       logger.info('Executing remediation action', {
         requestId,
         sessionId: session.sessionId,

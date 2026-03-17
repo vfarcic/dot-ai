@@ -17,6 +17,8 @@ describe('Internal Tools - Path Traversal Security', () => {
     'session/../../../etc/passwd',
     '/etc/passwd',
     'valid/../../..',
+    '%2e%2e/%2e%2e/%2e%2e/etc/passwd',
+    '%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd',
   ];
 
   for (const maliciousPath of traversalPaths) {

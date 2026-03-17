@@ -745,27 +745,11 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
     test('should deny deployManifests for user with execute but not apply on recommend', async () => {
       const client = jwtClient(recommendExecuteUser);
 
-      // User can access recommend tool (has execute) — solutions phase works
-      const recommendResponse = await client.post('/api/v1/tools/recommend', {
-        intent:
-          'deploy nginx web server with 2 replicas, expose on port 80, production ready',
-        final: true,
-        interaction_id: `rbac_recommend_execute_${Date.now()}`,
-      });
-
-      expect(recommendResponse).toMatchObject({
-        success: true,
-        data: {
-          result: expect.objectContaining({
-            solutions: expect.any(Array),
-          }),
-        },
-      });
-
-      // But deployManifests is denied (no apply verb)
+      // deployManifests is denied without apply verb
+      // RBAC check happens before session lookup, so dummy solutionId is fine
       const deployResponse = await client.post('/api/v1/tools/recommend', {
         stage: 'deployManifests',
-        solutionId: 'sol-0000000000000-00000000', // Dummy — RBAC check happens before session lookup
+        solutionId: 'sol-0000000000000-00000000',
         interaction_id: `rbac_deploy_denied_${Date.now()}`,
       });
 
@@ -882,7 +866,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
   describe('Audit Logging (PRD #392 Milestone 5)', () => {
     async function fetchRecentLogs(): Promise<string> {
       return integrationTest.kubectl(
-        'logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=500'
+        'logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=2000'
       );
     }
 

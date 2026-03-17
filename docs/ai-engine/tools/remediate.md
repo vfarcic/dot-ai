@@ -178,7 +178,7 @@ The visualization URL opens an interactive analysis view in the Web UI:
 
 If the resource were managed by a GitOps controller (Argo CD or Flux), the tool would detect this during investigation and adjust its remediation accordingly. Instead of suggesting kubectl commands, it identifies the source repository and specific file to change:
 
-```
+```text
 🔍 Root Cause (99% confidence): The deployment uses a non-existent image tag
 nginx:v999-nonexistent, causing all pods to fail with ImagePullBackOff.
 
