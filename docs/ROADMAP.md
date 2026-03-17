@@ -12,7 +12,6 @@ This roadmap is a living document and may change based on community feedback and
 - Git operations for recommend tool - push generated manifests to Git repos (PRD #362)
 - Git push recommend integration - pushToGit stage for GitOps workflows (PRD #395)
 - Deployment documentation generation for knowledge base - organizational memory of deployment decisions (PRD #377)
-- GitOps discovery for remediate tool - detect GitOps-managed resources and provide Git-aware remediation (PRD #407)
 - GitOps operations for remediate tool - create PRs with fixes for GitOps-managed resources (PRD #408)
 - Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
