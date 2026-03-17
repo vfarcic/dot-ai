@@ -342,16 +342,16 @@ export interface RemediationAction {
 - [x] TTL cleanup: on new session start, scan `./tmp/gitops-clones/` and delete dirs older than TTL
 - [x] Extend `remediate-system.md` with GitOps detection instructions
 - [x] Add `gitSource` field to `RemediationAction` interface
-- [ ] AI suggests Git-based remediation when GitOps management detected
-- [ ] AI falls back to kubectl suggestions when no GitOps management
+- [x] AI suggests Git-based remediation when GitOps management detected
+- [x] AI falls back to kubectl suggestions when no GitOps management
 
 ### Milestone 2: Integration Tests
 Test against a real cluster with Argo CD and Flux installed. Use a GitHub repo with known-broken manifests. Each GitOps controller syncs into a separate namespace.
 
-- [ ] Test infrastructure: install Argo CD and Flux in test cluster, create GitHub repo with broken manifests
-- [ ] Test: remediate on Argo CD-managed resource returns Git-aware suggestions with correct repo, directory, file, and change description
-- [ ] Test: remediate on Flux-managed resource returns Git-aware suggestions with correct repo, directory, file, and change description
-- [ ] Test: remediate on non-GitOps resource behaves as before (no regression, suggests kubectl commands)
+- [x] Test infrastructure: install Argo CD and Flux in test cluster, create GitHub repo with broken manifests
+- [x] Test: remediate on Argo CD-managed resource returns Git-aware suggestions with correct repo, directory, file, and change description
+- [x] Test: remediate on Flux-managed resource returns Git-aware suggestions with correct repo, directory, file, and change description
+- [x] Test: remediate on non-GitOps resource behaves as before (no regression, suggests kubectl commands)
 - [ ] Test: path traversal attempts are rejected
 
 ### Milestone 3: Documentation
