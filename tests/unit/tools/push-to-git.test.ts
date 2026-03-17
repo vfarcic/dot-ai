@@ -3,6 +3,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { posix as posixPath } from 'path';
 import { z } from 'zod';
 import { handlePushToGitTool } from '../../../src/tools/push-to-git.js';
 import { GenericSessionManager } from '../../../src/core/generic-session-manager.js';
@@ -14,6 +15,13 @@ vi.mock('../../../src/core/git-utils.js', () => ({
   pushRepo: vi.fn(),
   getGitAuthConfigFromEnv: vi.fn(),
   scrubCredentials: vi.fn((url: string) => url.replace(/:\/\/[^@]+@/, '://***@')),
+  sanitizeRelativePath: vi.fn((p: string) => {
+    if (p.startsWith('/')) throw new Error('Relative path cannot be absolute');
+    const normalized = posixPath.normalize(p);
+    if (normalized.startsWith('..') || posixPath.isAbsolute(normalized))
+      throw new Error('Relative path cannot escape target directory');
+    return normalized;
+  }),
 }));
 
 vi.mock('../../../src/core/session-utils.js', () => ({

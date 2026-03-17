@@ -90,6 +90,27 @@ else
     log_warn "Skipping Kyverno Policy Engine installation (SKIP_KYVERNO=true)"
 fi
 
+# Install Argo CD via Helm
+log_info "Starting Argo CD installation..."
+helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
+helm repo update
+helm upgrade --install argocd argo/argo-cd \
+    --namespace argocd --create-namespace \
+    --set server.enabled=false \
+    --set dex.enabled=false \
+    --set notifications.enabled=false \
+    --timeout=300s || {
+    log_error "Failed to install Argo CD"
+    exit 1
+}
+
+# Install Flux (source-controller + kustomize-controller)
+log_info "Starting Flux installation..."
+kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml || {
+    log_error "Failed to install Flux"
+    exit 1
+}
+
 # Install nginx ingress controller
 log_info "Starting nginx ingress installation..."
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml || {
@@ -237,6 +258,34 @@ if [[ "${SKIP_KYVERNO}" != "true" ]]; then
         exit 1
     }
 fi
+
+log_info "Waiting for Argo CD application controller..."
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-application-controller \
+    --namespace=argocd --timeout=300s || {
+    log_error "Argo CD application controller failed to become ready"
+    exit 1
+}
+
+log_info "Waiting for Argo CD repo server..."
+kubectl wait --for=condition=Available deployment/argocd-repo-server \
+    --namespace=argocd --timeout=300s || {
+    log_error "Argo CD repo server failed to become ready"
+    exit 1
+}
+
+log_info "Waiting for Flux source-controller..."
+kubectl wait --for=condition=Available deployment/source-controller \
+    --namespace=flux-system --timeout=300s || {
+    log_error "Flux source-controller failed to become ready"
+    exit 1
+}
+
+log_info "Waiting for Flux kustomize-controller..."
+kubectl wait --for=condition=Available deployment/kustomize-controller \
+    --namespace=flux-system --timeout=300s || {
+    log_error "Flux kustomize-controller failed to become ready"
+    exit 1
+}
 
 log_info "Waiting for nginx ingress controller..."
 kubectl wait --namespace ingress-nginx \

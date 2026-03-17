@@ -27,6 +27,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
+import {
+  getInternalTools,
+  createInternalToolExecutor,
+  cleanupOldClones,
+} from '../core/internal-tools';
 
 // Plugin result data structure
 interface PluginResultData {
@@ -143,6 +148,15 @@ export interface RemediationAction {
   command?: string;
   risk: 'low' | 'medium' | 'high';
   rationale: string;
+  gitSource?: {
+    repoURL: string;
+    branch: string;
+    files: Array<{
+      path: string;
+      content: string;
+      description: string;
+    }>;
+  };
 }
 
 export interface ExecutionResult {
@@ -271,20 +285,27 @@ async function conductInvestigation(
       );
     }
 
+    // PRD #407: Combine plugin tools (allowlisted) with internal tools (git_clone, fs_list, fs_read)
+    const investigationTools = [...kubectlTools, ...getInternalTools()];
+
     logger.debug(
-      'Starting toolLoop with kubectl investigation tools from plugin',
+      'Starting toolLoop with investigation tools',
       {
         requestId,
         sessionId: session.sessionId,
-        toolCount: kubectlTools.length,
-        tools: kubectlTools.map(t => t.name),
+        toolCount: investigationTools.length,
+        tools: investigationTools.map(t => t.name),
       }
     );
 
-    // PRD #343: Create tool executor that routes through plugin
-    const toolExecutor = pluginManager.createToolExecutor();
+    // PRD #407: Clean up old clone directories (non-blocking)
+    cleanupOldClones();
 
-    // Use toolLoop for AI-driven investigation with kubectl tools
+    // PRD #407: Combined executor routes plugin tools to plugin, internal tools to local handlers
+    const internalExecutor = createInternalToolExecutor(session.sessionId);
+    const toolExecutor = pluginManager.createToolExecutor(internalExecutor);
+
+    // Use toolLoop for AI-driven investigation with all investigation tools
     // System prompt is static (cached), issue description is dynamic (userMessage)
     const operationName = isValidation
       ? 'remediate-validation'
@@ -292,7 +313,7 @@ async function conductInvestigation(
     const result = await aiProvider.toolLoop({
       systemPrompt: systemPrompt,
       userMessage: `Investigate this Kubernetes issue: ${session.data.issue}`,
-      tools: kubectlTools,
+      tools: investigationTools,
       toolExecutor: toolExecutor,
       maxIterations: maxIterations,
       operation: operationName,
@@ -690,6 +711,7 @@ async function executeRemediationCommands(
   const results: ExecutionResult[] = [];
   const finalAnalysis = session.data.finalAnalysis!;
   let overallSuccess = true;
+  let executedCommandCount = 0;
 
   logger.info('Starting remediation command execution', {
     requestId,
@@ -703,6 +725,25 @@ async function executeRemediationCommands(
     const actionId = `action_${i + 1}`;
 
     try {
+      // PRD #407: Skip gitSource actions — these are Git-based remediation
+      // instructions for GitOps-managed resources, not executable commands
+      if (action.gitSource && !action.command) {
+        logger.info('Skipping gitSource remediation action (not executable)', {
+          requestId,
+          sessionId: session.sessionId,
+          actionId,
+          repoURL: action.gitSource.repoURL,
+        });
+        results.push({
+          action: `${actionId}: ${action.description} (skipped: Git-based)`,
+          success: false,
+          output:
+            'Git-based remediation — apply changes in the source repository',
+          timestamp: new Date(),
+        });
+        continue;
+      }
+
       logger.info('Executing remediation action', {
         requestId,
         sessionId: session.sessionId,
@@ -750,6 +791,7 @@ async function executeRemediationCommands(
         output = String(response.result || '');
       }
 
+      executedCommandCount++;
       results.push({
         action: `${actionId}: ${action.description}`,
         success: true,
@@ -783,9 +825,9 @@ async function executeRemediationCommands(
     }
   }
 
-  // Run automatic post-execution validation if all commands succeeded
+  // Run automatic post-execution validation if commands were executed and all succeeded
   let validationResult = null;
-  if (overallSuccess && finalAnalysis.validationIntent) {
+  if (overallSuccess && executedCommandCount > 0 && finalAnalysis.validationIntent) {
     const validationIntent = finalAnalysis.validationIntent;
 
     try {
