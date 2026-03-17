@@ -151,9 +151,8 @@ function jwtClient(user: {
   });
 }
 
-const rbacEnabled = process.env.DOT_AI_RBAC_ENABLED === 'true';
 
-describe.skipIf(!rbacEnabled)('RBAC Enforcement (PRD #392)', () => {
+describe.concurrent('RBAC Enforcement (PRD #392)', () => {
   const integrationTest = new IntegrationTest();
   let rbacApi: k8s.RbacAuthorizationV1Api;
 
