@@ -28,7 +28,7 @@ Before using this guide, complete the [Deployment Guide](../setup/deployment.md)
 
 ## Overview
 
-The DevOps AI Toolkit remediate feature provides:
+**What it does:**
 - **AI-powered root cause analysis** - Multi-iteration investigation loop to understand Kubernetes issues
 - **Helm-aware diagnostics** - Detects and diagnoses issues with Helm-managed applications, including stuck releases and failed upgrades
 - **GitOps-aware remediation** - Detects Argo CD Applications and Flux Kustomizations, clones source repos, and returns Git-based remediation with specific file changes instead of kubectl commands
@@ -37,6 +37,11 @@ The DevOps AI Toolkit remediate feature provides:
 - **Dual execution modes** - Manual approval workflow or automatic execution based on confidence/risk thresholds
 - **Iterative remediation support** - Handles complex issues requiring multiple sequential fixes
 - **Complete audit trail** - Full investigation history and remediation tracking
+
+**Use when:**
+- Investigating any Kubernetes resource issue — deployments, services, ingresses, storage, networking, and more
+- Diagnosing Helm release failures or stuck upgrades
+- Troubleshooting GitOps-managed resources where direct kubectl fixes get reverted
 
 ## Related Projects
 
@@ -176,7 +181,7 @@ The visualization URL opens an interactive analysis view in the Web UI:
 
 #### GitOps-Aware Remediation {#gitops-remediation-example}
 
-If the resource were managed by a GitOps controller (Argo CD or Flux), the tool would detect this during investigation and adjust its remediation accordingly. Instead of suggesting kubectl commands, it identifies the source repository and specific file to change:
+If the resource were managed by a GitOps controller (Argo CD or Flux), the tool would detect this during investigation and adjust its remediation accordingly. Instead of suggesting kubectl commands, it identifies the source repository and specific file(s) to change:
 
 ```text
 🔍 Root Cause (99% confidence): The deployment uses a non-existent image tag
@@ -196,7 +201,7 @@ Argo CD has autoSync enabled, so it will automatically reconcile the change.
 **How it works behind the scenes:**
 - AI queries for Argo CD Applications or Flux Kustomizations and finds the one managing the resource
 - AI clones the source repository and reads the manifests that need changing
-- Remediation points to the specific file and change needed in Git, rather than a kubectl command that would be reverted by the GitOps controller on the next sync
+- Remediation points to the specific file(s) and changes needed in Git, rather than kubectl commands that would be reverted by the GitOps controller on the next sync
 
 | Aspect | Standard | GitOps-Aware |
 |--------|----------|--------------|

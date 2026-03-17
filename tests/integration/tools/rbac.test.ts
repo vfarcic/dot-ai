@@ -889,13 +889,21 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
         interaction_id: `audit_allowed_${Date.now()}`,
       });
 
-      const logs = await fetchRecentLogs();
-      const matches = findAuditBlocks(
-        logs,
-        'tool.access.allowed',
-        viewerUser.email,
-        '"tool": "version"'
-      );
+      // Retry log fetch — kubectl logs may lag behind due to buffering
+      let matches: string[] = [];
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (attempt > 0) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        const logs = await fetchRecentLogs();
+        matches = findAuditBlocks(
+          logs,
+          'tool.access.allowed',
+          viewerUser.email,
+          '"tool": "version"'
+        );
+        if (matches.length > 0) break;
+      }
 
       expect(matches.length).toBeGreaterThan(0);
     });

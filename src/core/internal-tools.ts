@@ -210,8 +210,15 @@ function handleFsRead(args: Record<string, unknown>): unknown {
   }
 
   if (stat.size > MAX_FILE_SIZE) {
-    const content = fs.readFileSync(resolved, 'utf-8').slice(0, MAX_FILE_SIZE);
-    return `${content}\n\n[Truncated: file exceeds ${MAX_FILE_SIZE / 1024}KB limit]`;
+    const buffer = Buffer.alloc(MAX_FILE_SIZE);
+    const fd = fs.openSync(resolved, 'r');
+    try {
+      const bytesRead = fs.readSync(fd, buffer, 0, MAX_FILE_SIZE, 0);
+      const content = buffer.toString('utf-8', 0, bytesRead);
+      return `${content}\n\n[Truncated: file exceeds ${MAX_FILE_SIZE / 1024}KB limit]`;
+    } finally {
+      fs.closeSync(fd);
+    }
   }
 
   return fs.readFileSync(resolved, 'utf-8');
@@ -237,6 +244,9 @@ export function createInternalToolExecutor(sessionId: string): ToolExecutor {
     const handler = handlers[toolName];
     if (!handler) {
       return `Error: unknown internal tool: ${toolName}`;
+    }
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+      return 'Error: tool input must be an object';
     }
     return handler(input as Record<string, unknown>);
   };

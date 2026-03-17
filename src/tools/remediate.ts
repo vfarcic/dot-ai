@@ -711,6 +711,7 @@ async function executeRemediationCommands(
   const results: ExecutionResult[] = [];
   const finalAnalysis = session.data.finalAnalysis!;
   let overallSuccess = true;
+  let executedCommandCount = 0;
 
   logger.info('Starting remediation command execution', {
     requestId,
@@ -734,8 +735,8 @@ async function executeRemediationCommands(
           repoURL: action.gitSource.repoURL,
         });
         results.push({
-          action: `${actionId}: ${action.description}`,
-          success: true,
+          action: `${actionId}: ${action.description} (skipped: Git-based)`,
+          success: false,
           output:
             'Git-based remediation — apply changes in the source repository',
           timestamp: new Date(),
@@ -790,6 +791,7 @@ async function executeRemediationCommands(
         output = String(response.result || '');
       }
 
+      executedCommandCount++;
       results.push({
         action: `${actionId}: ${action.description}`,
         success: true,
@@ -823,9 +825,9 @@ async function executeRemediationCommands(
     }
   }
 
-  // Run automatic post-execution validation if all commands succeeded
+  // Run automatic post-execution validation if commands were executed and all succeeded
   let validationResult = null;
-  if (overallSuccess && finalAnalysis.validationIntent) {
+  if (overallSuccess && executedCommandCount > 0 && finalAnalysis.validationIntent) {
     const validationIntent = finalAnalysis.validationIntent;
 
     try {
