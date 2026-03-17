@@ -193,7 +193,7 @@ export class ConsoleLogger implements Logger {
     const baseMessage = `[${timestamp}] ${level.toUpperCase()} [${this.component}] ${message}`;
     
     if (data) {
-      return `${baseMessage} ${JSON.stringify(data, null, 2)}`;
+      return `${baseMessage} ${JSON.stringify(data)}`;
     }
     
     return baseMessage;
