@@ -865,8 +865,11 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
   // Milestone 5: Audit Logging
   describe('Audit Logging (PRD #392 Milestone 5)', () => {
     async function fetchRecentLogs(): Promise<string> {
+      // Use --since to capture all logs within a time window rather than --tail,
+      // because tool execution (e.g., version health check) can generate thousands
+      // of log lines that push audit entries out of a fixed tail window.
       return integrationTest.kubectl(
-        'logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=2000'
+        'logs -n dot-ai -l app.kubernetes.io/name=dot-ai --since=120s'
       );
     }
 
