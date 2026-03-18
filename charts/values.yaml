@@ -314,3 +314,26 @@ plugins:
   #   endpoint: "http://my-plugin.other-namespace.svc:8080"
   #   # NOTE: You are responsible for deploying this plugin and
   #   # ensuring it has appropriate Kubernetes RBAC permissions.
+
+# MCP Server Integration (PRD #358)
+# Connect to external MCP servers running in the cluster to augment
+# dot-ai tools with additional capabilities (metrics, tracing, etc.).
+#
+# MCP servers must already be deployed and accessible in-cluster.
+# dot-ai connects as an MCP client to discover and use their tools.
+# The `attachTo` field controls which dot-ai operations can use each server's tools.
+mcpServers: {}
+  # Example: Prometheus MCP server for metrics
+  # prometheus:
+  #   enabled: true
+  #   endpoint: "http://prometheus-mcp.monitoring.svc:3000/mcp"
+  #   attachTo:
+  #     - remediate
+  #     - query
+  #
+  # Example: Jaeger MCP server for tracing
+  # jaeger:
+  #   enabled: true
+  #   endpoint: "http://jaeger-mcp.tracing.svc:3000/mcp"
+  #   attachTo:
+  #     - remediate

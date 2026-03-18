@@ -19,6 +19,7 @@ import { loadTracingConfig } from '../core/tracing/config';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
 import { isPluginInitialized, invokePluginTool, getPluginManager } from '../core/plugin-registry';
+import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
 import { getCurrentIdentity } from '../interfaces/request-context';
 
 export const VERSION_TOOL_NAME = 'version';
@@ -123,6 +124,18 @@ export interface SystemStatus {
     plugins: Array<{ name: string; version: string; toolCount: number }>;
     pendingDiscovery: string[];
     backgroundDiscoveryActive: boolean;
+  };
+  mcpServers?: {
+    serverCount: number;
+    toolCount: number;
+    servers: Array<{
+      name: string;
+      version?: string;
+      endpoint: string;
+      attachTo: string[];
+      toolCount: number;
+      tools: string[];
+    }>;
   };
 }
 
@@ -860,6 +873,20 @@ export async function handleVersionTool(
     // PRD #359: Add plugin stats via unified registry
     const pluginStats = getPluginManager()?.getStats();
 
+    // PRD #358: Add MCP server stats
+    const mcpManager = isMcpClientInitialized() ? getMcpClientManager() : null;
+    const mcpServerStats = mcpManager ? {
+      ...mcpManager.getStats(),
+      servers: mcpManager.getDiscoveredServers().map(s => ({
+        name: s.name,
+        version: s.version,
+        endpoint: s.endpoint,
+        attachTo: s.attachTo,
+        toolCount: s.tools.length,
+        tools: s.tools.map(t => t.name),
+      })),
+    } : undefined;
+
     const systemStatus: SystemStatus = {
       version,
       vectorDB: vectorDBStatus,
@@ -869,7 +896,8 @@ export async function handleVersionTool(
       capabilities: capabilityStatus,
       kyverno: kyvernoStatus,
       tracing: tracingStatus,
-      plugins: pluginStats
+      plugins: pluginStats,
+      mcpServers: mcpServerStats
     };
     
     // Log summary of system health

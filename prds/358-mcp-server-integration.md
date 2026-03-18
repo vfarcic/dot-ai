@@ -1,9 +1,9 @@
 # PRD: MCP Server Integration for Extended Tool Capabilities
 
 **Created**: 2026-01-30
-**Status**: Draft
+**Status**: In Progress
 **Owner**: Viktor Farcic
-**Last Updated**: 2026-01-30
+**Last Updated**: 2026-03-18
 **GitHub Issue**: [#358](https://github.com/vfarcic/dot-ai/issues/358)
 **Priority**: Medium
 **Complexity**: High
@@ -15,9 +15,7 @@
 
 Add MCP client capability to dot-ai, enabling connection to MCP servers running in the cluster. This allows dot-ai tools (remediate, operate, query) to leverage tools from external MCP servers without building custom integrations for each platform.
 
-Two integration patterns are supported:
-- **Bundled MCP servers** (`mcpServers`): We deploy and configure, users just enable
-- **Custom MCP servers** (`customMcpServers`): Users deploy their own, provide endpoint
+All MCP servers are configured via a single `mcpServers` section — dot-ai does not deploy MCP servers, it connects to servers already running in the cluster.
 
 The `attachTo` mechanism configures which MCP servers provide tools to which dot-ai tools.
 
@@ -77,19 +75,17 @@ The MCP ecosystem already has servers for many observability platforms. By addin
 ```yaml
 # values.yaml
 
-# Bundled MCP servers - we deploy, users just enable and configure backing service
+# MCP servers - already running in cluster, dot-ai connects as client
 mcpServers:
   prometheus:
     enabled: true
-    prometheusUrl: "http://prometheus.monitoring.svc:9090"
+    endpoint: "http://prometheus-mcp.monitoring.svc:3000/mcp"
     attachTo:
       - remediate
       - query
-
-# Custom MCP servers - users deploy, provide endpoint
-customMcpServers:
   jaeger:
-    endpoint: "http://jaeger-mcp.tracing.svc:3000"
+    enabled: true
+    endpoint: "http://jaeger-mcp.tracing.svc:3000/mcp"
     attachTo:
       - remediate
 ```
@@ -98,17 +94,17 @@ customMcpServers:
 
 | Concept | Description |
 |---------|-------------|
-| **`mcpServers`** | MCP servers we bundle and deploy via Helm chart |
-| **`customMcpServers`** | User-deployed MCP servers, just provide endpoint |
+| **`mcpServers`** | MCP servers running in-cluster that dot-ai connects to |
 | **`attachTo`** | List of dot-ai tools that can use this MCP server's tools |
 | **MCP Client** | New capability in dot-ai to connect to MCP servers |
+| **Tool namespacing** | MCP tools are prefixed as `{server}__{tool}` to avoid collisions |
 
 ### How It Works
 
-1. User enables `mcpServers.prometheus` or adds entry to `customMcpServers`
-2. Helm chart deploys bundled MCP servers (if enabled)
-3. dot-ai connects to configured MCP servers as MCP client
-4. dot-ai discovers available tools from each MCP server
+1. User adds MCP server entries to `mcpServers` in Helm values
+2. Helm generates ConfigMap at `/etc/dot-ai-mcp/mcp-servers.json`
+3. dot-ai connects to configured MCP servers as MCP client at startup
+4. dot-ai discovers available tools from each MCP server via `client.listTools()`
 5. When `remediate` runs, it gets tools from MCP servers where `attachTo` includes "remediate"
 6. AI uses both kubectl tools (from agentic-tools plugin) and MCP server tools
 
@@ -180,23 +176,22 @@ When selecting MCP servers to bundle or recommend:
 ## Success Criteria
 
 ### Functional Requirements
-- [ ] dot-ai can connect to MCP servers running in the cluster
-- [ ] Tool discovery works for connected MCP servers
-- [ ] `attachTo` correctly routes tools to specified dot-ai tools
+- [x] dot-ai can connect to MCP servers running in the cluster
+- [x] Tool discovery works for connected MCP servers
+- [x] `attachTo` correctly routes tools to specified dot-ai tools
 - [ ] Bundled MCP servers deploy correctly via Helm
-- [ ] Custom MCP servers integrate via endpoint configuration
-- [ ] Remediation uses MCP server tools alongside kubectl tools
+- [x] MCP servers integrate via endpoint configuration
+- [x] Remediation uses MCP server tools alongside kubectl tools
 
 ### Quality Requirements
-- [ ] MCP connection failures don't break core functionality
-- [ ] Graceful degradation when MCP servers are unavailable
-- [ ] Clear error messages for configuration issues
-- [ ] Integration tests validate both bundled and custom patterns
+- [x] Startup fails fast with clear error when configured MCP servers are unreachable
+- [x] Clear error messages for configuration issues
+- [ ] Integration tests validate MCP server integration
 
 ### User Experience
-- [ ] Configuration is intuitive (`mcpServers` vs `customMcpServers`)
-- [ ] Documentation explains both integration patterns
-- [ ] Example configurations provided for common setups
+- [x] Configuration is intuitive (single `mcpServers` section)
+- [ ] Documentation explains integration pattern
+- [x] Example configurations provided in values.yaml comments
 
 ---
 
@@ -207,12 +202,12 @@ When selecting MCP servers to bundle or recommend:
 **Goal**: Validate entire architecture end-to-end with Prometheus + remediate
 
 **Tasks**:
-- [ ] Implement MCP client capability in dot-ai
-- [ ] Add Helm configuration for `mcpServers` and `customMcpServers`
-- [ ] Implement `attachTo` mechanism for tool routing
+- [x] Implement MCP client capability in dot-ai
+- [x] Add Helm configuration for `mcpServers`
+- [x] Implement `attachTo` mechanism for tool routing
 - [ ] Research and select Prometheus MCP server to bundle
 - [ ] Bundle Prometheus MCP server in Helm chart
-- [ ] Update remediation to use tools from attached MCP servers
+- [x] Update remediation to use tools from attached MCP servers
 - [ ] Integration tests for Prometheus + remediate flow
 
 **Success Criteria**:
@@ -227,8 +222,8 @@ When selecting MCP servers to bundle or recommend:
 
 **Tasks**:
 - [ ] Discussion: Which MCP server is a good candidate for operate?
-- [ ] Add selected MCP server as bundled or test-only (customMcpServers)
-- [ ] Update operate tool to use attached MCP server tools
+- [ ] Add selected MCP server as bundled or test-only
+- [x] Update operate tool to use attached MCP server tools
 - [ ] Integration tests for operate + MCP server
 
 **Success Criteria**:
@@ -241,8 +236,8 @@ When selecting MCP servers to bundle or recommend:
 
 **Tasks**:
 - [ ] Discussion: Which MCP server is a good candidate for query?
-- [ ] Add selected MCP server as bundled or test-only (customMcpServers)
-- [ ] Update query tool to use attached MCP server tools
+- [ ] Add selected MCP server as bundled or test-only
+- [x] Update query tool to use attached MCP server tools
 - [ ] Integration tests for query + MCP server
 
 **Success Criteria**:
@@ -254,14 +249,13 @@ When selecting MCP servers to bundle or recommend:
 **Goal**: Complete user documentation for MCP server integration
 
 **Tasks**:
-- [ ] Setup guide for bundled MCP servers
-- [ ] Setup guide for custom MCP servers
-- [ ] Configuration reference for `mcpServers` and `customMcpServers`
+- [ ] Setup guide for MCP servers
+- [ ] Configuration reference for `mcpServers`
 - [ ] Troubleshooting guide
-- [ ] "Request new bundled MCP server" process in docs
+- [ ] "Request new MCP server support" process in docs
 
 **Success Criteria**:
-- Users can set up both bundled and custom MCP servers from docs
+- Users can set up MCP servers from docs
 - Documentation follows existing patterns
 
 ---
@@ -279,36 +273,35 @@ dot-ai needs to act as an MCP client to connect to MCP servers. Key consideratio
 ### Tool Routing with `attachTo`
 
 ```typescript
-// Pseudocode for tool collection
-function getToolsForOperation(operation: 'remediate' | 'operate' | 'query') {
-  const tools = [];
+// Actual implementation pattern (e.g., in remediate.ts)
+const kubectlTools = pluginManager.getDiscoveredTools()
+  .filter(t => KUBECTL_INVESTIGATION_TOOL_NAMES.includes(t.name));
 
-  // Add plugin tools (kubectl, helm, etc.)
-  tools.push(...pluginManager.getDiscoveredTools());
+const mcpTools = isMcpClientInitialized()
+  ? getMcpClientManager()!.getToolsForOperation('remediate')
+  : [];
 
-  // Add MCP server tools where attachTo includes this operation
-  for (const mcpServer of connectedMcpServers) {
-    if (mcpServer.attachTo.includes(operation)) {
-      tools.push(...mcpServer.tools);
-    }
-  }
+const allTools = [...kubectlTools, ...mcpTools];
 
-  return tools;
-}
+// Chain executors: MCP → Plugin → fallback
+const pluginExecutor = pluginManager.createToolExecutor();
+const toolExecutor = isMcpClientInitialized()
+  ? getMcpClientManager()!.createToolExecutor(pluginExecutor)
+  : pluginExecutor;
 ```
 
 ### Helm Chart Changes
 
-New templates needed:
-- MCP server Deployment + Service for each bundled server
-- ConfigMap for MCP server configuration
-- Update dot-ai ConfigMap with MCP server connection info
+New templates created:
+- `mcp-servers-configmap.yaml` — ConfigMap with MCP server connection config
+- `_helpers.tpl` — `dot-ai.mcpServersConfig` helper generates JSON array
+- `deployment.yaml` — Mounts ConfigMap at `/etc/dot-ai-mcp/`
 
 ### Failure Handling
 
-- MCP server unavailable at startup: Log warning, continue without those tools
-- MCP server becomes unavailable: Graceful degradation, tools marked unavailable
+- MCP server unreachable at startup: **Fail fast** with clear error (configured servers must be reachable)
 - Tool execution fails: Return error to AI, let it try alternative approach
+- No MCP servers configured: dot-ai starts normally, tools work with kubectl only
 
 ---
 
@@ -372,3 +365,32 @@ New templates needed:
 - Separate milestones per dot-ai tool (operate, query) with discussion phase for MCP server selection
 
 **Next Steps**: Begin Milestone 1 - MCP Client + Prometheus + Remediate
+
+### 2026-03-18: Core MCP Client Infrastructure
+**Status**: In Progress
+**Context**: Milestone 1 core implementation complete, Prometheus integration remaining
+
+**Key Decisions**:
+- Merged `mcpServers` and `customMcpServers` into single `mcpServers` — dot-ai does not deploy MCP servers, so the distinction was meaningless
+- Removed `required` field and background retry — MCP servers are already running, fail fast at startup if unreachable
+- Added tool namespacing `{server}__{tool}` to avoid name collisions across MCP servers and with plugin tools
+- Separate config path `/etc/dot-ai-mcp/mcp-servers.json` to avoid conflicts with plugin ConfigMap at `/etc/dot-ai/`
+- Added MCP server status to version tool diagnostics (server names, endpoints, attachTo, tools)
+
+**Files Created**:
+- `src/core/mcp-client-types.ts` — Type definitions
+- `src/core/mcp-client-manager.ts` — Core MCP client (connection, discovery, routing)
+- `src/core/mcp-client-registry.ts` — Global singleton access
+- `charts/templates/mcp-servers-configmap.yaml` — Helm ConfigMap template
+
+**Files Modified**:
+- `charts/values.yaml` — Added `mcpServers` configuration section
+- `charts/templates/_helpers.tpl` — Added `dot-ai.mcpServersConfig` helper
+- `charts/templates/deployment.yaml` — Added MCP config volume mount
+- `src/mcp/server.ts` — MCP client initialization at startup
+- `src/tools/remediate.ts` — MCP tool integration
+- `src/tools/operate-analysis.ts` — MCP tool integration
+- `src/tools/query.ts` — MCP tool integration
+- `src/tools/version.ts` — MCP server status in diagnostics
+
+**Next Steps**: Research Prometheus MCP server, write integration tests

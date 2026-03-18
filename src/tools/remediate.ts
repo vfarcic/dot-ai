@@ -12,6 +12,7 @@ import {
 } from '../core/error-handling';
 import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
+import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { buildAgentDisplayBlock } from '../core/index';
 import {
@@ -269,20 +270,32 @@ async function conductInvestigation(
       );
     }
 
+    // PRD #358: Get MCP server tools attached to remediate
+    const mcpTools = isMcpClientInitialized()
+      ? getMcpClientManager()!.getToolsForOperation('remediate')
+      : [];
+
+    const allTools = [...kubectlTools, ...mcpTools];
+
     logger.debug(
-      'Starting toolLoop with kubectl investigation tools from plugin',
+      'Starting toolLoop with investigation tools',
       {
         requestId,
         sessionId: session.sessionId,
-        toolCount: kubectlTools.length,
-        tools: kubectlTools.map(t => t.name),
+        kubectlToolCount: kubectlTools.length,
+        mcpToolCount: mcpTools.length,
+        tools: allTools.map(t => t.name),
       }
     );
 
     // PRD #343: Create tool executor that routes through plugin
-    const toolExecutor = pluginManager.createToolExecutor();
+    // PRD #358: Chain MCP executor with plugin executor as fallback
+    const pluginExecutor = pluginManager.createToolExecutor();
+    const toolExecutor = isMcpClientInitialized()
+      ? getMcpClientManager()!.createToolExecutor(pluginExecutor)
+      : pluginExecutor;
 
-    // Use toolLoop for AI-driven investigation with kubectl tools
+    // Use toolLoop for AI-driven investigation with kubectl + MCP tools
     // System prompt is static (cached), issue description is dynamic (userMessage)
     const operationName = isValidation
       ? 'remediate-validation'
@@ -290,7 +303,7 @@ async function conductInvestigation(
     const result = await aiProvider.toolLoop({
       systemPrompt: systemPrompt,
       userMessage: `Investigate this Kubernetes issue: ${session.data.issue}`,
-      tools: kubectlTools,
+      tools: allTools,
       toolExecutor: toolExecutor,
       maxIterations: maxIterations,
       operation: operationName,
