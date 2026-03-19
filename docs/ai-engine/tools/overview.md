@@ -22,7 +22,7 @@ AI-powered application deployment assistance with smart intent clarification, se
 
 ### 🔎 Cluster Query
 Natural language interface for querying your Kubernetes cluster.
-- **What it does**: Ask questions about your cluster in plain English - find resources by concept, describe specific resources, or check health status
+- **What it does**: Ask questions about your cluster in plain English - find resources by concept, describe specific resources, or check health status. Optionally augmented with tools from [MCP servers](../setup/deployment.md#mcp-server-integration) (e.g., Prometheus metrics)
 - **Use when**: Exploring your cluster, finding resources without memorizing kubectl syntax, or checking resource status
 - **📖 Full Guide**: [Cluster Query](query.md)
 
@@ -46,13 +46,13 @@ Enables proactive governance through policy intents that guide users toward comp
 
 ### 🔧 Kubernetes Issue Remediation
 AI-powered issue analysis and remediation with intelligent root cause identification.
-- **What it does**: Multi-step investigation loop to identify root causes and generate executable remediation commands
+- **What it does**: Multi-step investigation loop to identify root causes and generate executable remediation commands. Optionally augmented with tools from [MCP servers](../setup/deployment.md#mcp-server-integration) (e.g., Prometheus metrics, distributed traces)
 - **Use when**: Troubleshooting Kubernetes failures, diagnosing pod/networking/storage issues, or understanding "what's wrong"
 - **📖 Full Guide**: [Kubernetes Issue Remediation](remediate.md)
 
 ### ⚙️ Kubernetes Operations
 AI-powered Day 2 operations for any Kubernetes resources through natural language intents.
-- **What it does**: Handles updates, scaling, enhancements, rollbacks, and any operational changes to workloads, databases, infrastructure, cloud resources, or Helm-managed applications with pattern-driven recommendations and dry-run validation
+- **What it does**: Handles updates, scaling, enhancements, rollbacks, and any operational changes to workloads, databases, infrastructure, cloud resources, or Helm-managed applications with pattern-driven recommendations and dry-run validation. Optionally augmented with tools from [MCP servers](../setup/deployment.md#mcp-server-integration)
 - **Use when**: Performing operational changes on deployed resources - applications, databases, storage, Helm releases, AWS/Azure/GCP resources via operators, networking, or any Kubernetes-managed infrastructure
 - **📖 Full Guide**: [Kubernetes Operations](operate.md)
 

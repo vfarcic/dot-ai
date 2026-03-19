@@ -38,6 +38,7 @@ The DevOps AI Toolkit query feature provides:
 - **Multi-source intelligence** - Combines Vector DB knowledge with live kubectl data
 - **AI-powered orchestration** - LLM decides which tools to use based on your intent
 - **Read-only operations** - Safe cluster exploration without risk of modifications
+- **MCP server integration** - Augment queries with tools from external MCP servers (e.g., Prometheus metrics). See [MCP Server Integration](../setup/deployment.md#mcp-server-integration)
 
 ### How AI-Driven Querying Works
 

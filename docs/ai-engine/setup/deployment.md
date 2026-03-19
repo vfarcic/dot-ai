@@ -422,6 +422,151 @@ Get your OpenRouter API key at [https://openrouter.ai/](https://openrouter.ai/)
 - If model requirements are too high for your setup, please open an issue
 - Configuration examples are based on common patterns but not yet validated
 
+## MCP Server Integration
+
+Extend dot-ai tools with capabilities from external [MCP servers](https://modelcontextprotocol.io/) running in your cluster. Instead of building custom integrations for each observability or infrastructure platform, dot-ai connects as an MCP client to discover and use tools from any compatible MCP server.
+
+Any MCP server that supports HTTP transport can be connected — Prometheus, Jaeger, Grafana, Datadog, or any other server from the [MCP ecosystem](https://github.com/modelcontextprotocol/servers). The examples below use Prometheus, but the configuration pattern is the same for any server.
+
+### How It Works
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      Your Cluster                            │
+│                                                              │
+│  ┌─────────────┐     MCP Protocol     ┌──────────────────┐  │
+│  │   dot-ai    │◄────────────────────►│  Prometheus MCP  │  │
+│  │ (MCP Client)│                      │    Server        │  │
+│  │             │                      └──────────────────┘  │
+│  │  remediate  │     MCP Protocol     ┌──────────────────┐  │
+│  │   operate   │◄────────────────────►│   Jaeger MCP     │  │
+│  │    query    │                      │    Server        │  │
+│  └─────────────┘                      └──────────────────┘  │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+1. You deploy MCP servers in your cluster (dot-ai does not manage their lifecycle)
+2. You configure `mcpServers` in Helm values with each server's endpoint
+3. dot-ai connects to each server at startup and discovers available tools
+4. The `attachTo` field controls which dot-ai tools can use each server's tools
+5. During AI analysis, tools from MCP servers are used alongside existing tools automatically
+
+### Configuration
+
+Add MCP servers to your Helm values:
+
+```yaml
+mcpServers:
+  prometheus:
+    enabled: true
+    endpoint: "http://prometheus-mcp.monitoring.svc:3000/mcp"
+    attachTo:
+      - remediate
+      - query
+  jaeger:
+    enabled: true
+    endpoint: "http://jaeger-mcp.tracing.svc:3000/mcp"
+    attachTo:
+      - remediate
+```
+
+### Configuration Reference
+
+Each entry under `mcpServers` has the following fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | boolean | Yes | Whether to connect to this MCP server |
+| `endpoint` | string | Yes | Full URL of the MCP server endpoint (must be reachable from dot-ai pod) |
+| `attachTo` | string[] | Yes | Which dot-ai tools can use this server's tools. Valid values: `remediate`, `operate`, `query` |
+
+### Tool Namespacing
+
+Tools from MCP servers are automatically namespaced as `{server}__{tool}` to avoid collisions. For example, a Prometheus MCP server configured as `prometheus` with a tool named `execute_query` becomes `prometheus__execute_query` in dot-ai.
+
+### Prometheus Example
+
+This example shows how to integrate a Prometheus MCP server so that remediate and query can use Prometheus metrics during analysis.
+
+**Prerequisites:**
+- Prometheus running in your cluster (e.g., via `prometheus-community/prometheus` Helm chart)
+- A Prometheus MCP server deployed and accessible (e.g., [pab1it0/prometheus-mcp-server](https://github.com/pab1it0/prometheus-mcp-server))
+
+**Deploy the Prometheus MCP server** (example using a Kubernetes Deployment):
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-mcp
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus-mcp
+  template:
+    metadata:
+      labels:
+        app: prometheus-mcp
+    spec:
+      containers:
+      - name: prometheus-mcp
+        image: ghcr.io/pab1it0/prometheus-mcp-server:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PROMETHEUS_URL
+          value: "http://prometheus-server.monitoring.svc:80"
+        - name: MCP_TRANSPORT
+          value: "http"
+        - name: PORT
+          value: "8080"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-mcp
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus-mcp
+  ports:
+  - port: 8080
+    targetPort: 8080
+```
+
+**Configure dot-ai to connect:**
+
+```yaml
+mcpServers:
+  prometheus:
+    enabled: true
+    endpoint: "http://prometheus-mcp.monitoring.svc:8080/mcp"
+    attachTo:
+      - remediate
+      - query
+```
+
+Once configured, the remediate tool can correlate cluster events with Prometheus metrics (CPU/memory trends, error rates) for more accurate root cause analysis. The query tool can answer questions like "what's the memory usage trend for my-api?" using live Prometheus data.
+
+### Verifying MCP Server Connections
+
+After deployment, verify MCP server connections using the version/status tool:
+
+```text
+Show dot-ai status
+```
+
+The response includes an `mcpServers` section showing connected servers, their endpoints, attached operations, and discovered tool count. Use this to confirm servers connected successfully.
+
+### Startup Behavior
+
+- **No MCP servers configured** (default): dot-ai starts normally without MCP server augmentation.
+- **MCP servers configured**: dot-ai connects to each enabled server at startup, discovers tools, and makes them available to the configured operations.
+- **MCP server unreachable**: Startup **fails fast** with a clear error message. Configured MCP servers must be reachable — there is no background retry. Fix the endpoint or disable the server entry to proceed.
+
 ## TLS Configuration
 
 HTTPS is required for OAuth authentication (`dex.enabled: true`). If you only use static token authentication, HTTPS is optional.
@@ -566,7 +711,10 @@ Once the server is running:
 ### 3. Enable Observability (Optional)
 - **[Observability Guide](../operations/observability.md)** — Distributed tracing with OpenTelemetry for debugging workflows, measuring AI performance, and monitoring Kubernetes operations
 
-### 4. Production Considerations
+### 4. Connect MCP Servers (Optional)
+- **[MCP Server Integration](#mcp-server-integration)** — Augment dot-ai tools with capabilities from external MCP servers (Prometheus, Jaeger, etc.)
+
+### 5. Production Considerations
 - Consider backup strategies for vector database content (organizational patterns and capabilities)
 - Review [TLS Configuration](#tls-configuration) for HTTPS
 

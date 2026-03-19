@@ -179,7 +179,7 @@ When selecting MCP servers to bundle or recommend:
 - [x] dot-ai can connect to MCP servers running in the cluster
 - [x] Tool discovery works for connected MCP servers
 - [x] `attachTo` correctly routes tools to specified dot-ai tools
-- [ ] Bundled MCP servers deploy correctly via Helm
+- [~] Bundled MCP servers deploy correctly via Helm (N/A — dot-ai connects to already-running MCP servers, does not deploy them)
 - [x] MCP servers integrate via endpoint configuration
 - [x] Remediation uses MCP server tools alongside kubectl tools
 
@@ -190,7 +190,7 @@ When selecting MCP servers to bundle or recommend:
 
 ### User Experience
 - [x] Configuration is intuitive (single `mcpServers` section)
-- [ ] Documentation explains integration pattern
+- [x] Documentation explains integration pattern
 - [x] Example configurations provided in values.yaml comments
 
 ---
@@ -206,7 +206,7 @@ When selecting MCP servers to bundle or recommend:
 - [x] Add Helm configuration for `mcpServers`
 - [x] Implement `attachTo` mechanism for tool routing
 - [x] Research and select Prometheus MCP server to bundle
-- [ ] Bundle Prometheus MCP server in Helm chart
+- [~] Bundle Prometheus MCP server in Helm chart (N/A — dot-ai connects to already-running MCP servers)
 - [x] Update remediation to use tools from attached MCP servers
 - [x] Integration tests for Prometheus + remediate flow
 
@@ -249,10 +249,10 @@ When selecting MCP servers to bundle or recommend:
 **Goal**: Complete user documentation for MCP server integration
 
 **Tasks**:
-- [ ] Setup guide for MCP servers
-- [ ] Configuration reference for `mcpServers`
-- [ ] Troubleshooting guide
-- [ ] "Request new MCP server support" process in docs
+- [x] Setup guide for MCP servers
+- [x] Configuration reference for `mcpServers`
+- [~] Troubleshooting guide (covered inline in deployment docs startup behavior section)
+- [~] "Request new MCP server support" process in docs (deferred — not needed until community adoption grows)
 
 **Success Criteria**:
 - Users can set up MCP servers from docs
