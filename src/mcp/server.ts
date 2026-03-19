@@ -12,6 +12,8 @@ import { DotAI } from '../core/index.js';
 import { getTracer, shutdownTracer } from '../core/tracing/index.js';
 import { getTelemetry, shutdownTelemetry } from '../core/telemetry/index.js';
 import { initializePluginRegistry } from '../core/plugin-registry.js';
+import { initializeMcpClientRegistry } from '../core/mcp-client-registry.js';
+import { McpClientManager } from '../core/mcp-client-manager.js';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { PluginManager } from '../core/plugin-manager.js';
@@ -144,6 +146,27 @@ async function main() {
       initializePluginRegistry(pluginManager);
     }
 
+    // PRD #358: Initialize MCP client for connecting to external MCP servers
+    const mcpClientLogger = new ConsoleLogger('McpClientManager');
+    const mcpClientManager = new McpClientManager(mcpClientLogger);
+    const mcpServerConfigs = McpClientManager.parseMcpServerConfig();
+
+    if (mcpServerConfigs.length > 0) {
+      process.stderr.write(`Discovering ${mcpServerConfigs.length} MCP server(s)...\n`);
+      try {
+        await mcpClientManager.discoverMcpServers(mcpServerConfigs);
+        const stats = mcpClientManager.getStats();
+        process.stderr.write(`MCP server discovery complete: ${stats.serverCount} server(s), ${stats.toolCount} tool(s)\n`);
+      } catch (error) {
+        process.stderr.write(`FATAL: MCP server discovery failed: ${error instanceof Error ? error.message : String(error)}\n`);
+        process.exit(1);
+      }
+
+      initializeMcpClientRegistry(mcpClientManager);
+    } else {
+      process.stderr.write('No MCP servers configured (mount mcp-servers.json at /etc/dot-ai-mcp/mcp-servers.json to enable)\n');
+    }
+
     // Create and configure MCP server
     const mcpServer = new MCPServer(dotAI, {
       name: 'dot-ai',
@@ -170,11 +193,15 @@ async function main() {
       // Stop background plugin discovery if active
       pluginManager.stopBackgroundDiscovery();
 
+      // Stop server first to drain in-flight requests before closing shared clients
+      await mcpServer.stop();
+
+      // Close MCP client connections (PRD #358)
+      await mcpClientManager.close();
+
       // Track server stop telemetry
       const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
       getTelemetry().trackServerStop(uptimeSeconds);
-
-      await mcpServer.stop();
       await shutdownTracer();
 
       // Flush telemetry events before exit

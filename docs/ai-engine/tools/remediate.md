@@ -37,6 +37,7 @@ Before using this guide, complete the [Deployment Guide](../setup/deployment.md)
 - **Dual execution modes** - Manual approval workflow or automatic execution based on confidence/risk thresholds
 - **Iterative remediation support** - Handles complex issues requiring multiple sequential fixes
 - **Complete audit trail** - Full investigation history and remediation tracking
+- **MCP server integration** - Augment investigations with tools from external MCP servers (e.g., Prometheus metrics, distributed traces). See [MCP Server Integration](../setup/deployment.md#mcp-server-integration)
 
 **Use when:**
 - Investigating any Kubernetes resource issue — deployments, services, ingresses, storage, networking, and more

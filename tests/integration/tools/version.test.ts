@@ -37,6 +37,28 @@ describe.concurrent('Version Tool Integration', () => {
   // Integration tests always run in-cluster (MCP deployed in Kind, accessed via ingress)
 
   describe('System Status via REST API', () => {
+    // Seed the resources collection so version reports it as existing.
+    // When all tests ran together, other tests (e.g. resource-sync) created it.
+    // In an isolated cluster, we must create it explicitly.
+    beforeAll(async () => {
+      await integrationTest.httpClient.post('/api/v1/resources/sync', {
+        upserts: [
+          {
+            namespace: 'default',
+            name: 'version-test-seed',
+            kind: 'ConfigMap',
+            apiVersion: 'v1',
+            apiGroup: '',
+            labels: {},
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        deletes: [],
+        isResync: false
+      });
+    }, 30000);
+
     test('should return comprehensive system status with correct structure', async () => {
       // Define expected response structure (based on actual API inspection)
       const expectedVersionResponse = {
@@ -120,6 +142,28 @@ describe.concurrent('Version Tool Integration', () => {
                     name: 'agentic-tools',
                     version: '1.0.0',
                     toolCount: 40,
+                  },
+                ],
+              },
+              // PRD #358: MCP server stats (Prometheus MCP server deployed in test cluster)
+              mcpServers: {
+                serverCount: 1,
+                toolCount: 6,
+                servers: [
+                  {
+                    name: 'prometheus',
+                    version: expect.any(String),
+                    endpoint: expect.stringContaining('prometheus-mcp'),
+                    attachTo: expect.arrayContaining(['remediate', 'query']),
+                    toolCount: 6,
+                    tools: expect.arrayContaining([
+                      'execute_query',
+                      'execute_range_query',
+                      'list_metrics',
+                      'get_metric_metadata',
+                      'get_targets',
+                      'health_check',
+                    ]),
                   },
                 ],
               },
@@ -212,6 +256,25 @@ describe.concurrent('Version Tool Integration', () => {
         kyverno?.policyGenerationReady,
         `Kyverno not ready: ${kyverno?.reason || 'unknown'}`
       ).toBe(true);
+
+      // PRD #358: MCP server diagnostics
+      const mcpServers = system?.mcpServers;
+      expect(
+        mcpServers,
+        'mcpServers field missing - McpClientManager not initialized?'
+      ).toBeDefined();
+      expect(
+        mcpServers?.serverCount,
+        `MCP server discovery failed: found ${mcpServers?.serverCount} servers. Check mcp-servers.json ConfigMap and Prometheus MCP server reachable`
+      ).toBe(1);
+      expect(
+        mcpServers?.toolCount,
+        `Expected 6 MCP tools, found ${mcpServers?.toolCount}. Check Prometheus MCP server tool registration`
+      ).toBe(6);
+      expect(
+        mcpServers?.servers?.[0]?.name,
+        'Prometheus MCP server not in discovered servers'
+      ).toBe('prometheus');
 
       // Single comprehensive assertion using expected structure
       expect(response).toMatchObject(expectedVersionResponse);

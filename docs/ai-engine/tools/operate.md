@@ -48,6 +48,7 @@ The DevOps AI Toolkit operate feature provides:
 - **Dry-run validation** - All changes tested before proposing to ensure they'll work
 - **Safe execution** - Exact approved commands executed with comprehensive validation
 - **Iterative validation** - Verifies operations completed successfully with AI analysis
+- **MCP server integration** - Augment analysis with tools from external MCP servers (e.g., Prometheus metrics). See [MCP Server Integration](../setup/deployment.md#mcp-server-integration)
 
 ### How AI-Driven Operations Work
 

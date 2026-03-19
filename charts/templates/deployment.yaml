@@ -208,16 +208,31 @@ spec:
               name: {{ .Values.dex.existingSecret }}
 {{- end }}
 {{- $pluginsConfig := include "dot-ai.pluginsConfig" . -}}
-{{- if and $pluginsConfig (ne $pluginsConfig "[]") }}
+{{- $mcpServersConfig := include "dot-ai.mcpServersConfig" . -}}
+{{- if or (and $pluginsConfig (ne $pluginsConfig "[]")) (and $mcpServersConfig (ne $mcpServersConfig "[]")) }}
         volumeMounts:
+{{- if and $pluginsConfig (ne $pluginsConfig "[]") }}
         - name: plugins-config
           mountPath: /etc/dot-ai
           readOnly: true
 {{- end }}
-{{- if and $pluginsConfig (ne $pluginsConfig "[]") }}
+{{- if and $mcpServersConfig (ne $mcpServersConfig "[]") }}
+        - name: mcp-servers-config
+          mountPath: /etc/dot-ai-mcp
+          readOnly: true
+{{- end }}
+{{- end }}
+{{- if or (and $pluginsConfig (ne $pluginsConfig "[]")) (and $mcpServersConfig (ne $mcpServersConfig "[]")) }}
       volumes:
+{{- if and $pluginsConfig (ne $pluginsConfig "[]") }}
       - name: plugins-config
         configMap:
           name: {{ include "dot-ai.fullname" . }}-plugins
+{{- end }}
+{{- if and $mcpServersConfig (ne $mcpServersConfig "[]") }}
+      - name: mcp-servers-config
+        configMap:
+          name: {{ include "dot-ai.fullname" . }}-mcp-servers
+{{- end }}
 {{- end }}
       terminationGracePeriodSeconds: 30

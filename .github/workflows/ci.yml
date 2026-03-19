@@ -10,11 +10,13 @@ on:
 permissions: read-all
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     permissions:
       contents: read  # Required to checkout code
+    outputs:
+      secrets-available: ${{ steps.secrets-check.outputs.available }}
 
     steps:
     - name: Checkout code
@@ -55,20 +57,100 @@ jobs:
           echo "::warning::API keys not available - this is expected for PRs from forks. A maintainer can manually trigger tests using the 'Test Fork PR' workflow."
         fi
 
-    - name: Run integration tests (with automated cluster creation and server management)
+    - name: Build Docker images
+      run: |
+        npm pack
+        docker build -t dot-ai:test .
+        rm -f vfarcic-dot-ai-*.tgz
+        (cd packages/agentic-tools && npm ci && npm run build && npm prune --omit=dev)
+        docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools
+        docker save dot-ai:test -o /tmp/dot-ai-test.tar
+        docker save dot-ai-agentic-tools:test -o /tmp/dot-ai-agentic-tools-test.tar
+
+    - name: Upload Docker images
       if: steps.secrets-check.outputs.available == 'true'
-      run: devbox run -- npm run test:integration
-      timeout-minutes: 30
-      env:
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        DOT_AI_GIT_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}
-        USE_LOCAL_EMBEDDINGS: "true"
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: docker-images
+        path: |
+          /tmp/dot-ai-test.tar
+          /tmp/dot-ai-agentic-tools-test.tar
+        retention-days: 1
 
     - name: Skip integration tests (fork PR)
       if: steps.secrets-check.outputs.available == 'false'
       run: |
         echo "::notice::Integration tests skipped - secrets not available for fork PRs"
         echo "A maintainer can manually run tests using: Actions → 'Test Fork PR (Manual)' → Run workflow"
+
+  integration-test:
+    name: integration-test (${{ matrix.name }})
+    needs: build
+    if: needs.build.outputs.secrets-available == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Tests needing optional infrastructure (separate clusters)
+          - name: version
+            tests: version
+          - name: remediate
+            tests: remediate
+          - name: recommend
+            tests: recommend
+          - name: query
+            tests: query
+          - name: manage-org-data-policies-capabilities
+            tests: manage-org-data-policies manage-org-data-capabilities
+          # Base-only tests (grouped to share cluster setup overhead)
+          - name: base-group-1
+            tests: operate manage-org-data-patterns manage-knowledge auth rbac
+          - name: base-group-2
+            tests: resource-sync openapi plugin project-setup prompts
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        submodules: true
+
+    - name: Setup Node.js
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Devbox
+      uses: jetify-com/devbox-install-action@a0d2d53632934ae004f878c840055956d9f741b0 # v0.14.0
+      with:
+        enable-cache: true
+
+    - name: Download Docker images
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+        name: docker-images
+        path: /tmp
+
+    - name: Load Docker images
+      run: |
+        docker load -i /tmp/dot-ai-test.tar
+        docker load -i /tmp/dot-ai-agentic-tools-test.tar
+
+    - name: Run integration tests (${{ matrix.name }})
+      run: devbox run -- ./tests/integration/infrastructure/run-integration-tests.sh ${{ matrix.tests }}
+      timeout-minutes: 25
+      env:
+        SKIP_DOCKER_BUILD: "true"
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        DOT_AI_GIT_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}
+        USE_LOCAL_EMBEDDINGS: "true"
 
   security:
     name: Security Analysis

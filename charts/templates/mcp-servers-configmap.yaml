@@ -1,0 +1,22 @@
+{{/*
+MCP Servers Configuration ConfigMap (PRD #358)
+Contains JSON array of enabled MCP servers for discovery by dot-ai.
+Mounted at /etc/dot-ai-mcp/mcp-servers.json
+*/}}
+{{- $mcpServersConfig := include "dot-ai.mcpServersConfig" . -}}
+{{- if and $mcpServersConfig (ne $mcpServersConfig "[]") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dot-ai.fullname" . }}-mcp-servers
+  labels:
+    {{- include "dot-ai.labels" . | nindent 4 }}
+  {{- $annotations := include "dot-ai.annotations" (dict "global" .Values.annotations "local" nil) -}}
+  {{- if $annotations }}
+  annotations:
+    {{- $annotations | nindent 4 }}
+  {{- end }}
+data:
+  mcp-servers.json: |
+    {{ $mcpServersConfig | nindent 4 | trim }}
+{{- end }}
