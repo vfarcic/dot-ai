@@ -17,6 +17,7 @@ TEST_ARGS=("$@")
 
 # Configuration
 TEST_AUTH_TOKEN="test-auth-token-integration"
+RBAC_ENABLED="${RBAC_ENABLED:-true}"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -104,6 +105,27 @@ helm upgrade --install dot-ai-prometheus prometheus-community/prometheus \
     --set prometheus-pushgateway.enabled=false \
     --timeout=300s || {
     log_error "Failed to install Prometheus"
+    exit 1
+}
+
+# Install Argo CD via Helm
+log_info "Starting Argo CD installation..."
+helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
+helm repo update
+helm upgrade --install argocd argo/argo-cd \
+    --namespace argocd --create-namespace \
+    --set server.enabled=false \
+    --set dex.enabled=false \
+    --set notifications.enabled=false \
+    --timeout=300s || {
+    log_error "Failed to install Argo CD"
+    exit 1
+}
+
+# Install Flux (source-controller + kustomize-controller)
+log_info "Starting Flux installation..."
+kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml || {
+    log_error "Failed to install Flux"
     exit 1
 }
 
@@ -245,6 +267,12 @@ docker build -t dot-ai:test . || {
 # Clean up package tarball
 rm -f vfarcic-dot-ai-*.tgz
 
+log_info "Pre-building agentic-tools (native build avoids QEMU issues)..."
+(cd packages/agentic-tools && npm ci && npm run build && npm prune --omit=dev) || {
+    log_error "Failed to pre-build agentic-tools"
+    exit 1
+}
+
 log_info "Building agentic-tools plugin Docker image (PRD #343)..."
 docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools || {
     log_error "Failed to build agentic-tools image"
@@ -300,6 +328,34 @@ if [[ "${SKIP_KYVERNO}" != "true" ]]; then
         exit 1
     }
 fi
+
+log_info "Waiting for Argo CD application controller..."
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-application-controller \
+    --namespace=argocd --timeout=300s || {
+    log_error "Argo CD application controller failed to become ready"
+    exit 1
+}
+
+log_info "Waiting for Argo CD repo server..."
+kubectl wait --for=condition=Available deployment/argocd-repo-server \
+    --namespace=argocd --timeout=300s || {
+    log_error "Argo CD repo server failed to become ready"
+    exit 1
+}
+
+log_info "Waiting for Flux source-controller..."
+kubectl wait --for=condition=Available deployment/source-controller \
+    --namespace=flux-system --timeout=300s || {
+    log_error "Flux source-controller failed to become ready"
+    exit 1
+}
+
+log_info "Waiting for Flux kustomize-controller..."
+kubectl wait --for=condition=Available deployment/kustomize-controller \
+    --namespace=flux-system --timeout=300s || {
+    log_error "Flux kustomize-controller failed to become ready"
+    exit 1
+}
 
 log_info "Waiting for nginx ingress controller..."
 kubectl wait --namespace ingress-nginx \
@@ -402,9 +458,18 @@ kubectl create secret generic dot-ai-secrets \
     --from-literal=auth-token="${TEST_AUTH_TOKEN}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
+# Create Dex auth secret (required by chart when dex.enabled=true)
+TEST_DEX_CLIENT_SECRET="test-client-secret-$(date +%s)"
+TEST_JWT_SECRET="test-jwt-secret-$(date +%s)"
+TEST_ADMIN_PASSWORD="test-admin-pass"
+TEST_ADMIN_HASH=$(htpasswd -nbBC 10 "" "${TEST_ADMIN_PASSWORD}" | cut -d: -f2)
+kubectl create secret generic dot-ai-dex-auth \
+    --namespace dot-ai \
+    --from-literal=DEX_CLIENT_SECRET="${TEST_DEX_CLIENT_SECRET}" \
+    --from-literal=DOT_AI_JWT_SECRET="${TEST_JWT_SECRET}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
 # Deploy via Helm with local images
-# Dex secrets (admin password, client secret, JWT secret) are auto-generated
-# on first install by the dex-secret.yaml template. Tests read them after install.
 helm upgrade --install dot-ai ./charts \
     --namespace dot-ai \
     --set image.repository=dot-ai \
@@ -422,12 +487,16 @@ helm upgrade --install dot-ai ./charts \
     $([[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]] && echo "--set localEmbeddings.enabled=true") \
     --set webUI.baseUrl="https://dot-ai-ui.test.local" \
     --set dex.enabled=true \
+    --set dex.existingSecret=dot-ai-dex-auth \
+    --set dex.adminPasswordHash="${TEST_ADMIN_HASH}" \
+    --set-json 'dex.envFrom=[{"secretRef":{"name":"dot-ai-dex-auth"}}]' \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
     --set plugins.agentic-tools.image.pullPolicy=Never \
     --set mcpServers.prometheus.enabled=true \
     --set mcpServers.prometheus.endpoint="http://prometheus-mcp.dot-ai.svc:8080/mcp" \
     --set-json 'mcpServers.prometheus.attachTo=["remediate","query"]' \
+    --set rbac.enforcement.enabled="${RBAC_ENABLED}" \
     --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"},{\"name\":\"MCP_DANGEROUSLY_ALLOW_INSECURE_ISSUER_URL\",\"value\":\"true\"}]" \
     --wait --timeout=300s || {
     log_error "Failed to deploy dot-ai via Helm"
@@ -505,21 +574,85 @@ if [ $WAITED -ge $MAX_WAIT ]; then
     exit 1
 fi
 
+# Wait for agentic-tools plugin to be discovered by MCP server
+log_info "Waiting for agentic-tools plugin discovery..."
+PLUGIN_MAX_WAIT=120
+PLUGIN_WAITED=0
+while [ $PLUGIN_WAITED -lt $PLUGIN_MAX_WAIT ]; do
+    PLUGIN_COUNT=$(curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+        -d '{}' 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('result',{}).get('system',{}).get('plugins',{}).get('pluginCount',0))" 2>/dev/null || echo "0")
+    if [ "$PLUGIN_COUNT" -ge 1 ] 2>/dev/null; then
+        log_info "Plugin discovery complete: ${PLUGIN_COUNT} plugin(s) available"
+        break
+    fi
+    sleep 3
+    PLUGIN_WAITED=$((PLUGIN_WAITED + 3))
+done
+
+if [ $PLUGIN_WAITED -ge $PLUGIN_MAX_WAIT ]; then
+    log_error "Plugin discovery failed within ${PLUGIN_MAX_WAIT} seconds"
+    curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+        -d '{}' 2>/dev/null | python3 -m json.tool || true
+    kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
+    exit 1
+fi
+
 # Export configuration for tests
 export MCP_BASE_URL="${MCP_URL}"
 export DOT_AI_AUTH_TOKEN="${TEST_AUTH_TOKEN}"
 
 # Dex OAuth test credentials (PRD #380)
-# Read auto-generated admin password from the Secret created by Helm
 export DEX_TEST_USER_EMAIL="admin@dot-ai.local"
-export DEX_TEST_USER_PASSWORD=$(kubectl get secret dot-ai-dex -n dot-ai -o jsonpath='{.data.admin-password}' | base64 -d)
+export DEX_TEST_USER_PASSWORD="${TEST_ADMIN_PASSWORD}"
 export DEX_ISSUER_URL="http://dex.dot-ai.127.0.0.1.nip.io:8180"
 
-# Step 5: Run integration tests
-log_info "Running integration tests..."
+# RBAC test credentials (PRD #392)
+export DOT_AI_JWT_SECRET="${TEST_JWT_SECRET}"
+
+# RBAC test infrastructure (PRD #392)
+# SubjectAccessReview permission and DOT_AI_RBAC_ENABLED are now handled by
+# the Helm chart via rbac.enforcement.enabled (Milestone 3).
+
 # Export configuration so tests can validate server is using correct settings
 export AI_PROVIDER
 export USE_LOCAL_EMBEDDINGS
+export DOT_AI_RBAC_ENABLED="${RBAC_ENABLED}"
+
+# Create RBAC bindings for the Dex admin user (by email — SAR uses email as user field)
+log_info "Creating RBAC bindings for Dex admin user (admin@dot-ai.local)..."
+kubectl apply -f - <<RBAC_ADMIN_EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dot-ai-test-admin
+rules:
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["tools"]
+    verbs: ["execute"]
+  - apiGroups: ["dot-ai.devopstoolkit.ai"]
+    resources: ["users"]
+    verbs: ["execute"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dot-ai-test-admin-binding
+subjects:
+  - kind: User
+    name: "admin@dot-ai.local"
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: dot-ai-test-admin
+  apiGroup: rbac.authorization.k8s.io
+RBAC_ADMIN_EOF
+
+# Step 5: Run integration tests
+log_info "Running integration tests (RBAC_ENABLED=${RBAC_ENABLED})..."
 npx vitest run --config=vitest.integration.config.ts --test-timeout=1200000 "${TEST_ARGS[@]}"
 
 TEST_EXIT_CODE=$?

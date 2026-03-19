@@ -1,7 +1,3 @@
-# Build artifacts (rebuilt in container)
-dist/
-node_modules/
-
 # Development and test files
 tests/
 *.test.ts

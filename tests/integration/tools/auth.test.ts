@@ -21,21 +21,37 @@ import { createHash, randomBytes } from 'node:crypto';
 /** Make an HTTP request without following redirects. */
 function rawHttp(
   urlStr: string,
-  options: { method?: string; headers?: Record<string, string>; body?: string } = {}
-): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders; body: string }> {
+  options: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  } = {}
+): Promise<{
+  statusCode: number;
+  headers: http.IncomingHttpHeaders;
+  body: string;
+}> {
   return new Promise((resolve, reject) => {
     const url = new URL(urlStr);
     const headers = { ...options.headers };
     if (options.body) {
       headers['Content-Length'] = Buffer.byteLength(options.body).toString();
     }
-    const req = http.request(url, { method: options.method || 'GET', headers }, (res) => {
-      let data = '';
-      res.on('data', (chunk: string | Buffer) => (data += chunk));
-      res.on('end', () =>
-        resolve({ statusCode: res.statusCode || 0, headers: res.headers, body: data })
-      );
-    });
+    const req = http.request(
+      url,
+      { method: options.method || 'GET', headers },
+      res => {
+        let data = '';
+        res.on('data', (chunk: string | Buffer) => (data += chunk));
+        res.on('end', () =>
+          resolve({
+            statusCode: res.statusCode || 0,
+            headers: res.headers,
+            body: data,
+          })
+        );
+      }
+    );
     req.on('error', reject);
     if (options.body) req.write(options.body);
     req.end();
@@ -45,7 +61,9 @@ function rawHttp(
 /** Generate PKCE code_verifier and S256 code_challenge. */
 function generatePkce(): { codeVerifier: string; codeChallenge: string } {
   const codeVerifier = randomBytes(32).toString('base64url');
-  const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+  const codeChallenge = createHash('sha256')
+    .update(codeVerifier)
+    .digest('base64url');
   return { codeVerifier, codeChallenge };
 }
 
@@ -54,7 +72,11 @@ function generatePkce(): { codeVerifier: string; codeChallenge: string } {
  * Helm-generated URLs omit the Kind NodePort (e.g. 8180), but test
  * HTTP requests must go through it.
  */
-function fixTestPort(locationUrl: string, mcpBase: string, dexBase: string): string {
+function fixTestPort(
+  locationUrl: string,
+  mcpBase: string,
+  dexBase: string
+): string {
   try {
     const parsed = new URL(locationUrl);
     const mcp = new URL(mcpBase);
@@ -96,10 +118,9 @@ describe.concurrent('Authentication Integration', () => {
     });
 
     test('should reject request with invalid token', async () => {
-      const response = await badTokenClient.post(
-        '/api/v1/tools/version',
-        { interaction_id: `auth_bad_token_${Date.now()}` }
-      );
+      const response = await badTokenClient.post('/api/v1/tools/version', {
+        interaction_id: `auth_bad_token_${Date.now()}`,
+      });
 
       expect(response).toMatchObject({
         success: false,
@@ -152,7 +173,9 @@ describe.concurrent('Authentication Integration', () => {
           response_types_supported: ['code'],
           grant_types_supported: expect.arrayContaining(['authorization_code']),
           code_challenge_methods_supported: ['S256'],
-          token_endpoint_auth_methods_supported: expect.arrayContaining(['none']),
+          token_endpoint_auth_methods_supported: expect.arrayContaining([
+            'none',
+          ]),
         },
       });
 
@@ -179,7 +202,9 @@ describe.concurrent('Authentication Integration', () => {
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
           ),
           client_name: 'Integration Test Client',
-          redirect_uris: expect.arrayContaining(['http://127.0.0.1:9999/oauth/callback']),
+          redirect_uris: expect.arrayContaining([
+            'http://127.0.0.1:9999/oauth/callback',
+          ]),
           token_endpoint_auth_method: 'none',
           client_id_issued_at: expect.any(Number),
         },
@@ -249,9 +274,9 @@ describe.concurrent('Authentication Integration', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
           },
-          (res) => {
+          res => {
             let data = '';
-            res.on('data', (chunk) => (data += chunk));
+            res.on('data', chunk => (data += chunk));
             res.on('end', () => {
               resolve({
                 statusCode: res.statusCode || 0,
@@ -333,11 +358,19 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
     currentUrl = fixTestPort(currentUrl, mcpBaseUrl, dexIssuerUrl);
 
     let dexRes = await rawHttp(currentUrl);
-    for (let i = 0; i < 5 && dexRes.statusCode >= 300 && dexRes.statusCode < 400; i++) {
+    for (
+      let i = 0;
+      i < 5 && dexRes.statusCode >= 300 && dexRes.statusCode < 400;
+      i++
+    ) {
       const nextLoc = dexRes.headers.location!;
       currentUrl = nextLoc.startsWith('http')
         ? fixTestPort(nextLoc, mcpBaseUrl, dexIssuerUrl)
-        : fixTestPort(new URL(nextLoc, currentUrl).toString(), mcpBaseUrl, dexIssuerUrl);
+        : fixTestPort(
+            new URL(nextLoc, currentUrl).toString(),
+            mcpBaseUrl,
+            dexIssuerUrl
+          );
       dexRes = await rawHttp(currentUrl);
     }
 
@@ -359,7 +392,11 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
       const action = actionMatch[1].replace(/&amp;/g, '&');
       loginPostUrl = action.startsWith('http')
         ? fixTestPort(action, mcpBaseUrl, dexIssuerUrl)
-        : fixTestPort(new URL(action, currentUrl).toString(), mcpBaseUrl, dexIssuerUrl);
+        : fixTestPort(
+            new URL(action, currentUrl).toString(),
+            mcpBaseUrl,
+            dexIssuerUrl
+          );
     } else {
       loginPostUrl = `${dexIssuerUrl}/auth/local/login${reqParam ? `?req=${reqParam}` : ''}`;
     }
@@ -402,12 +439,18 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
       const requestUrl = fixTestPort(absoluteUrl, mcpBaseUrl, dexIssuerUrl);
       const res = await rawHttp(requestUrl);
 
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      if (
+        res.statusCode >= 300 &&
+        res.statusCode < 400 &&
+        res.headers.location
+      ) {
         nextLocation = res.headers.location;
         continue;
       }
 
-      throw new Error(`Unexpected HTTP ${res.statusCode} during redirect chain at ${requestUrl}`);
+      throw new Error(
+        `Unexpected HTTP ${res.statusCode} during redirect chain at ${requestUrl}`
+      );
     }
 
     expect(dotAiAuthCode).toBeTruthy();
@@ -525,32 +568,39 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
 // --- Login Page Theming Tests (PRD #380 Task 3.6) ---
 // Verifies Dex serves the branded DevOps AI Toolkit login page.
 
-describe.skipIf(!dexConfigured)('Login Page Theming (PRD #380 Task 3.6)', () => {
-  const dexIssuerUrl = process.env.DEX_ISSUER_URL!;
+describe.skipIf(!dexConfigured)(
+  'Login Page Theming (PRD #380 Task 3.6)',
+  () => {
+    const dexIssuerUrl = process.env.DEX_ISSUER_URL!;
 
-  test('should serve branded login page with DevOps AI Toolkit theme', async () => {
-    // Hit Dex's auth endpoint directly to get the login page
-    const authUrl = `${dexIssuerUrl}/auth/local?req=test`;
-    const res = await rawHttp(authUrl);
+    test('should serve branded login page with DevOps AI Toolkit theme', async () => {
+      // Hit Dex's auth endpoint directly to get the login page
+      const authUrl = `${dexIssuerUrl}/auth/local?req=test`;
+      const res = await rawHttp(authUrl);
 
-    // Dex may redirect or return 200 — follow up to 3 redirects
-    let body = res.body;
-    const currentUrl = authUrl;
-    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-      const nextUrl = res.headers.location.startsWith('http')
-        ? res.headers.location
-        : new URL(res.headers.location, currentUrl).toString();
-      const followRes = await rawHttp(nextUrl);
-      body = followRes.body;
-    }
+      // Dex may redirect or return 200 — follow up to 3 redirects
+      let body = res.body;
+      const currentUrl = authUrl;
+      if (
+        res.statusCode >= 300 &&
+        res.statusCode < 400 &&
+        res.headers.location
+      ) {
+        const nextUrl = res.headers.location.startsWith('http')
+          ? res.headers.location
+          : new URL(res.headers.location, currentUrl).toString();
+        const followRes = await rawHttp(nextUrl);
+        body = followRes.body;
+      }
 
-    // Verify branded theme elements
-    expect(body).toContain('DevOps AI Toolkit');
-    expect(body).toContain('#FACB00');
-    expect(body).toContain('#2D2D2D');
-    expect(body).toContain('data:image/jpeg;base64,');
-  }, 30000);
-});
+      // Verify branded theme elements
+      expect(body).toContain('DevOps AI Toolkit');
+      expect(body).toContain('#FACB00');
+      expect(body).toContain('#2D2D2D');
+      expect(body).toContain('data:image/jpeg;base64,');
+    }, 30000);
+  }
+);
 
 // --- User Management Tests (PRD #380 Task 2.5) ---
 // Skipped when Dex env vars are not set so existing CI without Dex still passes.
@@ -574,7 +624,8 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
 
   test('should complete full user CRUD workflow with count verification', async () => {
     // Step 1: List users — capture initial count
-    const initialListResponse = await integrationTest.httpClient.get('/api/v1/users');
+    const initialListResponse =
+      await integrationTest.httpClient.get('/api/v1/users');
 
     expect(initialListResponse).toMatchObject({
       success: true,
@@ -587,10 +638,13 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
     const initialCount = initialListResponse.data.total;
 
     // Step 2: Create a new user
-    const createResponse = await integrationTest.httpClient.post('/api/v1/users', {
-      email: testEmail,
-      password: testPassword,
-    });
+    const createResponse = await integrationTest.httpClient.post(
+      '/api/v1/users',
+      {
+        email: testEmail,
+        password: testPassword,
+      }
+    );
 
     expect(createResponse).toMatchObject({
       success: true,
@@ -606,7 +660,8 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
     });
 
     // Step 3: List users — count should have increased by 1 and test user should be present
-    const afterCreateListResponse = await integrationTest.httpClient.get('/api/v1/users');
+    const afterCreateListResponse =
+      await integrationTest.httpClient.get('/api/v1/users');
 
     expect(afterCreateListResponse).toMatchObject({
       success: true,
@@ -617,10 +672,13 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
     });
 
     // Step 4: Create same user again — 409 Conflict
-    const duplicateResponse = await integrationTest.httpClient.post('/api/v1/users', {
-      email: testEmail,
-      password: testPassword,
-    });
+    const duplicateResponse = await integrationTest.httpClient.post(
+      '/api/v1/users',
+      {
+        email: testEmail,
+        password: testPassword,
+      }
+    );
 
     expect(duplicateResponse).toMatchObject({
       success: false,
@@ -649,7 +707,8 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
     });
 
     // Step 6: List users — count should be back to initial and test user should be gone
-    const afterDeleteListResponse = await integrationTest.httpClient.get('/api/v1/users');
+    const afterDeleteListResponse =
+      await integrationTest.httpClient.get('/api/v1/users');
 
     expect(afterDeleteListResponse).toMatchObject({
       success: true,
@@ -695,10 +754,13 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
       });
 
       // Password too short (minimum 8 characters)
-      const shortPwResponse = await integrationTest.httpClient.post('/api/v1/users', {
-        email: `short-pw-${testId}@dot-ai.local`,
-        password: '1234567',
-      });
+      const shortPwResponse = await integrationTest.httpClient.post(
+        '/api/v1/users',
+        {
+          email: `short-pw-${testId}@dot-ai.local`,
+          password: '1234567',
+        }
+      );
 
       expect(shortPwResponse).toMatchObject({
         success: false,

@@ -1,9 +1,11 @@
 # PRD: Agent-to-Agent (A2A) Protocol Support
 
 **GitHub Issue**: [#199](https://github.com/vfarcic/dot-ai/issues/199)
-**Status**: Planning
+**Status**: No Longer Needed
 **Priority**: Low
 **Created**: 2025-10-31
+**Closed**: 2026-03-09
+**Last Updated**: 2026-03-09
 **Owner**: TBD
 
 ---

@@ -29,8 +29,53 @@ import { packageManifests, OutputFormat } from '../core/packaging';
 import { getVisualizationUrl } from '../core/visualization';
 import { invokePluginTool } from '../core/plugin-registry';
 import type { PluginManager } from '../core/plugin-manager';
+import { getCurrentIdentity } from '../interfaces/request-context';
+import { checkToolAccess } from '../core/rbac';
 
 // PRD #359: All helm operations via unified plugin registry
+
+/**
+ * PRD #392 Milestone 2 + PRD #395: Build unified agent instructions.
+ * Presents save locally, deploy to cluster, and push to Git as equal options.
+ * RBAC determines whether deploy is available.
+ */
+async function buildAgentInstructions(
+  outputPath: string,
+  outputFormat: string
+): Promise<string> {
+  const formatNote =
+    outputFormat === 'helm'
+      ? ' (Helm chart)'
+      : outputFormat === 'kustomize'
+        ? ' (Kustomize overlay)'
+        : '';
+  const parts: string[] = [
+    `Manifests generated${formatNote}. Present the user with these options:`,
+    `1. **Save locally**: Write the files to "${outputPath}" — no further server call needed, you already have the file contents.`,
+  ];
+
+  const identity = getCurrentIdentity();
+  const rbacResult = await checkToolAccess(identity, {
+    toolName: 'recommend',
+    verb: 'apply',
+  });
+
+  if (rbacResult.allowed) {
+    parts.push(
+      '2. **Deploy to cluster**: Call the recommend tool with stage: "deployManifests" to apply directly.'
+    );
+  } else {
+    parts.push(
+      "2. **Deploy to cluster**: Not available — requires 'apply' permission on 'recommend'."
+    );
+  }
+
+  parts.push(
+    '3. **Push to Git** (GitOps): Call the recommend tool with stage: "pushToGit", providing repoUrl and targetPath. Recommended for Argo CD/Flux workflows.'
+  );
+
+  return parts.join('\n');
+}
 
 /**
  * Ensure tmp directory exists
@@ -80,6 +125,26 @@ function buildHelmCommandForDisplay(
 }
 
 const execFileAsync = promisify(execFile);
+
+// PRD #395: Unified nextActions — save locally, deploy, or push to Git as equal options
+const NEXT_ACTIONS = [
+  {
+    action: 'saveLocally',
+    description:
+      'Save files locally (no server call needed — files are in the response)',
+  },
+  {
+    action: 'deployManifests',
+    description: 'Apply directly to cluster',
+    stage: 'deployManifests',
+  },
+  {
+    action: 'pushToGit',
+    description: 'Push to Git repository for GitOps (Argo CD, Flux)',
+    stage: 'pushToGit',
+    requiredParams: ['repoUrl', 'targetPath'],
+  },
+];
 
 // Tool metadata for direct MCP registration
 export const GENERATEMANIFESTS_TOOL_NAME = 'generateManifests';
@@ -739,6 +804,7 @@ async function handleHelmGeneration(
           namespace: namespace,
           validationAttempts: attempt,
           timestamp: new Date().toISOString(),
+          nextActions: [NEXT_ACTIONS[0], NEXT_ACTIONS[1]], // saveLocally + deployManifests for Helm (pushToGit not yet supported)
           ...(visualizationUrl ? { visualizationUrl } : {}),
         };
 
@@ -1308,7 +1374,11 @@ export async function handleGenerateManifestsTool(
                 validationAttempts: attempt,
                 packagingAttempts: packagingResult.attempts,
                 timestamp: new Date().toISOString(),
-                agentInstructions: `Write the files to "${outputPath}". The output is a ${outputFormat === 'helm' ? 'Helm chart' : 'Kustomize overlay'}. If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
+                nextActions: NEXT_ACTIONS,
+                agentInstructions: await buildAgentInstructions(
+                  outputPath,
+                  outputFormat
+                ),
                 ...(visualizationUrl ? { visualizationUrl } : {}),
               };
 
@@ -1356,7 +1426,11 @@ export async function handleGenerateManifestsTool(
               files: [{ relativePath: 'manifests.yaml', content: manifests }],
               validationAttempts: attempt,
               timestamp: new Date().toISOString(),
-              agentInstructions: `Write the files to "${outputPath}". If immediate deployment is desired, call the recommend tool with stage: "deployManifests".`,
+              nextActions: NEXT_ACTIONS,
+              agentInstructions: await buildAgentInstructions(
+                outputPath,
+                outputFormat
+              ),
               ...(visualizationUrl ? { visualizationUrl } : {}),
             };
 

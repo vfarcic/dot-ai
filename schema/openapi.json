@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.5.0",
+    "version": "1.10.2",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -506,6 +506,12 @@
                 "solutionId": "example solutionId",
                 "answers": {},
                 "timeout": 30,
+                "repoUrl": "https://example.com",
+                "targetPath": "example targetPath",
+                "branch": "example branch",
+                "commitMessage": "example commitMessage",
+                "authorName": "example authorName",
+                "authorEmail": "user@example.com",
                 "interaction_id": "example interaction_id"
               }
             }
@@ -2611,7 +2617,7 @@
         "type": "object",
         "properties": {
           "stage": {
-            "description": "Deployment workflow stage: \"recommend\" (default), \"chooseSolution\", \"answerQuestion:required\", \"answerQuestion:basic\", \"answerQuestion:advanced\", \"answerQuestion:open\", \"generateManifests\", \"deployManifests\". Defaults to \"recommend\" if omitted.",
+            "description": "Deployment workflow stage: \"recommend\" (default), \"chooseSolution\", \"answerQuestion:required\", \"answerQuestion:basic\", \"answerQuestion:advanced\", \"answerQuestion:open\", \"generateManifests\", \"pushToGit\", \"deployManifests\". Defaults to \"recommend\" if omitted.",
             "type": "string"
           },
           "intent": {
@@ -2625,7 +2631,7 @@
             "type": "boolean"
           },
           "solutionId": {
-            "description": "Solution ID for chooseSolution, answerQuestion, generateManifests, and deployManifests stages",
+            "description": "Solution ID for chooseSolution, answerQuestion, generateManifests, pushToGit, and deployManifests stages",
             "type": "string"
           },
           "answers": {
@@ -2639,6 +2645,31 @@
           "timeout": {
             "description": "Deployment timeout in seconds for deployManifests stage",
             "type": "number"
+          },
+          "repoUrl": {
+            "description": "Git repository URL for pushToGit stage (HTTPS)",
+            "type": "string",
+            "format": "uri"
+          },
+          "targetPath": {
+            "description": "Path within repository for pushToGit stage (e.g., \"apps/postgresql/\")",
+            "type": "string"
+          },
+          "branch": {
+            "description": "Git branch for pushToGit stage (default: main)",
+            "type": "string"
+          },
+          "commitMessage": {
+            "description": "Commit message for pushToGit stage",
+            "type": "string"
+          },
+          "authorName": {
+            "description": "Git author name for pushToGit stage",
+            "type": "string"
+          },
+          "authorEmail": {
+            "description": "Git author email for pushToGit stage",
+            "type": "string"
           },
           "interaction_id": {
             "description": "INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.",

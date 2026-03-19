@@ -7,6 +7,189 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.11.0] - 2026-03-17
+
+### Features
+
+- ## GitOps-Aware Remediation
+
+  The `remediate` tool now detects when Kubernetes resources are managed by GitOps controllers (Argo CD and Flux) and provides Git-based remediation instead of kubectl commands that would be reverted on the next sync.
+
+  When a problematic resource is managed by an Argo CD Application or Flux Kustomization/HelmRelease, remediate automatically identifies the source repository, clones it, locates the relevant manifest files, and suggests specific file-level changes with the exact repo, path, and content to fix. For non-GitOps resources, behavior is unchanged — standard kubectl-based remediation continues as before.
+
+  Three new internal agentic-loop tools (`git_clone`, `fs_list`, `fs_read`) enable the AI investigation loop to explore Git repositories during analysis. These tools are scoped to a temporary directory with path traversal protection and automatic TTL-based cleanup, ensuring secure and isolated repo inspection.
+
+  See the [Remediate Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/tools/remediate) for GitOps-aware remediation examples and details. ([#407](https://github.com/vfarcic/dot-ai/issues/407))
+
+
+## [1.10.2] - 2026-03-13
+
+### Other Changes
+
+- ## Proxy-Compatible Authentication Header
+
+  The REST API now supports `X-Dot-AI-Authorization` as a fallback authentication header. When accessing the API through the Kubernetes API server proxy (e.g., from Headlamp or other dashboard plugins), the standard `Authorization` header is overwritten with a Kubernetes bearer token. Clients can now send their dot-ai token via `X-Dot-AI-Authorization: Bearer <token>` to bypass this limitation.
+
+  The fallback header is checked first; if absent, the standard `Authorization` header is used as before. Existing clients require no changes. ([#proxy-auth](https://github.com/vfarcic/dot-ai/issues/proxy-auth))
+
+
+## [1.10.1] - 2026-03-13
+
+### Bug Fixes
+
+- ## Dex Readiness Probe Timeout
+
+  Fixed intermittent Dex unhealthy events caused by an overly tight readiness probe timeout. The `/healthz/ready` endpoint queries the Kubernetes API server (CRD storage), which can exceed the previous 1-second timeout under normal cluster load. The default readiness probe now uses `timeoutSeconds: 5` and `failureThreshold: 5`, preventing false-positive unhealthy events during routine operations. ([#dex-probe](https://github.com/vfarcic/dot-ai/issues/dex-probe))
+
+
+## [1.10.0] - 2026-03-13
+
+### Features
+
+- ## GitOps Push-to-Git for Recommend Workflow
+
+  The recommend tool now supports pushing generated manifests directly to a Git repository for GitOps workflows. After generating manifests, agents can use the new `pushToGit` stage to clone a target repository, write manifests to a specified path, and push — eliminating the manual copy-paste step for users running Argo CD, Flux, or similar GitOps controllers.
+
+  The `generateManifests` response now includes `nextActions` offering both `pushToGit` (for GitOps) and `deployManifests` (for direct cluster apply), letting agents guide users to the right deployment path. The push response includes a file preview with sizes and line counts, the commit SHA, and a reminder that the GitOps controller will sync automatically. GitOps push is currently supported for raw YAML and Kustomize manifests; Helm chart support (generating Argo CD Application or Flux HelmRelease CRs) is planned for a future release.
+
+  Authentication is configured via `DOT_AI_GIT_TOKEN` environment variable (PAT) or GitHub App credentials. See the Helm chart's `extraEnv` section for configuration examples.
+
+  See the [Recommend Tool Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/tools/recommend) for usage details and GitOps examples. ([#395](https://github.com/vfarcic/dot-ai/issues/395))
+
+
+## [1.9.1] - 2026-03-11
+
+### Bug Fixes
+
+- ## Admin Role Missing User Management Permission
+
+  The built-in `dotai-admin` ClusterRole now grants the `apply` verb on the `users` resource. Previously, admins could view users but not create, update, or delete them, which required a custom ClusterRole as a workaround. Upgrading the Helm chart automatically fixes this for all existing `dotai-admin` bindings. ([#admin-users-apply](https://github.com/vfarcic/dot-ai/issues/admin-users-apply))
+
+
+## [1.9.0] - 2026-03-11
+
+### Features
+
+- ## User Management Visibility in Tool Discovery
+
+  The `GET /api/v1/tools` endpoint now includes a virtual `users` entry when the authenticated user has `manageUsers` RBAC permission on the `users` resource. This enables Web UI clients to show or hide user management features based on the user's authorization level, without requiring a separate permissions endpoint.
+
+  Token users and RBAC-disabled deployments see `users` in discovery automatically. OAuth users only see it when granted the appropriate ClusterRoleBinding (e.g., `dotai-admin`). ([#392-users-discovery](https://github.com/vfarcic/dot-ai/issues/392-users-discovery))
+
+
+## [1.8.1] - 2026-03-11
+
+### Features
+
+- ## Kimi K2.5 Model Support
+
+  The Kimi AI provider now uses Kimi K2.5, Moonshot AI's latest model with 1T parameters (32B active) in a Mixture-of-Experts architecture and a 256K token context window. K2.5 brings improved coding benchmarks (76.8% SWE-Bench Verified, 85.0% LiveCodeBench v6), native multimodality, and agent swarm support for up to 100 specialized agents with 1,500 simultaneous tool calls.
+
+  K2.5 has thinking mode enabled by default, so the separate `kimi_thinking` provider has been removed — set `AI_PROVIDER=kimi` to use thinking mode directly. The Vercel AI SDK has been upgraded to v6 with `@ai-sdk/openai-compatible`, which resolves previous issues with multi-turn tool calling by properly preserving `reasoning_content` in conversation history.
+
+  The same `MOONSHOT_API_KEY` environment variable and API endpoint continue to work. If you were using `AI_PROVIDER=kimi_thinking`, switch to `AI_PROVIDER=kimi` — the separate thinking provider has been removed since K2.5 includes thinking by default. See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/setup/deployment) for provider configuration details. ([#353](https://github.com/vfarcic/dot-ai/issues/353))
+- ## OpenAI GPT-5.4 Model Update
+
+  The default OpenAI model is now GPT-5.4, replacing gpt-5.1-codex. GPT-5.4 is OpenAI's most capable general-purpose model, absorbing the Codex coding capabilities into the main model line with 33% fewer factual errors, more token-efficient reasoning, and a 1M+ token context window (1,050,000 tokens).
+
+  No configuration changes are required — the same `OPENAI_API_KEY` environment variable and API endpoint continue to work. Both the `openai` and `custom` provider entries now default to `gpt-5.4`. Users can override the model with the `AI_MODEL` environment variable if needed.
+
+  See the [Deployment Guide](https://devopstoolkit.ai/docs/ai-engine/setup/deployment) for the full list of supported models. ([#369](https://github.com/vfarcic/dot-ai/issues/369))
+- ## Kubernetes RBAC Enforcement
+
+  dot-ai now enforces tool-level authorization for OAuth-authenticated users using Kubernetes RBAC via SubjectAccessReview. Admins control who can use which tools by creating standard Kubernetes RoleBindings against pre-built ClusterRoles shipped in the Helm chart.
+
+  **Three pre-built ClusterRoles:**
+  - `dotai-viewer` — read-only access to all tools (query, plan, recommend without apply)
+  - `dotai-operator` — full access including mutations (deploy, remediate, manage org data/knowledge)
+  - `dotai-admin` — operator access plus user management
+
+  **Two-verb permission model:**
+  - `execute` — use any tool for reading, planning, querying (non-mutating)
+  - `apply` — perform mutations (deploy manifests, execute remediations, create/delete org data and knowledge)
+
+  **Key behaviors:**
+  - OAuth users without RoleBindings are denied all tool access (default deny)
+  - Static token users bypass RBAC entirely (backward-compatible)
+  - RBAC-filtered tool discovery — `GET /api/v1/tools` returns only authorized tools; MCP sessions only register authorized tools
+  - Multi-phase tools (recommend, operate, remediate) allow read phases with `execute` but require `apply` for mutations
+  - All authorization decisions (allowed and denied) are audit-logged with user identity, tool, namespace, and timestamp
+
+  **Setup:** Enable RBAC enforcement via Helm value `rbac.enforcement.enabled: true` (disabled by default). Create ClusterRoleBindings to grant users or groups access. See the [Authorization Guide](https://devopstoolkit.ai/docs/ai-engine/setup/authorization) for configuration details.
+
+  ([#392](https://github.com/vfarcic/dot-ai/issues/392))
+
+
+## [1.7.0] - 2026-03-06
+
+### Bug Fixes
+
+- ## Fix user prompts loading from public git repositories
+
+  User prompts from public git repositories now load correctly without requiring authentication. Previously, the shared `cloneRepo` function always required a PAT or GitHub App credentials, causing public repos configured via `DOT_AI_USER_PROMPTS_REPO` to fail with "No authentication method configured". The clone and pull functions now fall back to unauthenticated access when no credentials are set.
+
+### Breaking Changes
+
+- ## Externalize Dex credentials to a user-managed Secret
+
+  Dex OAuth credentials (`DEX_CLIENT_SECRET`, `DOT_AI_JWT_SECRET`) are no longer auto-generated by the Helm chart. Instead, users must create a Kubernetes Secret before installing and reference it via `dex.existingSecret`. The admin password bcrypt hash is provided via `dex.adminPasswordHash`. This eliminates the `lookup`-based credential generation that caused "invalid client_secret" errors when deploying via ArgoCD or any tool that uses `helm template`.
+
+  **Migration**: Create the secret, set `dex.existingSecret` and `dex.adminPasswordHash` in your values, and add the secret to `dex.envFrom`. See the [Identity Provider Connectors](https://devopstoolkit.ai/docs/ai-engine/setup/connectors) guide for full instructions.
+
+
+## [1.6.7] - 2026-03-06
+
+### Bug Fixes
+
+- ## Preserve dex-credentials secret across Helm upgrades
+
+  Added `helm.sh/resource-policy: keep` to the `dex-credentials` secret so Helm preserves it across upgrades. Previously, each upgrade deleted and recreated the secret, but the Dex pod kept stale environment variables in memory — causing "invalid client_secret" errors until the pod was manually restarted.
+
+
+## [1.6.6] - 2026-03-06
+
+### Documentation
+
+- ## Update connector docs with dex-credentials requirement
+
+  Identity Provider Connectors documentation now shows `dex-credentials` in all `envFrom` examples. When overriding `dex.envFrom` to add connector secrets (e.g., Google OAuth), `dex-credentials` must be included in the list — otherwise OAuth authentication fails because Dex cannot read the client secret environment variable. ([#380](https://github.com/vfarcic/dot-ai/issues/380))
+
+
+## [1.6.5] - 2026-03-06
+
+### Bug Fixes
+
+- ## Fix OAuth login failure after Helm upgrades
+
+  Helm upgrades no longer break OAuth authentication. Previously, the Dex OIDC config embedded the client secret directly, and the Dex pod didn't restart on upgrades — causing a credential mismatch that produced "invalid client_secret" errors. The chart now uses Dex's `secretEnv` feature to inject the client secret via environment variable (`DEX_CLIENT_SECRET`), keeping the config content stable across upgrades. A dedicated `dex-credentials` secret and `envFrom` injection ensure Dex always reads the correct credentials at runtime without requiring pod restarts. ([#380](https://github.com/vfarcic/dot-ai/issues/380))
+- ## Fix agentic-tools arm64 Docker image build failure
+
+  The agentic-tools plugin Docker image now builds reliably for both amd64 and arm64 architectures. Previously, `npm ci` ran inside the Docker build under QEMU arm64 emulation, which could hang or crash with "Illegal instruction". The build now runs `npm ci` and TypeScript compilation on the native CI runner, then copies the pre-built artifacts into the Docker image. All agentic-tools dependencies are pure JavaScript, so the pre-built output works on both architectures.
+
+
+## [1.6.4] - 2026-03-06
+
+### Bug Fixes
+
+- ## Fix OAuth login failure after Helm upgrades
+
+  Helm upgrades no longer break OAuth authentication. Previously, the Dex OIDC config embedded the client secret directly, and the Dex pod didn't restart on upgrades — causing a credential mismatch that produced "invalid client_secret" errors. The chart now uses Dex's `secretEnv` feature to inject the client secret via environment variable (`DEX_CLIENT_SECRET`), keeping the config content stable across upgrades. A dedicated `dex-credentials` secret and `envFrom` injection ensure Dex always reads the correct credentials at runtime without requiring pod restarts. ([#380](https://github.com/vfarcic/dot-ai/issues/380))
+
+
+## [1.6.3] - 2026-03-05
+
+No significant changes.
+
+
+## [1.6.2] - 2026-03-05
+
+### Bug Fixes
+
+- ## Resource Status Fetch Concurrency Fix
+
+  The REST API's resource list endpoint now fetches live status in batches of 5 instead of all at once. Previously, requesting `includeStatus=true` for a list of N resources fired N concurrent `kubectl` calls simultaneously via the agentic-tools plugin, overwhelming the pod's CPU and causing liveness probe failures and repeated restarts. Status data now arrives incrementally while keeping the pod stable under load.
+
+
 ## [1.6.1] - 2026-03-05
 
 ### Bug Fixes

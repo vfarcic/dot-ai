@@ -49,18 +49,29 @@ interface HTTPRouteResource {
 describe.concurrent('Dex Helm Chart Integration', () => {
   const chartPath = './charts';
 
-  function findResourcesByKind<T>(docs: unknown[], kind: string, nameIncludes?: string): T[] {
+  function findResourcesByKind<T>(
+    docs: unknown[],
+    kind: string,
+    nameIncludes?: string
+  ): T[] {
     return docs.filter(
       (doc: unknown) =>
         typeof doc === 'object' &&
         doc !== null &&
         'kind' in doc &&
         doc.kind === kind &&
-        (!nameIncludes || ('metadata' in doc && typeof (doc as any).metadata?.name === 'string' && (doc as any).metadata.name.includes(nameIncludes)))
+        (!nameIncludes ||
+          ('metadata' in doc &&
+            typeof (doc as any).metadata?.name === 'string' &&
+            (doc as any).metadata.name.includes(nameIncludes)))
     ) as T[];
   }
 
-  function findResourceByKind<T>(docs: unknown[], kind: string, nameIncludes?: string): T | undefined {
+  function findResourceByKind<T>(
+    docs: unknown[],
+    kind: string,
+    nameIncludes?: string
+  ): T | undefined {
     return findResourcesByKind<T>(docs, kind, nameIncludes)[0];
   }
 
@@ -70,10 +81,9 @@ describe.concurrent('Dex Helm Chart Integration', () => {
       .join(' ');
 
     try {
-      return execSync(
-        `helm template test-auth ${chartPath} ${setArgs}`,
-        { encoding: 'utf-8' }
-      );
+      return execSync(`helm template test-auth ${chartPath} ${setArgs}`, {
+        encoding: 'utf-8',
+      });
     } catch (error: unknown) {
       if (error instanceof Error && 'stderr' in error) {
         return (error as { stderr: string }).stderr || '';
@@ -90,8 +100,13 @@ describe.concurrent('Dex Helm Chart Integration', () => {
       .map(doc => yaml.load(doc));
   }
 
-  function getEnvVar(deployment: DeploymentResource, name: string): string | undefined {
-    const container = deployment.spec.template.spec.containers.find(c => c.name === 'mcp-server');
+  function getEnvVar(
+    deployment: DeploymentResource,
+    name: string
+  ): string | undefined {
+    const container = deployment.spec.template.spec.containers.find(
+      c => c.name === 'mcp-server'
+    );
     return container?.env?.find(e => e.name === name)?.value;
   }
 
@@ -103,7 +118,10 @@ describe.concurrent('Dex Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const deployment = findResourceByKind<DeploymentResource>(docs, 'Deployment');
+      const deployment = findResourceByKind<DeploymentResource>(
+        docs,
+        'Deployment'
+      );
 
       expect(deployment).toBeDefined();
       const dexIssuerUrl = getEnvVar(deployment!, 'DEX_ISSUER_URL');
@@ -117,7 +135,10 @@ describe.concurrent('Dex Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const deployment = findResourceByKind<DeploymentResource>(docs, 'Deployment');
+      const deployment = findResourceByKind<DeploymentResource>(
+        docs,
+        'Deployment'
+      );
 
       expect(deployment).toBeDefined();
       const externalUrl = getEnvVar(deployment!, 'DOT_AI_EXTERNAL_URL');
@@ -131,7 +152,11 @@ describe.concurrent('Dex Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const dexIngresses = findResourcesByKind<IngressResource>(docs, 'Ingress', '-dex');
+      const dexIngresses = findResourcesByKind<IngressResource>(
+        docs,
+        'Ingress',
+        '-dex'
+      );
 
       expect(dexIngresses).toHaveLength(0);
     });
@@ -143,7 +168,11 @@ describe.concurrent('Dex Helm Chart Integration', () => {
       });
 
       const docs = parseYamlDocs(output);
-      const dexRoutes = findResourcesByKind<HTTPRouteResource>(docs, 'HTTPRoute', '-dex');
+      const dexRoutes = findResourcesByKind<HTTPRouteResource>(
+        docs,
+        'HTTPRoute',
+        '-dex'
+      );
 
       expect(dexRoutes).toHaveLength(0);
     });
@@ -153,13 +182,19 @@ describe.concurrent('Dex Helm Chart Integration', () => {
     test('should set DEX_ISSUER_URL when dex.enabled=true', () => {
       const output = helmTemplate({
         'dex.enabled': true,
+        'dex.existingSecret': 'dex-credentials',
+        'dex.adminPasswordHash': '$2a$10$fakehashfortesting',
         'ingress.enabled': true,
         'ingress.tls.enabled': true,
         'ingress.host': 'dot-ai.example.com',
       });
 
       const docs = parseYamlDocs(output);
-      const deployment = findResourceByKind<DeploymentResource>(docs, 'Deployment', 'test-auth-dot-ai');
+      const deployment = findResourceByKind<DeploymentResource>(
+        docs,
+        'Deployment',
+        'test-auth-dot-ai'
+      );
 
       expect(deployment).toBeDefined();
       const dexIssuerUrl = getEnvVar(deployment!, 'DEX_ISSUER_URL');
@@ -169,13 +204,19 @@ describe.concurrent('Dex Helm Chart Integration', () => {
     test('should set DOT_AI_EXTERNAL_URL when dex.enabled=true', () => {
       const output = helmTemplate({
         'dex.enabled': true,
+        'dex.existingSecret': 'dex-credentials',
+        'dex.adminPasswordHash': '$2a$10$fakehashfortesting',
         'ingress.enabled': true,
         'ingress.tls.enabled': true,
         'ingress.host': 'dot-ai.example.com',
       });
 
       const docs = parseYamlDocs(output);
-      const deployment = findResourceByKind<DeploymentResource>(docs, 'Deployment', 'test-auth-dot-ai');
+      const deployment = findResourceByKind<DeploymentResource>(
+        docs,
+        'Deployment',
+        'test-auth-dot-ai'
+      );
 
       expect(deployment).toBeDefined();
       const externalUrl = getEnvVar(deployment!, 'DOT_AI_EXTERNAL_URL');
@@ -185,13 +226,19 @@ describe.concurrent('Dex Helm Chart Integration', () => {
     test('should use HTTP for DEX_TOKEN_ENDPOINT (in-cluster communication)', () => {
       const output = helmTemplate({
         'dex.enabled': true,
+        'dex.existingSecret': 'dex-credentials',
+        'dex.adminPasswordHash': '$2a$10$fakehashfortesting',
         'ingress.enabled': true,
         'ingress.tls.enabled': true,
         'ingress.host': 'dot-ai.example.com',
       });
 
       const docs = parseYamlDocs(output);
-      const deployment = findResourceByKind<DeploymentResource>(docs, 'Deployment', 'test-auth-dot-ai');
+      const deployment = findResourceByKind<DeploymentResource>(
+        docs,
+        'Deployment',
+        'test-auth-dot-ai'
+      );
 
       expect(deployment).toBeDefined();
       const tokenEndpoint = getEnvVar(deployment!, 'DEX_TOKEN_ENDPOINT');
@@ -202,12 +249,18 @@ describe.concurrent('Dex Helm Chart Integration', () => {
     test('should create Dex ingress when dex.enabled=true and ingress.enabled=true', () => {
       const output = helmTemplate({
         'dex.enabled': true,
+        'dex.existingSecret': 'dex-credentials',
+        'dex.adminPasswordHash': '$2a$10$fakehashfortesting',
         'ingress.enabled': true,
         'ingress.host': 'dot-ai.example.com',
       });
 
       const docs = parseYamlDocs(output);
-      const dexIngress = findResourceByKind<IngressResource>(docs, 'Ingress', '-dex');
+      const dexIngress = findResourceByKind<IngressResource>(
+        docs,
+        'Ingress',
+        '-dex'
+      );
 
       expect(dexIngress).toBeDefined();
       expect(dexIngress?.spec.rules[0].host).toBe('dex.dot-ai.example.com');

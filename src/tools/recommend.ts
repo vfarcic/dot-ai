@@ -12,7 +12,10 @@ import { handleChooseSolutionTool } from './choose-solution';
 import { handleAnswerQuestionTool } from './answer-question';
 import { handleGenerateManifestsTool } from './generate-manifests';
 import { handleDeployManifestsTool } from './deploy-manifests';
+import { handlePushToGitTool } from './push-to-git';
 import { loadPrompt } from '../core/shared-prompt-loader';
+import { getCurrentIdentity } from '../interfaces/request-context';
+import { checkToolAccess } from '../core/rbac';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
 import { getVisualizationUrl } from '../core/visualization';
 import { ArtifactHubService } from '../core/artifacthub';
@@ -28,15 +31,22 @@ export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy applications, infrastructure, 
 
 // Zod schema for MCP registration (unified tool with stage routing)
 export const RECOMMEND_TOOL_INPUT_SCHEMA = {
-  stage: z.string().optional().describe('Deployment workflow stage: "recommend" (default), "chooseSolution", "answerQuestion:required", "answerQuestion:basic", "answerQuestion:advanced", "answerQuestion:open", "generateManifests", "deployManifests". Defaults to "recommend" if omitted.'),
+  stage: z.string().optional().describe('Deployment workflow stage: "recommend" (default), "chooseSolution", "answerQuestion:required", "answerQuestion:basic", "answerQuestion:advanced", "answerQuestion:open", "generateManifests", "pushToGit", "deployManifests". Defaults to "recommend" if omitted.'),
   intent: z.string().min(1).max(1000).optional().describe('What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: "deploy web application", "create PostgreSQL database", "setup Redis cache", "install Prometheus monitoring", "configure Ingress controller", "provision storage volumes", "launch MongoDB operator", "run Node.js API", "setup CI/CD pipeline", "create load balancer", "install Grafana dashboard", "deploy React frontend"'),
   final: z.boolean().optional().describe('Set to true to skip intent clarification and proceed directly with recommendations. If false or omitted, the tool will analyze the intent and provide clarification questions to help improve recommendation quality.'),
   // Parameters for chooseSolution stage
-  solutionId: z.string().optional().describe('Solution ID for chooseSolution, answerQuestion, generateManifests, and deployManifests stages'),
+  solutionId: z.string().optional().describe('Solution ID for chooseSolution, answerQuestion, generateManifests, pushToGit, and deployManifests stages'),
   // Parameters for answerQuestion stage (stage parameter contains the config stage like "answerQuestion:required")
   answers: z.record(z.string(), z.any()).optional().describe('User answers for answerQuestion stage'),
   // Parameters for deployManifests stage
   timeout: z.number().optional().describe('Deployment timeout in seconds for deployManifests stage'),
+  // Parameters for pushToGit stage (PRD #395)
+  repoUrl: z.string().url().optional().describe('Git repository URL for pushToGit stage (HTTPS)'),
+  targetPath: z.string().optional().describe('Path within repository for pushToGit stage (e.g., "apps/postgresql/")'),
+  branch: z.string().optional().describe('Git branch for pushToGit stage (default: main)'),
+  commitMessage: z.string().optional().describe('Commit message for pushToGit stage'),
+  authorName: z.string().optional().describe('Git author name for pushToGit stage'),
+  authorEmail: z.string().optional().describe('Git author email for pushToGit stage'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
@@ -44,7 +54,7 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
 // Supports both capability-based solutions (with resources) and Helm solutions (with chart)
 export interface SolutionData {
   toolName: 'recommend';  // PRD #320: Tool identifier for visualization endpoint
-  stage?: 'solutions' | 'questions' | 'manifests' | 'deployed';  // UI workflow stage for page refresh support
+  stage?: 'solutions' | 'questions' | 'manifests' | 'pushed' | 'deployed';  // UI workflow stage for page refresh support
   intent: string;
   type: string;  // 'single' | 'combination' for capability, 'helm' for Helm
   score: number;
@@ -86,6 +96,14 @@ export interface SolutionData {
     namespace?: string;
     validationAttempts?: number;
     packagingAttempts?: number;
+  };
+  // PRD #395: Git push data for GitOps workflows
+  gitPush?: {
+    repoUrl: string;
+    path: string;
+    branch: string;
+    commitSha?: string;
+    pushedAt?: string;
   };
   // Workflow state tracking for UI page refresh support (dot-ai-ui feature request)
   currentQuestionStage?: 'required' | 'basic' | 'advanced' | 'open';
@@ -148,6 +166,13 @@ interface RecommendToolArgs {
   solutionId?: string;
   answers?: Record<string, unknown>;
   timeout?: number;
+  // PRD #395: pushToGit parameters
+  repoUrl?: string;
+  targetPath?: string;
+  branch?: string;
+  commitMessage?: string;
+  authorName?: string;
+  authorEmail?: string;
   interaction_id?: string;
 }
 
@@ -186,6 +211,10 @@ export async function handleRecommendTool(
 
       logger.debug('Handling recommend request with stage routing', { requestId, stage, intent: args?.intent });
 
+      // Initialize session manager (shared across stages)
+      const sessionManager = new GenericSessionManager<SolutionData>('sol');
+      logger.debug('Session manager initialized', { requestId });
+
       // Route to appropriate handler based on stage
       if (stage === 'chooseSolution') {
         return await handleChooseSolutionTool(args as { solutionId: string }, dotAI, logger, requestId);
@@ -209,19 +238,56 @@ export async function handleRecommendTool(
       }
 
       if (stage === 'deployManifests') {
+        // PRD #392 Milestone 2: deployManifests requires 'apply' verb
+        const identity = getCurrentIdentity();
+        const rbacResult = await checkToolAccess(identity, {
+          toolName: 'recommend',
+          verb: 'apply',
+        });
+        if (!rbacResult.allowed) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  error: 'FORBIDDEN',
+                  message: `Access denied: deploying manifests requires 'apply' permission on 'recommend'. Save the files locally or push to Git to apply them through your own workflow.`,
+                  tool: 'recommend',
+                  stage: 'deployManifests',
+                  user: identity?.email,
+                }),
+              },
+            ],
+          };
+        }
         // PRD #359: Uses unified plugin registry for kubectl operations
         return await handleDeployManifestsTool(args as { solutionId: string }, dotAI, logger, requestId);
+      }
+
+      // PRD #395: pushToGit stage for GitOps workflows
+      if (stage === 'pushToGit') {
+        return await handlePushToGitTool(
+          {
+            solutionId: args.solutionId || '',
+            repoUrl: args.repoUrl || '',
+            targetPath: args.targetPath || '',
+            branch: args.branch,
+            commitMessage: args.commitMessage,
+            authorName: args.authorName,
+            authorEmail: args.authorEmail,
+            interaction_id: args.interaction_id,
+          },
+          dotAI,
+          logger,
+          requestId,
+          sessionManager
+        );
       }
 
       // Default: recommend stage (original recommend logic)
       // Input validation is handled automatically by MCP SDK with Zod schema
       // args are already validated and typed when we reach this point
       // AI provider is already initialized and validated in dotAI.ai
-
-      // Initialize session manager
-      const sessionManager = new GenericSessionManager<SolutionData>('sol');
-      logger.debug('Session manager initialized', { requestId });
-
 
       logger.info('Starting resource recommendation process', {
         requestId,

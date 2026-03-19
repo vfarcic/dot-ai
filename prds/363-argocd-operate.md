@@ -232,9 +232,8 @@ Finding the right manifest file in the repo:
 
 ## Out of Scope
 
-1. **Flux support**: Separate PRD (task to create it included)
-2. **Remediate integration**: Separate PRD (task to create it included)
-3. **Recommend integration**: Already has Git push via PRD #362
+1. **Flux support**: Separate PRD (task in Milestone 7)
+2. **Remediate/recommend/query integration**: Evaluated in Milestone 7 after operate implementation proves the pattern
 4. **ApplicationSet support**: Complex multi-app patterns
 5. **Sync triggering**: Manually trigger Argo CD sync after push
 6. **Conflict resolution**: If Git push fails, user resolves manually
@@ -245,7 +244,7 @@ Finding the right manifest file in the repo:
 
 | Dependency | Type | Status |
 |------------|------|--------|
-| PRD #362 (Git Operations) | Required | Draft - provides git-clone, git-push tools |
+| PRD #362 (Git Operations) | Required | ✅ Complete - provides git-clone, git-push tools |
 | kubectl plugin | Internal | Exists - used for Application CR queries |
 
 ---
@@ -299,10 +298,13 @@ Finding the right manifest file in the repo:
 - [ ] Document GitOps detection mechanism
 - [ ] Troubleshooting guide for common issues
 
-### Milestone 7: Future PRD Tasks
+### Milestone 7: Evaluate GitOps Awareness for Other Tools
+- [ ] **Analyze**: Review remediate tool — when a resource is GitOps-managed, remediation should modify Git instead of the cluster
+- [ ] **Analyze**: Review recommend tool — auto-detect repo/path from existing Application/Kustomization CRs instead of asking the user (enhances pushToGit from PRD #395)
+- [ ] **Analyze**: Review query tool — surface GitOps management info (e.g., "this deployment is managed by Argo CD Application X from repo Y")
+- [ ] **Decision**: For each tool, decide whether to extend #363, create a separate PRD, or skip
 - [ ] **Task**: Create PRD for Flux support in operate (similar pattern to Argo CD)
-- [ ] **Task**: Create PRD for Argo CD support in remediate tool
-- [ ] **Task**: Create PRD for Flux support in remediate tool
+- [ ] **Task**: Create follow-up PRDs for other tools based on analysis above
 
 ---
 

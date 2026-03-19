@@ -1,25 +1,8 @@
 # Agentic Tools Plugin
-# Multi-stage build for minimal production image
+# Pre-built artifacts (dist/ and node_modules/) are created by the CI workflow
+# on native amd64, avoiding QEMU arm64 emulation issues with npm ci.
+# All dependencies are pure JavaScript, so pre-built artifacts work on both architectures.
 
-# Build stage
-FROM node:20-alpine@sha256:09e2b3d9726018aecf269bd35325f46bf75046a643a66d28360ec71132750ec8 AS builder
-
-WORKDIR /app
-
-# Copy dependency manifests first for layer caching
-COPY package.json package-lock.json* ./
-
-# Install all dependencies (including dev for TypeScript compilation)
-RUN npm ci
-
-# Copy TypeScript source and config
-COPY tsconfig.json ./
-COPY src/ ./src/
-
-# Build TypeScript to JavaScript and prune dev dependencies
-RUN npm run build && npm prune --omit=dev
-
-# Runtime stage - minimal image with no build tools
 FROM node:20-alpine@sha256:09e2b3d9726018aecf269bd35325f46bf75046a643a66d28360ec71132750ec8
 
 WORKDIR /app
@@ -32,9 +15,10 @@ COPY --from=alpine/helm:4.0.4@sha256:adb87b125214fd356ecc1a24a1e86e4afed0ee03de5
 RUN addgroup -g 10001 -S appgroup && \
     adduser -u 10001 -S appuser -G appgroup
 
-# Copy compiled JavaScript and production dependencies
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
+# Copy pre-built JavaScript and production dependencies from CI
+COPY package.json ./
+COPY dist/ ./dist/
+COPY node_modules/ ./node_modules/
 
 # Set ownership to non-root user
 RUN chown -R appuser:appgroup /app

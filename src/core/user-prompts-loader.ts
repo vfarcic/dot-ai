@@ -16,7 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { Logger } from './error-handling';
-import { execAsync } from './platform-utils';
+import { cloneRepo, pullRepo, scrubCredentials } from './git-utils';
 import { Prompt, PromptFile, loadPromptFile } from '../tools/prompts';
 
 /**
@@ -97,21 +97,6 @@ export function getCacheDirectory(): string {
 }
 
 /**
- * Insert authentication token into git URL
- * Works with any HTTPS git URL (GitHub, GitLab, Gitea, Bitbucket, etc.)
- */
-export function insertTokenInUrl(url: string, token: string): string {
-  try {
-    const parsed = new URL(url);
-    parsed.username = token;
-    return parsed.toString();
-  } catch {
-    // If URL parsing fails, return original
-    return url;
-  }
-}
-
-/**
  * Sanitize URL for logging (remove credentials)
  */
 export function sanitizeUrlForLogging(url: string): string {
@@ -142,14 +127,10 @@ async function cloneRepository(
   localPath: string,
   logger: Logger
 ): Promise<void> {
-  // Validate branch name to prevent command injection
+  // Validate branch name as defense-in-depth
   if (!isValidGitBranch(config.branch)) {
     throw new Error(`Invalid branch name: ${config.branch}`);
   }
-
-  const authUrl = config.gitToken
-    ? insertTokenInUrl(config.repoUrl, config.gitToken)
-    : config.repoUrl;
 
   const sanitizedUrl = sanitizeUrlForLogging(config.repoUrl);
 
@@ -171,9 +152,10 @@ async function cloneRepository(
       fs.rmSync(localPath, { recursive: true, force: true });
     }
 
-    // Clone with shallow depth for faster operation
-    const cloneCommand = `git clone --depth 1 --branch ${config.branch} "${authUrl}" "${localPath}"`;
-    await execAsync(cloneCommand);
+    await cloneRepo(config.repoUrl, localPath, {
+      branch: config.branch,
+      depth: 1,
+    });
 
     logger.info('Successfully cloned user prompts repository', {
       url: sanitizedUrl,
@@ -182,10 +164,11 @@ async function cloneRepository(
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    // Sanitize error message in case it contains the token
-    const sanitizedError = config.gitToken
-      ? errorMessage.replaceAll(config.gitToken, '***')
-      : errorMessage;
+    const sanitizedError = scrubCredentials(
+      config.gitToken
+        ? errorMessage.replaceAll(config.gitToken, '***')
+        : errorMessage
+    );
 
     logger.error(
       'Failed to clone user prompts repository',
@@ -218,15 +201,7 @@ async function pullRepository(
   });
 
   try {
-    // Set up credentials for pull if token is provided
-    if (config.gitToken) {
-      const authUrl = insertTokenInUrl(config.repoUrl, config.gitToken);
-      await execAsync(
-        `git -C "${localPath}" remote set-url origin "${authUrl}"`
-      );
-    }
-
-    await execAsync(`git -C "${localPath}" pull --ff-only`);
+    await pullRepo(localPath);
 
     logger.debug('Successfully pulled user prompts repository', {
       url: sanitizedUrl,
@@ -234,9 +209,11 @@ async function pullRepository(
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    const sanitizedError = config.gitToken
-      ? errorMessage.replaceAll(config.gitToken, '***')
-      : errorMessage;
+    const sanitizedError = scrubCredentials(
+      config.gitToken
+        ? errorMessage.replaceAll(config.gitToken, '***')
+        : errorMessage
+    );
 
     logger.warn(
       'Failed to pull user prompts repository, using cached version',

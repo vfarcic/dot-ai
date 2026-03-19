@@ -40,10 +40,12 @@ function createMockClient() {
 describe('Qdrant Operations', () => {
   let mockClient: ReturnType<typeof createMockClient>;
   const mockGetQdrantClient = vi.mocked(clientModule.getQdrantClient);
+  const mockGetQdrantConfig = vi.mocked(clientModule.getQdrantConfig);
 
   beforeEach(() => {
     mockClient = createMockClient();
     mockGetQdrantClient.mockReturnValue(mockClient as any);
+    mockGetQdrantConfig.mockReturnValue({ url: 'http://localhost:6333', hasApiKey: false });
   });
 
   afterEach(() => {
@@ -376,6 +378,7 @@ describe('Qdrant Operations', () => {
         vectorSize: 1536,
         status: 'green',
         exists: true,
+        url: 'http://localhost:6333',
       });
     });
 
@@ -389,6 +392,7 @@ describe('Qdrant Operations', () => {
         vectorSize: 0,
         status: 'not_found',
         exists: false,
+        url: 'http://localhost:6333',
       });
     });
   });

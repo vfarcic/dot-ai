@@ -1,7 +1,7 @@
 # PRD: Git Push Recommend Integration
 
 **Issue**: [#395](https://github.com/vfarcic/dot-ai/issues/395)
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **Created**: 2026-03-05
 **Depends On**: PRD #362 (Milestone 1 - Complete)
@@ -207,31 +207,31 @@ Modify `generate-manifests.ts` response to prompt for Git push:
 
 ### Milestone 1: Core Implementation
 
-- [ ] Create `src/tools/push-to-git.ts` with `handlePushToGitTool`
-- [ ] Add `pushToGit` stage routing in `recommend.ts`
-- [ ] Update `SolutionData` interface with `gitPush` field
-- [ ] Add Zod schema validation for `pushToGit` parameters
-- [ ] Wire auth config from environment (`getGitAuthConfigFromEnv`)
+- [x] Create `src/tools/push-to-git.ts` with `handlePushToGitTool`
+- [x] Add `pushToGit` stage routing in `recommend.ts`
+- [x] Update `SolutionData` interface with `gitPush` field
+- [x] Add Zod schema validation for `pushToGit` parameters
+- [x] Wire auth config from environment (`getGitAuthConfigFromEnv`)
 
 ### Milestone 2: User Experience
 
-- [ ] Add confirmation prompt before push
-- [ ] Show preview of files that will be pushed
-- [ ] Success message with Git URL and commit SHA
-- [ ] Helpful error messages with remediation steps
+- [x] Add confirmation prompt before push (via MCP agent)
+- [x] Show preview of files that will be pushed
+- [x] Success message with Git URL and commit SHA
+- [x] Helpful error messages with remediation steps
 
 ### Milestone 3: Testing
 
-- [ ] Unit tests for `handlePushToGitTool` function
-- [ ] Integration tests for recommend → pushToGit flow
-- [ ] Test with real Git repo (test organization)
-- [ ] Test error scenarios (auth failures, conflicts, network issues)
+- [x] Unit tests for `handlePushToGitTool` function (14 tests)
+- [x] Integration tests for recommend → pushToGit flow
+- [x] Test with real Git repo (test organization)
+- [x] Test error scenarios (auth failures, conflicts, network issues)
 
 ### Milestone 4: Documentation
 
-- [ ] Update recommend tool documentation with Git push flow
-- [ ] Add GitOps setup guide (Argo CD, Flux integration)
-- [ ] Document token configuration in Helm values
+- [x] Update recommend tool documentation with Git push flow
+- [x] Add GitOps setup guide (Argo CD, Flux integration)
+- [x] Document token configuration in Helm values
 
 ---
 
@@ -244,6 +244,42 @@ Modify `generate-manifests.ts` response to prompt for Git push:
 - Defined architecture and technical design
 - Documented 4 major milestones
 - Ready for implementation
+
+### 2026-03-10: Milestone 1 & 2 Implementation
+
+- Created `src/tools/push-to-git.ts` with `handlePushToGitTool` function
+- Added `pushToGit` stage routing in `recommend.ts`
+- Extended `SolutionData` interface with `gitPush` field
+- Added Zod schema validation for `pushToGit` parameters
+- Wired auth config from environment
+- Added success message with Git URL and commit SHA
+- Added helpful error messages with remediation steps
+- Updated `generate-manifests.ts` with `nextActions` for pushToGit option
+- Created unit tests in `tests/unit/tools/push-to-git.test.ts`
+- Created GitOps documentation for the recommend workflow
+- Build passing, unit tests passing (212 tests)
+- Committed: feat(recommend): add pushToGit stage for GitOps workflows (PRD #395 Milestone 1)
+
+### 2026-03-10: Milestone 3 & 4 Implementation
+
+- Fixed unit test syntax errors and session management
+- Added `filesPreview` to response with size and line count
+- Created comprehensive unit tests (14 tests covering all scenarios)
+- Added GitOps section to recommend.md documentation
+- Documented DOT_AI_GIT_TOKEN configuration in Helm values.yaml
+- All milestones 1-4 completed (integration tests pending)
+- Build passing, unit tests passing (14 push-to-git tests)
+- Ready for PR creation
+
+### 2026-03-10: PR Review Follow-up
+
+- Added stricter `targetPath` validation for `/`, `~`, `\\`, and `..`
+- Switched Git file path generation to `path.posix.join()` for cross-platform consistency
+- Added `finally` cleanup for temporary cloned repositories
+- Expanded unit coverage for invalid target paths and POSIX path generation
+- Added integration coverage for `recommend -> generateManifests -> pushToGit` using a real GitHub repository
+- Removed standalone `docs/gitops-push-to-git.md` and consolidated guidance into `docs/ai-engine/tools/recommend.md`
+- Updated Helm values examples to recommend `secretKeyRef` for PAT usage
 
 ---
 

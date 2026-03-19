@@ -6,20 +6,15 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Short-term (Next 1-3 Months)
 
-- Modular plugin architecture - transform dot-ai into extensible orchestrator (PRD #342)
 - AI provider comparison and benchmarking infrastructure (PRD #139)
 - Guided setup system to simplify onboarding (PRD #165)
 - Standardized embedding architecture on Vercel AI SDK (PRD #176)
 - Git operations for recommend tool - push generated manifests to Git repos (PRD #362)
 - Git push recommend integration - pushToGit stage for GitOps workflows (PRD #395)
 - Deployment documentation generation for knowledge base - organizational memory of deployment decisions (PRD #377)
-- Argo CD support for operate tool - detect managed resources and modify source repos (PRD #363)
+- GitOps operations for remediate tool - create PRs with fixes for GitOps-managed resources (PRD #408)
 - Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
-- Update to Kimi K2.5 model support (PRD #353)
-- Update OpenAI model to GPT-5.3-Codex when API available (PRD #369)
-- Kubernetes RBAC enforcement for tool-level and namespace-level authorization (PRD #392)
-- User-specific permissions - align AI view with user's Kubernetes RBAC (PRD #361)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
 - Add Alibaba Qwen 3.5 Plus AI provider (PRD #382)
 
@@ -30,10 +25,12 @@ This roadmap is a living document and may change based on community feedback and
 - Elicitation enhancement across MCP tools - systematic review and improvement of confirmation, clarification, and adaptive questioning (PRD #307)
 - Multi-step workflow distributed tracing (PRD #197)
 - Integrate patterns & policies into remediation tool (PRD #227)
+- Cost estimation & optimization - integrate with OpenCost/Kubecost for cost insights in recommend and operate workflows (PRD #404)
+- Dependency & impact analysis - map resource dependencies before operations to prevent cascading failures (PRD #405)
+- Upgrade path analysis - assess cluster readiness for Kubernetes version upgrades using existing tools (PRD #406)
 
 ## Long-term (6-12 Months)
 
-- Agent-to-Agent (A2A) protocol support for multi-agent orchestration (PRD #199)
 - Retire legacy collection migration from unified knowledge base (PRD #376)
 
 ## How to Contribute

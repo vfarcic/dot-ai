@@ -24,7 +24,7 @@ spec:
         {{- $podAnnotations | nindent 8 }}
       {{- end }}
     spec:
-      {{- /* MCP server no longer needs K8s RBAC - all K8s ops go through plugins (PRD #343) */}}
+      serviceAccountName: {{ include "dot-ai.serviceAccountName" . }}
       containers:
       - name: mcp-server
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -123,24 +123,20 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.auth.keyName }}
+{{- if .Values.rbac.enforcement.enabled }}
+        # RBAC enforcement (PRD #392)
+        - name: DOT_AI_RBAC_ENABLED
+          value: "true"
+{{- end }}
 {{- if .Values.dex.enabled }}
         # Dex OIDC configuration (PRD #380)
+        # DEX_CLIENT_SECRET and DOT_AI_JWT_SECRET injected via envFrom below
         - name: DEX_ISSUER_URL
           value: {{ include "dot-ai.dexExternalUrl" . | quote }}
         - name: DEX_TOKEN_ENDPOINT
           value: {{ include "dot-ai.dexTokenEndpoint" . | quote }}
         - name: DEX_CLIENT_ID
           value: "dot-ai"
-        - name: DEX_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "dot-ai.fullname" . }}-dex
-              key: dex-client-secret
-        - name: DOT_AI_JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "dot-ai.fullname" . }}-dex
-              key: jwt-secret
         - name: DOT_AI_EXTERNAL_URL
           value: {{ include "dot-ai.externalUrl" . | quote }}
         - name: DEX_GRPC_ENDPOINT
@@ -150,6 +146,32 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
 {{- end }}
+        # Git authentication (PRD #362: Git Operations)
+        # Note: DOT_AI_GIT_TOKEN is configured via extraEnv - reused from user-prompts feature
+        - name: GITHUB_APP_ENABLED
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: github-app-enabled
+              optional: true
+        - name: GITHUB_APP_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: github-app-id
+              optional: true
+        - name: GITHUB_APP_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: github-app-private-key
+              optional: true
+        - name: GITHUB_APP_INSTALLATION_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: github-app-installation-id
+              optional: true
         # Web UI integration (PRD #317: Query Visualization)
 {{- if .Values.webUI.baseUrl }}
         - name: WEB_UI_BASE_URL
@@ -180,6 +202,11 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 5
           timeoutSeconds: 5
+{{- if .Values.dex.enabled }}
+        envFrom:
+          - secretRef:
+              name: {{ .Values.dex.existingSecret }}
+{{- end }}
 {{- $pluginsConfig := include "dot-ai.pluginsConfig" . -}}
 {{- $mcpServersConfig := include "dot-ai.mcpServersConfig" . -}}
 {{- if or (and $pluginsConfig (ne $pluginsConfig "[]")) (and $mcpServersConfig (ne $mcpServersConfig "[]")) }}

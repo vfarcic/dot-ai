@@ -3,12 +3,14 @@
 {{ if .Values.dex.enabled -}}
 OAuth authentication is enabled via Dex OIDC provider.
 
-Initial admin credentials:
-  Email:    admin@dot-ai.local
-  Password: stored in Secret "{{ include "dot-ai.fullname" . }}-dex" key "admin-password"
+Credentials secret: {{ .Values.dex.existingSecret }}
+Built-in admin:     admin@dot-ai.local (password is whatever you hashed in dex.adminPasswordHash)
 
-  Retrieve password:
-    kubectl get secret {{ include "dot-ai.fullname" . }}-dex -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
+IMPORTANT: Ensure dex.envFrom includes your existingSecret so Dex can read DEX_CLIENT_SECRET:
+  dex:
+    envFrom:
+      - secretRef:
+          name: {{ .Values.dex.existingSecret }}
 
 MCP clients authenticate via OAuth2 Authorization Code flow with PKCE.
 Authorization server metadata:

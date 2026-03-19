@@ -59,11 +59,24 @@ The following walks through connecting Google as an identity provider. For other
 
 > **Note**: If your Google Workspace restricts OAuth apps to verified apps, you may need to add the app to the allowlist or publish it for internal use. See [Google's OAuth verification docs](https://support.google.com/cloud/answer/9110914).
 
-### Step 2: Store Credentials in a Kubernetes Secret
+### Step 2: Create Kubernetes Secrets
 
-Store the OAuth credentials in a Kubernetes Secret — never put them in plain text in your values file:
+Create the Dex auth secret (OAuth client secret + JWT signing key) and the Google connector secret:
 
 ```bash
+# Dex auth secret — shared between MCP server and Dex
+kubectl create secret generic dot-ai-dex-auth \
+  --namespace dot-ai \
+  --from-literal=DEX_CLIENT_SECRET="$(openssl rand -hex 32)" \
+  --from-literal=DOT_AI_JWT_SECRET="$(openssl rand -hex 32)"
+
+# Generate admin password and bcrypt hash
+ADMIN_PASSWORD=$(openssl rand -base64 12)
+ADMIN_HASH=$(htpasswd -nbBC 10 "" "$ADMIN_PASSWORD" | cut -d: -f2)
+echo "Admin password: $ADMIN_PASSWORD"
+echo "Admin hash:     $ADMIN_HASH"
+
+# Google connector secret
 kubectl create secret generic dex-google-oauth \
   --namespace dot-ai \
   --from-literal=GOOGLE_CLIENT_ID="YOUR_GOOGLE_CLIENT_ID" \
@@ -72,11 +85,15 @@ kubectl create secret generic dex-google-oauth \
 
 ### Step 3: Configure Helm Values
 
-Add the Google connector to your values file. Dex supports `$ENV_VAR` references in connector config — it resolves them at runtime from environment variables:
+Add the connector and reference the secrets in your values file. Dex supports `$ENV_VAR` references in connector config — it resolves them at runtime from environment variables:
 
 ```yaml
 dex:
+  existingSecret: dot-ai-dex-auth
+  adminPasswordHash: "$2a$10$..."       # The ADMIN_HASH from step 2
   envFrom:
+    - secretRef:
+        name: dot-ai-dex-auth           # Must match existingSecret
     - secretRef:
         name: dex-google-oauth
   connectors:
@@ -89,7 +106,7 @@ dex:
         redirectURI: "https://dex.<your-host>/callback"
 ```
 
-`envFrom` mounts the Secret as environment variables on the Dex pod. The `$GOOGLE_CLIENT_ID` and `$GOOGLE_CLIENT_SECRET` references are resolved by Dex at startup.
+`envFrom` mounts Secrets as environment variables on the Dex pod. The `existingSecret` **must always be included in envFrom** — it provides the OAuth client secret that Dex needs for token exchange. The `$GOOGLE_CLIENT_ID` and `$GOOGLE_CLIENT_SECRET` references are resolved by Dex at startup.
 
 ### Restricting by Domain
 
@@ -97,7 +114,11 @@ By default, any Google account can authenticate. To restrict login to specific d
 
 ```yaml
 dex:
+  existingSecret: dot-ai-dex-auth
+  adminPasswordHash: "$2a$10$..."
   envFrom:
+    - secretRef:
+        name: dot-ai-dex-auth           # Must match existingSecret
     - secretRef:
         name: dex-google-oauth
   connectors:
@@ -112,7 +133,7 @@ dex:
           - example.com
 ```
 
-> **Note**: `hostedDomains` controls which domains can authenticate — not individual users. Per-user access control will be available when [RBAC enforcement](https://github.com/vfarcic/dot-ai/issues/392) is implemented, allowing fine-grained permissions based on user identity and groups.
+> **Note**: `hostedDomains` controls which domains can authenticate — not individual users. For per-user access control, see [Authorization (RBAC)](authorization.md).
 
 ### Step 4: Upgrade
 
@@ -139,7 +160,11 @@ Dex supports 30+ identity providers. All connectors use the same Helm pattern �
 
 ```yaml
 dex:
+  existingSecret: dot-ai-dex-auth
+  adminPasswordHash: "$2a$10$..."
   envFrom:
+    - secretRef:
+        name: dot-ai-dex-auth           # Must match existingSecret
     - secretRef:
         name: dex-idp-credentials
   connectors:
@@ -169,7 +194,7 @@ For configuration details and the full list, see the [Dex Connector Documentatio
 
 Connectors and static users (password-based accounts) coexist. The built-in password database remains active regardless of which connectors are configured:
 
-- The auto-generated `admin@dot-ai.local` account still works
+- The `admin@dot-ai.local` account (configured via `dex.adminPasswordHash`) still works
 - Users created via the user management API still work
 - The Dex login page shows both password login and connector buttons
 

@@ -59,9 +59,20 @@ Once investigation is complete, respond with ONLY this JSON format:
     "actions": [
       {
         "description": "Specific action to take",
-        "command": "command to execute (kubectl, helm, etc.)",
+        "command": "command to execute (kubectl, helm, etc.) — omit if gitSource is provided",
         "risk": "low|medium|high",
-        "rationale": "Why this action addresses the issue"
+        "rationale": "Why this action addresses the issue",
+        "gitSource": {
+          "repoURL": "source repository URL — only when resource is GitOps-managed",
+          "branch": "branch name",
+          "files": [
+            {
+              "path": "path relative to repo root",
+              "content": "full corrected file content",
+              "description": "what was changed and why"
+            }
+          ]
+        }
       }
     ],
     "risk": "low|medium|high"
@@ -87,6 +98,17 @@ Once investigation is complete, respond with ONLY this JSON format:
 - Cannot reproduce reported issue
 - All components healthy
 - Set `actions: []` and explain why no issue found
+
+## GitOps Awareness
+
+After identifying the problematic resource, check whether it is managed by a GitOps controller (e.g., Argo CD, Flux).
+
+**When GitOps management is detected**:
+- Clone the source repo, navigate and read the manifests to find the file(s) that need changing
+- Include `gitSource` in your remediation actions with the repo URL, branch, and full corrected file contents for each file that needs modification
+
+**When GitOps management is NOT detected**:
+- Proceed with standard kubectl-based remediation
 
 ### Remediation Action Guidelines
 
@@ -143,6 +165,44 @@ Once investigation is complete, respond with ONLY this JSON format:
     "risk": "medium"
   },
   "validationIntent": "Check that postgres-db cluster in test-ns namespace successfully creates pods and reaches running state"
+}
+```
+
+## Example Response - GitOps-Managed Resource
+
+```json
+{
+  "issueStatus": "active",
+  "rootCause": "Deployment 'api-server' has invalid image tag 'v2.broken' causing CrashLoopBackOff",
+  "confidence": 0.95,
+  "factors": [
+    "Pod is in CrashLoopBackOff with ImagePullBackOff events",
+    "Image tag 'v2.broken' does not exist in registry",
+    "Resource is managed by Argo CD Application 'api-server'"
+  ],
+  "remediation": {
+    "summary": "Update image tag in Git source to valid version",
+    "actions": [
+      {
+        "description": "Fix image tag in deployment manifest",
+        "risk": "low",
+        "rationale": "Changing image tag to latest stable version resolves the ImagePullBackOff. Argo CD will sync the change automatically.",
+        "gitSource": {
+          "repoURL": "https://github.com/org/infra-repo.git",
+          "branch": "main",
+          "files": [
+            {
+              "path": "apps/production/deployment.yaml",
+              "content": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api-server\nspec:\n  template:\n    spec:\n      containers:\n      - name: api-server\n        image: org/api-server:v2.1.0\n",
+              "description": "Changed image tag from 'v2.broken' to 'v2.1.0'"
+            }
+          ]
+        }
+      }
+    ],
+    "risk": "low"
+  },
+  "validationIntent": "Wait for Argo CD to sync, then verify pods are running with the correct image"
 }
 ```
 

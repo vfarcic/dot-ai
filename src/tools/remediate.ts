@@ -26,6 +26,13 @@ import {
 } from '../core/plugin-registry';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getCurrentIdentity } from '../interfaces/request-context';
+import { checkToolAccess } from '../core/rbac';
+import {
+  getInternalTools,
+  createInternalToolExecutor,
+  cleanupOldClones,
+} from '../core/internal-tools';
 
 // Plugin result data structure
 interface PluginResultData {
@@ -142,6 +149,15 @@ export interface RemediationAction {
   command?: string;
   risk: 'low' | 'medium' | 'high';
   rationale: string;
+  gitSource?: {
+    repoURL: string;
+    branch: string;
+    files: Array<{
+      path: string;
+      content: string;
+      description: string;
+    }>;
+  };
 }
 
 export interface ExecutionResult {
@@ -270,32 +286,37 @@ async function conductInvestigation(
       );
     }
 
+    // PRD #407: Combine plugin tools (allowlisted) with internal tools (git_clone, fs_list, fs_read)
     // PRD #358: Get MCP server tools attached to remediate
     const mcpTools = isMcpClientInitialized()
       ? getMcpClientManager()!.getToolsForOperation('remediate')
       : [];
 
-    const allTools = [...kubectlTools, ...mcpTools];
+    const allTools = [...kubectlTools, ...getInternalTools(), ...mcpTools];
 
     logger.debug(
       'Starting toolLoop with investigation tools',
       {
         requestId,
         sessionId: session.sessionId,
-        kubectlToolCount: kubectlTools.length,
+        toolCount: allTools.length,
         mcpToolCount: mcpTools.length,
         tools: allTools.map(t => t.name),
       }
     );
 
-    // PRD #343: Create tool executor that routes through plugin
+    // PRD #407: Clean up old clone directories (non-blocking)
+    cleanupOldClones();
+
+    // PRD #407: Combined executor routes plugin tools to plugin, internal tools to local handlers
     // PRD #358: Chain MCP executor with plugin executor as fallback
-    const pluginExecutor = pluginManager.createToolExecutor();
+    const internalExecutor = createInternalToolExecutor(session.sessionId);
+    const pluginExecutor = pluginManager.createToolExecutor(internalExecutor);
     const toolExecutor = isMcpClientInitialized()
       ? getMcpClientManager()!.createToolExecutor(pluginExecutor)
       : pluginExecutor;
 
-    // Use toolLoop for AI-driven investigation with kubectl + MCP tools
+    // Use toolLoop for AI-driven investigation with all tools (kubectl + internal + MCP)
     // System prompt is static (cached), issue description is dynamic (userMessage)
     const operationName = isValidation
       ? 'remediate-validation'
@@ -701,6 +722,7 @@ async function executeRemediationCommands(
   const results: ExecutionResult[] = [];
   const finalAnalysis = session.data.finalAnalysis!;
   let overallSuccess = true;
+  let executedCommandCount = 0;
 
   logger.info('Starting remediation command execution', {
     requestId,
@@ -714,6 +736,25 @@ async function executeRemediationCommands(
     const actionId = `action_${i + 1}`;
 
     try {
+      // PRD #407: Skip gitSource actions — these are Git-based remediation
+      // instructions for GitOps-managed resources, not executable commands
+      if (action.gitSource && !action.command) {
+        logger.info('Skipping gitSource remediation action (not executable)', {
+          requestId,
+          sessionId: session.sessionId,
+          actionId,
+          repoURL: action.gitSource.repoURL,
+        });
+        results.push({
+          action: `${actionId}: ${action.description} (skipped: Git-based)`,
+          success: false,
+          output:
+            'Git-based remediation — apply changes in the source repository',
+          timestamp: new Date(),
+        });
+        continue;
+      }
+
       logger.info('Executing remediation action', {
         requestId,
         sessionId: session.sessionId,
@@ -761,6 +802,7 @@ async function executeRemediationCommands(
         output = String(response.result || '');
       }
 
+      executedCommandCount++;
       results.push({
         action: `${actionId}: ${action.description}`,
         success: true,
@@ -794,9 +836,9 @@ async function executeRemediationCommands(
     }
   }
 
-  // Run automatic post-execution validation if all commands succeeded
+  // Run automatic post-execution validation if commands were executed and all succeeded
   let validationResult = null;
-  if (overallSuccess && finalAnalysis.validationIntent) {
+  if (overallSuccess && executedCommandCount > 0 && finalAnalysis.validationIntent) {
     const validationIntent = finalAnalysis.validationIntent;
 
     try {
@@ -1049,6 +1091,28 @@ export async function handleRemediateTool(
 
     // Handle choice execution if provided
     if (validatedInput.executeChoice && validatedInput.sessionId) {
+      // PRD #392 Milestone 2: execution requires 'apply' verb
+      const identity = getCurrentIdentity();
+      const rbacResult = await checkToolAccess(identity, {
+        toolName: 'remediate',
+        verb: 'apply',
+      });
+      if (!rbacResult.allowed) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                error: 'FORBIDDEN',
+                message: `Access denied: executing remediation commands requires 'apply' permission on 'remediate'. You can diagnose issues, but applying fixes requires additional authorization.`,
+                tool: 'remediate',
+                user: identity?.email,
+              }),
+            },
+          ],
+        };
+      }
+
       logger.info('Executing user choice from previous session', {
         requestId,
         choice: validatedInput.executeChoice,
@@ -1180,37 +1244,61 @@ export async function handleRemediateTool(
 
     // Add execution choices for manual mode (awaiting_user_approval status)
     if (executionDecision.finalStatus === 'awaiting_user_approval') {
-      finalResult.executionChoices = [
-        {
-          id: 1,
-          label: 'Execute automatically via MCP',
-          description:
-            'Run the kubectl commands shown above automatically via MCP\n',
-          risk: finalAnalysis.remediation.risk,
-        },
-        {
-          id: 2,
-          label: 'Execute via agent',
-          description:
-            'STEP 1: Execute the kubectl commands using your Bash tool\nSTEP 2: Call the remediate tool again for validation with the provided validation message\n',
-          risk: finalAnalysis.remediation.risk, // Same risk - same commands being executed
-        },
-      ];
+      // PRD #392 Milestone 2: only offer execution choices if user has 'apply' permission
+      const identity = getCurrentIdentity();
+      const applyResult = await checkToolAccess(identity, {
+        toolName: 'remediate',
+        verb: 'apply',
+      });
+      if (applyResult.allowed) {
+        finalResult.executionChoices = [
+          {
+            id: 1,
+            label: 'Execute automatically via MCP',
+            description:
+              'Run the kubectl commands shown above automatically via MCP\n',
+            risk: finalAnalysis.remediation.risk,
+          },
+          {
+            id: 2,
+            label: 'Execute via agent',
+            description:
+              'STEP 1: Execute the kubectl commands using your Bash tool\nSTEP 2: Call the remediate tool again for validation with the provided validation message\n',
+            risk: finalAnalysis.remediation.risk,
+          },
+        ];
+      } else {
+        finalResult.fallbackReason = `Executing remediation commands requires 'apply' permission on 'remediate', which is not granted for the current user. Review the proposed remediation and apply fixes manually using kubectl or your GitOps workflow.`;
+      }
     }
 
     // Execute remediation actions if automatic mode approves it
     if (executionDecision.shouldExecute) {
-      // Update session object with final analysis for execution
-      session.data.finalAnalysis = finalAnalysis;
+      // PRD #392 Milestone 2: automatic execution also requires 'apply' verb
+      const identity = getCurrentIdentity();
+      const rbacResult = await checkToolAccess(identity, {
+        toolName: 'remediate',
+        verb: 'apply',
+      });
+      if (!rbacResult.allowed) {
+        // Downgrade to awaiting_user_approval with explanation
+        finalResult.status = 'awaiting_user_approval';
+        finalResult.executed = false;
+        finalResult.fallbackReason = `Automatic execution blocked: 'apply' permission on 'remediate' is required. You can review the proposed remediation but applying fixes requires additional authorization.`;
+        // Don't offer execution choices since user can't execute
+      } else {
+        // Update session object with final analysis for execution
+        session.data.finalAnalysis = finalAnalysis;
 
-      // Execute commands and return the complete result (includes post-execution validation)
-      return await executeRemediationCommands(
-        session,
-        sessionManager,
-        logger,
-        requestId,
-        validatedInput.interaction_id
-      );
+        // Execute commands and return the complete result (includes post-execution validation)
+        return await executeRemediationCommands(
+          session,
+          sessionManager,
+          logger,
+          requestId,
+          validatedInput.interaction_id
+        );
+      }
     }
 
     // Generate visualization URL for analysis response

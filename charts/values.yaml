@@ -9,7 +9,7 @@ annotations: {}
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "1.6.1"                     # Container image tag - set by CI pipeline during release
+  tag: "1.11.0"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
@@ -47,6 +47,13 @@ secrets:
   customEmbeddings:
     keyName: custom-embeddings-api-key  # Key name within the secret for custom embeddings endpoint
     apiKey: ""                      # API key value (only needed if chart should create the secret)
+  # GitHub App authentication for git operations (PRD #362)
+  # Note: PAT token uses DOT_AI_GIT_TOKEN env var configured via extraEnv
+  githubApp:
+    enabled: false                  # Enable GitHub App authentication
+    appId: ""                       # GitHub App ID
+    privateKey: ""                  # GitHub App private key (PEM format)
+    installationId: ""              # GitHub App installation ID (optional, auto-detected if not provided)
 
 # ServiceAccount configuration
 serviceAccount:
@@ -140,7 +147,7 @@ gateway:
 
 # AI Provider configuration
 ai:
-  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, kimi, kimi_thinking, xai, amazon_bedrock)
+  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, google_flash, host, kimi, xai, amazon_bedrock)
   model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)
@@ -191,7 +198,32 @@ webUI:
 
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server
-# Example use cases: tracing configuration, custom integrations, feature flags, telemetry
+# Example use cases: tracing configuration, custom integrations, Git authentication
+#
+# Git Authentication for pushToGit stage (PRD #395):
+# To enable GitOps workflows, configure one of the following:
+#
+# Option 1: Personal Access Token (PAT)
+# extraEnv:
+#   - name: DOT_AI_GIT_TOKEN
+#     valueFrom:
+#       secretKeyRef:
+#         name: dot-ai-secrets
+#         key: git-token
+#
+# Less secure inline alternative:
+# extraEnv:
+#   - name: DOT_AI_GIT_TOKEN
+#     value: "ghp_your_token_here"
+#
+# Option 2: GitHub App (recommended for production)
+# - Set secrets.githubApp.enabled: true
+# - Configure secrets.githubApp.appId and secrets.githubApp.privateKey
+#
+# Required token scopes:
+# - repo (for private repositories)
+# - public_repo (for public repositories)
+#
 extraEnv: []
   # OpenTelemetry tracing:
   # - name: OTEL_TRACING_ENABLED
@@ -240,13 +272,31 @@ localEmbeddings:
 # Dex OIDC Provider (PRD #380)
 # Deploys Dex as the identity provider for OAuth2/OIDC authentication.
 # MCP clients authenticate via Dex and receive JWT access tokens.
-# Initial admin credentials are auto-generated on install (shown in Helm notes).
 # Routing (Ingress/Gateway) is automatically derived from the main server's config.
 # NOTE: OAuth requires HTTPS. Enable Dex only when HTTPS is configured
 # (via ingress.tls, gateway HTTPS listener, or an upstream reverse proxy/load balancer).
 # Without Dex, authentication falls back to static token (DOT_AI_AUTH_TOKEN).
+# RBAC Enforcement (PRD #392)
+# When enabled, OAuth-authenticated users are checked against Kubernetes RBAC
+# before tool execution. Token users always bypass RBAC.
+# Requires dex.enabled=true (OAuth must be configured for RBAC to have effect).
+rbac:
+  enforcement:
+    enabled: false                    # Enable RBAC enforcement (default deny for OAuth users)
+
 dex:
   enabled: false                      # Deploy Dex for OAuth authentication (requires HTTPS)
+  # REQUIRED when enabled: name of a pre-existing Secret containing:
+  #   DEX_CLIENT_SECRET   — OAuth2 client secret (shared between MCP server and Dex)
+  #   DOT_AI_JWT_SECRET   — JWT signing key for MCP server tokens
+  # Generate with:
+  #   kubectl create secret generic dot-ai-dex-auth --namespace <ns> \
+  #     --from-literal=DEX_CLIENT_SECRET="$(openssl rand -hex 32)" \
+  #     --from-literal=DOT_AI_JWT_SECRET="$(openssl rand -hex 32)"
+  existingSecret: ""
+  # REQUIRED when enabled: bcrypt hash for the built-in admin@dot-ai.local password.
+  # Generate with: htpasswd -nbBC 10 "" "your-password" | cut -d: -f2
+  adminPasswordHash: ""
   # Production IdP connectors (optional)
   # When configured, users authenticate via their organization's identity provider.
   # See https://dexidp.io/docs/connectors/ for available connectors.
@@ -263,6 +313,15 @@ dex:
   configSecret:
     create: false
     name: dex
+  # envFrom for the Dex pod — MUST include existingSecret so Dex reads DEX_CLIENT_SECRET.
+  # Add connector secrets after it.
+  # Example (with Google connector):
+  #   envFrom:
+  #     - secretRef:
+  #         name: dot-ai-dex-auth         # Must match existingSecret
+  #     - secretRef:
+  #         name: my-connector-secret
+  envFrom: []
   grpc:
     enabled: true                     # Enable gRPC API for user management (PRD #380 Task 2.5)
   image:                                  # Custom image with branded login page (PRD #380 Task 3.6)
@@ -280,7 +339,7 @@ plugins:
     enabled: true
     image:
       repository: ghcr.io/vfarcic/dot-ai-agentic-tools
-      tag: "1.6.1"
+      tag: "1.11.0"
     port: 8080
     # RBAC created automatically by chart (hardcoded for agentic-tools)
     env: []                         # Additional environment variables
@@ -298,7 +357,7 @@ plugins:
   #   enabled: true
   #   image:
   #     repository: myregistry/my-tools
-  #     tag: "1.6.0"
+  #     tag: "1.11.0"
   #   port: 8082
   #   serviceAccountName: "my-tools-sa"  # You create this SA with needed permissions
   #   env:

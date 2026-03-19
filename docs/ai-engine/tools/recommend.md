@@ -407,6 +407,60 @@ kubectl get ingress -n a-team
 - SQL resource triggers Crossplane to provision AWS RDS PostgreSQL instance
 - Provided next steps and verification commands
 
+#### Option: GitOps Deployment
+
+After `generateManifests`, agents present three equal options: **save locally** (write files from the response), **deploy to cluster** (`deployManifests` stage), or **push to Git** (`pushToGit` stage). For GitOps workflows with Argo CD or Flux, use `pushToGit`:
+
+```md
+User: Push to GitOps repo instead
+```
+
+```md
+Agent: Pushing manifests to your GitOps repository...
+
+[Uses mcp__dot-ai__recommend with stage: 'pushToGit', solutionId, repoUrl: 'https://github.com/org/gitops-repo.git', targetPath: 'apps/my-app/']
+
+✅ **Pushed successfully!** Manifests are now in your GitOps repository:
+
+**Repository**: https://github.com/org/gitops-repo.git
+**Branch**: main
+**Path**: apps/my-app/
+**Commit**: abc123def456
+
+**Files pushed:**
+- deployment.yaml (2.1 KB, 85 lines)
+- service.yaml (0.3 KB, 15 lines)
+- ingress.yaml (0.5 KB, 22 lines)
+- hpa.yaml (0.4 KB, 18 lines)
+- pdb.yaml (0.3 KB, 14 lines)
+
+🚀 **GitOps Sync**: Your GitOps controller (Argo CD/Flux) will sync these changes automatically.
+
+**Next steps:**
+1. Argo CD/Flux will detect the new manifests and sync automatically
+2. Monitor the sync status in your GitOps dashboard
+3. Once synced, resources will be created in the a-team namespace
+
+**Verify in GitOps dashboard:**
+- Argo CD: https://argocd.example.com/applications/my-app
+- Flux: kubectl get kustomization -n flux-system
+```
+
+**What happened behind the scenes:**
+- recommend tool with stage 'pushToGit' cloned the GitOps repository
+- Generated manifests were written to the specified target path
+- Changes committed with message "Add my-app manifests"
+- Pushed to the specified branch (default: main)
+- Session updated with gitPush state for tracking
+- GitOps controller will sync automatically based on its configuration
+
+> **Note**: GitOps push is currently supported for **raw YAML manifests and Kustomize only**. Helm chart support (generating Argo CD `Application` or Flux `HelmRelease` CRs) is planned for a future release. For Helm charts, use the `deployManifests` stage to install directly to the cluster.
+
+**Prerequisites for pushToGit:**
+- Git authentication configured via `DOT_AI_GIT_TOKEN` or GitHub App credentials
+- Write access to the target repository
+- GitOps controller (Argo CD/Flux) configured to watch the repository
+
 ### Example 2: Third-Party Application Installation (Helm)
 
 This example demonstrates installing third-party tools via Helm charts when no matching cluster capability exists.

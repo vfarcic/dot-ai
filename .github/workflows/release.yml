@@ -38,7 +38,7 @@ jobs:
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.DOT_AI_GIT_TOKEN }}
         submodules: true
 
     - name: Determine version and mode
@@ -239,6 +239,20 @@ jobs:
       with:
         submodules: true
 
+    - name: Setup Node.js
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+        cache-dependency-path: packages/agentic-tools/package-lock.json
+
+    - name: Pre-build agentic-tools on native runner
+      working-directory: packages/agentic-tools
+      run: |
+        npm ci
+        npm run build
+        npm prune --omit=dev
+
     - name: Set up QEMU
       uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
@@ -316,7 +330,7 @@ jobs:
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.DOT_AI_GIT_TOKEN }}
         submodules: true
 
     - name: Setup git config
@@ -447,7 +461,7 @@ jobs:
             --notes-file release_body.md
         fi
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}
 
     - name: Trigger CLI Release
       uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
@@ -496,7 +510,7 @@ jobs:
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.DOT_AI_GIT_TOKEN }}
         submodules: true
 
     - name: Download release notes artifact
@@ -535,7 +549,7 @@ jobs:
             --notes-file release_body.md
         fi
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}
 
   # =============================================================================
   # UPDATE UMBRELLA: Update dot-ai-stack umbrella chart
