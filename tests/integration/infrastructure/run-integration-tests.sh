@@ -15,6 +15,14 @@ set -e
 # Collect test filter arguments
 TEST_ARGS=("$@")
 
+# When a test filter is provided, apply its infrastructure profile
+# to install only the components needed for that specific test
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ ${#TEST_ARGS[@]} -gt 0 ]]; then
+    source "${SCRIPT_DIR}/infra-profiles.sh"
+    apply_profile "${TEST_ARGS[0]}"
+fi
+
 # Configuration
 TEST_AUTH_TOKEN="test-auth-token-integration"
 RBAC_ENABLED="${RBAC_ENABLED:-true}"
@@ -38,12 +46,16 @@ log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
-# Step 1: Build the project
-log_info "Building project..."
-npm run build || {
-    log_error "Build failed"
-    exit 1
-}
+# Step 1: Build the project (skip with SKIP_BUILD=true when pre-built artifacts are available)
+if [[ "${SKIP_BUILD}" != "true" ]]; then
+    log_info "Building project..."
+    npm run build || {
+        log_error "Build failed"
+        exit 1
+    }
+else
+    log_warn "Skipping project build (SKIP_BUILD=true)"
+fi
 
 # Step 2: Setup infrastructure
 # Recreate Kind cluster for guaranteed clean state
@@ -90,44 +102,56 @@ else
     log_warn "Skipping Kyverno Policy Engine installation (SKIP_KYVERNO=true)"
 fi
 
-# PRD #358: Install Prometheus for MCP server integration testing
+# Optional: Install Prometheus for MCP server integration testing (skip with SKIP_PROMETHEUS_MCP=true)
 # Uses release name 'dot-ai-prometheus' to avoid ClusterRole name collision with
 # the recommend test (which deploys its own Prometheus release in monitoring namespace)
-log_info "Starting Prometheus installation (PRD #358)..."
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
-helm repo update
-helm upgrade --install dot-ai-prometheus prometheus-community/prometheus \
-    --namespace dot-ai --create-namespace \
-    --set server.persistentVolume.enabled=false \
-    --set alertmanager.enabled=false \
-    --set kube-state-metrics.enabled=false \
-    --set prometheus-node-exporter.enabled=false \
-    --set prometheus-pushgateway.enabled=false \
-    --timeout=300s || {
-    log_error "Failed to install Prometheus"
-    exit 1
-}
+if [[ "${SKIP_PROMETHEUS_MCP}" != "true" ]]; then
+    log_info "Starting Prometheus installation (PRD #358)..."
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+    helm repo update
+    helm upgrade --install dot-ai-prometheus prometheus-community/prometheus \
+        --namespace dot-ai --create-namespace \
+        --set server.persistentVolume.enabled=false \
+        --set alertmanager.enabled=false \
+        --set kube-state-metrics.enabled=false \
+        --set prometheus-node-exporter.enabled=false \
+        --set prometheus-pushgateway.enabled=false \
+        --timeout=300s || {
+        log_error "Failed to install Prometheus"
+        exit 1
+    }
+else
+    log_warn "Skipping Prometheus installation (SKIP_PROMETHEUS_MCP=true)"
+fi
 
-# Install Argo CD via Helm
-log_info "Starting Argo CD installation..."
-helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
-helm repo update
-helm upgrade --install argocd argo/argo-cd \
-    --namespace argocd --create-namespace \
-    --set server.enabled=false \
-    --set dex.enabled=false \
-    --set notifications.enabled=false \
-    --timeout=300s || {
-    log_error "Failed to install Argo CD"
-    exit 1
-}
+# Optional: Install Argo CD via Helm (skip with SKIP_ARGOCD=true)
+if [[ "${SKIP_ARGOCD}" != "true" ]]; then
+    log_info "Starting Argo CD installation..."
+    helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
+    helm repo update
+    helm upgrade --install argocd argo/argo-cd \
+        --namespace argocd --create-namespace \
+        --set server.enabled=false \
+        --set dex.enabled=false \
+        --set notifications.enabled=false \
+        --timeout=300s || {
+        log_error "Failed to install Argo CD"
+        exit 1
+    }
+else
+    log_warn "Skipping Argo CD installation (SKIP_ARGOCD=true)"
+fi
 
-# Install Flux (source-controller + kustomize-controller)
-log_info "Starting Flux installation..."
-kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml || {
-    log_error "Failed to install Flux"
-    exit 1
-}
+# Optional: Install Flux (skip with SKIP_FLUX=true)
+if [[ "${SKIP_FLUX}" != "true" ]]; then
+    log_info "Starting Flux installation..."
+    kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml || {
+        log_error "Failed to install Flux"
+        exit 1
+    }
+else
+    log_warn "Skipping Flux installation (SKIP_FLUX=true)"
+fi
 
 # Install nginx ingress controller
 log_info "Starting nginx ingress installation..."
@@ -199,9 +223,10 @@ spec:
     targetPort: 6334
 EOF
 
-# PRD #358: Deploy Prometheus MCP server for MCP client integration testing
-log_info "Starting Prometheus MCP server deployment (PRD #358)..."
-cat <<EOF | kubectl apply -f -
+# Optional: Deploy Prometheus MCP server for MCP client integration testing (skip with SKIP_PROMETHEUS_MCP=true)
+if [[ "${SKIP_PROMETHEUS_MCP}" != "true" ]]; then
+    log_info "Starting Prometheus MCP server deployment (PRD #358)..."
+    cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -248,36 +273,42 @@ spec:
     port: 8080
     targetPort: 8080
 EOF
+    log_info "Prometheus MCP server image will be pulled by Kubernetes from GHCR when needed"
+else
+    log_warn "Skipping Prometheus MCP server deployment (SKIP_PROMETHEUS_MCP=true)"
+fi
 
-log_info "Prometheus MCP server image will be pulled by Kubernetes from GHCR when needed"
+# Build Docker images while operators install (skip with SKIP_DOCKER_BUILD=true when pre-built images are available)
+if [[ "${SKIP_DOCKER_BUILD}" != "true" ]]; then
+    log_info "Creating npm package tarball..."
+    npm pack || {
+        log_error "Failed to create npm package"
+        exit 1
+    }
 
-# Build Docker image while operators install
-log_info "Creating npm package tarball..."
-npm pack || {
-    log_error "Failed to create npm package"
-    exit 1
-}
+    log_info "Building local dot-ai Docker image..."
+    docker build -t dot-ai:test . || {
+        log_error "Failed to build dot-ai image"
+        exit 1
+    }
 
-log_info "Building local dot-ai Docker image..."
-docker build -t dot-ai:test . || {
-    log_error "Failed to build dot-ai image"
-    exit 1
-}
+    # Clean up package tarball
+    rm -f vfarcic-dot-ai-*.tgz
 
-# Clean up package tarball
-rm -f vfarcic-dot-ai-*.tgz
+    log_info "Pre-building agentic-tools (native build avoids QEMU issues)..."
+    (cd packages/agentic-tools && npm ci && npm run build && npm prune --omit=dev) || {
+        log_error "Failed to pre-build agentic-tools"
+        exit 1
+    }
 
-log_info "Pre-building agentic-tools (native build avoids QEMU issues)..."
-(cd packages/agentic-tools && npm ci && npm run build && npm prune --omit=dev) || {
-    log_error "Failed to pre-build agentic-tools"
-    exit 1
-}
-
-log_info "Building agentic-tools plugin Docker image (PRD #343)..."
-docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools || {
-    log_error "Failed to build agentic-tools image"
-    exit 1
-}
+    log_info "Building agentic-tools plugin Docker image (PRD #343)..."
+    docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools || {
+        log_error "Failed to build agentic-tools image"
+        exit 1
+    }
+else
+    log_warn "Skipping Docker builds (SKIP_DOCKER_BUILD=true)"
+fi
 
 log_info "Loading dot-ai image into Kind cluster..."
 kind load docker-image dot-ai:test --name dot-test || {
@@ -329,33 +360,37 @@ if [[ "${SKIP_KYVERNO}" != "true" ]]; then
     }
 fi
 
-log_info "Waiting for Argo CD application controller..."
-kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-application-controller \
-    --namespace=argocd --timeout=300s || {
-    log_error "Argo CD application controller failed to become ready"
-    exit 1
-}
+if [[ "${SKIP_ARGOCD}" != "true" ]]; then
+    log_info "Waiting for Argo CD application controller..."
+    kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-application-controller \
+        --namespace=argocd --timeout=300s || {
+        log_error "Argo CD application controller failed to become ready"
+        exit 1
+    }
 
-log_info "Waiting for Argo CD repo server..."
-kubectl wait --for=condition=Available deployment/argocd-repo-server \
-    --namespace=argocd --timeout=300s || {
-    log_error "Argo CD repo server failed to become ready"
-    exit 1
-}
+    log_info "Waiting for Argo CD repo server..."
+    kubectl wait --for=condition=Available deployment/argocd-repo-server \
+        --namespace=argocd --timeout=300s || {
+        log_error "Argo CD repo server failed to become ready"
+        exit 1
+    }
+fi
 
-log_info "Waiting for Flux source-controller..."
-kubectl wait --for=condition=Available deployment/source-controller \
-    --namespace=flux-system --timeout=300s || {
-    log_error "Flux source-controller failed to become ready"
-    exit 1
-}
+if [[ "${SKIP_FLUX}" != "true" ]]; then
+    log_info "Waiting for Flux source-controller..."
+    kubectl wait --for=condition=Available deployment/source-controller \
+        --namespace=flux-system --timeout=300s || {
+        log_error "Flux source-controller failed to become ready"
+        exit 1
+    }
 
-log_info "Waiting for Flux kustomize-controller..."
-kubectl wait --for=condition=Available deployment/kustomize-controller \
-    --namespace=flux-system --timeout=300s || {
-    log_error "Flux kustomize-controller failed to become ready"
-    exit 1
-}
+    log_info "Waiting for Flux kustomize-controller..."
+    kubectl wait --for=condition=Available deployment/kustomize-controller \
+        --namespace=flux-system --timeout=300s || {
+        log_error "Flux kustomize-controller failed to become ready"
+        exit 1
+    }
+fi
 
 log_info "Waiting for nginx ingress controller..."
 kubectl wait --namespace ingress-nginx \
@@ -389,25 +424,27 @@ kubectl wait --namespace dot-ai \
     exit 1
 }
 
-log_info "Waiting for Prometheus server (PRD #358)..."
-kubectl wait --namespace dot-ai \
-    --for=condition=available deployment/dot-ai-prometheus-server \
-    --timeout=120s || {
-    log_error "Prometheus server failed to become ready"
-    kubectl get pods -n dot-ai
-    kubectl logs -n dot-ai -l app.kubernetes.io/instance=dot-ai-prometheus --tail=50
-    exit 1
-}
+if [[ "${SKIP_PROMETHEUS_MCP}" != "true" ]]; then
+    log_info "Waiting for Prometheus server (PRD #358)..."
+    kubectl wait --namespace dot-ai \
+        --for=condition=available deployment/dot-ai-prometheus-server \
+        --timeout=120s || {
+        log_error "Prometheus server failed to become ready"
+        kubectl get pods -n dot-ai
+        kubectl logs -n dot-ai -l app.kubernetes.io/instance=dot-ai-prometheus --tail=50
+        exit 1
+    }
 
-log_info "Waiting for Prometheus MCP server (PRD #358)..."
-kubectl wait --namespace dot-ai \
-    --for=condition=available deployment/prometheus-mcp \
-    --timeout=120s || {
-    log_error "Prometheus MCP server failed to become ready"
-    kubectl get pods -n dot-ai
-    kubectl logs -n dot-ai -l app=prometheus-mcp --tail=50
-    exit 1
-}
+    log_info "Waiting for Prometheus MCP server (PRD #358)..."
+    kubectl wait --namespace dot-ai \
+        --for=condition=available deployment/prometheus-mcp \
+        --timeout=120s || {
+        log_error "Prometheus MCP server failed to become ready"
+        kubectl get pods -n dot-ai
+        kubectl logs -n dot-ai -l app=prometheus-mcp --tail=50
+        exit 1
+    }
+fi
 
 # Step 3: Create tmp directory for test artifacts
 log_info "Cleaning up old session files and debug prompts/outputs..."
@@ -435,6 +472,16 @@ helm dependency update ./charts || {
     log_error "Failed to update Helm dependencies"
     exit 1
 }
+
+# Build optional MCP server Helm flags
+HELM_MCP_ARGS=()
+if [[ "${SKIP_PROMETHEUS_MCP}" != "true" ]]; then
+    HELM_MCP_ARGS+=(
+        --set mcpServers.prometheus.enabled=true
+        --set mcpServers.prometheus.endpoint="http://prometheus-mcp.dot-ai.svc:8080/mcp"
+        --set-json 'mcpServers.prometheus.attachTo=["remediate","query"]'
+    )
+fi
 
 log_info "Deploying dot-ai via Helm chart..."
 log_info "AI Provider: ${AI_PROVIDER}"
@@ -493,9 +540,7 @@ helm upgrade --install dot-ai ./charts \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
     --set plugins.agentic-tools.image.pullPolicy=Never \
-    --set mcpServers.prometheus.enabled=true \
-    --set mcpServers.prometheus.endpoint="http://prometheus-mcp.dot-ai.svc:8080/mcp" \
-    --set-json 'mcpServers.prometheus.attachTo=["remediate","query"]' \
+    "${HELM_MCP_ARGS[@]}" \
     --set rbac.enforcement.enabled="${RBAC_ENABLED}" \
     --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"},{\"name\":\"MCP_DANGEROUSLY_ALLOW_INSECURE_ISSUER_URL\",\"value\":\"true\"}]" \
     --wait --timeout=300s || {
