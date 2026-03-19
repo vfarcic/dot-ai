@@ -263,8 +263,7 @@ spec:
         - containerPort: 8080
           name: http
         readinessProbe:
-          httpGet:
-            path: /
+          tcpSocket:
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
