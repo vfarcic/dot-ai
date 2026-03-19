@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Map resource dependencies before operations to prevent cascading failures. Surface impact analysis within query, operate, and remediate workflows — showing what resources are affected before any destructive or modifying action is taken.
+Map resource dependencies before operations to prevent cascading failures. Provide a standalone `impact_analysis` tool that accepts kubectl commands or GitOps manifest changes and returns blast radius with confidence levels. Existing tools (operate, remediate, query) guide users to call `impact_analysis` before executing destructive operations.
 
 ## Problem Statement
 
@@ -23,13 +23,17 @@ Users have no way to understand the blast radius of operations. Deleting a PVC, 
 
 ## Solution Overview
 
-Use AI reasoning to discover dependencies rather than building a hardcoded relationship mapping engine. The AI combines three sources of knowledge to build dependency graphs:
+A standalone `impact_analysis` MCP tool that uses AI reasoning to discover dependencies. The tool accepts free-text input — kubectl commands, YAML manifests, or a plain-English description of the planned operation. The AI parses whatever it receives and identifies target resources.
+
+The AI combines three sources of knowledge to discover dependencies:
 
 1. **Built-in AI knowledge** — The AI already understands standard Kubernetes relationships (Deployment→ReplicaSet→Pod, Service→Endpoints) and ecosystem tools (Crossplane XR→MR, Istio VirtualService→Service, etc.). No need to enumerate these — the AI uses its own judgement.
 2. **Knowledge base** — If users have ingested operator docs or architecture documentation, the AI can search it for cluster-specific relationship information. However, we cannot assume this is available.
 3. **Runtime cluster inspection** — The AI uses existing query tools to inspect the actual cluster: ownerReferences on child resources, resource specs that reference other resources by name, events linking related resources, labels/annotations tracing lineage.
 
 The AI iteratively follows dependency chains using existing tools (kubectl_get, query) and its own reasoning — the same way a human expert would investigate. No new programmatic dependency graph engine is needed.
+
+Existing tools (operate, remediate, query) are not modified to embed dependency analysis. Instead, they return `agentInstructions` suggesting users call `impact_analysis` before executing destructive operations. This keeps existing tool response times unchanged and makes impact analysis opt-in.
 
 **Confidence communication**: Since completeness cannot be guaranteed (especially for unknown CRDs), the AI communicates confidence:
 - **Definite** — confirmed from cluster data (e.g., ownerReferences found)
@@ -43,10 +47,12 @@ The AI iteratively follows dependency chains using existing tools (kubectl_get, 
 | 2026-03-19 | AI-first discovery instead of hardcoded mapping | Enumerating all relationship types is impossible — every operator invents its own model (Crossplane, Istio, KEDA, etc.). AI already knows these ecosystems. |
 | 2026-03-19 | No programmatic dependency graph engine | ownerReferences are bottom-up only (child→parent), making reverse lookups expensive. AI can use existing query tools to discover relationships iteratively. |
 | 2026-03-19 | Confidence-level communication | AI cannot guarantee completeness for unknown CRDs without docs, so it must communicate certainty to the user. |
+| 2026-03-19 | Standalone MCP tool instead of embedding into existing tools | Embedding dependency analysis into operate/remediate/query would add ~30-60s to every call, even for non-destructive operations. Standalone tool keeps existing response times unchanged and makes impact analysis opt-in. |
+| 2026-03-19 | Free-text input instead of structured fields | AI-first philosophy — the AI can parse kubectl commands, YAML manifests, or plain-English descriptions. Structured fields add unnecessary parsing logic and constrain what users/agents can provide. |
 
 ## Milestones
 
-- [ ] Milestone 1: Discovery & design — define how AI prompts structure dependency analysis, agree on confidence-level UX, identify integration points in operate/remediate/query
-- [ ] Milestone 2: Dependency analysis in operate — surface impact warnings with confidence levels before destructive operations
+- [ ] Milestone 1: Standalone impact_analysis tool — create MCP tool with AI prompts, free-text input, confidence-level output, and integration tests
+- [ ] Milestone 2: Operate/remediate integration — add agentInstructions to existing tools suggesting impact_analysis before destructive operations
 - [ ] Milestone 3: Query integration — answer dependency questions via natural language ("what depends on this database?")
-- [ ] Milestone 4: Integration tests and documentation
+- [ ] Milestone 4: Documentation
