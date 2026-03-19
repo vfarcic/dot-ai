@@ -153,6 +153,25 @@ Dex in-cluster gRPC endpoint — for user management via Dex gRPC API (PRD #380 
 {{ .Release.Name }}-dex.{{ .Release.Namespace }}.svc.cluster.local:5557
 {{- end -}}
 
+{{/*
+MCP Servers Configuration (PRD #358)
+Generates JSON array of MCP server configs for discovery by dot-ai.
+Each entry includes: name, endpoint, attachTo.
+*/}}
+{{- define "dot-ai.mcpServersConfig" -}}
+{{- $servers := list -}}
+{{- range $name, $config := .Values.mcpServers -}}
+{{- if $config.enabled -}}
+{{- if not $config.endpoint -}}
+{{- fail (printf "mcpServers.%s is enabled but has no endpoint configured" $name) -}}
+{{- end -}}
+{{- $server := dict "name" $name "endpoint" $config.endpoint "attachTo" $config.attachTo -}}
+{{- $servers = append $servers $server -}}
+{{- end -}}
+{{- end -}}
+{{- $servers | toJson -}}
+{{- end -}}
+
 {{- define "dot-ai.pluginsConfig" -}}
 {{- $plugins := list -}}
 {{- range $name, $config := .Values.plugins -}}

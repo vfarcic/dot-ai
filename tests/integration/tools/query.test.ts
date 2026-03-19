@@ -74,6 +74,24 @@ spec:
       // Ignore if CNPG CRD not ready
     }
 
+    // Wait for CNPG operator to reconcile and populate status on the Cluster CR
+    // Several tests assert toHaveProperty('status') which requires operator reconciliation
+    const statusMaxWait = 120000;
+    const statusInterval = 5000;
+    const statusStart = Date.now();
+    while (Date.now() - statusStart < statusMaxWait) {
+      try {
+        const result = execSync(
+          `kubectl get cluster test-pg-cluster -n ${testNamespace} -o jsonpath='{.status}' 2>/dev/null || true`,
+          { env: { ...process.env, KUBECONFIG: kubeconfig }, encoding: 'utf8' }
+        );
+        if (result && result.trim() !== '' && result.trim() !== "''") break;
+      } catch {
+        // CNPG CRD may not be ready yet
+      }
+      await new Promise(resolve => setTimeout(resolve, statusInterval));
+    }
+
     // Sync resources to Qdrant for Vector DB queries
     await integrationTest.httpClient.post('/api/v1/resources/sync', {
       upserts: [

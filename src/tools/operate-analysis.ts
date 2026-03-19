@@ -1,5 +1,6 @@
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { PluginManager } from '../core/plugin-manager';
+import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';
@@ -230,20 +231,32 @@ async function executeToolLoop(
     );
   }
 
-  logger.debug('Using kubectl tools from plugin', {
-    toolCount: kubectlTools.length,
-    tools: kubectlTools.map(t => t.name),
+  // PRD #358: Get MCP server tools attached to operate
+  const mcpTools = isMcpClientInitialized()
+    ? getMcpClientManager()!.getToolsForOperation('operate')
+    : [];
+
+  const allTools = [...kubectlTools, ...mcpTools];
+
+  logger.debug('Using investigation tools', {
+    kubectlToolCount: kubectlTools.length,
+    mcpToolCount: mcpTools.length,
+    tools: allTools.map(t => t.name),
   });
 
   // PRD #343: Create tool executor that routes through plugin
-  const toolExecutor = pluginManager.createToolExecutor();
+  // PRD #358: Chain MCP executor with plugin executor as fallback
+  const pluginExecutor = pluginManager.createToolExecutor();
+  const toolExecutor = isMcpClientInitialized()
+    ? getMcpClientManager()!.createToolExecutor(pluginExecutor)
+    : pluginExecutor;
 
   const aiProvider = createAIProvider();
 
   const result = await aiProvider.toolLoop({
     systemPrompt,
     userMessage,
-    tools: kubectlTools,
+    tools: allTools,
     toolExecutor: toolExecutor,
     maxIterations: 30,
     operation: 'operate-analysis',

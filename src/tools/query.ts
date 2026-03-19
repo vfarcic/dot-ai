@@ -13,6 +13,7 @@ import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
 import { RESOURCE_TOOLS, executeResourceTools, type SearchResourcesInput, type QueryResourcesInput } from '../core/resource-tools';
 import { PluginManager } from '../core/plugin-manager';
+import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import {
   getVisualizationUrl,
@@ -201,9 +202,13 @@ export async function handleQueryTool(
 
     // PRD #343: Use plugin executor when pluginManager is available
     // kubectl tools route through plugin HTTP, others use local executor
-    const executeQueryTools = pluginManager
+    // PRD #358: Chain MCP executor with plugin executor as fallback
+    const pluginExecutor = pluginManager
       ? pluginManager.createToolExecutor(localToolExecutor)
       : localToolExecutor;
+    const executeQueryTools = isMcpClientInitialized()
+      ? getMcpClientManager()!.createToolExecutor(pluginExecutor)
+      : pluginExecutor;
 
     // PRD #343: Get kubectl tools from plugin (read-only tools for query)
     // Only include kubectl tools when plugin provides them
@@ -219,13 +224,19 @@ export async function handleQueryTool(
       ? pluginManager.getDiscoveredTools().filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
       : [];
 
+    // PRD #358: Get MCP server tools attached to query
+    const mcpTools = isMcpClientInitialized()
+      ? getMcpClientManager()!.getToolsForOperation('query')
+      : [];
+
     // Build tool list - add mermaid tools when in visualization mode
     // kubectl tools only available when plugin is configured
+    // MCP tools added when MCP servers are configured
     const tools = visualizationMode
-      ? [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...MERMAID_TOOLS]
-      : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools];
+      ? [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...mcpTools, ...MERMAID_TOOLS]
+      : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...mcpTools];
 
-    // Execute tool loop with capability, resource, and kubectl tools
+    // Execute tool loop with capability, resource, kubectl, and MCP tools
     const result = await aiProvider.toolLoop({
       systemPrompt,
       userMessage: intent,

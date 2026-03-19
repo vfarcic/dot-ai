@@ -12,6 +12,7 @@ import {
 } from '../core/error-handling';
 import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
+import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { buildAgentDisplayBlock } from '../core/index';
 import {
@@ -286,15 +287,21 @@ async function conductInvestigation(
     }
 
     // PRD #407: Combine plugin tools (allowlisted) with internal tools (git_clone, fs_list, fs_read)
-    const investigationTools = [...kubectlTools, ...getInternalTools()];
+    // PRD #358: Get MCP server tools attached to remediate
+    const mcpTools = isMcpClientInitialized()
+      ? getMcpClientManager()!.getToolsForOperation('remediate')
+      : [];
+
+    const allTools = [...kubectlTools, ...getInternalTools(), ...mcpTools];
 
     logger.debug(
       'Starting toolLoop with investigation tools',
       {
         requestId,
         sessionId: session.sessionId,
-        toolCount: investigationTools.length,
-        tools: investigationTools.map(t => t.name),
+        toolCount: allTools.length,
+        mcpToolCount: mcpTools.length,
+        tools: allTools.map(t => t.name),
       }
     );
 
@@ -302,10 +309,14 @@ async function conductInvestigation(
     cleanupOldClones();
 
     // PRD #407: Combined executor routes plugin tools to plugin, internal tools to local handlers
+    // PRD #358: Chain MCP executor with plugin executor as fallback
     const internalExecutor = createInternalToolExecutor(session.sessionId);
-    const toolExecutor = pluginManager.createToolExecutor(internalExecutor);
+    const pluginExecutor = pluginManager.createToolExecutor(internalExecutor);
+    const toolExecutor = isMcpClientInitialized()
+      ? getMcpClientManager()!.createToolExecutor(pluginExecutor)
+      : pluginExecutor;
 
-    // Use toolLoop for AI-driven investigation with all investigation tools
+    // Use toolLoop for AI-driven investigation with all tools (kubectl + internal + MCP)
     // System prompt is static (cached), issue description is dynamic (userMessage)
     const operationName = isValidation
       ? 'remediate-validation'
@@ -313,7 +324,7 @@ async function conductInvestigation(
     const result = await aiProvider.toolLoop({
       systemPrompt: systemPrompt,
       userMessage: `Investigate this Kubernetes issue: ${session.data.issue}`,
-      tools: investigationTools,
+      tools: allTools,
       toolExecutor: toolExecutor,
       maxIterations: maxIterations,
       operation: operationName,
