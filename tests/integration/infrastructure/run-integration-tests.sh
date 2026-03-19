@@ -89,6 +89,24 @@ else
     log_warn "Skipping Kyverno Policy Engine installation (SKIP_KYVERNO=true)"
 fi
 
+# PRD #358: Install Prometheus for MCP server integration testing
+# Uses release name 'dot-ai-prometheus' to avoid ClusterRole name collision with
+# the recommend test (which deploys its own Prometheus release in monitoring namespace)
+log_info "Starting Prometheus installation (PRD #358)..."
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+helm repo update
+helm upgrade --install dot-ai-prometheus prometheus-community/prometheus \
+    --namespace dot-ai --create-namespace \
+    --set server.persistentVolume.enabled=false \
+    --set alertmanager.enabled=false \
+    --set kube-state-metrics.enabled=false \
+    --set prometheus-node-exporter.enabled=false \
+    --set prometheus-pushgateway.enabled=false \
+    --timeout=300s || {
+    log_error "Failed to install Prometheus"
+    exit 1
+}
+
 # Install nginx ingress controller
 log_info "Starting nginx ingress installation..."
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml || {
@@ -158,6 +176,58 @@ spec:
     port: 6334
     targetPort: 6334
 EOF
+
+# PRD #358: Deploy Prometheus MCP server for MCP client integration testing
+log_info "Starting Prometheus MCP server deployment (PRD #358)..."
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-mcp
+  namespace: dot-ai
+  labels:
+    app: prometheus-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus-mcp
+  template:
+    metadata:
+      labels:
+        app: prometheus-mcp
+    spec:
+      containers:
+      - name: prometheus-mcp
+        image: ghcr.io/pab1it0/prometheus-mcp-server:latest
+        env:
+        - name: PROMETHEUS_URL
+          value: "http://dot-ai-prometheus-server.dot-ai.svc:80"
+        - name: PROMETHEUS_MCP_SERVER_TRANSPORT
+          value: "http"
+        - name: PROMETHEUS_MCP_BIND_HOST
+          value: "0.0.0.0"
+        - name: PROMETHEUS_MCP_BIND_PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+          name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-mcp
+  namespace: dot-ai
+spec:
+  selector:
+    app: prometheus-mcp
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+EOF
+
+log_info "Prometheus MCP server image will be pulled by Kubernetes from GHCR when needed"
 
 # Build Docker image while operators install
 log_info "Creating npm package tarball..."
@@ -263,6 +333,26 @@ kubectl wait --namespace dot-ai \
     exit 1
 }
 
+log_info "Waiting for Prometheus server (PRD #358)..."
+kubectl wait --namespace dot-ai \
+    --for=condition=available deployment/dot-ai-prometheus-server \
+    --timeout=120s || {
+    log_error "Prometheus server failed to become ready"
+    kubectl get pods -n dot-ai
+    kubectl logs -n dot-ai -l app.kubernetes.io/instance=dot-ai-prometheus --tail=50
+    exit 1
+}
+
+log_info "Waiting for Prometheus MCP server (PRD #358)..."
+kubectl wait --namespace dot-ai \
+    --for=condition=available deployment/prometheus-mcp \
+    --timeout=120s || {
+    log_error "Prometheus MCP server failed to become ready"
+    kubectl get pods -n dot-ai
+    kubectl logs -n dot-ai -l app=prometheus-mcp --tail=50
+    exit 1
+}
+
 # Step 3: Create tmp directory for test artifacts
 log_info "Cleaning up old session files and debug prompts/outputs..."
 rm -rf ./tmp/sessions/*
@@ -335,6 +425,9 @@ helm upgrade --install dot-ai ./charts \
     --set plugins.agentic-tools.image.repository=dot-ai-agentic-tools \
     --set plugins.agentic-tools.image.tag=test \
     --set plugins.agentic-tools.image.pullPolicy=Never \
+    --set mcpServers.prometheus.enabled=true \
+    --set mcpServers.prometheus.endpoint="http://prometheus-mcp.dot-ai.svc:8080/mcp" \
+    --set-json 'mcpServers.prometheus.attachTo=["remediate","query"]' \
     --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"},{\"name\":\"MCP_DANGEROUSLY_ALLOW_INSECURE_ISSUER_URL\",\"value\":\"true\"}]" \
     --wait --timeout=300s || {
     log_error "Failed to deploy dot-ai via Helm"

@@ -213,7 +213,8 @@ export class McpClientManager {
       // Clean up transport on failure
       try { await transport.close(); } catch { /* ignore cleanup errors */ }
       throw new Error(
-        `Failed to connect to MCP server '${config.name}' at ${config.endpoint}: ${err instanceof Error ? err.message : String(err)}`
+        `Failed to connect to MCP server '${config.name}' at ${config.endpoint}: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err }
       );
     }
 
@@ -233,7 +234,8 @@ export class McpClientManager {
     } catch (err) {
       try { await transport.close(); } catch { /* ignore cleanup errors */ }
       throw new Error(
-        `Failed to list tools from MCP server '${config.name}': ${err instanceof Error ? err.message : String(err)}`
+        `Failed to list tools from MCP server '${config.name}': ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err }
       );
     }
 
@@ -354,18 +356,19 @@ export class McpClientManager {
           });
 
           // Extract text content from MCP response
+          const contentArray = result.content as Array<{ type: string; text?: string }>;
           if (result.isError) {
-            const errorText = result.content
-              ?.filter((c: { type: string }) => c.type === 'text')
-              .map((c: { type: string; text?: string }) => c.text)
+            const errorText = contentArray
+              ?.filter(c => c.type === 'text')
+              .map(c => c.text)
               .join('\n') || 'Unknown MCP tool error';
             return `Error: ${errorText}`;
           }
 
           // Return text content for AI consumption
-          const textContent = result.content
-            ?.filter((c: { type: string }) => c.type === 'text')
-            .map((c: { type: string; text?: string }) => c.text)
+          const textContent = contentArray
+            ?.filter(c => c.type === 'text')
+            .map(c => c.text)
             .join('\n');
 
           return textContent || '';

@@ -205,7 +205,7 @@ When selecting MCP servers to bundle or recommend:
 - [x] Implement MCP client capability in dot-ai
 - [x] Add Helm configuration for `mcpServers`
 - [x] Implement `attachTo` mechanism for tool routing
-- [ ] Research and select Prometheus MCP server to bundle
+- [x] Research and select Prometheus MCP server to bundle
 - [ ] Bundle Prometheus MCP server in Helm chart
 - [x] Update remediation to use tools from attached MCP servers
 - [ ] Integration tests for Prometheus + remediate flow
@@ -394,3 +394,23 @@ New templates created:
 - `src/tools/version.ts` — MCP server status in diagnostics
 
 **Next Steps**: Research Prometheus MCP server, write integration tests
+
+### 2026-03-18: Prometheus MCP Server Selection & Test Infrastructure
+**Status**: In Progress
+**Context**: Selected Prometheus MCP server and added to test cluster
+
+**Key Decisions**:
+- Selected `pab1it0/prometheus-mcp-server` (TypeScript, `ghcr.io/pab1it0/prometheus-mcp-server:latest`)
+  - 6 tools: `execute_query`, `execute_range_query`, `list_metrics`, `get_metric_metadata`, `get_targets`, `health_check`
+  - HTTP transport (StreamableHTTP compatible with McpClientManager)
+  - Published Docker image, actively maintained
+- Prometheus deployed via Helm chart (`prometheus-community/prometheus`) in test cluster
+  - Release name `dot-ai-prometheus` to avoid ClusterRole collision with recommend test
+- Prometheus MCP server deployed as Deployment + Service (no Helm chart available for it)
+
+**Files Modified**:
+- `tests/integration/infrastructure/run-integration-tests.sh` — Added Prometheus Helm install, MCP server Deployment+Service, wait blocks, mcpServers Helm values for dot-ai
+- `tests/integration/tools/version.test.ts` — Added mcpServers assertion (serverCount, toolCount, tool names, attachTo)
+- `src/core/mcp-client-manager.ts` — Fixed pre-existing lint errors (added `{ cause: err }`) and TypeScript errors (cast `result.content` array)
+
+**Next Steps**: Write integration tests for remediate + Prometheus flow, bundle Prometheus MCP in production Helm chart
