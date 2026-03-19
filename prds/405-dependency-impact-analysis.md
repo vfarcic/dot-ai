@@ -2,7 +2,7 @@
 
 **Issue**: #405
 **Created**: 2026-03-13
-**Status**: Planning
+**Status**: In Progress
 **Priority**: Medium
 **Owner**: TBD
 
@@ -49,6 +49,9 @@ Existing tools (operate, remediate, query) are not modified to embed dependency 
 | 2026-03-19 | Confidence-level communication | AI cannot guarantee completeness for unknown CRDs without docs, so it must communicate certainty to the user. |
 | 2026-03-19 | Standalone MCP tool instead of embedding into existing tools | Embedding dependency analysis into operate/remediate/query would add ~30-60s to every call, even for non-destructive operations. Standalone tool keeps existing response times unchanged and makes impact analysis opt-in. |
 | 2026-03-19 | Free-text input instead of structured fields | AI-first philosophy — the AI can parse kubectl commands, YAML manifests, or plain-English descriptions. Structured fields add unnecessary parsing logic and constrain what users/agents can provide. |
+| 2026-03-19 | Simple output: `safe` boolean + `summary` text | Consumer is another AI agent — it reads text natively. Rigid typed interfaces (AffectedResource, riskLevel enums) add complexity without value. `safe` boolean provides a clear programmatic signal for M2 integration. |
+| 2026-03-19 | No separate namespace field | Consistent with free-text input decision — AI infers namespace from the input (kubectl `-n` flag, YAML metadata, or plain English). |
+| 2026-03-19 | Single `agentInstructions` field, no `guidance` | Both fields serve the same purpose (instruct the consuming agent). Having both is redundant. |
 
 ## Milestones
 

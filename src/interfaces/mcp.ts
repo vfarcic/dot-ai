@@ -67,6 +67,12 @@ import {
   handleManageKnowledgeTool,
   type ManageKnowledgeInput,
 } from '../tools/manage-knowledge';
+import {
+  IMPACT_ANALYSIS_TOOL_NAME,
+  IMPACT_ANALYSIS_TOOL_DESCRIPTION,
+  IMPACT_ANALYSIS_TOOL_INPUT_SCHEMA,
+  handleImpactAnalysisTool,
+} from '../tools/impact-analysis';
 
 import {
   handlePromptsListRequest,
@@ -421,6 +427,18 @@ export class MCPServer {
         },
         category: 'Knowledge',
         tags: ['knowledge', 'documents', 'ingest', 'semantic', 'search'],
+      },
+      {
+        name: IMPACT_ANALYSIS_TOOL_NAME,
+        description: IMPACT_ANALYSIS_TOOL_DESCRIPTION,
+        schema: IMPACT_ANALYSIS_TOOL_INPUT_SCHEMA,
+        handler: async (args: ToolArgs) => {
+          const requestId = this.generateRequestId();
+          this.logger.info(`Processing ${IMPACT_ANALYSIS_TOOL_NAME} tool request`, { requestId });
+          return await handleImpactAnalysisTool(args, this.pluginManager);
+        },
+        category: 'Intelligence',
+        tags: ['impact', 'dependency', 'blast-radius', 'analysis', 'safety'],
       },
     ];
   }
