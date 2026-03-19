@@ -75,7 +75,7 @@ spec:
     }
 
     // Wait for CNPG operator to reconcile and populate status on the Cluster CR
-    // Tests at lines ~643 and ~926 assert toHaveProperty('status') which requires operator reconciliation
+    // Several tests assert toHaveProperty('status') which requires operator reconciliation
     const statusMaxWait = 120000;
     const statusInterval = 5000;
     const statusStart = Date.now();

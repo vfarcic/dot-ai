@@ -40,7 +40,7 @@ describe.concurrent('Version Tool Integration', () => {
     // Wait for dot-ai-controller to sync cluster resources into Qdrant.
     // The resources collection is created on first sync from the controller.
     beforeAll(async () => {
-      const maxWait = 120000;
+      const maxWait = 180000;
       const interval = 5000;
       const start = Date.now();
 
@@ -50,7 +50,7 @@ describe.concurrent('Version Tool Integration', () => {
         if (resources?.exists) break;
         await new Promise(resolve => setTimeout(resolve, interval));
       }
-    }, 130000);
+    }, 190000);
 
     test('should return comprehensive system status with correct structure', async () => {
       // Define expected response structure (based on actual API inspection)
