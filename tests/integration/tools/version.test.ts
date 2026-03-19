@@ -37,6 +37,21 @@ describe.concurrent('Version Tool Integration', () => {
   // Integration tests always run in-cluster (MCP deployed in Kind, accessed via ingress)
 
   describe('System Status via REST API', () => {
+    // Wait for dot-ai-controller to sync cluster resources into Qdrant.
+    // The resources collection is created on first sync from the controller.
+    beforeAll(async () => {
+      const maxWait = 120000;
+      const interval = 5000;
+      const start = Date.now();
+
+      while (Date.now() - start < maxWait) {
+        const response = await integrationTest.httpClient.post('/api/v1/tools/version', {});
+        const resources = response?.data?.result?.vectorDB?.collections?.resources;
+        if (resources?.exists) break;
+        await new Promise(resolve => setTimeout(resolve, interval));
+      }
+    }, 130000);
+
     test('should return comprehensive system status with correct structure', async () => {
       // Define expected response structure (based on actual API inspection)
       const expectedVersionResponse = {

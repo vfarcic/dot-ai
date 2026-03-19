@@ -35,9 +35,11 @@ apply_profile() {
             ;;
         recommend)
             SKIP_ARGOCD=false
+            SKIP_CNPG=false
             ;;
         query)
             SKIP_CNPG=false
+            SKIP_PROMETHEUS_MCP=false
             ;;
         manage-org-data-policies)
             SKIP_KYVERNO=false

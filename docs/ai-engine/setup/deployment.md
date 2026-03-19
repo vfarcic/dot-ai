@@ -431,7 +431,7 @@ Any MCP server that supports HTTP transport can be connected — Prometheus, Jae
 
 ### How It Works
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                      Your Cluster                            │
 │                                                              │
@@ -461,7 +461,7 @@ Add MCP servers to your Helm values:
 mcpServers:
   prometheus:
     enabled: true
-    endpoint: "http://prometheus-mcp.monitoring.svc:3000/mcp"
+    endpoint: "http://prometheus-mcp.monitoring.svc:8080/mcp"
     attachTo:
       - remediate
       - query

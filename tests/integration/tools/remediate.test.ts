@@ -764,8 +764,26 @@ EOF`);
       // Verify pod has crashed at least once
       expect(restartCount).toBeGreaterThan(0);
 
-      // Wait for Prometheus to scrape container metrics (scrape interval ~15-60s)
-      await new Promise(resolve => setTimeout(resolve, 60000));
+      // Poll Prometheus until container metrics are available for the test namespace
+      const prometheusUrl = 'http://dot-ai-prometheus-server.dot-ai.svc:80';
+      const metricsQuery = `container_memory_usage_bytes{namespace="${mcpNamespace}"}`;
+      const pollMaxWait = 90000;
+      const pollInterval = 5000;
+      const pollStart = Date.now();
+      let metricsFound = false;
+
+      while (Date.now() - pollStart < pollMaxWait) {
+        const result = await integrationTest.kubectl(
+          `run prom-poll-${Date.now()} --image=curlimages/curl:latest --restart=Never --rm -i --timeout=10s -- curl -sf "${prometheusUrl}/api/v1/query?query=${encodeURIComponent(metricsQuery)}" 2>/dev/null || true`
+        );
+        if (result.includes('"result":[{')) {
+          metricsFound = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+
+      expect(metricsFound, 'Prometheus did not scrape container metrics within timeout').toBe(true);
 
       // INVESTIGATION: Call remediate with issue description that encourages metrics usage
       const investigationResponse = await integrationTest.httpClient.post(

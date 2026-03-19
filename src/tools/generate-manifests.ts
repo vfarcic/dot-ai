@@ -334,8 +334,9 @@ async function helmLint(
     return { valid: true, errors: [], warnings };
   } catch (error) {
     // helm lint exits with non-zero on errors
-    const execError = error as { stderr?: string; message?: string };
-    const errorOutput = execError.stderr || execError.message || String(error);
+    // Detailed [ERROR] lines are on stdout, summary on stderr
+    const execError = error as { stdout?: string; stderr?: string; message?: string };
+    const errorOutput = [execError.stdout, execError.stderr, execError.message].filter(Boolean).join('\n') || String(error);
     const errors: string[] = [];
     const warnings: string[] = [];
 

@@ -262,6 +262,12 @@ spec:
         ports:
         - containerPort: 8080
           name: http
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
 ---
 apiVersion: v1
 kind: Service
@@ -630,7 +636,7 @@ while [ $PLUGIN_WAITED -lt $PLUGIN_MAX_WAIT ]; do
     PLUGIN_COUNT=$(curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
-        -d '{}' 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('result',{}).get('system',{}).get('plugins',{}).get('pluginCount',0))" 2>/dev/null || echo "0")
+        -d '{}' 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(j?.data?.result?.system?.plugins?.pluginCount||0)}catch{console.log(0)}})" 2>/dev/null || echo "0")
     if [ "$PLUGIN_COUNT" -ge 1 ] 2>/dev/null; then
         log_info "Plugin discovery complete: ${PLUGIN_COUNT} plugin(s) available"
         break
@@ -644,7 +650,7 @@ if [ $PLUGIN_WAITED -ge $PLUGIN_MAX_WAIT ]; then
     curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
-        -d '{}' 2>/dev/null | python3 -m json.tool || true
+        -d '{}' 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.stringify(JSON.parse(d),null,2))}catch{console.log(d)}})" || true
     kubectl logs -n dot-ai -l app.kubernetes.io/name=dot-ai --tail=50
     exit 1
 fi

@@ -193,14 +193,15 @@ async function main() {
       // Stop background plugin discovery if active
       pluginManager.stopBackgroundDiscovery();
 
+      // Stop server first to drain in-flight requests before closing shared clients
+      await mcpServer.stop();
+
       // Close MCP client connections (PRD #358)
       await mcpClientManager.close();
 
       // Track server stop telemetry
       const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
       getTelemetry().trackServerStop(uptimeSeconds);
-
-      await mcpServer.stop();
       await shutdownTracer();
 
       // Flush telemetry events before exit
