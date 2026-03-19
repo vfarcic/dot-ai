@@ -679,4 +679,146 @@ EOF`);
 
     }, 1200000); // 20 minute timeout
   });
+
+  describe('MCP Server Integration - Prometheus', () => {
+    const mcpNamespace = 'remediate-mcp-test';
+
+    test('should use Prometheus MCP tools during investigation when metrics data is relevant', async () => {
+      // SETUP: Create namespace
+      await integrationTest.kubectl(`create namespace ${mcpNamespace}`);
+
+      // SETUP: Create deployment with insufficient memory (will OOMKill)
+      // Lightweight OOM scenario to avoid overburdening KinD cluster:
+      // stress requests 80M but limit is 48Mi, guaranteeing OOM crash
+      await integrationTest.kubectl(`apply -n ${mcpNamespace} -f - <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-test-app
+  namespace: ${mcpNamespace}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-test-app
+  template:
+    metadata:
+      labels:
+        app: mcp-test-app
+    spec:
+      containers:
+      - name: stress
+        image: polinux/stress:1.0.4
+        command: ["stress"]
+        args: ["--vm", "1", "--vm-bytes", "80M", "--vm-hang", "1"]
+        resources:
+          limits:
+            memory: "48Mi"
+          requests:
+            memory: "24Mi"
+EOF`);
+
+      // Wait for pod to start and crash at least once (OOM)
+      let restartCount = 0;
+      const maxWaitTime = 90000;
+      const checkInterval = 5000;
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxWaitTime) {
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${mcpNamespace} -l app=mcp-test-app -o json`
+        );
+
+        if (!podsJson || podsJson.trim() === '') {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          continue;
+        }
+
+        const podsData = JSON.parse(podsJson);
+        if (podsData.items && podsData.items.length > 0) {
+          const podData = podsData.items[0];
+          if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
+            restartCount = podData.status.containerStatuses[0].restartCount;
+            if (restartCount > 0) {
+              break;
+            }
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+
+      // Verify pod has crashed at least once
+      expect(restartCount).toBeGreaterThan(0);
+
+      // Wait for Prometheus to scrape container metrics (scrape interval ~15-60s)
+      await new Promise(resolve => setTimeout(resolve, 60000));
+
+      // INVESTIGATION: Call remediate with issue description that encourages metrics usage
+      const investigationResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/remediate',
+        {
+          issue: `Pods in ${mcpNamespace} namespace keep crashing. Check the memory metrics from prometheus to understand the actual memory usage trends before suggesting fixes.`,
+          interaction_id: 'mcp_prometheus_investigate'
+        }
+      );
+
+      // Validate standard investigation response structure
+      const expectedResponse = {
+        success: true,
+        data: {
+          result: {
+            status: 'awaiting_user_approval',
+            sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
+            investigation: {
+              iterations: expect.any(Number),
+              dataGathered: expect.any(Array)
+            },
+            analysis: {
+              rootCause: expect.any(String),
+              confidence: expect.any(Number),
+              factors: expect.any(Array)
+            },
+            remediation: {
+              summary: expect.any(String),
+              actions: expect.arrayContaining([
+                expect.objectContaining({
+                  description: expect.any(String),
+                  command: expect.stringContaining('kubectl'),
+                  risk: expect.stringMatching(/^(low|medium|high)$/),
+                  rationale: expect.any(String)
+                })
+              ]),
+              risk: expect.stringMatching(/^(low|medium|high)$/)
+            },
+            executed: false,
+            mode: 'manual'
+          },
+          tool: 'remediate',
+          executionTime: expect.any(Number)
+        }
+      };
+
+      expect(investigationResponse, `MCP investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`).toMatchObject(expectedResponse);
+
+      // KEY VALIDATION: AI used at least one Prometheus MCP tool
+      const dataGathered: string[] = investigationResponse.data.result.investigation.dataGathered;
+      const prometheusToolCalls = dataGathered.filter((entry: string) =>
+        entry.startsWith('prometheus__')
+      );
+      expect(prometheusToolCalls.length).toBeGreaterThan(0);
+
+      // Verify kubectl tools were also used (combined investigation)
+      const kubectlToolCalls = dataGathered.filter((entry: string) =>
+        entry.startsWith('kubectl_')
+      );
+      expect(kubectlToolCalls.length).toBeGreaterThan(0);
+
+      // Verify AI identified memory/OOM as root cause
+      expect(investigationResponse.data.result.analysis.rootCause.toLowerCase()).toMatch(/oom|memory/);
+      expect(investigationResponse.data.result.analysis.confidence).toBeGreaterThan(0.7);
+      expect(investigationResponse.data.result.remediation.actions.length).toBeGreaterThan(0);
+
+    }, 1200000); // 20 minute timeout
+  });
 });
