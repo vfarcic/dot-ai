@@ -104,11 +104,11 @@ jobs:
             tests: recommend
           - name: query
             tests: query
-          - name: manage-org-data-policies
-            tests: manage-org-data-policies
+          - name: manage-org-data-policies-capabilities
+            tests: manage-org-data-policies manage-org-data-capabilities
           # Base-only tests (grouped to share cluster setup overhead)
           - name: base-group-1
-            tests: operate manage-org-data-patterns manage-org-data-capabilities manage-knowledge auth rbac
+            tests: operate manage-org-data-patterns manage-knowledge auth rbac
           - name: base-group-2
             tests: resource-sync openapi plugin project-setup prompts
 
@@ -147,7 +147,6 @@ jobs:
       run: devbox run -- ./tests/integration/infrastructure/run-integration-tests.sh ${{ matrix.tests }}
       timeout-minutes: 25
       env:
-        SKIP_BUILD: "true"
         SKIP_DOCKER_BUILD: "true"
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         DOT_AI_GIT_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}

@@ -20,7 +20,10 @@ TEST_ARGS=("$@")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ ${#TEST_ARGS[@]} -gt 0 ]]; then
     source "${SCRIPT_DIR}/infra-profiles.sh"
-    apply_profile "${TEST_ARGS[0]}"
+    init_profiles
+    for arg in "${TEST_ARGS[@]}"; do
+        apply_profile "$arg"
+    done
 fi
 
 # Configuration
