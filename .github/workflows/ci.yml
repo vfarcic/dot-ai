@@ -94,23 +94,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test:
-          - version
-          - remediate
-          - recommend
-          - query
-          - operate
-          - manage-org-data-policies
-          - manage-org-data-patterns
-          - manage-org-data-capabilities
-          - manage-knowledge
-          - auth
-          - rbac
-          - resource-sync
-          - openapi
-          - plugin
-          - project-setup
-          - prompts
+        include:
+          # Tests needing optional infrastructure (separate clusters)
+          - name: version
+            tests: version
+          - name: remediate
+            tests: remediate
+          - name: recommend
+            tests: recommend
+          - name: query
+            tests: query
+          - name: manage-org-data-policies
+            tests: manage-org-data-policies
+          # Base-only tests (grouped to share cluster setup overhead)
+          - name: base-group-1
+            tests: operate manage-org-data-patterns manage-org-data-capabilities manage-knowledge auth rbac
+          - name: base-group-2
+            tests: resource-sync openapi plugin project-setup prompts
 
     steps:
     - name: Checkout code
@@ -143,8 +143,8 @@ jobs:
         docker load -i /tmp/dot-ai-test.tar
         docker load -i /tmp/dot-ai-agentic-tools-test.tar
 
-    - name: Run integration test (${{ matrix.test }})
-      run: devbox run -- ./tests/integration/infrastructure/run-integration-tests.sh ${{ matrix.test }}
+    - name: Run integration tests (${{ matrix.name }})
+      run: devbox run -- ./tests/integration/infrastructure/run-integration-tests.sh ${{ matrix.tests }}
       timeout-minutes: 25
       env:
         SKIP_BUILD: "true"
