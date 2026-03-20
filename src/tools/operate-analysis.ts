@@ -64,7 +64,7 @@ interface OperateAnalysisResult {
     validationIntent: string;
   };
   message: string;
-  nextAction: string;
+  agentInstructions: string;
 }
 
 /**
@@ -144,7 +144,7 @@ export async function analyzeIntent(
     },
     message:
       'Operational proposal generated successfully. Review changes and execute with operate(sessionId, executeChoice=1).',
-    nextAction: `Review the proposed changes and call operate({ sessionId: "${session.sessionId}", executeChoice: 1 }) to execute.`,
+    agentInstructions: `Review the proposed changes. You can call operate({ sessionId: "${session.sessionId}", executeChoice: 1 }) to execute directly, or run impact_analysis first to understand the blast radius and downstream dependencies before executing.`,
   };
 }
 

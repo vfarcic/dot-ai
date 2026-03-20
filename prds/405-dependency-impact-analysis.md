@@ -54,10 +54,12 @@ Existing tools (operate, remediate, query) are not modified to embed dependency 
 | 2026-03-19 | Single `agentInstructions` field, no `guidance` | Both fields serve the same purpose (instruct the consuming agent). Having both is redundant. |
 | 2026-03-20 | Git/FS tools for GitOps source verification | When users reference a git repo and file change, the AI clones the repo and reads the file to verify the actual manifest — not just trust the description. Reuses existing `git_clone`/`fs_read`/`fs_list` internal tools from remediate. |
 | 2026-03-20 | Tool descriptions are sufficient — no usage instructions in prompt | AI-first philosophy: tool descriptions tell the AI when to use each tool. Enumerating tool usage per source type in the system prompt is redundant and constraining. |
+| 2026-03-20 | Rename operate's `nextAction` to `agentInstructions` | Operate's `nextAction` served the same purpose as `agentInstructions` in remediate and impact_analysis. Renamed for cross-tool consistency. |
+| 2026-03-20 | Always present impact_analysis as an option, no conditional logic | Instead of only suggesting impact_analysis for destructive/high-risk operations, always present both options (execute directly or run impact_analysis first) and let the agent/user decide. Simpler code, no risk detection heuristics needed. |
 
 ## Milestones
 
 - [x] Milestone 1: Standalone impact_analysis tool — create MCP tool with AI prompts, free-text input, confidence-level output, and integration tests
-- [ ] Milestone 2: Operate/remediate integration — add agentInstructions to existing tools suggesting impact_analysis before destructive operations
+- [x] Milestone 2: Operate/remediate integration — add agentInstructions to existing tools suggesting impact_analysis before destructive operations
 - [ ] Milestone 3: Query integration — answer dependency questions via natural language ("what depends on this database?")
 - [ ] Milestone 4: Documentation
