@@ -48,4 +48,5 @@ When analysis is complete, respond with ONLY this JSON:
 - No additional text before or after the JSON
 - Be thorough: follow ALL dependency chains, not just the first level
 - When uncertain, say so — do not fabricate relationships
+- If the target resource does not exist in the cluster, say so clearly in the summary — do not silently analyze a different resource instead
 - If kubectl tools are unavailable, provide analysis from built-in knowledge and mark everything as "likely" or "uncertain"
