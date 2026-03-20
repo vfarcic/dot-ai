@@ -1,6 +1,6 @@
 # PRD #382: Add Alibaba Qwen 3.5 Plus AI Provider
 
-**Status**: Open
+**Status**: Complete
 **Priority**: Medium
 **Created**: 2026-02-19
 
@@ -34,12 +34,12 @@ Add Qwen 3.5 Plus as a new AI provider using the official `@ai-sdk/alibaba` Verc
 
 ## Milestones
 
-- [ ] Install `@ai-sdk/alibaba` package and add provider entry in `model-config.ts`
-- [ ] Register Alibaba provider in `vercel-provider.ts` with model creation and API key validation
-- [ ] Add `test:integration:qwen` script to `package.json`
-- [ ] Integration tests passing with Qwen 3.5 Plus (`npm run test:integration:qwen`)
-- [ ] Documentation updated in `docs/ai-engine/setup/deployment.md` provider table
-- [ ] Changelog fragment created
+- [x] Install `@ai-sdk/alibaba` package and add provider entry in `model-config.ts`
+- [x] Register Alibaba provider in `vercel-provider.ts` with model creation and API key validation
+- [x] Add `test:integration:qwen` script to `package.json`
+- [x] Integration tests passing with Qwen 3.5 Plus (`npm run test:integration:qwen`)
+- [x] Documentation updated in `docs/ai-engine/setup/deployment.md` provider table
+- [x] Changelog fragment created
 
 ## Technical Notes
 

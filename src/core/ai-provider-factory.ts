@@ -30,6 +30,7 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   google: 'GOOGLE_GENERATIVE_AI_API_KEY', // Standard Vercel AI SDK env var (also checks GOOGLE_API_KEY as fallback)
   google_flash: 'GOOGLE_GENERATIVE_AI_API_KEY', // PRD #294: Uses same API key as regular Google
   kimi: 'MOONSHOT_API_KEY', // PRD #353: Moonshot AI Kimi K2.5
+  alibaba: 'ALIBABA_API_KEY', // PRD #382: Alibaba Qwen 3.5 Plus
   xai: 'XAI_API_KEY',
 };
 

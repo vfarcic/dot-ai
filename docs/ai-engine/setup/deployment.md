@@ -147,6 +147,7 @@ All AI models must meet these minimum requirements:
 | **Google** | Gemini 3 Flash | `google_flash` | `GOOGLE_GENERATIVE_AI_API_KEY` | Yes (preview) |
 | **Host** | Host Environment LLM | `host` | None (uses host's AI) | Yes (if supported) |
 | **Moonshot AI** | Kimi K2.5 | `kimi` | `MOONSHOT_API_KEY` | Yes |
+| **Alibaba** | Qwen 3.5 Plus | `alibaba` | `ALIBABA_API_KEY` | Yes |
 | **OpenAI** | GPT-5.4 | `openai` | `OPENAI_API_KEY` | No * |
 | **xAI** | Grok-4 | `xai` | `XAI_API_KEY` | No * |
 

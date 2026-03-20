@@ -13,6 +13,7 @@ export const CURRENT_MODELS = {
   google: 'gemini-3.1-pro-preview',
   google_flash: 'gemini-3-flash-preview', // PRD #294: Gemini 3 Flash - faster/cheaper variant with same 1M context
   kimi: 'kimi-k2.5', // PRD #353: Moonshot AI Kimi K2.5 - single model with thinking by default, 256K context
+  alibaba: 'qwen3.5-plus', // PRD #382: Alibaba Qwen 3.5 Plus - 262K context, 201 languages, MoE architecture
   xai: 'grok-4',
   host: 'host', // Delegates generation to the client via MCP Sampling
   openrouter: 'anthropic/claude-haiku-4.5', // PRD #194: OpenRouter default model (overridden by AI_MODEL env var)
