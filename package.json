@@ -27,6 +27,7 @@
     "test:integration:gemini-flash": "AI_PROVIDER=google_flash DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:grok": "AI_PROVIDER=xai DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:kimi": "AI_PROVIDER=kimi DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
+    "test:integration:qwen": "AI_PROVIDER=alibaba DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:bedrock": "AI_PROVIDER=amazon_bedrock AI_MODEL=global.anthropic.claude-sonnet-4-20250514-v1:0 DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:custom-endpoint": "AI_PROVIDER=openai DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "eval:comparative": "DEBUG_DOT_AI=true npx tsx src/evaluation/eval-runner.ts",
@@ -106,6 +107,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@ai-sdk/alibaba": "^1.0.10",
     "@ai-sdk/amazon-bedrock": "^4.0.77",
     "@ai-sdk/anthropic": "^3.0.58",
     "@ai-sdk/google": "^3.0.43",

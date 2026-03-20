@@ -510,6 +510,7 @@ kubectl create secret generic dot-ai-secrets \
     --from-literal=google-api-key="${GOOGLE_GENERATIVE_AI_API_KEY:-$GOOGLE_API_KEY}" \
     --from-literal=xai-api-key="${XAI_API_KEY}" \
     --from-literal=moonshot-api-key="${MOONSHOT_API_KEY}" \
+    --from-literal=alibaba-api-key="${ALIBABA_API_KEY}" \
     --from-literal=auth-token="${TEST_AUTH_TOKEN}" \
     --dry-run=client -o yaml | kubectl apply -f -
 

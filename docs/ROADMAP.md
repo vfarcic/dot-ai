@@ -16,7 +16,6 @@ This roadmap is a living document and may change based on community feedback and
 - Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
-- Add Alibaba Qwen 3.5 Plus AI provider (PRD #382)
 
 ## Medium-term (3-6 Months)
 

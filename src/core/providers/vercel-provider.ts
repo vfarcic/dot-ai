@@ -12,6 +12,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
+import { createAlibaba } from '@ai-sdk/alibaba';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { AI_SERVICE_ERROR_TEMPLATES } from '../constants';
@@ -146,6 +147,10 @@ export class VercelProvider implements AIProvider {
           break;
         case 'xai':
           provider = createXai({ apiKey: this.apiKey });
+          break;
+        case 'alibaba':
+          // PRD #382: Alibaba Qwen 3.5 Plus - uses @ai-sdk/alibaba dedicated SDK
+          provider = createAlibaba({ apiKey: this.apiKey });
           break;
         case 'kimi':
           // PRD #353: Moonshot AI Kimi K2.5 - uses @ai-sdk/openai-compatible for proper

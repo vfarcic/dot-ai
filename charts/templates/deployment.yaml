@@ -104,6 +104,12 @@ spec:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.moonshot.keyName }}
               optional: true
+        - name: ALIBABA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.alibaba.keyName }}
+              optional: true
         - name: CUSTOM_LLM_API_KEY
           valueFrom:
             secretKeyRef:
