@@ -52,10 +52,12 @@ Existing tools (operate, remediate, query) are not modified to embed dependency 
 | 2026-03-19 | Simple output: `safe` boolean + `summary` text | Consumer is another AI agent — it reads text natively. Rigid typed interfaces (AffectedResource, riskLevel enums) add complexity without value. `safe` boolean provides a clear programmatic signal for M2 integration. |
 | 2026-03-19 | No separate namespace field | Consistent with free-text input decision — AI infers namespace from the input (kubectl `-n` flag, YAML metadata, or plain English). |
 | 2026-03-19 | Single `agentInstructions` field, no `guidance` | Both fields serve the same purpose (instruct the consuming agent). Having both is redundant. |
+| 2026-03-20 | Git/FS tools for GitOps source verification | When users reference a git repo and file change, the AI clones the repo and reads the file to verify the actual manifest — not just trust the description. Reuses existing `git_clone`/`fs_read`/`fs_list` internal tools from remediate. |
+| 2026-03-20 | Tool descriptions are sufficient — no usage instructions in prompt | AI-first philosophy: tool descriptions tell the AI when to use each tool. Enumerating tool usage per source type in the system prompt is redundant and constraining. |
 
 ## Milestones
 
-- [ ] Milestone 1: Standalone impact_analysis tool — create MCP tool with AI prompts, free-text input, confidence-level output, and integration tests
+- [x] Milestone 1: Standalone impact_analysis tool — create MCP tool with AI prompts, free-text input, confidence-level output, and integration tests
 - [ ] Milestone 2: Operate/remediate integration — add agentInstructions to existing tools suggesting impact_analysis before destructive operations
 - [ ] Milestone 3: Query integration — answer dependency questions via natural language ("what depends on this database?")
 - [ ] Milestone 4: Documentation

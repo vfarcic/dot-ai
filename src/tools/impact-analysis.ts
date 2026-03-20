@@ -16,6 +16,7 @@ import { RESOURCE_TOOLS, executeResourceTools, type SearchResourcesInput, type Q
 import { PluginManager } from '../core/plugin-manager';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { loadPrompt } from '../core/shared-prompt-loader';
+import { getInternalTools, createInternalToolExecutor, cleanupOldClones } from '../core/internal-tools';
 
 // Tool metadata for MCP registration
 export const IMPACT_ANALYSIS_TOOL_NAME = 'impact_analysis';
@@ -174,11 +175,6 @@ export async function handleImpactAnalysisTool(
       };
     };
 
-    // Use plugin executor when pluginManager is available
-    const toolExecutor = pluginManager
-      ? pluginManager.createToolExecutor(localToolExecutor)
-      : localToolExecutor;
-
     // Read-only kubectl tools from plugin
     const KUBECTL_READONLY_TOOL_NAMES = [
       'kubectl_api_resources',
@@ -191,8 +187,25 @@ export async function handleImpactAnalysisTool(
       ? pluginManager.getDiscoveredTools().filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
       : [];
 
-    // Build tool list
-    const tools = [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools];
+    // Build tool list (kubectl + knowledge base + git/fs for GitOps verification)
+    const tools = [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...getInternalTools()];
+
+    // Clean up old clone directories (non-blocking)
+    cleanupOldClones();
+
+    // Chain executors: plugin tools (kubectl) → internal tools (git/fs) → local tools (capabilities/resources)
+    // Internal executor handles git_clone, fs_read, fs_list; falls back to localToolExecutor for capability/resource tools
+    const internalToolNames = new Set(['git_clone', 'fs_list', 'fs_read']);
+    const internalExecutor = createInternalToolExecutor(requestId);
+    const combinedLocalExecutor = async (toolName: string, toolInput: unknown): Promise<unknown> => {
+      if (internalToolNames.has(toolName)) {
+        return internalExecutor(toolName, toolInput);
+      }
+      return localToolExecutor(toolName, toolInput);
+    };
+    const toolExecutor = pluginManager
+      ? pluginManager.createToolExecutor(combinedLocalExecutor)
+      : combinedLocalExecutor;
 
     // Execute tool loop
     const result = await aiProvider.toolLoop({

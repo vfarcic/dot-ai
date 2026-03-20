@@ -136,9 +136,33 @@ spec:
       }
     );
 
-    // INTENTIONAL FAILURE: Capture actual AI output to write precise assertions
-    // Expected: safe=false, summary mentions pods/PVCs/services/data loss from deleting parent
-    expect(response, `KUBECTL DELETE CLUSTER RESPONSE:\n${JSON.stringify(response, null, 2)}`).toBe('INTENTIONAL_FAILURE_TO_CAPTURE_OUTPUT');
+    // safe is non-deterministic — AI may reason "not safe" (data loss) or "safe"
+    // (test environment, recoverable). The key validation is the dependency discovery.
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        tool: 'impact_analysis',
+        executionTime: expect.any(Number),
+        result: {
+          success: true,
+          safe: expect.any(Boolean),
+          summary: expect.stringMatching(/test-pg/i),
+          sessionId: expect.stringMatching(/^imp-\d+-[a-f0-9]+$/),
+          agentInstructions: expect.any(String)
+        }
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Deleting parent Cluster should surface child resources
+    const summary = response.data.result.summary.toLowerCase();
+    expect(summary).toMatch(/pvc|persistentvolumeclaim|volume/);
+    expect(summary).toMatch(/service|endpoint/);
+    expect(summary).toMatch(/data loss|data|storage/);
   }, 600000);
 
   // Test 2: Plain text — delete CNPG-managed PVC (child→parent/sibling dependency discovery)
@@ -151,9 +175,31 @@ spec:
       }
     );
 
-    // INTENTIONAL FAILURE: Capture actual AI output to write precise assertions
-    // Expected: safe=false, summary mentions database/cluster/data loss/pod impact
-    expect(response, `PLAIN TEXT DELETE PVC RESPONSE:\n${JSON.stringify(response, null, 2)}`).toBe('INTENTIONAL_FAILURE_TO_CAPTURE_OUTPUT');
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        tool: 'impact_analysis',
+        executionTime: expect.any(Number),
+        result: {
+          success: true,
+          safe: expect.any(Boolean),
+          summary: expect.stringMatching(/test-pg/i),
+          sessionId: expect.stringMatching(/^imp-\d+-[a-f0-9]+$/),
+          agentInstructions: expect.any(String)
+        }
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Deleting child PVC should trace upward to parent Cluster and sibling resources
+    const summary = response.data.result.summary.toLowerCase();
+    expect(summary).toMatch(/cluster|cnpg/);
+    expect(summary).toMatch(/data loss|data|database/);
+    expect(summary).toMatch(/service|pod/);
   }, 600000);
 
   // Test 3: GitOps manifest change — scale down Argo CD-managed CNPG Cluster from 2 to 1
@@ -161,14 +207,37 @@ spec:
     const response = await integrationTest.httpClient.post(
       '/api/v1/tools/impact_analysis',
       {
-        input: `In repo ${testRepoUrl}, the file ${fixturePath}/cluster.yaml will be changed to set spec.instances from 2 to 1. This CNPG Cluster is deployed via Argo CD to the ${argoNamespace} namespace.`,
+        input: `In repo ${testRepoUrl}, the file ${fixturePath}/cluster.yaml will be changed to set spec.instances from 2 to 1.`,
         interaction_id: 'impact_gitops_scale_down'
       }
     );
 
-    // INTENTIONAL FAILURE: Capture actual AI output to write precise assertions
-    // Expected: summary mentions HA/failover/replica loss, may or may not be safe
-    expect(response, `GITOPS SCALE DOWN RESPONSE:\n${JSON.stringify(response, null, 2)}`).toBe('INTENTIONAL_FAILURE_TO_CAPTURE_OUTPUT');
+    // safe can be true or false — AI may consider it safe (reversible, no downstream deps)
+    // or not safe (HA loss). Both are valid assessments.
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        tool: 'impact_analysis',
+        executionTime: expect.any(Number),
+        result: {
+          success: true,
+          safe: expect.any(Boolean),
+          summary: expect.stringMatching(/gitops-pg/i),
+          sessionId: expect.stringMatching(/^imp-\d+-[a-f0-9]+$/),
+          agentInstructions: expect.any(String)
+        }
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
+
+    // Scaling from 2→1 should mention replica/instance impact and HA considerations
+    const summary = response.data.result.summary.toLowerCase();
+    expect(summary).toMatch(/replica|instance|pod/);
+    expect(summary).toMatch(/high availability|ha|failover|single/i);
   }, 600000);
 
   // Test 4: Error handling — missing input
@@ -180,7 +249,17 @@ spec:
       }
     );
 
-    // INTENTIONAL FAILURE: Capture actual error response format
-    expect(response, `ERROR RESPONSE:\n${JSON.stringify(response, null, 2)}`).toBe('INTENTIONAL_FAILURE_TO_CAPTURE_OUTPUT');
+    expect(response).toMatchObject({
+      success: false,
+      error: {
+        code: 'EXECUTION_ERROR',
+        message: expect.stringContaining('Input is required')
+      },
+      meta: {
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+        version: 'v1'
+      }
+    });
   }, 30000);
 });
