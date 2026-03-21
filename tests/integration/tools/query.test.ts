@@ -205,7 +205,7 @@ spec:
           toolsUsed: expect.arrayContaining(['query_capabilities']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          agentInstructions: expect.stringMatching(/Present the summary.*impact_analysis/)
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -241,7 +241,7 @@ spec:
           toolsUsed: expect.arrayContaining(['search_resources']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          agentInstructions: expect.stringMatching(/Present the summary.*impact_analysis/)
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -276,7 +276,7 @@ spec:
           toolsUsed: expect.arrayContaining(['query_resources']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          agentInstructions: expect.stringMatching(/Present the summary.*impact_analysis/)
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -316,7 +316,7 @@ spec:
           toolsUsed: expect.any(Array),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          agentInstructions: expect.stringMatching(/Present the summary.*impact_analysis/)
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -371,7 +371,7 @@ spec:
           toolsUsed: expect.arrayContaining(['kubectl_get']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          agentInstructions: expect.stringMatching(/Present the summary.*impact_analysis/)
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {

@@ -53,11 +53,11 @@ Each dependency in the analysis is tagged with a confidence level:
 
 ### Plain-English Input
 
-```
+```text
 User: What happens if I delete the postgres service in the production namespace?
 ```
 
-```
+```text
 Agent: I'll analyze the blast radius of deleting the postgres service.
 
 [Uses impact_analysis tool with input: "what happens if I delete the postgres service in the production namespace?"]
@@ -105,13 +105,13 @@ modify them instead.
 
 When you reference a git repository and file change, the AI clones the repo and reads the actual manifest to verify what's changing.
 
-```
+```text
 User: In repo https://github.com/vfarcic/dot-ai.git, the file
 tests/integration/fixtures/gitops/cnpg-cluster/cluster.yaml will be
 changed to set spec.instances from 2 to 1. What is the impact?
 ```
 
-```
+```text
 Agent: I'll analyze the impact of this GitOps manifest change.
 
 [Uses impact_analysis tool]
