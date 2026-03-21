@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.10.2",
+    "version": "1.11.0",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -122,6 +122,71 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/McpJsonRpcError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/impact_analysis": {
+      "post": {
+        "summary": "Execute impact_analysis tool",
+        "description": "Analyze the blast radius of a proposed Kubernetes operation. Accepts free-text input: kubectl commands (e.g., \"kubectl delete pvc data-postgres-0 -n production\"), YAML manifests, or plain-English descriptions (e.g., \"what happens if I delete the postgres database?\"). Returns whether the operation is safe and a detailed dependency analysis with confidence levels.",
+        "tags": [
+          "Intelligence"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/impact_analysisRequest"
+              },
+              "example": {
+                "input": "example input",
+                "interaction_id": "example interaction_id"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tool not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2376,6 +2441,24 @@
           "jsonrpc",
           "id",
           "error"
+        ]
+      },
+      "impact_analysisRequest": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
+            "description": "The operation to analyze. Accepts kubectl commands, YAML manifests, or plain-English descriptions."
+          },
+          "interaction_id": {
+            "description": "INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "input"
         ]
       },
       "manageKnowledgeRequest": {
