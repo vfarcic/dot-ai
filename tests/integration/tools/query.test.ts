@@ -167,7 +167,7 @@ spec:
           toolsUsed: expect.arrayContaining(['search_capabilities']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
+          agentInstructions: expect.stringMatching(/Present the summary.*impact_analysis/)
         }
       },
       meta: {
@@ -205,7 +205,7 @@ spec:
           toolsUsed: expect.arrayContaining(['query_capabilities']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -241,7 +241,7 @@ spec:
           toolsUsed: expect.arrayContaining(['search_resources']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -276,7 +276,7 @@ spec:
           toolsUsed: expect.arrayContaining(['query_resources']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -316,7 +316,7 @@ spec:
           toolsUsed: expect.any(Array),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -371,7 +371,7 @@ spec:
           toolsUsed: expect.arrayContaining(['kubectl_get']),
           sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
           visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/qry-\d+-[a-f0-9]+$/),
-          guidance: 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
+          agentInstructions: expect.stringMatching(/Present the summary/)
         }
       },
       meta: {
@@ -1278,10 +1278,10 @@ spec:
       });
     }
 
-    // Should NOT have normal query output fields (summary, guidance)
+    // Should NOT have normal query output fields (summary, agentInstructions)
     // but SHOULD have sessionId for caching
     expect(result).not.toHaveProperty('summary');
     expect(result).not.toHaveProperty('visualizationUrl');
-    expect(result).not.toHaveProperty('guidance');
+    expect(result).not.toHaveProperty('agentInstructions');
   }, 300000);
 });

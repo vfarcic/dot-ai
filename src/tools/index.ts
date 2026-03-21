@@ -68,3 +68,10 @@ export {
   handleManageKnowledgeTool,
   type ManageKnowledgeInput,
 } from './manage-knowledge';
+
+export {
+  IMPACT_ANALYSIS_TOOL_NAME,
+  IMPACT_ANALYSIS_TOOL_DESCRIPTION,
+  IMPACT_ANALYSIS_TOOL_INPUT_SCHEMA,
+  handleImpactAnalysisTool,
+} from './impact-analysis';

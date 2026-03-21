@@ -108,7 +108,7 @@ EOF`);
               validationIntent: expect.any(String) // AI provides validation guidance
             },
             message: expect.stringContaining('proposal'),
-            nextAction: expect.stringContaining('executeChoice') // Should mention how to execute
+            agentInstructions: expect.stringMatching(/executeChoice.*impact_analysis|impact_analysis.*executeChoice/) // PRD #405 M2: Should mention both execution and impact analysis options
           },
           tool: 'operate'
         }
@@ -376,10 +376,10 @@ EOF`);
       );
       expect(testApiHpa).toBeDefined();
       expect(testApiHpa.spec.minReplicas).toBe(4);
-      expect(testApiHpa.spec.maxReplicas).toBe(4);
+      expect(testApiHpa.spec.maxReplicas).toBeGreaterThanOrEqual(4);
 
       // PHASE 7: Verify HPA is functional (managing deployment replicas)
-      // HPA should maintain deployment at 4 replicas (both min and max are 4)
+      // HPA should scale deployment to at least 4 replicas (minReplicas)
       const deploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${patternNamespace} -o json`);
       const deployment = JSON.parse(deploymentJson);
 

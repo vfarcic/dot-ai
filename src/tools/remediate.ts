@@ -410,7 +410,7 @@ async function conductInvestigation(
       ].join('. ');
 
       output.guidance = `🔴 CRITICAL: Present the kubectl commands to the user and ask them to choose execution method. DO NOT execute commands without user approval.\n\n${commandsSummary}\n\nRisk Assessment: ${riskSummary}`;
-      output.agentInstructions = `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. When user selects option 1 or 2, call the remediate tool again with: executeChoice: [1 or 2], sessionId: "${session.sessionId}", mode: "${session.data.mode}"\n6. DO NOT automatically execute any commands until user makes their choice`;
+      output.agentInstructions = `1. Show the user the root cause analysis and confidence level\n2. Display the kubectl commands that will be executed\n3. Explain the risk assessment\n4. Present the two execution choices and wait for user selection\n5. When user selects option 1 or 2, call the remediate tool again with: executeChoice: [1 or 2], sessionId: "${session.sessionId}", mode: "${session.data.mode}"\n6. DO NOT automatically execute any commands until user makes their choice\n7. Before executing, the user can run impact_analysis to understand the blast radius and downstream dependencies of the remediation actions`;
       output.nextAction = 'remediate';
       output.message = `AI analysis identified the root cause with ${Math.round(finalAnalysis.confidence * 100)}% confidence. ${finalAnalysis.remediation.actions.length} remediation actions are recommended.`;
     }

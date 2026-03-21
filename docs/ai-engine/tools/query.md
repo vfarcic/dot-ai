@@ -12,9 +12,7 @@ sidebar_position: 2
 
 [![Why Kubernetes Querying Is Broken and How I Fixed It](https://img.youtube.com/vi/uUdbQkq5c4k/maxresdefault.jpg)](https://youtu.be/uUdbQkq5c4k)
 
-## Using via Web UI
-
-These tools are also available through the [Web Dashboard](https://devopstoolkit.ai/docs/ui).
+> **Note**: The examples below use MCP, but this tool is also available via the [CLI](https://devopstoolkit.ai/docs/cli), [Web Dashboard](https://devopstoolkit.ai/docs/ui), and [Headlamp Plugin](https://devopstoolkit.ai/docs/headlamp).
 
 ## Prerequisites
 

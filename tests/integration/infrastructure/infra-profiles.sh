@@ -47,6 +47,10 @@ apply_profile() {
         manage-org-data-capabilities)
             SKIP_CNPG=false
             ;;
+        impact-analysis)
+            SKIP_CNPG=false
+            SKIP_ARGOCD=false
+            ;;
         # All others: base infra only
     esac
 }

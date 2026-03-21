@@ -64,7 +64,7 @@ export interface QueryOutput {
   iterations: number;
   sessionId?: string;
   visualizationUrl?: string;  // PRD #317: URL to open visualization in Web UI
-  guidance: string;  // Agent instructions for presenting the response
+  agentInstructions: string;  // Agent instructions for presenting the response
   error?: {
     code: string;
     message: string;
@@ -322,9 +322,9 @@ export async function handleQueryTool(
       ...(visualizationUrl && { visualizationUrl })
     });
 
-    const guidance = visualizationUrl
-      ? 'Present the summary to the user. Include the visualizationUrl at the end of your response.'
-      : 'Present the summary to the user.';
+    const agentInstructions = visualizationUrl
+      ? 'Present the summary to the user. Include the visualizationUrl at the end of your response. For dependency or impact questions, suggest the user run impact_analysis to get detailed blast radius analysis.'
+      : 'Present the summary to the user. For dependency or impact questions, suggest the user run impact_analysis to get detailed blast radius analysis.';
 
     const output: QueryOutput = {
       success: true,
@@ -333,7 +333,7 @@ export async function handleQueryTool(
       iterations: result.iterations,
       sessionId: session.sessionId,
       ...(visualizationUrl && { visualizationUrl }),
-      guidance
+      agentInstructions
     };
 
     return {

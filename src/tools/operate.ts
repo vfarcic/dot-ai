@@ -168,7 +168,7 @@ export interface OperateOutput {
     validation: string;
   };
   message: string;
-  nextAction?: string;
+  agentInstructions?: string;
 }
 
 // Session manager instance
@@ -449,7 +449,7 @@ export async function handleOperateTool(
     });
     if (!applyResult.allowed) {
       result.message = `Operational proposal generated successfully. Executing operations requires 'apply' permission on 'operate', which is not granted for the current user. Review the proposed changes and apply them manually using kubectl or your GitOps workflow.`;
-      result.nextAction = `Review the proposed changes. To apply them, use kubectl or push to Git — executing via operate requires 'apply' permission.`;
+      result.agentInstructions = `Review the proposed changes. To apply them, use kubectl or push to Git — executing via operate requires 'apply' permission.`;
     }
   }
 

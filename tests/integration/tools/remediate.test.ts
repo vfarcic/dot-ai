@@ -136,7 +136,7 @@ EOF`);
             executed: false,
             mode: 'manual',
             guidance: expect.stringContaining('CRITICAL'),
-            agentInstructions: expect.stringContaining('Show the user'),
+            agentInstructions: expect.stringMatching(/Show the user.*impact_analysis/s),
             nextAction: 'remediate',
             message: expect.any(String),
             // PRD #320: Remediate tool returns visualizationUrl
@@ -588,7 +588,7 @@ EOF`);
             executed: false,
             mode: 'manual',
             guidance: expect.stringContaining('CRITICAL'),
-            agentInstructions: expect.stringContaining('Show the user'),
+            agentInstructions: expect.stringMatching(/Show the user.*impact_analysis/s),
             nextAction: 'remediate',
             message: expect.any(String),
             visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/rem-\d+-[a-f0-9]+$/),
