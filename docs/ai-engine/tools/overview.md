@@ -56,6 +56,12 @@ AI-powered Day 2 operations for any Kubernetes resources through natural languag
 - **Use when**: Performing operational changes on deployed resources - applications, databases, storage, Helm releases, AWS/Azure/GCP resources via operators, networking, or any Kubernetes-managed infrastructure
 - **📖 Full Guide**: [Kubernetes Operations](operate.md)
 
+### 🔗 Dependency & Impact Analysis
+AI-powered blast radius assessment before destructive operations.
+- **What it does**: Accepts kubectl commands, YAML manifests, or plain-English descriptions and maps resource dependencies to assess blast radius with confidence levels (definite, likely, uncertain)
+- **Use when**: Unsure about the impact of an operation on your cluster
+- **📖 Full Guide**: [Dependency & Impact Analysis](impact-analysis.md)
+
 ### 📦 Project Setup & Governance
 Comprehensive repository setup with governance, legal, security, and automation files.
 - **What it does**: Generates 25+ standardized files including LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY policies, GitHub issue/PR templates, workflows (OpenSSF Scorecard), and automation (Renovate, Labeler, Stale Bot)
@@ -118,6 +124,7 @@ Semantic search over organizational documentation.
 - **Pattern Management** → enhances **Deployment Recommendations** and **Kubernetes Operations**
 - **Policy Management** → enhances **Deployment Recommendations** and **Kubernetes Operations**
 - **Kubernetes Issue Remediation** ← independent
+- **Dependency & Impact Analysis** ← independent (enhanced by **Capability Management**)
 <!-- - **Platform Building** ← independent (requires Nushell runtime) -->
 - **Project Setup** ← independent
 - **Shared Prompts Library** ← independent

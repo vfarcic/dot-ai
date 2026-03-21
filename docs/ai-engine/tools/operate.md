@@ -8,9 +8,7 @@ sidebar_position: 4
 
 ![Day 2 Operations Infographic](../img/operations.jpeg)
 
-## Using via Web UI
-
-These tools are also available through the [Web Dashboard](https://devopstoolkit.ai/docs/ui).
+> **Note**: The examples below use MCP, but this tool is also available via the [CLI](https://devopstoolkit.ai/docs/cli), [Web Dashboard](https://devopstoolkit.ai/docs/ui), and [Headlamp Plugin](https://devopstoolkit.ai/docs/headlamp).
 
 ## Prerequisites
 

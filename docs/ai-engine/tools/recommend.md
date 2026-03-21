@@ -14,9 +14,7 @@ sidebar_position: 3
 
 This video explains the platform engineering problem and demonstrates the Kubernetes deployment recommendation workflow from intent to running applications.
 
-## Using via Web UI
-
-These tools are also available through the [Web Dashboard](https://devopstoolkit.ai/docs/ui).
+> **Note**: The examples below use MCP, but this tool is also available via the [CLI](https://devopstoolkit.ai/docs/cli), [Web Dashboard](https://devopstoolkit.ai/docs/ui), and [Headlamp Plugin](https://devopstoolkit.ai/docs/headlamp).
 
 ## Prerequisites
 

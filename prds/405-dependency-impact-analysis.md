@@ -2,7 +2,7 @@
 
 **Issue**: #405
 **Created**: 2026-03-13
-**Status**: In Progress
+**Status**: Complete
 **Priority**: Medium
 **Owner**: TBD
 
@@ -63,4 +63,4 @@ Existing tools (operate, remediate, query) are not modified to embed dependency 
 - [x] Milestone 1: Standalone impact_analysis tool — create MCP tool with AI prompts, free-text input, confidence-level output, and integration tests
 - [x] Milestone 2: Operate/remediate integration — add agentInstructions to existing tools suggesting impact_analysis before destructive operations
 - [x] Milestone 3: Query integration — answer dependency questions via natural language ("what depends on this database?")
-- [ ] Milestone 4: Documentation
+- [x] Milestone 4: Documentation
