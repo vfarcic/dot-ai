@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.12.0] - 2026-03-21
+
+### Features
+
+- ## MCP Server Integration
+
+  Connect dot-ai to external MCP servers running in the cluster, extending remediate, operate, and query tools with capabilities from the MCP ecosystem. Previously, these tools relied solely on kubectl-based investigation, limiting diagnostics for issues requiring historical metrics, performance data, distributed traces, or alert history.
+
+  The `remediate`, `operate`, and `query` tools now automatically discover and use tools from connected MCP servers alongside kubectl tools. The `attachTo` mechanism controls which MCP servers provide tools to which dot-ai tools — for example, attaching a Prometheus MCP server to `remediate` lets the AI correlate kubectl events with actual metric data when diagnosing issues like OOMKills. Tools from MCP servers are namespaced as `{server}__{tool}` to prevent collisions. The `version` tool reports connected MCP servers, their endpoints, attached operations, and discovered tools.
+
+  Configure MCP servers in the Helm `mcpServers` section with an endpoint and `attachTo` list. dot-ai connects to configured servers at startup and fails fast with a clear error if any are unreachable. When no MCP servers are configured, all tools continue to work with kubectl only — no changes to existing behavior.
+
+  See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/deployment) for MCP server configuration details and examples. ([#358](https://github.com/vfarcic/dot-ai/issues/358))
+- ## Alibaba Qwen 3.5 Plus Provider
+
+  Added Alibaba's Qwen 3.5 Plus as a new AI provider. Set `AI_PROVIDER=alibaba` with your `ALIBABA_API_KEY` to use Qwen 3.5 Plus, which offers a 262K token context window, 201-language support, and parallel tool calling via a Mixture-of-Experts architecture (397B total, 17B active parameters).
+
+  The integration uses the official `@ai-sdk/alibaba` Vercel AI SDK package. API keys are obtained from [Alibaba Cloud Model Studio](https://www.alibabacloud.com/help/en/model-studio/). See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/deployment) for provider configuration details. ([#382](https://github.com/vfarcic/dot-ai/issues/382))
+- ## Dependency & Impact Analysis
+
+  New `impact_analysis` tool maps resource dependencies and blast radius before operations, preventing cascading failures from destructive changes like deleting PVCs, upgrading CRDs, or scaling deployments.
+
+  The tool accepts free-text input — kubectl commands, YAML manifests, GitOps file changes, or plain-English descriptions of planned operations. It uses AI reasoning combined with runtime cluster inspection to discover dependency chains, following ownerReferences, resource specs, labels, annotations, and events. For GitOps workflows, it clones repositories and reads actual manifests to verify changes rather than relying on descriptions alone. Each discovered dependency includes a confidence level: **definite** (confirmed from cluster data), **likely** (based on AI knowledge of the ecosystem), or **uncertain** (insufficient information available).
+
+  The `operate`, `remediate`, and `query` tools now return `agentInstructions` suggesting users run `impact_analysis` before executing destructive operations. This keeps existing tool response times unchanged while making impact analysis opt-in. The `query` tool also handles natural-language dependency questions like "what depends on this database?" by routing them through impact analysis.
+
+  See the [Impact Analysis Guide](https://devopstoolkit.ai/docs/ai-engine/tools/impact-analysis) for usage examples and integration details. ([#405](https://github.com/vfarcic/dot-ai/issues/405))
+
+
 ## [1.11.0] - 2026-03-17
 
 ### Features
