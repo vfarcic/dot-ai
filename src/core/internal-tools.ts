@@ -390,6 +390,7 @@ async function handleGitCreatePr(
           head: branchName,
           base: baseBranch,
         }),
+        signal: AbortSignal.timeout(30000),
       }
     );
 

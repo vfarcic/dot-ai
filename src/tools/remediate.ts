@@ -777,7 +777,7 @@ async function executeRemediationCommands(
           })),
           title: `fix: ${action.description}`,
           body: `## Remediation\n\n${action.rationale}\n\n**Risk Level:** ${action.risk}`,
-          branchName: `remediate/${session.sessionId.slice(0, 8)}`,
+          branchName: `remediate/${session.sessionId.slice(0, 12)}-${Date.now()}`,
           baseBranch: action.gitSource.branch || 'main',
         };
 
@@ -788,10 +788,14 @@ async function executeRemediationCommands(
         )) as GitCreatePrResult;
 
         if (prResult.success && prResult.prUrl) {
+          const filesList =
+            Array.isArray(prResult.filesChanged) && prResult.filesChanged.length > 0
+              ? prResult.filesChanged.join(', ')
+              : 'none';
           results.push({
             action: `${actionId}: ${action.description} (PR created)`,
             success: true,
-            output: `PR #${prResult.prNumber}: ${prResult.prUrl}\nBranch: ${prResult.branch}\nFiles changed: ${prResult.filesChanged?.join(', ')}`,
+            output: `PR #${prResult.prNumber}: ${prResult.prUrl}\nBranch: ${prResult.branch}\nFiles changed: ${filesList}`,
             timestamp: new Date(),
           });
           executedCommandCount++;

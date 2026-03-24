@@ -34,6 +34,45 @@ describe('Internal Tools - Path Traversal Security', () => {
   }
 });
 
+describe('Internal Tools - git_create_pr Validation', () => {
+  const executor = createInternalToolExecutor('test-session');
+
+  const traversalPaths = [
+    '../../../etc/passwd',
+    '../../..',
+    'session/../../../etc/passwd',
+    '%2e%2e/%2e%2e/%2e%2e/etc/passwd',
+  ];
+
+  for (const maliciousPath of traversalPaths) {
+    test(`git_create_pr rejects repoPath traversal: ${maliciousPath}`, async () => {
+      const result = await executor('git_create_pr', {
+        repoPath: maliciousPath,
+        files: [{ path: 'test.yaml', content: 'test' }],
+        title: 'Test PR',
+        branchName: 'test-branch',
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('Invalid repo path'),
+      });
+    });
+
+    test(`git_create_pr rejects files path traversal: ${maliciousPath}`, async () => {
+      const result = await executor('git_create_pr', {
+        repoPath: 'valid-repo',
+        files: [{ path: maliciousPath, content: 'test' }],
+        title: 'Test PR',
+        branchName: 'test-branch',
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('Repository not found'),
+      });
+    });
+  }
+});
+
 describe('Internal Tools - git_create_pr Input Validation', () => {
   const executor = createInternalToolExecutor('test-session');
 
