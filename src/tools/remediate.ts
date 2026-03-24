@@ -153,7 +153,7 @@ export interface RemediationAction {
   rationale: string;
   gitSource?: {
     repoURL: string;
-    repoPath?: string; // PRD #408: Local path to cloned repo (relative to ./tmp/gitops-clones/)
+    repoPath?: string;
     branch: string;
     files: Array<{
       path: string;
@@ -208,7 +208,6 @@ export interface RemediateOutput {
   results?: ExecutionResult[]; // execution results if executed
   fallbackReason?: string; // why automatic mode chose not to execute
   mode?: 'manual' | 'automatic'; // execution mode used for this call
-  // PRD #408: Pull request info when GitOps remediation was applied
   pullRequest?: {
     url: string;
     number: number;
@@ -737,11 +736,10 @@ async function executeRemediationCommands(
   let pullRequestInfo: RemediateOutput['pullRequest'] | undefined;
 
   logger.info('Starting remediation command execution', {
-
-      overallSuccess = false;
-      let pullRequestInfo: RemediateOutput['pullRequest'] | undefined;
-
-      logger.info('Starting remediation command execution', {
+    requestId,
+    sessionId: session.sessionId,
+    commandCount: finalAnalysis.remediation.actions.length,
+  });
 
   // Execute each remediation action
   for (let i = 0; i < finalAnalysis.remediation.actions.length; i++) {
@@ -800,7 +798,6 @@ async function executeRemediationCommands(
             output: `PR #${prResult.prNumber}: ${prResult.prUrl}\nBranch: ${prResult.branch}\nFiles changed: ${filesList}`,
             timestamp: new Date(),
           });
-          executedCommandCount++;
           pullRequestInfo = {
             url: prResult.prUrl,
             number: prResult.prNumber!,
@@ -809,36 +806,14 @@ async function executeRemediationCommands(
             filesChanged: prResult.filesChanged || [],
           };
         } else {
- }
-        results.push({
-          action: `${actionId}: ${action.description} (failed)`,
-          success: false
-          output: prResult.error || 'Failed to create PR'
-          timestamp: new Date(),
-        });
-      }
-    }
-
-    logger.info('Remediation execution completed', {
-      requestId,
-      sessionId: session.sessionId,
-      overallSuccess
-      successfulActions: results.filter(r => r.success).length
-      failedActions: results.filter(r => !r.success).length
-    });
-  } catch (error) {
-    logger.warn('Post-execution validation failed', {
-      requestId,
-      sessionId: session.sessionId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    validationResult = {
-      success: false,
-      error: error instanceof Error ? error.message : 'Validation failed',
-      summary: 'Validation could not be completed automatically',
-    };
-  }
-}
+          overallSuccess = false;
+          results.push({
+            action: `${actionId}: ${action.description} (failed)`,
+            success: false,
+            output: prResult.error || 'Failed to create PR',
+            timestamp: new Date(),
+          });
+        }
         continue;
       }
 
