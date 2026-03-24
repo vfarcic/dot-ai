@@ -32,6 +32,8 @@ import {
   getInternalTools,
   createInternalToolExecutor,
   cleanupOldClones,
+  GitCreatePrInput,
+  GitCreatePrResult,
 } from '../core/internal-tools';
 
 // Plugin result data structure
@@ -151,6 +153,7 @@ export interface RemediationAction {
   rationale: string;
   gitSource?: {
     repoURL: string;
+    repoPath?: string; // PRD #408: Local path to cloned repo (relative to ./tmp/gitops-clones/)
     branch: string;
     files: Array<{
       path: string;
@@ -205,6 +208,14 @@ export interface RemediateOutput {
   results?: ExecutionResult[]; // execution results if executed
   fallbackReason?: string; // why automatic mode chose not to execute
   mode?: 'manual' | 'automatic'; // execution mode used for this call
+  // PRD #408: Pull request info when GitOps remediation was applied
+  pullRequest?: {
+    url: string;
+    number: number;
+    branch: string;
+    baseBranch: string;
+    filesChanged: string[];
+  };
 }
 
 // Session management now handled by GenericSessionManager
@@ -736,22 +747,63 @@ async function executeRemediationCommands(
     const actionId = `action_${i + 1}`;
 
     try {
-      // PRD #407: Skip gitSource actions — these are Git-based remediation
-      // instructions for GitOps-managed resources, not executable commands
+      // PRD #408: Handle gitSource actions — create PR instead of kubectl
       if (action.gitSource && !action.command) {
-        logger.info('Skipping gitSource remediation action (not executable)', {
+        logger.info('Processing gitSource remediation action', {
           requestId,
           sessionId: session.sessionId,
           actionId,
           repoURL: action.gitSource.repoURL,
+          repoPath: action.gitSource.repoPath,
         });
-        results.push({
-          action: `${actionId}: ${action.description} (skipped: Git-based)`,
-          success: false,
-          output:
-            'Git-based remediation — apply changes in the source repository',
-          timestamp: new Date(),
-        });
+
+        if (!action.gitSource.repoPath) {
+          results.push({
+            action: `${actionId}: ${action.description} (failed: missing repoPath)`,
+            success: false,
+            output:
+              'Git-based remediation requires repoPath from investigation phase',
+            timestamp: new Date(),
+          });
+          overallSuccess = false;
+          continue;
+        }
+
+        const prInput: GitCreatePrInput = {
+          repoPath: action.gitSource.repoPath,
+          files: action.gitSource.files.map((f) => ({
+            path: f.path,
+            content: f.content,
+          })),
+          title: `fix: ${action.description}`,
+          body: `## Remediation\n\n${action.rationale}\n\n**Risk Level:** ${action.risk}`,
+          branchName: `remediate/${session.sessionId.slice(0, 8)}`,
+          baseBranch: action.gitSource.branch || 'main',
+        };
+
+        const prExecutor = createInternalToolExecutor(session.sessionId);
+        const prResult = (await prExecutor(
+          'git_create_pr',
+          prInput
+        )) as GitCreatePrResult;
+
+        if (prResult.success && prResult.prUrl) {
+          results.push({
+            action: `${actionId}: ${action.description} (PR created)`,
+            success: true,
+            output: `PR #${prResult.prNumber}: ${prResult.prUrl}\nBranch: ${prResult.branch}\nFiles changed: ${prResult.filesChanged?.join(', ')}`,
+            timestamp: new Date(),
+          });
+          executedCommandCount++;
+        } else {
+          results.push({
+            action: `${actionId}: ${action.description} (PR failed)`,
+            success: false,
+            output: prResult.error || 'Failed to create PR',
+            timestamp: new Date(),
+          });
+          overallSuccess = false;
+        }
         continue;
       }
 

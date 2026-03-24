@@ -1,5 +1,5 @@
 /**
- * Internal Agentic-Loop Tools (PRD #407)
+ * Internal Agentic-Loop Tools (PRD #407, PRD #408)
  *
  * Tools that run locally in the MCP server, available to the AI
  * during investigation loops alongside plugin tools. NOT exposed
@@ -9,6 +9,7 @@
  * - git_clone: Clone a Git repo
  * - fs_list: List files at a path
  * - fs_read: Read a file at a path
+ * - git_create_pr: Create a PR with file changes (PRD #408)
  *
  * All filesystem operations are scoped to ./tmp/gitops-clones/
  * to prevent path traversal attacks.
@@ -17,7 +18,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { AITool, ToolExecutor } from './ai-provider.interface.js';
-import { cloneRepo, scrubCredentials, sanitizeRelativePath } from './git-utils.js';
+import {
+  cloneRepo,
+  scrubCredentials,
+  sanitizeRelativePath,
+  pushRepo,
+  getGitAuthConfigFromEnv,
+  getAuthToken,
+} from './git-utils.js';
 import { sanitizeIntentForLabel } from './solution-utils.js';
 
 const CLONES_SUBDIR = 'gitops-clones';
@@ -108,6 +116,57 @@ export function getInternalTools(): AITool[] {
           },
         },
         required: ['path'],
+      },
+    },
+    {
+      name: 'git_create_pr',
+      description:
+        'Create a pull request with file changes in a previously cloned repository. Writes files, creates a branch, commits, pushes, and opens a PR via GitHub API.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: {
+            type: 'string',
+            description:
+              'Relative path to the cloned repo (as returned by git_clone)',
+          },
+          files: {
+            type: 'array',
+            description:
+              'Files to create or modify — provide complete new file content',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description: 'File path relative to repo root',
+                },
+                content: {
+                  type: 'string',
+                  description: 'Complete new file content',
+                },
+              },
+              required: ['path', 'content'],
+            },
+          },
+          title: {
+            type: 'string',
+            description: 'PR title',
+          },
+          body: {
+            type: 'string',
+            description: 'PR description with context',
+          },
+          branchName: {
+            type: 'string',
+            description: 'Branch name for the PR',
+          },
+          baseBranch: {
+            type: 'string',
+            description: 'Branch to target (default: main)',
+          },
+        },
+        required: ['repoPath', 'files', 'title', 'branchName'],
       },
     },
   ];
@@ -224,6 +283,143 @@ function handleFsRead(args: Record<string, unknown>): unknown {
   return fs.readFileSync(resolved, 'utf-8');
 }
 
+export interface GitCreatePrInput {
+  repoPath: string;
+  files: Array<{ path: string; content: string }>;
+  title: string;
+  body?: string;
+  branchName: string;
+  baseBranch?: string;
+}
+
+export interface GitCreatePrResult {
+  success: boolean;
+  prUrl?: string;
+  prNumber?: number;
+  branch?: string;
+  baseBranch?: string;
+  filesChanged?: string[];
+  error?: string;
+}
+
+async function handleGitCreatePr(
+  args: Record<string, unknown>
+): Promise<GitCreatePrResult> {
+  const repoPath = args.repoPath as string;
+  const files = args.files as Array<{ path: string; content: string }>;
+  const title = args.title as string;
+  const body = (args.body as string) || '';
+  const branchName = args.branchName as string;
+  const baseBranch = (args.baseBranch as string) || 'main';
+
+  if (!repoPath) {
+    return { success: false, error: 'repoPath is required' };
+  }
+  if (!files || !Array.isArray(files) || files.length === 0) {
+    return { success: false, error: 'files array is required and must not be empty' };
+  }
+  if (!title) {
+    return { success: false, error: 'title is required' };
+  }
+  if (!branchName) {
+    return { success: false, error: 'branchName is required' };
+  }
+
+  let resolvedRepoPath: string;
+  try {
+    resolvedRepoPath = validatePathWithinClones(repoPath);
+  } catch (err) {
+    return {
+      success: false,
+      error: `Invalid repo path: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  if (!fs.existsSync(resolvedRepoPath)) {
+    return {
+      success: false,
+      error: `Repository not found at path: ${repoPath}. It may have been cleaned up.`,
+    };
+  }
+
+  const stat = fs.statSync(resolvedRepoPath);
+  if (!stat.isDirectory()) {
+    return { success: false, error: `Path is not a directory: ${repoPath}` };
+  }
+
+  try {
+    const pushResult = await pushRepo(resolvedRepoPath, files, title, {
+      branch: branchName,
+    });
+
+    const authConfig = getGitAuthConfigFromEnv();
+    const token = await getAuthToken(authConfig);
+
+    const gitConfigPath = path.join(resolvedRepoPath, '.git', 'config');
+    const gitConfig = fs.readFileSync(gitConfigPath, 'utf-8');
+    const remoteMatch = gitConfig.match(/\[remote "origin"\]\s*url\s*=\s*(.+)/m);
+    if (!remoteMatch) {
+      return { success: false, error: 'Could not find origin remote URL' };
+    }
+    let remoteUrl = remoteMatch[1].trim();
+    remoteUrl = scrubCredentials(remoteUrl);
+
+    const repoMatch = remoteUrl.match(/github\.com[/:]([^/]+\/[^/.]+)/);
+    if (!repoMatch) {
+      return {
+        success: false,
+        error: 'Could not parse GitHub owner/repo from remote URL',
+      };
+    }
+    const ownerRepo = repoMatch[1].replace(/\.git$/, '');
+    const [owner, repo] = ownerRepo.split('/');
+
+    const prResponse = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'dot-ai-remediate',
+        },
+        body: JSON.stringify({
+          title,
+          body,
+          head: branchName,
+          base: baseBranch,
+        }),
+      }
+    );
+
+    if (!prResponse.ok) {
+      const errorBody = await prResponse.text();
+      return {
+        success: false,
+        error: `GitHub API error (${prResponse.status}): ${errorBody}`,
+      };
+    }
+
+    const prData = (await prResponse.json()) as {
+      html_url: string;
+      number: number;
+    };
+
+    return {
+      success: true,
+      prUrl: prData.html_url,
+      prNumber: prData.number,
+      branch: branchName,
+      baseBranch,
+      filesChanged: pushResult.filesAdded,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: scrubCredentials(message) };
+  }
+}
+
 // ─── Combined executor ───
 
 /**
@@ -238,6 +434,7 @@ export function createInternalToolExecutor(sessionId: string): ToolExecutor {
     git_clone: (args) => handleGitClone(args, sessionId),
     fs_list: handleFsList,
     fs_read: handleFsRead,
+    git_create_pr: handleGitCreatePr,
   };
 
   return async (toolName: string, input: unknown): Promise<unknown> => {
