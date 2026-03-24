@@ -1,7 +1,7 @@
 # PRD: GitOps Operations for Remediate Tool
 
 **Issue**: [#408](https://github.com/vfarcic/dot-ai/issues/408)
-**Status**: Draft
+**Status**: In Progress
 **Priority**: High
 **Created**: 2026-03-16
 **Depends On**: [#407](https://github.com/vfarcic/dot-ai/issues/407) (GitOps Discovery — Layer 1)
@@ -304,19 +304,19 @@ export interface RemediateOutput {
 ## Milestones
 
 ### Milestone 1: `git_create_pr` Internal Tool
-- [ ] Implement `git_create_pr` tool definition and handler
-- [ ] Write files to cloned repo
-- [ ] Branch creation and push (using existing `pushRepo()`)
-- [ ] PR creation via GitHub API
-- [ ] Path security: validate repo path within `./tmp/`
-- [ ] Unit tests for PR creation flow
+- [x] Implement `git_create_pr` tool definition and handler
+- [x] Write files to cloned repo
+- [x] Branch creation and push (using existing `pushRepo()`)
+- [x] PR creation via GitHub API
+- [x] Path security: validate repo path within `./tmp/`
+- [x] Unit tests for PR creation flow
 
 ### Milestone 2: Remediate Execution Path
-- [ ] Route execution to PR creation when `gitSource` actions are present
-- [ ] Add `pullRequest` field to `RemediateOutput`
+- [x] Route execution to PR creation when `gitSource` actions are present
+- [x] Add `pullRequest` field to `RemediateOutput`
 - [ ] Handle re-clone if repo was cleaned up between investigation and execution
-- [ ] Format PR body with root cause, confidence, and change description
-- [ ] Unit tests for routing logic
+- [x] Format PR body with root cause, confidence, and change description
+- [x] Unit tests for routing logic
 
 ### Milestone 3: Integration Tests
 - [ ] Test: full flow — investigate GitOps resource → confirm execution → PR created
@@ -347,6 +347,17 @@ After both Layer 1 and Layer 2 are shipped and validated on remediate, create PR
 ---
 
 ## Work Log
+
+### 2026-03-24: Implementation Complete - Awaiting Review
+- Implemented `git_create_pr` internal tool in `src/core/internal-tools.ts`
+- Added `repoPath` field to `RemediationAction.gitSource` interface
+- Added `pullRequest` field to `RemediateOutput` interface
+- Route gitSource actions to PR creation in `executeRemediationCommands()`
+- Updated `prompts/remediate-system.md` with `repoPath` in schema and GitOps example
+- Fixed broken JSON schema and syntax errors from previous commits
+- Unit tests passing (29 tests in internal-tools.test.ts)
+- **PR #413**: https://github.com/vfarcic/dot-ai/pull/413 (awaiting merge by @vfarcic)
+- CodeRabbit review addressed (fixed branch naming, pullRequest in all responses, removed executedCommandCount for PRs)
 
 ### 2026-03-16: PRD Creation
 - Created PRD as Layer 2 companion to #407 (GitOps Discovery)
