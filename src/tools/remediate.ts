@@ -809,14 +809,36 @@ async function executeRemediationCommands(
             filesChanged: prResult.filesChanged || [],
           };
         } else {
-          results.push({
-            action: `${actionId}: ${action.description} (PR failed)`,
-            success: false,
-            output: prResult.error || 'Failed to create PR',
-            timestamp: new Date(),
-          });
-          overallSuccess = false;
-        }
+ }
+        results.push({
+          action: `${actionId}: ${action.description} (failed)`,
+          success: false
+          output: prResult.error || 'Failed to create PR'
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    logger.info('Remediation execution completed', {
+      requestId,
+      sessionId: session.sessionId,
+      overallSuccess
+      successfulActions: results.filter(r => r.success).length
+      failedActions: results.filter(r => !r.success).length
+    });
+  } catch (error) {
+    logger.warn('Post-execution validation failed', {
+      requestId,
+      sessionId: session.sessionId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    validationResult = {
+      success: false,
+      error: error instanceof Error ? error.message : 'Validation failed',
+      summary: 'Validation could not be completed automatically',
+    };
+  }
+}
         continue;
       }
 
