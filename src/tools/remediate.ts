@@ -1014,6 +1014,7 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
             success: false,
             summary: 'Validation found remaining issues after remediation',
           },
+          pullRequest: pullRequestInfo,
         };
 
         return {
@@ -1057,6 +1058,7 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
           success: true,
           summary: 'Validation confirmed issue resolution',
         },
+        pullRequest: pullRequestInfo,
       };
 
       const content: Array<{ type: 'text'; text: string }> = [
@@ -1087,24 +1089,6 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     executionResults: results,
   });
 
-  const response = {
-    status: overallSuccess ? 'success' : 'failed',
-    sessionId: session.sessionId,
-    executed: true,
-    results: results,
-    executedCommands: results.map(r => r.action),
-    message: overallSuccess
-      ? `Successfully executed ${results.length} remediation actions`
-      : `Executed ${results.length} actions with ${results.filter(r => !r.success).length} failures`,
-    validation: validationResult,
-    instructions: {
-      nextSteps: [],
-    },
-    investigation: finalAnalysis.investigation
-    analysis: finalAnalysis.analysis
-    remediation: finalAnalysis.remediation
-    pullRequest: pullRequestInfo,
-  };
   const response = {
     status: overallSuccess ? 'success' : 'failed',
     sessionId: session.sessionId,
@@ -1152,6 +1136,7 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     investigation: finalAnalysis.investigation,
     analysis: finalAnalysis.analysis,
     remediation: finalAnalysis.remediation,
+    pullRequest: pullRequestInfo,
   };
 
   logger.info('Remediation execution completed', {
