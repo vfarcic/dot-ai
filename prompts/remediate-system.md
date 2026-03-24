@@ -62,20 +62,29 @@ Once investigation is complete, respond with ONLY this JSON format:
         "command": "command to execute (kubectl, helm, etc.) — omit if gitSource is provided",
         "risk": "low|medium|high",
         "rationale": "Why this action addresses the issue",
-        "gitSource": {
-          "repoURL": "source repository URL — only when resource is GitOps-managed",
-          "branch": "branch name",
-          "files": [
-            {
-              "path": "path relative to repo root",
-              "content": "full corrected file content",
-              "description": "what was changed and why"
-            }
-          ]
-        }
-      }
-    ],
-    "risk": "low|medium|high"
+         "gitSource": {
+           "repoURL": "source repository URL — only when resource is GitOps-managed",
+           "branch": "branch name",
+           "repoPath": "relative path to cloned repo (as returned by git_clone) — only if GitOps remediation requires file changes",
+           "files": [
+             {
+               "path": "path relative to repo root",
+               "content": "full corrected file content",
+               "description": "what was changed and why"
+             }
+           ]
+         },
+         "risk": "low|medium|high",
+         "rationale": "Why this action addresses tool issue"
+      },
+      "risk": "low|medium|high"
+    }
+  },
+         "risk": "low|medium|high",
+         "rationale": "Why this action addresses tool issue",
+      },
+      "risk": "low|medium|high",
+    }
   },
   "validationIntent": "Intent for post-remediation validation - be specific about WHEN to check (e.g., 'Wait 30 seconds for operator reconciliation, then verify pods are running')"
 }
