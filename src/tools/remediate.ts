@@ -734,6 +734,9 @@ async function executeRemediationCommands(
   const finalAnalysis = session.data.finalAnalysis!;
   let overallSuccess = true;
   let executedCommandCount = 0;
+  let pullRequestInfo: RemediateOutput['pullRequest'] | undefined;
+
+  logger.info('Starting remediation command execution', {
 
   logger.info('Starting remediation command execution', {
     requestId,
@@ -799,6 +802,13 @@ async function executeRemediationCommands(
             timestamp: new Date(),
           });
           executedCommandCount++;
+          pullRequestInfo = {
+            url: prResult.prUrl,
+            number: prResult.prNumber!,
+            branch: prResult.branch!,
+            baseBranch: prResult.baseBranch!,
+            filesChanged: prResult.filesChanged || [],
+          };
         } else {
           results.push({
             action: `${actionId}: ${action.description} (PR failed)`,
