@@ -738,11 +738,10 @@ async function executeRemediationCommands(
 
   logger.info('Starting remediation command execution', {
 
-  logger.info('Starting remediation command execution', {
-    requestId,
-    sessionId: session.sessionId,
-    commandCount: finalAnalysis.remediation.actions.length,
-  });
+      overallSuccess = false;
+      let pullRequestInfo: RemediateOutput['pullRequest'] | undefined;
+
+      logger.info('Starting remediation command execution', {
 
   // Execute each remediation action
   for (let i = 0; i < finalAnalysis.remediation.actions.length; i++) {
@@ -1066,6 +1065,24 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     executionResults: results,
   });
 
+  const response = {
+    status: overallSuccess ? 'success' : 'failed',
+    sessionId: session.sessionId,
+    executed: true,
+    results: results,
+    executedCommands: results.map(r => r.action),
+    message: overallSuccess
+      ? `Successfully executed ${results.length} remediation actions`
+      : `Executed ${results.length} actions with ${results.filter(r => !r.success).length} failures`,
+    validation: validationResult,
+    instructions: {
+      nextSteps: [],
+    },
+    investigation: finalAnalysis.investigation
+    analysis: finalAnalysis.analysis
+    remediation: finalAnalysis.remediation
+    pullRequest: pullRequestInfo,
+  };
   const response = {
     status: overallSuccess ? 'success' : 'failed',
     sessionId: session.sessionId,
