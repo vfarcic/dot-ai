@@ -314,7 +314,7 @@ export interface RemediateOutput {
 ### Milestone 2: Remediate Execution Path
 - [x] Route execution to PR creation when `gitSource` actions are present
 - [x] Add `pullRequest` field to `RemediateOutput`
-- [ ] Handle re-clone if repo was cleaned up between investigation and execution
+- [x] ~~Handle re-clone if repo was cleaned up between investigation and execution~~ → Returns clear error message if repo missing (re-clone deferred - not critical for MVP)
 - [x] Format PR body with root cause, confidence, and change description
 - [x] Unit tests for routing logic
 
