@@ -17,10 +17,11 @@ export type McpAttachableOperation = 'remediate' | 'operate' | 'query';
 /**
  * Authentication configuration for an MCP server connection.
  *
- * Three modes are supported:
+ * Four modes are supported:
  * 1. Static token via `tokenEnvVar` — reads bearer token from env var, passed as authProvider
  * 2. Custom headers via `headersEnvVar` — reads JSON headers from env var, passed as requestInit
- * 3. No auth (omit `auth`) — current behavior, backward compatible
+ * 3. OAuth via `oauth` — client_credentials grant using the MCP SDK's OAuthClientProvider
+ * 4. No auth (omit `auth`) — current behavior, backward compatible
  *
  * Credentials are injected via environment variables sourced from K8s Secrets.
  * Never store tokens in ConfigMaps or Helm values.
@@ -45,6 +46,36 @@ export interface McpServerAuthConfig {
    * Example env var: MCP_HEADERS_LEGACY_SERVER={"X-API-Key":"abc123"}
    */
   headersEnvVar?: string;
+
+  /**
+   * OAuth client_credentials configuration for MCP-spec-compliant servers.
+   * Uses the MCP SDK's OAuthClientProvider interface with client_credentials grant.
+   * The SDK handles discovery (RFC 9728), token exchange, and automatic refresh.
+   *
+   * PRD #414: MCP Client Outbound Authentication (M4)
+   */
+  oauth?: McpOAuthConfig;
+}
+
+/**
+ * OAuth client_credentials configuration for outbound MCP connections.
+ *
+ * dot-ai acts as an OAuth client authenticating to an MCP server's authorization
+ * server using the client_credentials grant (non-interactive, server-to-server).
+ * The MCP SDK discovers the authorization server via RFC 9728 metadata.
+ */
+export interface McpOAuthConfig {
+  /** OAuth client ID for this MCP server connection */
+  clientId: string;
+
+  /**
+   * Environment variable name containing the OAuth client secret.
+   * Example: MCP_OAUTH_SECRET_DOT_AI_UPSTREAM
+   */
+  clientSecretEnvVar: string;
+
+  /** Optional OAuth scope to request (e.g., "mcp:tools mcp:read") */
+  scope?: string;
 }
 
 /**

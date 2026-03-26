@@ -14,7 +14,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
-import type { OAuthTokens, OAuthClientMetadata } from '@modelcontextprotocol/sdk/shared/auth.js';
+import type { OAuthTokens, OAuthClientMetadata, OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import {
   McpServerConfig,
   McpServerAuthConfig,
@@ -77,12 +77,98 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
 }
 
 /**
+ * OAuthClientProvider using client_credentials grant for server-to-server auth.
+ *
+ * When the MCP SDK detects a 401 from the target server, it uses this provider
+ * to perform OAuth 2.1 discovery (RFC 9728) and obtain tokens via the
+ * client_credentials grant. Tokens are cached in memory and refreshed
+ * automatically by the SDK when they expire.
+ *
+ * PRD #414: MCP Client Outbound Authentication (M4)
+ */
+export class ClientCredentialsAuthProvider implements OAuthClientProvider {
+  private readonly clientId: string;
+  private readonly clientSecret: string;
+  private readonly scope?: string;
+  private cachedTokens?: OAuthTokens;
+  private cachedClientInfo?: OAuthClientInformationFull;
+  private cachedCodeVerifier = '';
+
+  constructor(config: { clientId: string; clientSecret: string; scope?: string }) {
+    this.clientId = config.clientId;
+    this.clientSecret = config.clientSecret;
+    this.scope = config.scope;
+  }
+
+  get redirectUrl(): undefined { return undefined; }
+
+  get clientMetadata(): OAuthClientMetadata {
+    return {
+      redirect_uris: [],
+      client_name: 'dot-ai',
+      grant_types: ['client_credentials'],
+      token_endpoint_auth_method: 'client_secret_post',
+    };
+  }
+
+  clientInformation(): OAuthClientInformationFull | undefined {
+    if (this.cachedClientInfo) return this.cachedClientInfo;
+    // Return pre-registered client info so the SDK skips dynamic registration
+    return {
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      client_id_issued_at: 0,
+      redirect_uris: [],
+      client_name: 'dot-ai',
+      grant_types: ['client_credentials'],
+      token_endpoint_auth_method: 'client_secret_post',
+    } as OAuthClientInformationFull;
+  }
+
+  async saveClientInformation(info: OAuthClientInformationFull): Promise<void> {
+    this.cachedClientInfo = info;
+  }
+
+  async tokens(): Promise<OAuthTokens | undefined> {
+    return this.cachedTokens;
+  }
+
+  async saveTokens(tokens: OAuthTokens): Promise<void> {
+    this.cachedTokens = tokens;
+  }
+
+  async redirectToAuthorization(): Promise<void> {
+    // client_credentials is non-interactive — no browser redirect needed
+  }
+
+  async saveCodeVerifier(verifier: string): Promise<void> {
+    this.cachedCodeVerifier = verifier;
+  }
+
+  async codeVerifier(): Promise<string> {
+    return this.cachedCodeVerifier;
+  }
+
+  /**
+   * Prepare a client_credentials token request.
+   * The SDK calls this to determine which grant type to use.
+   */
+  prepareTokenRequest(scope?: string): URLSearchParams {
+    const params = new URLSearchParams();
+    params.set('grant_type', 'client_credentials');
+    const effectiveScope = scope ?? this.scope;
+    if (effectiveScope) params.set('scope', effectiveScope);
+    return params;
+  }
+}
+
+/**
  * Resolve transport options (authProvider and/or requestInit) from auth config.
  *
  * Reads token/header values from environment variables (sourced from K8s Secrets).
  * Returns partial options to merge into StreamableHTTPClientTransportOptions.
  *
- * PRD #414: MCP Client Outbound Authentication (M1 + M2)
+ * PRD #414: MCP Client Outbound Authentication (M1 + M2 + M4)
  */
 export function resolveTransportAuth(
   auth: McpServerAuthConfig | undefined,
@@ -136,6 +222,30 @@ export function resolveTransportAuth(
       logger.warn('MCP server auth headersEnvVar configured but env var is empty', {
         server: serverName,
         envVar: auth.headersEnvVar,
+      });
+    }
+  }
+
+  // M4: OAuth client_credentials → authProvider (takes precedence over tokenEnvVar)
+  if (auth.oauth) {
+    const clientSecret = process.env[auth.oauth.clientSecretEnvVar];
+    if (clientSecret) {
+      result.authProvider = new ClientCredentialsAuthProvider({
+        clientId: auth.oauth.clientId,
+        clientSecret,
+        scope: auth.oauth.scope,
+      });
+      logger.info('MCP server auth configured via authProvider (OAuth client_credentials)', {
+        server: serverName,
+        clientId: auth.oauth.clientId,
+        clientSecretEnvVar: auth.oauth.clientSecretEnvVar,
+        scope: auth.oauth.scope,
+      });
+    } else {
+      logger.warn('MCP server OAuth clientSecretEnvVar configured but env var is empty', {
+        server: serverName,
+        clientId: auth.oauth.clientId,
+        envVar: auth.oauth.clientSecretEnvVar,
       });
     }
   }
@@ -238,6 +348,24 @@ export class McpClientManager {
         }
         if (s.auth.headersEnvVar && typeof s.auth.headersEnvVar === 'string') {
           auth.headersEnvVar = s.auth.headersEnvVar;
+        }
+        // M4: OAuth client_credentials config
+        if (s.auth.oauth && typeof s.auth.oauth === 'object') {
+          if (!s.auth.oauth.clientId || typeof s.auth.oauth.clientId !== 'string') {
+            throw new Error(
+              `MCP server at index ${index} (${s.name || 'unnamed'}) auth.oauth is missing required 'clientId' field`
+            );
+          }
+          if (!s.auth.oauth.clientSecretEnvVar || typeof s.auth.oauth.clientSecretEnvVar !== 'string') {
+            throw new Error(
+              `MCP server at index ${index} (${s.name || 'unnamed'}) auth.oauth is missing required 'clientSecretEnvVar' field`
+            );
+          }
+          auth.oauth = {
+            clientId: s.auth.oauth.clientId,
+            clientSecretEnvVar: s.auth.oauth.clientSecretEnvVar,
+            scope: typeof s.auth.oauth.scope === 'string' ? s.auth.oauth.scope : undefined,
+          };
         }
       }
 

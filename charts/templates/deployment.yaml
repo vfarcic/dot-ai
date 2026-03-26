@@ -210,6 +210,13 @@ spec:
               name: {{ $config.auth.headers.existingSecret.name }}
               key: {{ $config.auth.headers.existingSecret.key }}
 {{- end }}
+{{- if and $config.auth.oauth $config.auth.oauth.existingSecret }}
+        - name: MCP_OAUTH_SECRET_{{ $upperName }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $config.auth.oauth.existingSecret.name }}
+              key: {{ $config.auth.oauth.existingSecret.key }}
+{{- end }}
 {{- end }}
 {{- end }}
         lifecycle:

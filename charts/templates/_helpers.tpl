@@ -176,6 +176,13 @@ Auth credentials are injected as env vars from K8s Secrets (not stored in Config
 {{- if $config.auth.headers -}}
 {{- $_ := set $auth "headersEnvVar" (printf "MCP_HEADERS_%s" $upperName) -}}
 {{- end -}}
+{{- if $config.auth.oauth -}}
+{{- $oauth := dict "clientId" $config.auth.oauth.clientId "clientSecretEnvVar" (printf "MCP_OAUTH_SECRET_%s" $upperName) -}}
+{{- if $config.auth.oauth.scope -}}
+{{- $_ := set $oauth "scope" $config.auth.oauth.scope -}}
+{{- end -}}
+{{- $_ := set $auth "oauth" $oauth -}}
+{{- end -}}
 {{- if $auth -}}
 {{- $server = merge $server (dict "auth" $auth) -}}
 {{- end -}}

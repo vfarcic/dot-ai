@@ -190,4 +190,48 @@ describe.concurrent('MCP Server Authentication Helm Templates (PRD #414)', () =>
     expect(config[0].auth.tokenEnvVar).toBe('MCP_AUTH_MULTI_AUTH');
     expect(config[0].auth.headersEnvVar).toBe('MCP_HEADERS_MULTI_AUTH');
   });
+
+  test('auth.oauth.existingSecret injects MCP_OAUTH_SECRET_* env var from Secret (M4)', () => {
+    const docs = helmTemplate([
+      'mcpServers.upstream-ai.enabled=true',
+      'mcpServers.upstream-ai.endpoint=https://ai.example.com/mcp',
+      'mcpServers.upstream-ai.attachTo[0]=query',
+      'mcpServers.upstream-ai.auth.oauth.clientId=dot-ai-downstream',
+      'mcpServers.upstream-ai.auth.oauth.scope=mcp:tools',
+      'mcpServers.upstream-ai.auth.oauth.existingSecret.name=upstream-oauth',
+      'mcpServers.upstream-ai.auth.oauth.existingSecret.key=client-secret',
+    ]);
+
+    const deployments = findResourcesByKind<DeploymentResource>(docs, 'Deployment');
+    const mainDeploy = deployments.find(d => !d.metadata.name.includes('plugin') && !d.metadata.name.includes('dex'));
+    const container = mainDeploy!.spec.template.spec.containers.find(c => c.name === 'mcp-server');
+
+    const oauthEnv = container!.env?.find(e => e.name === 'MCP_OAUTH_SECRET_UPSTREAM_AI');
+    expect(oauthEnv).toBeDefined();
+    expect(oauthEnv!.valueFrom?.secretKeyRef).toEqual({
+      name: 'upstream-oauth',
+      key: 'client-secret',
+    });
+  });
+
+  test('OAuth config in ConfigMap includes clientId, clientSecretEnvVar, and scope (M4)', () => {
+    const docs = helmTemplate([
+      'mcpServers.upstream-ai.enabled=true',
+      'mcpServers.upstream-ai.endpoint=https://ai.example.com/mcp',
+      'mcpServers.upstream-ai.attachTo[0]=query',
+      'mcpServers.upstream-ai.auth.oauth.clientId=dot-ai-downstream',
+      'mcpServers.upstream-ai.auth.oauth.scope=mcp:tools',
+      'mcpServers.upstream-ai.auth.oauth.existingSecret.name=upstream-oauth',
+      'mcpServers.upstream-ai.auth.oauth.existingSecret.key=client-secret',
+    ]);
+
+    const configMaps = findResourcesByKind<ConfigMapResource>(docs, 'ConfigMap');
+    const mcpCm = configMaps.find(cm => cm.metadata.name.includes('mcp-servers'));
+    const config = JSON.parse(mcpCm!.data['mcp-servers.json']);
+
+    expect(config[0].auth.oauth).toBeDefined();
+    expect(config[0].auth.oauth.clientId).toBe('dot-ai-downstream');
+    expect(config[0].auth.oauth.clientSecretEnvVar).toBe('MCP_OAUTH_SECRET_UPSTREAM_AI');
+    expect(config[0].auth.oauth.scope).toBe('mcp:tools');
+  });
 });
