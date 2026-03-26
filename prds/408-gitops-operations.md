@@ -359,6 +359,13 @@ After both Layer 1 and Layer 2 are shipped and validated on remediate, create PR
 - **PR #413**: https://github.com/vfarcic/dot-ai/pull/413 (awaiting merge by @vfarcic)
 - CodeRabbit review addressed (fixed branch naming, pullRequest in all responses, removed executedCommandCount for PRs)
 
+### 2026-03-26: Address vfarcic Review Feedback
+- Use `simpleGit().getRemotes(true)` instead of regex for origin URL extraction (consistent with git-utils.ts)
+- Add partial success for non-GitHub remotes: branch pushed, manual PR/MR creation needed
+- Convert `GitCreatePrResult` to discriminated union for type safety
+- Remove non-null assertions in remediate.ts (TypeScript narrows type automatically)
+- Remove hardcoded `git_clone` reference from prompt (avoid maintenance coupling)
+
 ### 2026-03-16: PRD Creation
 - Created PRD as Layer 2 companion to #407 (GitOps Discovery)
 - Key design: no new user-facing choice — system automatically routes to PR creation when GitOps detected
