@@ -387,9 +387,10 @@ plugins:
 #
 # Authentication (PRD #414):
 # MCP servers requiring auth use `auth` config with credentials stored in K8s Secrets.
-# Two auth modes:
+# Three auth modes:
 #   - auth.token: Static bearer token via authProvider (MCP-spec-compliant)
 #   - auth.headers: Custom HTTP headers via requestInit (non-spec fallback)
+#   - auth.oauth: OAuth client_credentials via OAuthClientProvider (MCP Authorization spec)
 # Credentials are injected as env vars from Secrets — never stored in ConfigMaps.
 mcpServers: {}
   # Example: Prometheus MCP server (no auth — in-cluster trust)
@@ -424,6 +425,23 @@ mcpServers: {}
   #       existingSecret:
   #         name: legacy-auth            # K8s Secret name
   #         key: auth-headers            # Key containing JSON: {"X-API-Key":"abc123"}
+  #
+  # Example: OAuth-authenticated MCP server (PRD #414, MCP Authorization spec)
+  # Uses client_credentials grant for server-to-server auth.
+  # The MCP SDK discovers the auth server via RFC 9728 metadata from the endpoint.
+  # upstream-dot-ai:
+  #   enabled: true
+  #   endpoint: "https://dot-ai.example.com/mcp"
+  #   attachTo:
+  #     - query
+  #     - remediate
+  #   auth:
+  #     oauth:
+  #       clientId: "dot-ai-downstream"    # OAuth client ID
+  #       scope: "mcp:tools"               # Optional OAuth scope
+  #       existingSecret:
+  #         name: upstream-oauth-creds     # K8s Secret name
+  #         key: client-secret             # Key containing the OAuth client secret
   #
   # Example: Jaeger MCP server for tracing (no auth)
   # jaeger:
