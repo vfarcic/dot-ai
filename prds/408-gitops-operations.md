@@ -355,7 +355,7 @@ After both Layer 1 and Layer 2 are shipped and validated on remediate, create PR
 - Route gitSource actions to PR creation in `executeRemediationCommands()`
 - Updated `prompts/remediate-system.md` with `repoPath` in schema and GitOps example
 - Fixed broken JSON schema and syntax errors from previous commits
-- Unit tests passing (29 tests in internal-tools.test.ts)
+- Unit tests passing for internal-tools.test.ts (run via `npm run test:unit`)
 - **PR #413**: https://github.com/vfarcic/dot-ai/pull/413 (awaiting merge by @vfarcic)
 - CodeRabbit review addressed (fixed branch naming, pullRequest in all responses, removed executedCommandCount for PRs)
 

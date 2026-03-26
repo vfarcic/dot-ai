@@ -1106,7 +1106,6 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
   });
 
   const hasOnlyGitOps = executedCommandCount === 0 && pullRequestInfo !== undefined;
-  const gitOpsActions = finalAnalysis.remediation.actions.filter(a => a.gitSource);
   const prInfo = pullRequestInfo;
   
   let nextSteps: string[];
