@@ -787,9 +787,9 @@ async function executeRemediationCommands(
           prInput
         )) as GitCreatePrResult;
 
-        if (prResult.success && prResult.prUrl) {
+        if (prResult.success && 'prUrl' in prResult) {
           const filesList =
-            Array.isArray(prResult.filesChanged) && prResult.filesChanged.length > 0
+            prResult.filesChanged && prResult.filesChanged.length > 0
               ? prResult.filesChanged.join(', ')
               : 'none';
           results.push({
@@ -800,17 +800,28 @@ async function executeRemediationCommands(
           });
           pullRequestInfo = {
             url: prResult.prUrl,
-            number: prResult.prNumber!,
-            branch: prResult.branch!,
-            baseBranch: prResult.baseBranch!,
-            filesChanged: prResult.filesChanged || [],
+            number: prResult.prNumber,
+            branch: prResult.branch,
+            baseBranch: prResult.baseBranch,
+            filesChanged: prResult.filesChanged,
           };
+        } else if (prResult.success && 'error' in prResult) {
+          const filesList =
+            prResult.filesChanged && prResult.filesChanged.length > 0
+              ? prResult.filesChanged.join(', ')
+              : 'none';
+          results.push({
+            action: `${actionId}: ${action.description} (branch pushed, manual PR needed)`,
+            success: true,
+            output: `Branch: ${prResult.branch}\nFiles changed: ${filesList}\nNote: ${prResult.error}`,
+            timestamp: new Date(),
+          });
         } else {
           overallSuccess = false;
           results.push({
             action: `${actionId}: ${action.description} (failed)`,
             success: false,
-            output: prResult.error || 'Failed to create PR',
+            output: prResult.error,
             timestamp: new Date(),
           });
         }

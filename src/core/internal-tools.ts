@@ -27,6 +27,7 @@ import {
   getAuthToken,
 } from './git-utils.js';
 import { sanitizeIntentForLabel } from './solution-utils.js';
+import simpleGit from 'simple-git';
 
 const CLONES_SUBDIR = 'gitops-clones';
 const MAX_FILE_SIZE = 100 * 1024; // 100KB
@@ -292,15 +293,10 @@ export interface GitCreatePrInput {
   baseBranch?: string;
 }
 
-export interface GitCreatePrResult {
-  success: boolean;
-  prUrl?: string;
-  prNumber?: number;
-  branch?: string;
-  baseBranch?: string;
-  filesChanged?: string[];
-  error?: string;
-}
+export type GitCreatePrResult =
+  | { success: true; prUrl: string; prNumber: number; branch: string; baseBranch: string; filesChanged: string[] }
+  | { success: true; branch: string; baseBranch: string; filesChanged: string[]; error: string }
+  | { success: false; error: string };
 
 async function handleGitCreatePr(
   args: Record<string, unknown>
@@ -355,20 +351,22 @@ async function handleGitCreatePr(
     const authConfig = getGitAuthConfigFromEnv();
     const token = await getAuthToken(authConfig);
 
-    const gitConfigPath = path.join(resolvedRepoPath, '.git', 'config');
-    const gitConfig = fs.readFileSync(gitConfigPath, 'utf-8');
-    const remoteMatch = gitConfig.match(/\[remote "origin"\]\s*url\s*=\s*(.+)/m);
-    if (!remoteMatch) {
+    const git = simpleGit(resolvedRepoPath);
+    const remotes = await git.getRemotes(true);
+    const origin = remotes.find(r => r.name === 'origin');
+    if (!origin?.refs?.fetch) {
       return { success: false, error: 'Could not find origin remote URL' };
     }
-    let remoteUrl = remoteMatch[1].trim();
-    remoteUrl = scrubCredentials(remoteUrl);
+    const remoteUrl = scrubCredentials(origin.refs.fetch);
 
     const repoMatch = remoteUrl.match(/github\.com[/:]([^/]+\/[^/.]+)/);
     if (!repoMatch) {
       return {
-        success: false,
-        error: 'Could not parse GitHub owner/repo from remote URL',
+        success: true,
+        branch: branchName,
+        baseBranch,
+        filesChanged: pushResult.filesAdded,
+        error: 'Automatic PR creation is only supported for GitHub repositories. Changes were pushed to the branch — create a PR/MR manually.',
       };
     }
     const ownerRepo = repoMatch[1].replace(/\.git$/, '');

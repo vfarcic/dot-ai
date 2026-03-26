@@ -105,9 +105,9 @@ Once investigation is complete, respond with ONLY this JSON format:
 After identifying the problematic resource, check whether it is managed by a GitOps controller (e.g., Argo CD, Flux).
 
 **When GitOps management is detected**:
-- Clone the source repo using `git_clone`, which returns a `localPath` (the repoPath)
+- Clone the source repo and capture the local path for use as `repoPath` in the remediation actions
 - Navigate and read the manifests to find the file(s) that need changing
-- Include `gitSource` in your remediation actions with `repoPath` (from git_clone), `repoURL`, `branch`, and full corrected file contents for each file that needs modification
+- Include `gitSource` in your remediation actions with `repoPath`, `repoURL`, `branch`, and full corrected file contents for each file that needs modification
 
 **When GitOps management is NOT detected**:
 - Proceed with standard kubectl-based remediation
