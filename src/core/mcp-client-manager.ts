@@ -6,13 +6,18 @@
  * the attachTo routing mechanism.
  *
  * PRD #358: MCP Server Integration
+ * PRD #414: MCP Client Outbound Authentication
  */
 
 import { existsSync, readFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
+import type { OAuthTokens, OAuthClientMetadata } from '@modelcontextprotocol/sdk/shared/auth.js';
 import {
   McpServerConfig,
+  McpServerAuthConfig,
   McpToolDefinition,
   DiscoveredMcpServer,
   McpServerStats,
@@ -30,6 +35,113 @@ const TOOL_NAME_SEPARATOR = '__';
 
 /** Default timeout for MCP requests in milliseconds */
 const DEFAULT_TIMEOUT_MS = 30_000;
+
+/**
+ * Minimal OAuthClientProvider that returns a static bearer token.
+ *
+ * Used when the MCP server expects MCP-spec-compliant auth (authProvider)
+ * but the token is a pre-provisioned service account JWT or API key
+ * rather than an interactive OAuth flow.
+ *
+ * PRD #414: MCP Client Outbound Authentication (M1)
+ */
+export class StaticTokenAuthProvider implements OAuthClientProvider {
+  private readonly token: string;
+
+  constructor(token: string) {
+    this.token = token;
+  }
+
+  get redirectUrl(): undefined { return undefined; }
+
+  get clientMetadata(): OAuthClientMetadata {
+    return {
+      redirect_uris: [],
+      client_name: 'dot-ai',
+    };
+  }
+
+  clientInformation() { return undefined; }
+
+  async tokens(): Promise<OAuthTokens> {
+    return {
+      access_token: this.token,
+      token_type: 'bearer',
+    };
+  }
+
+  async saveTokens(): Promise<void> { /* static token — nothing to save */ }
+  async redirectToAuthorization(): Promise<void> { /* non-interactive — no redirect */ }
+  async saveCodeVerifier(): Promise<void> { /* no PKCE for static tokens */ }
+  async codeVerifier(): Promise<string> { return ''; }
+}
+
+/**
+ * Resolve transport options (authProvider and/or requestInit) from auth config.
+ *
+ * Reads token/header values from environment variables (sourced from K8s Secrets).
+ * Returns partial options to merge into StreamableHTTPClientTransportOptions.
+ *
+ * PRD #414: MCP Client Outbound Authentication (M1 + M2)
+ */
+export function resolveTransportAuth(
+  auth: McpServerAuthConfig | undefined,
+  serverName: string,
+  logger: Logger
+): Pick<StreamableHTTPClientTransportOptions, 'authProvider' | 'requestInit'> {
+  if (!auth) return {};
+
+  const result: Pick<StreamableHTTPClientTransportOptions, 'authProvider' | 'requestInit'> = {};
+
+  // M1: Static token → authProvider
+  if (auth.tokenEnvVar) {
+    const token = process.env[auth.tokenEnvVar];
+    if (token) {
+      result.authProvider = new StaticTokenAuthProvider(token);
+      logger.info('MCP server auth configured via authProvider (static token)', {
+        server: serverName,
+        envVar: auth.tokenEnvVar,
+      });
+    } else {
+      logger.warn('MCP server auth tokenEnvVar configured but env var is empty', {
+        server: serverName,
+        envVar: auth.tokenEnvVar,
+      });
+    }
+  }
+
+  // M2: Custom headers → requestInit
+  if (auth.headersEnvVar) {
+    const headersJson = process.env[auth.headersEnvVar];
+    if (headersJson) {
+      try {
+        const headers = JSON.parse(headersJson);
+        if (typeof headers !== 'object' || headers === null || Array.isArray(headers)) {
+          throw new Error('Headers must be a JSON object of key-value pairs');
+        }
+        result.requestInit = { headers };
+        logger.info('MCP server auth configured via requestInit headers', {
+          server: serverName,
+          envVar: auth.headersEnvVar,
+          headerCount: Object.keys(headers).length,
+        });
+      } catch (err) {
+        logger.warn('MCP server auth headersEnvVar contains invalid JSON', {
+          server: serverName,
+          envVar: auth.headersEnvVar,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } else {
+      logger.warn('MCP server auth headersEnvVar configured but env var is empty', {
+        server: serverName,
+        envVar: auth.headersEnvVar,
+      });
+    }
+  }
+
+  return result;
+}
 
 /**
  * Manages MCP server connections, tool discovery, and tool routing.
@@ -117,11 +229,24 @@ export class McpClientManager {
           );
         }
       }
+      // Parse optional auth config (PRD #414)
+      let auth: McpServerAuthConfig | undefined;
+      if (s.auth && typeof s.auth === 'object') {
+        auth = {};
+        if (s.auth.tokenEnvVar && typeof s.auth.tokenEnvVar === 'string') {
+          auth.tokenEnvVar = s.auth.tokenEnvVar;
+        }
+        if (s.auth.headersEnvVar && typeof s.auth.headersEnvVar === 'string') {
+          auth.headersEnvVar = s.auth.headersEnvVar;
+        }
+      }
+
       return {
         name: s.name || `mcp-server-${index}`,
         endpoint: s.endpoint,
         attachTo: s.attachTo as McpAttachableOperation[],
         timeout: s.timeout,
+        auth,
       };
     });
   }
@@ -182,7 +307,11 @@ export class McpClientManager {
       name: config.name,
       endpoint: config.endpoint,
       attachTo: config.attachTo,
+      hasAuth: !!config.auth,
     });
+
+    // Resolve authentication options from config + env vars (PRD #414)
+    const authOptions = resolveTransportAuth(config.auth, config.name, this.logger);
 
     const transport = new StreamableHTTPClientTransport(
       new URL(config.endpoint),
@@ -193,6 +322,7 @@ export class McpClientManager {
           reconnectionDelayGrowFactor: 1.5,
           maxRetries: 2,
         },
+        ...authOptions,
       }
     );
 

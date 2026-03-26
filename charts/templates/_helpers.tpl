@@ -154,9 +154,10 @@ Dex in-cluster gRPC endpoint — for user management via Dex gRPC API (PRD #380 
 {{- end -}}
 
 {{/*
-MCP Servers Configuration (PRD #358)
+MCP Servers Configuration (PRD #358, PRD #414)
 Generates JSON array of MCP server configs for discovery by dot-ai.
-Each entry includes: name, endpoint, attachTo.
+Each entry includes: name, endpoint, attachTo, and optional auth with env var names.
+Auth credentials are injected as env vars from K8s Secrets (not stored in ConfigMap).
 */}}
 {{- define "dot-ai.mcpServersConfig" -}}
 {{- $servers := list -}}
@@ -166,6 +167,19 @@ Each entry includes: name, endpoint, attachTo.
 {{- fail (printf "mcpServers.%s is enabled but has no endpoint configured" $name) -}}
 {{- end -}}
 {{- $server := dict "name" $name "endpoint" $config.endpoint "attachTo" $config.attachTo -}}
+{{- $upperName := $name | upper | replace "-" "_" -}}
+{{- if $config.auth -}}
+{{- $auth := dict -}}
+{{- if $config.auth.token -}}
+{{- $_ := set $auth "tokenEnvVar" (printf "MCP_AUTH_%s" $upperName) -}}
+{{- end -}}
+{{- if $config.auth.headers -}}
+{{- $_ := set $auth "headersEnvVar" (printf "MCP_HEADERS_%s" $upperName) -}}
+{{- end -}}
+{{- if $auth -}}
+{{- $server = merge $server (dict "auth" $auth) -}}
+{{- end -}}
+{{- end -}}
 {{- $servers = append $servers $server -}}
 {{- end -}}
 {{- end -}}
