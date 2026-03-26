@@ -366,6 +366,13 @@ After both Layer 1 and Layer 2 are shipped and validated on remediate, create PR
 - Remove non-null assertions in remediate.ts (TypeScript narrows type automatically)
 - Remove hardcoded `git_clone` reference from prompt (avoid maintenance coupling)
 
+### 2026-03-26: Address CodeRabbit Additional Review Feedback
+- Remove `git_create_pr` from investigation tools catalog (executor-only, not exposed to AI during investigation)
+- Checkout `baseBranch` before creating feature branch (ensures PR targets correct base)
+- Fix GitHub repo name regex to allow dots (e.g., `org/platform.config` now parses correctly)
+- Handle `gitSource` in `executeUserChoice` case 2 ("Execute via agent") with GitOps-specific instructions
+- Fix response builder for GitOps-only runs: show PR info instead of kubectl commands
+
 ### 2026-03-16: PRD Creation
 - Created PRD as Layer 2 companion to #407 (GitOps Discovery)
 - Key design: no new user-facing choice — system automatically routes to PR creation when GitOps detected

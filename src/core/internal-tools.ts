@@ -72,6 +72,10 @@ function repoUrlToDirectoryName(repoUrl: string): string {
 
 // ─── Tool definitions ───
 
+/**
+ * Returns internal tools available to the AI during investigation.
+ * Note: git_create_pr is executor-only and not exposed to investigation.
+ */
 export function getInternalTools(): AITool[] {
   return [
     {
@@ -119,57 +123,8 @@ export function getInternalTools(): AITool[] {
         required: ['path'],
       },
     },
-    {
-      name: 'git_create_pr',
-      description:
-        'Create a pull request with file changes in a previously cloned repository. Writes files, creates a branch, commits, pushes, and opens a PR via GitHub API.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          repoPath: {
-            type: 'string',
-            description:
-              'Relative path to the cloned repo (as returned by git_clone)',
-          },
-          files: {
-            type: 'array',
-            description:
-              'Files to create or modify — provide complete new file content',
-            items: {
-              type: 'object',
-              properties: {
-                path: {
-                  type: 'string',
-                  description: 'File path relative to repo root',
-                },
-                content: {
-                  type: 'string',
-                  description: 'Complete new file content',
-                },
-              },
-              required: ['path', 'content'],
-            },
-          },
-          title: {
-            type: 'string',
-            description: 'PR title',
-          },
-          body: {
-            type: 'string',
-            description: 'PR description with context',
-          },
-          branchName: {
-            type: 'string',
-            description: 'Branch name for the PR',
-          },
-          baseBranch: {
-            type: 'string',
-            description: 'Branch to target (default: main)',
-          },
-        },
-        required: ['repoPath', 'files', 'title', 'branchName'],
-      },
-    },
+    // git_create_pr is executor-only - not exposed during investigation
+    // It's only available via createInternalToolExecutor() during execution
   ];
 }
 
@@ -344,6 +299,10 @@ async function handleGitCreatePr(
   }
 
   try {
+    const git = simpleGit(resolvedRepoPath);
+    
+    await git.checkout(baseBranch);
+
     const pushResult = await pushRepo(resolvedRepoPath, files, title, {
       branch: branchName,
     });
@@ -351,7 +310,6 @@ async function handleGitCreatePr(
     const authConfig = getGitAuthConfigFromEnv();
     const token = await getAuthToken(authConfig);
 
-    const git = simpleGit(resolvedRepoPath);
     const remotes = await git.getRemotes(true);
     const origin = remotes.find(r => r.name === 'origin');
     if (!origin?.refs?.fetch) {
@@ -359,7 +317,7 @@ async function handleGitCreatePr(
     }
     const remoteUrl = scrubCredentials(origin.refs.fetch);
 
-    const repoMatch = remoteUrl.match(/github\.com[/:]([^/]+\/[^/.]+)/);
+    const repoMatch = remoteUrl.match(/github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/);
     if (!repoMatch) {
       return {
         success: true,
@@ -369,7 +327,7 @@ async function handleGitCreatePr(
         error: 'Automatic PR creation is only supported for GitHub repositories. Changes were pushed to the branch — create a PR/MR manually.',
       };
     }
-    const ownerRepo = repoMatch[1].replace(/\.git$/, '');
+    const ownerRepo = repoMatch[1];
     const [owner, repo] = ownerRepo.split('/');
 
     const prResponse = await fetch(

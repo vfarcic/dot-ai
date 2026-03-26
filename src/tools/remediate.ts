@@ -31,9 +31,9 @@ import { checkToolAccess } from '../core/rbac';
 import {
   getInternalTools,
   createInternalToolExecutor,
-  cleanupOldClones,
   GitCreatePrInput,
   GitCreatePrResult,
+  cleanupOldClones,
 } from '../core/internal-tools';
 
 // Plugin result data structure
@@ -654,7 +654,37 @@ async function executeUserChoice(
 
       case 2: {
         // Execute via agent
-        // Use validation intent directly from final analysis
+        const actions = session.data.finalAnalysis.remediation.actions;
+        const gitSourceActions = actions.filter(a => a.gitSource && !a.command);
+        const kubectlActions = actions.filter(a => a.command && !a.gitSource);
+
+        if (gitSourceActions.length > 0 && kubectlActions.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    status: 'success',
+                    sessionId: sessionId,
+                    message: 'GitOps remediation detected - use automatic execution (choice 1) for PR creation',
+                    remediation: session.data.finalAnalysis.remediation,
+                    instructions: {
+                      nextSteps: [
+                        'This remediation requires GitOps PR creation which is handled automatically.',
+                        'Please use choice 1 (Execute automatically) to create the PR.',
+                        'Alternatively, manually apply the file changes from gitSource.files to your repository.',
+                      ],
+                    },
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
+
         const validationIntent =
           session.data.finalAnalysis.validationIntent ||
           'Check the status of the affected resources to verify the issue has been resolved';
@@ -1075,6 +1105,66 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     executionResults: results,
   });
 
+  const hasOnlyGitOps = executedCommandCount === 0 && pullRequestInfo !== undefined;
+  const gitOpsActions = finalAnalysis.remediation.actions.filter(a => a.gitSource);
+  const prInfo = pullRequestInfo;
+  
+  let nextSteps: string[];
+  if (hasOnlyGitOps && prInfo) {
+    nextSteps = [
+      'Changes have been pushed to a Git branch for GitOps reconciliation:',
+      `  PR: ${prInfo.url}`,
+      `  Branch: ${prInfo.branch} → ${prInfo.baseBranch}`,
+      `  Files changed: ${prInfo.filesChanged.join(', ')}`,
+      '',
+      'Next steps:',
+      '  1. Review and merge the PR in your Git repository',
+      '  2. Wait for Argo CD/Flux to sync the changes',
+      '  3. Verify the issue is resolved after reconciliation',
+      '',
+      `You can verify the fix by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
+    ];
+  } else if (overallSuccess) {
+    if (validationResult) {
+      nextSteps = [
+        'The following kubectl commands were executed to remediate the issue:',
+        ...finalAnalysis.remediation.actions
+          .filter(a => a.command)
+          .map((action, index) => {
+            const resultIndex = finalAnalysis.remediation.actions.indexOf(action);
+            return `  ${index + 1}. ${action.command} ${results[resultIndex]?.success ? '✓' : '✗'}`;
+          }),
+        'Automatic validation has been completed - see validation results above',
+        'Monitor your cluster to ensure the issue remains resolved',
+      ];
+    } else {
+      nextSteps = [
+        'The following kubectl commands were executed to remediate the issue:',
+        ...finalAnalysis.remediation.actions
+          .filter(a => a.command)
+          .map((action, index) => {
+            const resultIndex = finalAnalysis.remediation.actions.indexOf(action);
+            return `  ${index + 1}. ${action.command} ${results[resultIndex]?.success ? '✓' : '✗'}`;
+          }),
+        `You can verify the fix by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
+        'Monitor your cluster to ensure the issue is fully resolved',
+      ];
+    }
+  } else {
+    nextSteps = [
+      'The following kubectl commands were attempted:',
+      ...finalAnalysis.remediation.actions
+        .filter(a => a.command)
+        .map((action, index) => {
+          const resultIndex = finalAnalysis.remediation.actions.indexOf(action);
+          return `  ${index + 1}. ${action.command} ${results[resultIndex]?.success ? '✓' : '✗'}`;
+        }),
+      'Some remediation commands failed - check the results above',
+      'Review the error messages and address any underlying issues',
+      'You may need to run additional commands or investigate further',
+    ];
+  }
+  
   const response = {
     status: overallSuccess ? 'success' : 'failed',
     sessionId: session.sessionId,
@@ -1082,42 +1172,15 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     results: results,
     executedCommands: results.map(r => r.action),
     message: overallSuccess
-      ? `Successfully executed ${results.length} remediation actions`
+      ? hasOnlyGitOps
+        ? `Successfully created PR for ${results.length} GitOps remediation action(s)`
+        : `Successfully executed ${results.length} remediation actions`
       : `Executed ${results.length} actions with ${results.filter(r => !r.success).length} failures`,
     validation: validationResult,
     instructions: {
-      showExecutedCommands: true,
-      showActualKubectlCommands: true,
-      nextSteps: overallSuccess
-        ? validationResult
-          ? [
-              'The following kubectl commands were executed to remediate the issue:',
-              ...finalAnalysis.remediation.actions.map(
-                (action, index) =>
-                  `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
-              ),
-              'Automatic validation has been completed - see validation results above',
-              'Monitor your cluster to ensure the issue remains resolved',
-            ]
-          : [
-              'The following kubectl commands were executed to remediate the issue:',
-              ...finalAnalysis.remediation.actions.map(
-                (action, index) =>
-                  `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
-              ),
-              `You can verify the fix by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
-              'Monitor your cluster to ensure the issue is fully resolved',
-            ]
-        : [
-            'The following kubectl commands were attempted:',
-            ...finalAnalysis.remediation.actions.map(
-              (action, index) =>
-                `  ${index + 1}. ${action.command} ${results[index]?.success ? '✓' : '✗'}`
-            ),
-            'Some remediation commands failed - check the results above',
-            'Review the error messages and address any underlying issues',
-            'You may need to run additional commands or investigate further',
-          ],
+      showExecutedCommands: !hasOnlyGitOps,
+      showActualKubectlCommands: !hasOnlyGitOps,
+      nextSteps,
     },
     investigation: finalAnalysis.investigation,
     analysis: finalAnalysis.analysis,
