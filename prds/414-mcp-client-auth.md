@@ -44,7 +44,7 @@ Use the MCP SDK's built-in authentication support in `StreamableHTTPClientTransp
 
 ### 1. `authProvider` — MCP-Spec-Compliant Servers (Primary)
 
-For MCP servers that implement the [MCP Authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) — including other dot-ai instances — the SDK's `OAuthClientProvider` interface handles authentication:
+For MCP servers that implement the [MCP Authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) — including other dot-ai instances — the SDK's `OAuthClientProvider` interface handles authentication:
 
 ```typescript
 // Simple case: static token (service account, API key)
@@ -317,14 +317,25 @@ Full OAuth `client_credentials` flow via `OAuthClientProvider`. Reuses existing 
 
 ## References
 
-- [MCP Authorization Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
+### MCP Specification
+- [MCP Authorization Specification (2025-11-25)](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
 - [MCP SDK OAuthClientProvider interface](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/client/auth.ts)
-- [RFC 9700 — OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/rfc9700/) (finalized Jan 2025)
-- [RFC 7636 — PKCE](https://datatracker.ietf.org/doc/rfc7636/)
-- [RFC 8707 — Resource Indicators for OAuth 2.0](https://datatracker.ietf.org/doc/rfc8707/)
+
+### Finalized RFCs (normative)
 - [RFC 8414 — OAuth 2.0 Authorization Server Metadata](https://datatracker.ietf.org/doc/rfc8414/)
+- [RFC 7591 — OAuth 2.0 Dynamic Client Registration](https://datatracker.ietf.org/doc/rfc7591/)
 - [RFC 9728 — OAuth 2.0 Protected Resource Metadata](https://datatracker.ietf.org/doc/rfc9728/)
-- [OAuth 2.1 draft (informational alignment)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1) — consolidates the above; referenced by MCP spec but still a Working Group Internet-Draft
+- [RFC 6750 — OAuth 2.0 Bearer Token Usage](https://datatracker.ietf.org/doc/rfc6750/)
+- [RFC 8707 — Resource Indicators for OAuth 2.0](https://datatracker.ietf.org/doc/rfc8707/) — `resource` parameter now MUST per MCP spec 2025-11-25
+- [RFC 7636 — PKCE](https://datatracker.ietf.org/doc/rfc7636/)
+- [RFC 9068 — JWT Profile for OAuth 2.0 Access Tokens](https://datatracker.ietf.org/doc/rfc9068/)
+- [RFC 9700 — OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/rfc9700/) (finalized Jan 2025)
+
+### Draft Specifications (informational alignment)
+- [OAuth 2.1 (draft-ietf-oauth-v2-1)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1) — consolidates the above; referenced by MCP spec but still a Working Group Internet-Draft
+- [OAuth Client ID Metadata Documents (draft-ietf-oauth-client-id-metadata-document-00)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-client-id-metadata-document-00) — referenced by MCP spec 2025-11-25
+
+### Kubernetes
 - [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
 
 ## Decision Log
