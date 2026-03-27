@@ -9,6 +9,24 @@
 
 ---
 
+## Table of Contents
+
+- [Problem Statement](#problem-statement)
+- [Proposed Solution](#proposed-solution)
+- [Identity Chain](#identity-chain)
+- [Authentication Modes](#authentication-modes)
+- [Helm Configuration](#helm-configuration)
+- [Key Design Principles](#key-design-principles)
+- [Milestone Summary](#milestone-summary)
+- [Milestones](#milestones)
+- [Technical Scope](#technical-scope--modified-modules)
+- [Security Considerations](#security-considerations)
+- [Alternatives Considered](#alternatives-considered)
+- [References](#references)
+- [Decision Log](#decision-log)
+
+---
+
 ## Problem Statement
 
 dot-ai's MCP client cannot authenticate to MCP servers that require authorization. PR #410 implemented MCP client integration with an explicit "in-cluster trust model" — all outbound connections are unauthenticated. This works when MCP servers run in the same cluster without auth, but breaks for any deployment following zero-trust principles.
@@ -208,6 +226,18 @@ Server names in `mcpServers` are mapped to environment variable names: convert t
 4. **Standard mechanisms only** — `authProvider` and `requestInit.headers` are SDK-native
 5. **Forward-compatible with per-user identity** — when #401 delivers user impersonation, `authProvider` could use the user's OAuth context
 6. **Token privilege restriction** — per MCP spec, servers MUST NOT pass through client tokens to upstream APIs
+
+## Milestone Summary
+
+| Milestone | Scope | Key Deliverable |
+|-----------|-------|-----------------|
+| **M1** | Static `authProvider` | `StaticTokenAuthProvider` wrapping `OAuthClientProvider` for Bearer tokens from K8s Secrets |
+| **M2** | `requestInit.headers` fallback | Custom HTTP headers for non-spec servers; fail-fast on missing credentials |
+| **M3** | Helm chart configuration | `existingSecret` references, env var injection, optional TLS CA bundle |
+| **M4** | OAuth `client_credentials` | Full OAuth flow reusing #380 infrastructure; `invalidateCredentials`, discovery caching, RFC 8707 `audience` |
+| **M5** | Tests, observability, docs | Auth status logging, integration tests, operator documentation |
+
+---
 
 ## Milestones
 
