@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
+import type { OAuthClientProvider, OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { OAuthTokens, OAuthClientMetadata, OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import {
   McpServerConfig,
@@ -73,7 +73,16 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
   async saveTokens(): Promise<void> { /* static token — nothing to save */ }
   async redirectToAuthorization(): Promise<void> { /* non-interactive — no redirect */ }
   async saveCodeVerifier(): Promise<void> { /* no PKCE for static tokens */ }
+  // Returns empty string because the SDK type requires string (not undefined).
+  // Static tokens do not use PKCE, so the verifier is never meaningful.
   async codeVerifier(): Promise<string> { return ''; }
+
+  async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
+    // Static tokens cannot be refreshed — log that re-auth is needed
+  }
+
+  async saveDiscoveryState(_state: OAuthDiscoveryState): Promise<void> { /* no-op for static tokens */ }
+  async discoveryState(): Promise<OAuthDiscoveryState | undefined> { return undefined; }
 }
 
 /**
@@ -90,14 +99,17 @@ export class ClientCredentialsAuthProvider implements OAuthClientProvider {
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly scope?: string;
+  private readonly resource?: string;
   private cachedTokens?: OAuthTokens;
   private cachedClientInfo?: OAuthClientInformationFull;
   private cachedCodeVerifier = '';
+  private cachedDiscoveryState?: OAuthDiscoveryState;
 
-  constructor(config: { clientId: string; clientSecret: string; scope?: string }) {
+  constructor(config: { clientId: string; clientSecret: string; scope?: string; resource?: string }) {
     this.clientId = config.clientId;
     this.clientSecret = config.clientSecret;
     this.scope = config.scope;
+    this.resource = config.resource;
   }
 
   get redirectUrl(): undefined { return undefined; }
@@ -113,7 +125,9 @@ export class ClientCredentialsAuthProvider implements OAuthClientProvider {
 
   clientInformation(): OAuthClientInformationFull | undefined {
     if (this.cachedClientInfo) return this.cachedClientInfo;
-    // Return pre-registered client info so the SDK skips dynamic registration
+    // Return pre-registered client info so the SDK skips dynamic registration.
+    // NOTE: client_secret is intentionally included — the MCP SDK requires it
+    // to perform client_credentials token requests. Do NOT log this object.
     return {
       client_id: this.clientId,
       client_secret: this.clientSecret,
@@ -145,8 +159,27 @@ export class ClientCredentialsAuthProvider implements OAuthClientProvider {
     this.cachedCodeVerifier = verifier;
   }
 
+  // Returns cached verifier or empty string because the SDK type requires string (not undefined).
+  // client_credentials does not use PKCE, so the verifier is never meaningful.
   async codeVerifier(): Promise<string> {
     return this.cachedCodeVerifier;
+  }
+
+  async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
+    if (scope === 'all' || scope === 'tokens') {
+      this.cachedTokens = undefined;
+    }
+    if (scope === 'all' || scope === 'discovery') {
+      this.cachedDiscoveryState = undefined;
+    }
+  }
+
+  async saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
+    this.cachedDiscoveryState = state;
+  }
+
+  async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
+    return this.cachedDiscoveryState;
   }
 
   /**
@@ -158,6 +191,7 @@ export class ClientCredentialsAuthProvider implements OAuthClientProvider {
     params.set('grant_type', 'client_credentials');
     const effectiveScope = scope ?? this.scope;
     if (effectiveScope) params.set('scope', effectiveScope);
+    if (this.resource) params.set('resource', this.resource);
     return params;
   }
 }
@@ -189,10 +223,9 @@ export function resolveTransportAuth(
         envVar: auth.tokenEnvVar,
       });
     } else {
-      logger.warn('MCP server auth tokenEnvVar configured but env var is empty', {
-        server: serverName,
-        envVar: auth.tokenEnvVar,
-      });
+      throw new Error(
+        `MCP server '${serverName}' auth.tokenEnvVar references env var '${auth.tokenEnvVar}' but it is empty or unset — fix the K8s Secret or remove the auth config`
+      );
     }
   }
 
@@ -204,6 +237,12 @@ export function resolveTransportAuth(
         const headers = JSON.parse(headersJson);
         if (typeof headers !== 'object' || headers === null || Array.isArray(headers)) {
           throw new Error('Headers must be a JSON object of key-value pairs');
+        }
+        // Validate all header values are strings — non-string values cause HTTP errors
+        for (const [key, value] of Object.entries(headers)) {
+          if (typeof value !== 'string') {
+            throw new Error(`Header "${key}" value must be a string, got ${typeof value}`);
+          }
         }
         result.requestInit = { headers };
         logger.info('MCP server auth configured via requestInit headers', {
@@ -219,10 +258,9 @@ export function resolveTransportAuth(
         });
       }
     } else {
-      logger.warn('MCP server auth headersEnvVar configured but env var is empty', {
-        server: serverName,
-        envVar: auth.headersEnvVar,
-      });
+      throw new Error(
+        `MCP server '${serverName}' auth.headersEnvVar references env var '${auth.headersEnvVar}' but it is empty or unset — fix the K8s Secret or remove the auth config`
+      );
     }
   }
 
@@ -234,6 +272,7 @@ export function resolveTransportAuth(
         clientId: auth.oauth.clientId,
         clientSecret,
         scope: auth.oauth.scope,
+        resource: auth.oauth.resource,
       });
       logger.info('MCP server auth configured via authProvider (OAuth client_credentials)', {
         server: serverName,
@@ -242,11 +281,9 @@ export function resolveTransportAuth(
         scope: auth.oauth.scope,
       });
     } else {
-      logger.warn('MCP server OAuth clientSecretEnvVar configured but env var is empty', {
-        server: serverName,
-        clientId: auth.oauth.clientId,
-        envVar: auth.oauth.clientSecretEnvVar,
-      });
+      throw new Error(
+        `MCP server '${serverName}' auth.oauth.clientSecretEnvVar references env var '${auth.oauth.clientSecretEnvVar}' but it is empty or unset — fix the K8s Secret or remove the auth config`
+      );
     }
   }
 
@@ -340,32 +377,80 @@ export class McpClientManager {
         }
       }
       // Parse optional auth config (PRD #414)
+      // Fail-fast on malformed auth — silent degradation to unauthenticated is a security risk
       let auth: McpServerAuthConfig | undefined;
-      if (s.auth && typeof s.auth === 'object') {
+      const serverLabel = s.name || 'unnamed';
+      if (s.auth !== undefined) {
+        if (!s.auth || typeof s.auth !== 'object' || Array.isArray(s.auth)) {
+          throw new Error(
+            `MCP server at index ${index} (${serverLabel}) auth must be an object`
+          );
+        }
+        const rawAuth = s.auth as Record<string, unknown>;
         auth = {};
-        if (s.auth.tokenEnvVar && typeof s.auth.tokenEnvVar === 'string') {
-          auth.tokenEnvVar = s.auth.tokenEnvVar;
-        }
-        if (s.auth.headersEnvVar && typeof s.auth.headersEnvVar === 'string') {
-          auth.headersEnvVar = s.auth.headersEnvVar;
-        }
-        // M4: OAuth client_credentials config
-        if (s.auth.oauth && typeof s.auth.oauth === 'object') {
-          if (!s.auth.oauth.clientId || typeof s.auth.oauth.clientId !== 'string') {
+        if ('tokenEnvVar' in rawAuth) {
+          if (typeof rawAuth.tokenEnvVar !== 'string' || rawAuth.tokenEnvVar.trim() === '') {
             throw new Error(
-              `MCP server at index ${index} (${s.name || 'unnamed'}) auth.oauth is missing required 'clientId' field`
+              `MCP server at index ${index} (${serverLabel}) auth.tokenEnvVar must be a non-empty string`
             );
           }
-          if (!s.auth.oauth.clientSecretEnvVar || typeof s.auth.oauth.clientSecretEnvVar !== 'string') {
+          auth.tokenEnvVar = rawAuth.tokenEnvVar;
+        }
+        if ('headersEnvVar' in rawAuth) {
+          if (typeof rawAuth.headersEnvVar !== 'string' || rawAuth.headersEnvVar.trim() === '') {
             throw new Error(
-              `MCP server at index ${index} (${s.name || 'unnamed'}) auth.oauth is missing required 'clientSecretEnvVar' field`
+              `MCP server at index ${index} (${serverLabel}) auth.headersEnvVar must be a non-empty string`
+            );
+          }
+          auth.headersEnvVar = rawAuth.headersEnvVar;
+        }
+        // M4: OAuth client_credentials config
+        if ('oauth' in rawAuth) {
+          if (!rawAuth.oauth || typeof rawAuth.oauth !== 'object' || Array.isArray(rawAuth.oauth)) {
+            throw new Error(
+              `MCP server at index ${index} (${serverLabel}) auth.oauth must be an object`
+            );
+          }
+          const rawOAuth = rawAuth.oauth as Record<string, unknown>;
+          if (!rawOAuth.clientId || typeof rawOAuth.clientId !== 'string') {
+            throw new Error(
+              `MCP server at index ${index} (${serverLabel}) auth.oauth is missing required 'clientId' field`
+            );
+          }
+          if (!rawOAuth.clientSecretEnvVar || typeof rawOAuth.clientSecretEnvVar !== 'string') {
+            throw new Error(
+              `MCP server at index ${index} (${serverLabel}) auth.oauth is missing required 'clientSecretEnvVar' field`
+            );
+          }
+          if ('scope' in rawOAuth && (typeof rawOAuth.scope !== 'string' || rawOAuth.scope.trim() === '')) {
+            throw new Error(
+              `MCP server at index ${index} (${serverLabel}) auth.oauth.scope must be a non-empty string`
+            );
+          }
+          if ('resource' in rawOAuth && (typeof rawOAuth.resource !== 'string' || rawOAuth.resource.trim() === '')) {
+            throw new Error(
+              `MCP server at index ${index} (${serverLabel}) auth.oauth.resource must be a non-empty string`
             );
           }
           auth.oauth = {
-            clientId: s.auth.oauth.clientId,
-            clientSecretEnvVar: s.auth.oauth.clientSecretEnvVar,
-            scope: typeof s.auth.oauth.scope === 'string' ? s.auth.oauth.scope : undefined,
+            clientId: rawOAuth.clientId,
+            clientSecretEnvVar: rawOAuth.clientSecretEnvVar,
+            scope: typeof rawOAuth.scope === 'string' ? rawOAuth.scope : undefined,
+            resource: typeof rawOAuth.resource === 'string' ? rawOAuth.resource : undefined,
           };
+        }
+        // Fail-fast: auth block present but no valid fields configured
+        if (!auth.tokenEnvVar && !auth.headersEnvVar && !auth.oauth) {
+          throw new Error(
+            `MCP server at index ${index} (${serverLabel}) auth is present but contains no valid auth fields (tokenEnvVar, headersEnvVar, or oauth)`
+          );
+        }
+        // Mutual exclusivity: tokenEnvVar and oauth cannot both be specified
+        // because both set authProvider — oauth would silently overwrite the static token
+        if (auth.tokenEnvVar && auth.oauth) {
+          throw new Error(
+            `MCP server at index ${index} (${serverLabel}) auth specifies both 'tokenEnvVar' and 'oauth' — these are mutually exclusive (both set authProvider)`
+          );
         }
       }
 
