@@ -136,8 +136,6 @@ function createMockMcpServer(options: {
 // ============================================================================
 
 describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
-  const testLogger = createTestLogger();
-
   // --- M1: Static Bearer Token ---
   describe('M1: Static Bearer Token', () => {
     let mockServer: { server: http.Server; port: number; url: string };
@@ -419,44 +417,8 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
     });
   });
 
-  // --- Config parsing through real parseMcpServerConfig ---
-  describe('Config Parsing (parseMcpServerConfig)', () => {
-    test('should parse full auth config from JSON file', () => {
-      // This tests the real parser with all auth modes
-      // (fs mock already exercised in unit tests — here we verify the types flow correctly)
-      const config: McpServerConfig = {
-        name: 'integration-test-server',
-        endpoint: 'http://localhost:9999/mcp',
-        attachTo: ['query'],
-        auth: {
-          tokenEnvVar: 'MCP_AUTH_TEST',
-          headersEnvVar: 'MCP_HEADERS_TEST',
-          oauth: {
-            clientId: 'test-client',
-            clientSecretEnvVar: 'MCP_OAUTH_SECRET_TEST',
-            scope: 'mcp:tools',
-          },
-        },
-      };
-
-      // Verify the config type flows correctly to resolveTransportAuth
-      process.env.MCP_AUTH_TEST = 'test-token';
-      process.env.MCP_HEADERS_TEST = '{"X-Test":"value"}';
-      process.env.MCP_OAUTH_SECRET_TEST = 'test-secret';
-
-      const logger = createTestLogger();
-      const transportOpts = resolveTransportAuth(config.auth, config.name, logger);
-
-      // OAuth takes precedence over static token for authProvider
-      expect(transportOpts.authProvider).toBeInstanceOf(ClientCredentialsAuthProvider);
-      // Headers are always applied
-      expect(transportOpts.requestInit).toMatchObject({ headers: { 'X-Test': 'value' } });
-
-      delete process.env.MCP_AUTH_TEST;
-      delete process.env.MCP_HEADERS_TEST;
-      delete process.env.MCP_OAUTH_SECRET_TEST;
-    });
-  });
+  // Config parsing tests removed — tokenEnvVar + oauth combo is rejected at parse time,
+  // so testing "OAuth takes precedence" exercises an unreachable code path.
 });
 
 // ============================================================================

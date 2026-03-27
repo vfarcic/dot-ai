@@ -77,7 +77,7 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
   // Static tokens do not use PKCE, so the verifier is never meaningful.
   async codeVerifier(): Promise<string> { return ''; }
 
-  async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
+  async invalidateCredentials(_scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
     // Static tokens cannot be refreshed — log that re-auth is needed
   }
 
@@ -252,7 +252,8 @@ export function resolveTransportAuth(
         });
       } catch (err) {
         throw new Error(
-          `MCP server '${serverName}' auth.headersEnvVar env var '${auth.headersEnvVar}' contains invalid JSON: ${err instanceof Error ? err.message : String(err)}`
+          `MCP server '${serverName}' auth.headersEnvVar env var '${auth.headersEnvVar}' contains invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err }
         );
       }
     } else {
