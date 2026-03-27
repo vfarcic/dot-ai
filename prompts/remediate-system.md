@@ -65,6 +65,7 @@ Once investigation is complete, respond with ONLY this JSON format:
         "gitSource": {
           "repoURL": "source repository URL — only when resource is GitOps-managed",
           "branch": "branch name",
+          "repoPath": "relative path to cloned repo (as returned by git_clone) — required for GitOps remediation",
           "files": [
             {
               "path": "path relative to repo root",
@@ -104,8 +105,9 @@ Once investigation is complete, respond with ONLY this JSON format:
 After identifying the problematic resource, check whether it is managed by a GitOps controller (e.g., Argo CD, Flux).
 
 **When GitOps management is detected**:
-- Clone the source repo, navigate and read the manifests to find the file(s) that need changing
-- Include `gitSource` in your remediation actions with the repo URL, branch, and full corrected file contents for each file that needs modification
+- Clone the source repo and capture the local path for use as `repoPath` in the remediation actions
+- Navigate and read the manifests to find the file(s) that need changing
+- Include `gitSource` in your remediation actions with `repoPath`, `repoURL`, `branch`, and full corrected file contents for each file that needs modification
 
 **When GitOps management is NOT detected**:
 - Proceed with standard kubectl-based remediation
@@ -190,6 +192,7 @@ After identifying the problematic resource, check whether it is managed by a Git
         "gitSource": {
           "repoURL": "https://github.com/org/infra-repo.git",
           "branch": "main",
+          "repoPath": "session-abc123/org-infra-repo",
           "files": [
             {
               "path": "apps/production/deployment.yaml",
