@@ -76,8 +76,12 @@ EOF`);
         if (podsData.items && podsData.items.length > 0) {
           podData = podsData.items[0];
 
-          if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
-            restartCountInitial = podData.status.containerStatuses[0].restartCount;
+          if (
+            podData.status.containerStatuses &&
+            podData.status.containerStatuses[0]
+          ) {
+            restartCountInitial =
+              podData.status.containerStatuses[0].restartCount;
             if (restartCountInitial > 0) {
               break; // Pod has crashed and restarted
             }
@@ -96,9 +100,9 @@ EOF`);
       // PHASE 1: AI Investigation
       const investigationResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/remediate',
-        { 
+        {
           issue: `my app in ${testNamespace} namespace is crashing`,
-          interaction_id: 'manual_analyze'
+          interaction_id: 'manual_analyze',
         }
       );
 
@@ -112,13 +116,13 @@ EOF`);
             investigation: {
               iterations: expect.any(Number),
               dataGathered: expect.arrayContaining([
-                expect.stringMatching(/^kubectl_\w+ \(call \d+\)$/)
-              ])
+                expect.stringMatching(/^kubectl_\w+ \(call \d+\)$/),
+              ]),
             },
             analysis: {
-              rootCause: expect.any(String),  // AI describes OOM/memory issue in various ways
+              rootCause: expect.any(String), // AI describes OOM/memory issue in various ways
               confidence: expect.any(Number),
-              factors: expect.any(Array)
+              factors: expect.any(Array),
             },
             remediation: {
               summary: expect.stringContaining('memory'),
@@ -127,67 +131,87 @@ EOF`);
                   description: expect.any(String),
                   command: expect.stringContaining('kubectl'),
                   risk: expect.stringMatching(/^(low|medium|high)$/),
-                  rationale: expect.any(String)
-                })
+                  rationale: expect.any(String),
+                }),
               ]),
-              risk: expect.stringMatching(/^(low|medium|high)$/)
+              risk: expect.stringMatching(/^(low|medium|high)$/),
             },
             validationIntent: expect.any(String),
             executed: false,
             mode: 'manual',
             guidance: expect.stringContaining('CRITICAL'),
-            agentInstructions: expect.stringMatching(/Show the user.*impact_analysis/s),
+            agentInstructions: expect.stringMatching(
+              /Show the user.*impact_analysis/s
+            ),
             nextAction: 'remediate',
             message: expect.any(String),
             // PRD #320: Remediate tool returns visualizationUrl
-            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/rem-\d+-[a-f0-9]+$/),
+            visualizationUrl: expect.stringMatching(
+              /^https:\/\/dot-ai-ui\.test\.local\/v\/rem-\d+-[a-f0-9]+$/
+            ),
             executionChoices: [
               expect.objectContaining({
                 id: 1,
                 label: 'Execute automatically via MCP',
                 description: expect.any(String),
-                risk: expect.stringMatching(/^(low|medium|high)$/)
+                risk: expect.stringMatching(/^(low|medium|high)$/),
               }),
               expect.objectContaining({
                 id: 2,
                 label: 'Execute via agent',
                 description: expect.any(String),
-                risk: expect.stringMatching(/^(low|medium|high)$/)
-              })
-            ]
+                risk: expect.stringMatching(/^(low|medium|high)$/),
+              }),
+            ],
           },
           tool: 'remediate',
-          executionTime: expect.any(Number)
+          executionTime: expect.any(Number),
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.any(String),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
-      expect(investigationResponse, `Manual mode investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`).toMatchObject(expectedInvestigationResponse);
+      expect(
+        investigationResponse,
+        `Manual mode investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`
+      ).toMatchObject(expectedInvestigationResponse);
 
       // PRD #320: Verify visualization URL is present in response (not embedded in message)
       expect(investigationResponse.data.result.visualizationUrl).toBeTruthy();
-      expect(investigationResponse.data.result.visualizationUrl).toMatch(/^https?:\/\//);
+      expect(investigationResponse.data.result.visualizationUrl).toMatch(
+        /^https?:\/\//
+      );
 
       // Extract sessionId for execution
       const sessionId = investigationResponse.data.result.sessionId;
-      const remediationActions = investigationResponse.data.result.remediation.actions;
+      const remediationActions =
+        investigationResponse.data.result.remediation.actions;
 
       // Verify AI found OOM issue and memory-related remediation
-      expect(investigationResponse.data.result.analysis.rootCause.toLowerCase()).toMatch(/oom|memory/);
-      expect(investigationResponse.data.result.analysis.confidence).toBeGreaterThan(0.8);
+      expect(
+        investigationResponse.data.result.analysis.rootCause.toLowerCase()
+      ).toMatch(/oom|memory/);
+      expect(
+        investigationResponse.data.result.analysis.confidence
+      ).toBeGreaterThan(0.8);
       expect(remediationActions.length).toBeGreaterThan(0);
 
       // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
-      const gitSourceActions = remediationActions.filter((a: any) => a.gitSource);
+      const gitSourceActions = remediationActions.filter(
+        (a: any) => a.gitSource
+      );
       expect(gitSourceActions.length).toBe(0);
 
       // SESSION RETRIEVAL: Test GET /api/v1/sessions/{sessionId} for URL sharing/refresh support
       const sessionStartTime = Date.now();
-      const sessionResponse = await integrationTest.httpClient.get(`/api/v1/sessions/${sessionId}`);
+      const sessionResponse = await integrationTest.httpClient.get(
+        `/api/v1/sessions/${sessionId}`
+      );
       const sessionRetrievalTime = Date.now() - sessionStartTime;
 
       // Should be fast (no AI call - just file read)
@@ -211,21 +235,21 @@ EOF`);
               analysis: {
                 rootCause: expect.any(String),
                 confidence: expect.any(Number),
-                factors: expect.any(Array)
+                factors: expect.any(Array),
               },
               remediation: {
                 summary: expect.stringContaining('memory'),
                 actions: expect.any(Array),
-                risk: expect.stringMatching(/^(low|medium|high)$/)
-              }
-            }
-          }
+                risk: expect.stringMatching(/^(low|medium|high)$/),
+              },
+            },
+          },
         },
         meta: {
           timestamp: expect.any(String),
           requestId: expect.any(String),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
       expect(sessionResponse).toMatchObject(expectedSessionResponse);
@@ -235,11 +259,11 @@ EOF`);
       // PHASE 2: Execute remediation via MCP (choice 1)
       const executionResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/remediate',
-        { 
-          executeChoice: 1, 
-          sessionId, 
+        {
+          executeChoice: 1,
+          sessionId,
           mode: 'manual',
-          interaction_id: 'manual_execute'
+          interaction_id: 'manual_execute',
         }
       );
 
@@ -255,37 +279,41 @@ EOF`);
               expect.objectContaining({
                 action: expect.any(String),
                 success: true,
-                timestamp: expect.any(String)
-              })
+                timestamp: expect.any(String),
+              }),
             ]),
             executedCommands: expect.any(Array),
             analysis: expect.objectContaining({
               rootCause: expect.any(String),
-              confidence: expect.any(Number)
+              confidence: expect.any(Number),
             }),
             remediation: expect.objectContaining({
               summary: expect.any(String),
               actions: expect.any(Array),
-              risk: expect.stringMatching(/^(low|medium|high)$/)
+              risk: expect.stringMatching(/^(low|medium|high)$/),
             }),
             investigation: expect.objectContaining({
-              iterations: expect.any(Number)
-            })
+              iterations: expect.any(Number),
+            }),
           },
           tool: 'remediate',
-          executionTime: expect.any(Number)
+          executionTime: expect.any(Number),
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.any(String),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
       expect(executionResponse).toMatchObject(expectedExecutionResponse);
 
       // Status: 'success' when validation confirms fix, 'awaiting_user_approval' when AI wants more investigation
-      expect(['success', 'awaiting_user_approval']).toContain(executionResponse.data.result.status);
+      expect(['success', 'awaiting_user_approval']).toContain(
+        executionResponse.data.result.status
+      );
 
       // Verify all remediation commands succeeded
       const results = executionResponse.data.result.results;
@@ -313,7 +341,9 @@ EOF`);
       expect(afterPod.status.containerStatuses[0].restartCount).toBe(0);
 
       // Verify pod is actually healthy (Ready condition)
-      const readyCondition = afterPod.status.conditions.find((c: any) => c.type === 'Ready');
+      const readyCondition = afterPod.status.conditions.find(
+        (c: any) => c.type === 'Ready'
+      );
       expect(readyCondition.status).toBe('True');
 
       // Verify deployment memory limit was increased (should be higher than original 128Mi)
@@ -321,15 +351,14 @@ EOF`);
         `get deployment test-app -n ${testNamespace} -o json`
       );
       const deploymentData = JSON.parse(deploymentJson);
-      const memoryLimit = deploymentData.spec.template.spec.containers[0].resources.limits.memory;
+      const memoryLimit =
+        deploymentData.spec.template.spec.containers[0].resources.limits.memory;
 
       // Parse memory value and verify it's greater than 128Mi
       const memValue = parseInt(memoryLimit.replace(/Mi|Gi/, ''));
       const isGi = memoryLimit.includes('Gi');
       const actualMi = isGi ? memValue * 1024 : memValue;
       expect(actualMi).toBeGreaterThan(128); // AI should have increased from 128Mi
-
-
     }, 1200000); // 20 minute timeout for AI investigation + execution + validation (accommodates slower AI models like Gemini)
   });
 
@@ -393,7 +422,10 @@ EOF`);
         if (podsData.items && podsData.items.length > 0) {
           podData = podsData.items[0];
 
-          if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
+          if (
+            podData.status.containerStatuses &&
+            podData.status.containerStatuses[0]
+          ) {
             restartCount = podData.status.containerStatuses[0].restartCount;
             if (restartCount > 0) {
               break; // Pod has crashed and restarted
@@ -415,7 +447,7 @@ EOF`);
           mode: 'automatic',
           confidenceThreshold: 0.1, // Very low threshold ensures auto-execution - we're testing the mechanism, not AI confidence
           maxRiskLevel: 'high', // Allow any risk level - we're testing auto-execution works when thresholds are met
-          interaction_id: 'automatic_analyze_execute'
+          interaction_id: 'automatic_analyze_execute',
         }
       );
 
@@ -428,17 +460,20 @@ EOF`);
             executed: true, // KEY: Should auto-execute without user approval
             results: expect.arrayContaining([
               expect.objectContaining({
-                success: true
-              })
+                success: true,
+              }),
             ]),
             validation: {
-              success: true // Validation should confirm the fix worked
-            }
-          }
-        }
+              success: true, // Validation should confirm the fix worked
+            },
+          },
+        },
       };
 
-      expect(autoResponse, `Auto mode failed: ${JSON.stringify(autoResponse.error || autoResponse.data?.result?.error || 'no error field')}`).toMatchObject(expectedAutoResponse);
+      expect(
+        autoResponse,
+        `Auto mode failed: ${JSON.stringify(autoResponse.error || autoResponse.data?.result?.error || 'no error field')}`
+      ).toMatchObject(expectedAutoResponse);
 
       // Verify execution was automatic (no executionChoices)
       expect(autoResponse.data.result.executionChoices).toBeUndefined();
@@ -458,21 +493,24 @@ EOF`);
       await new Promise(resolve => setTimeout(resolve, 15000)); // Wait for new pods to stabilize
 
       // Get all pods in namespace - deployment controller will create new pods after patch
-      const afterPodsJson = await integrationTest.kubectl(`get pods -n ${autoNamespace} -l app=auto-test-app -o json`);
+      const afterPodsJson = await integrationTest.kubectl(
+        `get pods -n ${autoNamespace} -l app=auto-test-app -o json`
+      );
       const afterPodsData = JSON.parse(afterPodsJson);
 
       // Should have at least one running stress workload pod
-      const runningPods = afterPodsData.items.filter((pod: any) =>
-        pod.status.phase === 'Running' &&
-        pod.spec.containers.some((container: any) => container.image === 'polinux/stress:1.0.4')
+      const runningPods = afterPodsData.items.filter(
+        (pod: any) =>
+          pod.status.phase === 'Running' &&
+          pod.spec.containers.some(
+            (container: any) => container.image === 'polinux/stress:1.0.4'
+          )
       );
       expect(runningPods.length).toBeGreaterThan(0);
 
       // Should have no crashing pods (restart count = 0 means stable with new memory limits)
       const stablePod = runningPods[0];
       expect(stablePod.status.containerStatuses[0].restartCount).toBe(0);
-
-
     }, 1800000); // 30 minute timeout for automatic mode (accommodates slower AI models like OpenAI)
   });
 
@@ -488,7 +526,7 @@ EOF`);
           return execSync(`helm --kubeconfig=${kubeconfig} ${cmd}`, {
             encoding: 'utf8',
             stdio: ['pipe', 'pipe', 'pipe'],
-            timeout: 180000
+            timeout: 180000,
           });
         } catch (error: unknown) {
           return (error as { stdout?: string }).stdout || '';
@@ -498,7 +536,10 @@ EOF`);
       // SETUP: Create namespace and a test Helm chart
       await integrationTest.kubectl(`create namespace ${helmNamespace}`);
       execSync('rm -rf ./tmp/helm-remediate-test-chart');
-      execSync('helm create ./tmp/helm-remediate-test-chart', { encoding: 'utf8', timeout: 30000 });
+      execSync('helm create ./tmp/helm-remediate-test-chart', {
+        encoding: 'utf8',
+        timeout: 30000,
+      });
 
       // Install chart with known-good nginx image
       execSync(
@@ -526,13 +567,18 @@ EOF`);
       const startTime = Date.now();
 
       while (Date.now() - startTime < maxWaitTime) {
-        const podsJson = await integrationTest.kubectl(`get pods -n ${helmNamespace} -o json`);
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${helmNamespace} -o json`
+        );
         if (podsJson && podsJson.trim() !== '') {
           const podsData = JSON.parse(podsJson);
           for (const pod of podsData.items) {
-            for (const cs of (pod.status?.containerStatuses || [])) {
+            for (const cs of pod.status?.containerStatuses || []) {
               const waitReason = cs.state?.waiting?.reason;
-              if (waitReason === 'ImagePullBackOff' || waitReason === 'ErrImagePull') {
+              if (
+                waitReason === 'ImagePullBackOff' ||
+                waitReason === 'ErrImagePull'
+              ) {
                 podInErrorState = true;
                 break;
               }
@@ -551,11 +597,14 @@ EOF`);
         '/api/v1/tools/remediate',
         {
           issue: `helm release test-nginx in ${helmNamespace} namespace was upgraded and is now failing`,
-          interaction_id: 'helm_investigate'
+          interaction_id: 'helm_investigate',
         }
       );
 
-      expect(investigationResponse, `Helm investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`).toMatchObject({
+      expect(
+        investigationResponse,
+        `Helm investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`
+      ).toMatchObject({
         success: true,
         data: {
           result: {
@@ -564,13 +613,13 @@ EOF`);
             investigation: {
               iterations: expect.any(Number),
               dataGathered: expect.arrayContaining([
-                expect.stringMatching(/^(kubectl_|helm_)\w+ \(call \d+\)$/)
-              ])
+                expect.stringMatching(/^(kubectl_|helm_)\w+ \(call \d+\)$/),
+              ]),
             },
             analysis: {
               rootCause: expect.any(String),
               confidence: expect.any(Number),
-              factors: expect.arrayContaining([expect.any(String)])
+              factors: expect.arrayContaining([expect.any(String)]),
             },
             remediation: {
               summary: expect.any(String),
@@ -579,56 +628,74 @@ EOF`);
                   description: expect.any(String),
                   command: expect.any(String),
                   risk: expect.stringMatching(/^(low|medium|high)$/),
-                  rationale: expect.any(String)
-                })
+                  rationale: expect.any(String),
+                }),
               ]),
-              risk: expect.stringMatching(/^(low|medium|high)$/)
+              risk: expect.stringMatching(/^(low|medium|high)$/),
             },
             validationIntent: expect.any(String),
             executed: false,
             mode: 'manual',
             guidance: expect.stringContaining('CRITICAL'),
-            agentInstructions: expect.stringMatching(/Show the user.*impact_analysis/s),
+            agentInstructions: expect.stringMatching(
+              /Show the user.*impact_analysis/s
+            ),
             nextAction: 'remediate',
             message: expect.any(String),
-            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/rem-\d+-[a-f0-9]+$/),
+            visualizationUrl: expect.stringMatching(
+              /^https:\/\/dot-ai-ui\.test\.local\/v\/rem-\d+-[a-f0-9]+$/
+            ),
             executionChoices: [
               {
                 id: 1,
                 label: 'Execute automatically via MCP',
                 description: expect.any(String),
-                risk: expect.stringMatching(/^(low|medium|high)$/)
+                risk: expect.stringMatching(/^(low|medium|high)$/),
               },
               {
                 id: 2,
                 label: 'Execute via agent',
                 description: expect.any(String),
-                risk: expect.stringMatching(/^(low|medium|high)$/)
-              }
-            ]
+                risk: expect.stringMatching(/^(low|medium|high)$/),
+              },
+            ],
           },
           tool: 'remediate',
-          executionTime: expect.any(Number)
+          executionTime: expect.any(Number),
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.any(String),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       });
 
       // KEY VALIDATION: AI used at least one Helm investigation tool
-      const dataGathered: string[] = investigationResponse.data.result.investigation.dataGathered;
-      const helmToolCalls = dataGathered.filter((entry: string) => entry.startsWith('helm_'));
+      const dataGathered: string[] =
+        investigationResponse.data.result.investigation.dataGathered;
+      const helmToolCalls = dataGathered.filter((entry: string) =>
+        entry.startsWith('helm_')
+      );
       expect(helmToolCalls.length).toBeGreaterThan(0);
 
       // Verify AI identified the issue with reasonable confidence
-      expect(investigationResponse.data.result.analysis.confidence).toBeGreaterThanOrEqual(0.7);
-      expect(investigationResponse.data.result.analysis.rootCause.toLowerCase()).toMatch(/image|pull|helm|upgrade|fail/);
-      expect(investigationResponse.data.result.remediation.actions.length).toBeGreaterThan(0);
+      expect(
+        investigationResponse.data.result.analysis.confidence
+      ).toBeGreaterThanOrEqual(0.7);
+      expect(
+        investigationResponse.data.result.analysis.rootCause.toLowerCase()
+      ).toMatch(/image|pull|helm|upgrade|fail/);
+      expect(
+        investigationResponse.data.result.remediation.actions.length
+      ).toBeGreaterThan(0);
 
       // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
-      const helmGitSourceActions = investigationResponse.data.result.remediation.actions.filter((a: any) => a.gitSource);
+      const helmGitSourceActions =
+        investigationResponse.data.result.remediation.actions.filter(
+          (a: any) => a.gitSource
+        );
       expect(helmGitSourceActions.length).toBe(0);
 
       // PHASE 2: Execute remediation via MCP (choice 1)
@@ -639,7 +706,7 @@ EOF`);
           executeChoice: 1,
           sessionId,
           mode: 'manual',
-          interaction_id: 'helm_execute'
+          interaction_id: 'helm_execute',
         }
       );
 
@@ -654,16 +721,16 @@ EOF`);
               expect.objectContaining({
                 action: expect.any(String),
                 success: true,
-                timestamp: expect.any(String)
-              })
+                timestamp: expect.any(String),
+              }),
             ]),
             executedCommands: expect.arrayContaining([expect.any(String)]),
             guidance: expect.stringContaining('REMEDIATION COMPLETE'),
-            message: expect.stringContaining('resolved')
+            message: expect.stringContaining('resolved'),
           },
           tool: 'remediate',
-          executionTime: expect.any(Number)
-        }
+          executionTime: expect.any(Number),
+        },
       });
 
       const results = executionResponse.data.result.results;
@@ -681,15 +748,20 @@ EOF`);
       expect(afterPodsData.items.length).toBeGreaterThan(0);
 
       // At least one pod should be running and ready (recovered from bad image)
-      const healthyPods = afterPodsData.items.filter((pod: { status: { phase: string; containerStatuses?: Array<{ ready: boolean; restartCount: number }> } }) =>
-        pod.status.phase === 'Running' &&
-        pod.status.containerStatuses?.[0]?.ready === true
+      const healthyPods = afterPodsData.items.filter(
+        (pod: {
+          status: {
+            phase: string;
+            containerStatuses?: Array<{ ready: boolean; restartCount: number }>;
+          };
+        }) =>
+          pod.status.phase === 'Running' &&
+          pod.status.containerStatuses?.[0]?.ready === true
       );
       expect(healthyPods.length).toBeGreaterThan(0);
 
       // Recovered pod should have zero restarts (fresh pod after rollback/fix)
       expect(healthyPods[0].status.containerStatuses[0].restartCount).toBe(0);
-
     }, 1200000); // 20 minute timeout
   });
 
@@ -750,7 +822,10 @@ EOF`);
         const podsData = JSON.parse(podsJson);
         if (podsData.items && podsData.items.length > 0) {
           const podData = podsData.items[0];
-          if (podData.status.containerStatuses && podData.status.containerStatuses[0]) {
+          if (
+            podData.status.containerStatuses &&
+            podData.status.containerStatuses[0]
+          ) {
             restartCount = podData.status.containerStatuses[0].restartCount;
             if (restartCount > 0) {
               break;
@@ -783,14 +858,17 @@ EOF`);
         await new Promise(resolve => setTimeout(resolve, pollInterval));
       }
 
-      expect(metricsFound, 'Prometheus did not scrape container metrics within timeout').toBe(true);
+      expect(
+        metricsFound,
+        'Prometheus did not scrape container metrics within timeout'
+      ).toBe(true);
 
       // INVESTIGATION: Call remediate with issue description that encourages metrics usage
       const investigationResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/remediate',
         {
           issue: `Pods in ${mcpNamespace} namespace keep crashing. Check the memory metrics from prometheus to understand the actual memory usage trends before suggesting fixes.`,
-          interaction_id: 'mcp_prometheus_investigate'
+          interaction_id: 'mcp_prometheus_investigate',
         }
       );
 
@@ -803,12 +881,12 @@ EOF`);
             sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
             investigation: {
               iterations: expect.any(Number),
-              dataGathered: expect.any(Array)
+              dataGathered: expect.any(Array),
             },
             analysis: {
               rootCause: expect.any(String),
               confidence: expect.any(Number),
-              factors: expect.any(Array)
+              factors: expect.any(Array),
             },
             remediation: {
               summary: expect.any(String),
@@ -817,23 +895,27 @@ EOF`);
                   description: expect.any(String),
                   command: expect.stringContaining('kubectl'),
                   risk: expect.stringMatching(/^(low|medium|high)$/),
-                  rationale: expect.any(String)
-                })
+                  rationale: expect.any(String),
+                }),
               ]),
-              risk: expect.stringMatching(/^(low|medium|high)$/)
+              risk: expect.stringMatching(/^(low|medium|high)$/),
             },
             executed: false,
-            mode: 'manual'
+            mode: 'manual',
           },
           tool: 'remediate',
-          executionTime: expect.any(Number)
-        }
+          executionTime: expect.any(Number),
+        },
       };
 
-      expect(investigationResponse, `MCP investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`).toMatchObject(expectedResponse);
+      expect(
+        investigationResponse,
+        `MCP investigation failed: ${JSON.stringify(investigationResponse.error || investigationResponse.data?.result?.error || 'no error field')}`
+      ).toMatchObject(expectedResponse);
 
       // KEY VALIDATION: AI used at least one Prometheus MCP tool
-      const dataGathered: string[] = investigationResponse.data.result.investigation.dataGathered;
+      const dataGathered: string[] =
+        investigationResponse.data.result.investigation.dataGathered;
       const prometheusToolCalls = dataGathered.filter((entry: string) =>
         entry.startsWith('prometheus__')
       );
@@ -846,10 +928,15 @@ EOF`);
       expect(kubectlToolCalls.length).toBeGreaterThan(0);
 
       // Verify AI identified memory/OOM as root cause
-      expect(investigationResponse.data.result.analysis.rootCause.toLowerCase()).toMatch(/oom|memory/);
-      expect(investigationResponse.data.result.analysis.confidence).toBeGreaterThan(0.7);
-      expect(investigationResponse.data.result.remediation.actions.length).toBeGreaterThan(0);
-
+      expect(
+        investigationResponse.data.result.analysis.rootCause.toLowerCase()
+      ).toMatch(/oom|memory/);
+      expect(
+        investigationResponse.data.result.analysis.confidence
+      ).toBeGreaterThan(0.7);
+      expect(
+        investigationResponse.data.result.remediation.actions.length
+      ).toBeGreaterThan(0);
     }, 1200000); // 20 minute timeout
   });
 
@@ -915,9 +1002,12 @@ EOF`);
         if (podsJson && podsJson.trim() !== '') {
           const podsData = JSON.parse(podsJson);
           for (const pod of podsData.items) {
-            for (const cs of (pod.status?.containerStatuses || [])) {
+            for (const cs of pod.status?.containerStatuses || []) {
               const waitReason = cs.state?.waiting?.reason;
-              if (waitReason === 'ImagePullBackOff' || waitReason === 'ErrImagePull') {
+              if (
+                waitReason === 'ImagePullBackOff' ||
+                waitReason === 'ErrImagePull'
+              ) {
                 podInErrorState = true;
                 break;
               }
@@ -936,11 +1026,14 @@ EOF`);
         '/api/v1/tools/remediate',
         {
           issue: `deployment gitops-test-app in ${argoNamespace} namespace has pods failing with ImagePullBackOff`,
-          interaction_id: 'gitops_argocd_investigate'
+          interaction_id: 'gitops_argocd_investigate',
         }
       );
 
-      expect(response, `Argo CD GitOps investigation failed: ${JSON.stringify(response.error || response.data?.result?.error || 'no error field')}`).toMatchObject({
+      expect(
+        response,
+        `Argo CD GitOps investigation failed: ${JSON.stringify(response.error || response.data?.result?.error || 'no error field')}`
+      ).toMatchObject({
         success: true,
         data: {
           result: {
@@ -948,25 +1041,27 @@ EOF`);
             sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
             investigation: {
               iterations: expect.any(Number),
-              dataGathered: expect.arrayContaining([expect.any(String)])
+              dataGathered: expect.arrayContaining([expect.any(String)]),
             },
             analysis: {
               rootCause: expect.stringContaining('image'),
               confidence: expect.any(Number),
-              factors: expect.arrayContaining([expect.any(String)])
+              factors: expect.arrayContaining([expect.any(String)]),
             },
             remediation: {
               summary: expect.any(String),
-              actions: expect.arrayContaining([expect.objectContaining({
-                description: expect.any(String),
-                risk: expect.stringMatching(/^(low|medium|high)$/),
-              })]),
-              risk: expect.stringMatching(/^(low|medium|high)$/)
-            }
+              actions: expect.arrayContaining([
+                expect.objectContaining({
+                  description: expect.any(String),
+                  risk: expect.stringMatching(/^(low|medium|high)$/),
+                }),
+              ]),
+              risk: expect.stringMatching(/^(low|medium|high)$/),
+            },
           },
           tool: 'remediate',
-          executionTime: expect.any(Number)
-        }
+          executionTime: expect.any(Number),
+        },
       });
 
       const { investigation, analysis, remediation } = response.data.result;
@@ -976,8 +1071,13 @@ EOF`);
 
       // PRD #407: AI should detect Argo CD management and return gitSource
       const actions = remediation.actions;
-      const gitSourceActions = actions.filter((a: Record<string, unknown>) => a.gitSource);
-      expect(gitSourceActions.length, `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`).toBeGreaterThan(0);
+      const gitSourceActions = actions.filter(
+        (a: Record<string, unknown>) => a.gitSource
+      );
+      expect(
+        gitSourceActions.length,
+        `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`
+      ).toBeGreaterThan(0);
 
       // Verify gitSource points to the correct repo and file
       const gitAction = gitSourceActions[0];
@@ -986,19 +1086,164 @@ EOF`);
       expect(gitAction.gitSource.files[0]).toMatchObject({
         path: expect.stringContaining('deployment.yaml'),
         content: expect.any(String),
-        description: expect.any(String)
+        description: expect.any(String),
       });
 
       // PRD #407: AI should have used git_clone and fs_read/fs_list during investigation
-      const dataGathered: string[] = response.data.result.investigation.dataGathered;
-      const gitToolCalls = dataGathered.filter((entry: string) => entry.startsWith('git_clone'));
-      expect(gitToolCalls.length, `Expected git_clone in dataGathered but got: ${JSON.stringify(dataGathered)}`).toBeGreaterThan(0);
-
-      const fsToolCalls = dataGathered.filter((entry: string) =>
-        entry.startsWith('fs_list') || entry.startsWith('fs_read')
+      const dataGathered: string[] =
+        response.data.result.investigation.dataGathered;
+      const gitToolCalls = dataGathered.filter((entry: string) =>
+        entry.startsWith('git_clone')
       );
-      expect(fsToolCalls.length, `Expected fs_list/fs_read in dataGathered but got: ${JSON.stringify(dataGathered)}`).toBeGreaterThan(0);
+      expect(
+        gitToolCalls.length,
+        `Expected git_clone in dataGathered but got: ${JSON.stringify(dataGathered)}`
+      ).toBeGreaterThan(0);
 
+      const fsToolCalls = dataGathered.filter(
+        (entry: string) =>
+          entry.startsWith('fs_list') || entry.startsWith('fs_read')
+      );
+      expect(
+        fsToolCalls.length,
+        `Expected fs_list/fs_read in dataGathered but got: ${JSON.stringify(dataGathered)}`
+      ).toBeGreaterThan(0);
+
+      // PRD #408: Execute remediation — should create a PR instead of running kubectl
+      const sessionId = response.data.result.sessionId;
+      const executionResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/remediate',
+        {
+          sessionId,
+          executeChoice: 1,
+          interaction_id: 'gitops_argocd_execute',
+        }
+      );
+
+      expect(executionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            sessionId,
+            executed: true,
+            pullRequest: {
+              url: expect.stringMatching(
+                /^https:\/\/github\.com\/vfarcic\/dot-ai\/pull\/\d+$/
+              ),
+              number: expect.any(Number),
+              branch: expect.stringMatching(/^remediate\//),
+              baseBranch: 'main',
+              filesChanged: expect.arrayContaining([
+                expect.stringContaining('deployment.yaml'),
+              ]),
+            },
+          },
+        },
+      });
+
+      const execResult = executionResponse.data.result;
+
+      // Verify results array contains PR creation entry
+      const prCreatedResult = execResult.results.find((r: { action: string }) =>
+        r.action.includes('PR created')
+      );
+      expect(
+        prCreatedResult,
+        `Expected a result with 'PR created' but got: ${JSON.stringify(execResult.results, null, 2)}`
+      ).toBeDefined();
+      expect(prCreatedResult.success).toBe(true);
+      expect(prCreatedResult.output).toContain(
+        `PR #${execResult.pullRequest.number}`
+      );
+
+      // PRD #408: GitOps should create PR *instead of* kubectl — no direct cluster commands
+      const kubectlResults = execResult.results.filter(
+        (r: { action: string }) =>
+          !r.action.includes('PR created') &&
+          !r.action.includes('gitSource') &&
+          !r.action.includes('branch pushed')
+      );
+      expect(
+        kubectlResults.length,
+        `Expected no kubectl actions but found: ${JSON.stringify(kubectlResults, null, 2)}`
+      ).toBe(0);
+
+      // Verify PR exists on GitHub, file content is correct, then clean up
+      const gitToken = process.env.DOT_AI_GIT_TOKEN;
+      if (gitToken) {
+        const prNumber = execResult.pullRequest.number;
+        const prBranch = execResult.pullRequest.branch;
+
+        try {
+          // Verify PR metadata
+          const prResponse = await fetch(
+            `https://api.github.com/repos/vfarcic/dot-ai/pulls/${prNumber}`,
+            {
+              headers: {
+                Authorization: `token ${gitToken}`,
+                Accept: 'application/vnd.github+json',
+              },
+            }
+          );
+          expect(prResponse.ok).toBe(true);
+          const prData = (await prResponse.json()) as {
+            title: string;
+            body: string;
+            state: string;
+            head: { ref: string };
+          };
+          expect(prData.state).toBe('open');
+          expect(prData.title).toContain('fix:');
+          expect(prData.body).toContain('Remediation');
+          expect(prData.head.ref).toBe(prBranch);
+
+          // Verify the deployment.yaml in the PR branch has the broken image fixed
+          const fileResponse = await fetch(
+            `https://api.github.com/repos/vfarcic/dot-ai/contents/${fixturePath}/deployment.yaml?ref=${prBranch}`,
+            {
+              headers: {
+                Authorization: `token ${gitToken}`,
+                Accept: 'application/vnd.github.v3+json',
+              },
+            }
+          );
+          expect(fileResponse.ok).toBe(true);
+          const fileData = (await fileResponse.json()) as {
+            content: string;
+            encoding: string;
+          };
+          const fileContent = Buffer.from(fileData.content, 'base64').toString(
+            'utf-8'
+          );
+          expect(fileContent).not.toContain('v999-nonexistent');
+          expect(fileContent).toContain('image:');
+        } finally {
+          // Always cleanup: close PR and delete branch
+          await fetch(
+            `https://api.github.com/repos/vfarcic/dot-ai/pulls/${prNumber}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Authorization: `token ${gitToken}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/vnd.github+json',
+              },
+              body: JSON.stringify({ state: 'closed' }),
+            }
+          );
+          await fetch(
+            `https://api.github.com/repos/vfarcic/dot-ai/git/refs/heads/${prBranch}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `token ${gitToken}`,
+                Accept: 'application/vnd.github+json',
+              },
+            }
+          );
+        }
+      }
     }, 1200000); // 20 minute timeout
   });
 
@@ -1072,9 +1317,12 @@ EOF`);
         if (podsJson && podsJson.trim() !== '') {
           const podsData = JSON.parse(podsJson);
           for (const pod of podsData.items) {
-            for (const cs of (pod.status?.containerStatuses || [])) {
+            for (const cs of pod.status?.containerStatuses || []) {
               const waitReason = cs.state?.waiting?.reason;
-              if (waitReason === 'ImagePullBackOff' || waitReason === 'ErrImagePull') {
+              if (
+                waitReason === 'ImagePullBackOff' ||
+                waitReason === 'ErrImagePull'
+              ) {
                 podInErrorState = true;
                 break;
               }
@@ -1093,11 +1341,14 @@ EOF`);
         '/api/v1/tools/remediate',
         {
           issue: `deployment gitops-test-app in ${fluxNamespace} namespace has pods failing with ImagePullBackOff`,
-          interaction_id: 'gitops_flux_investigate'
+          interaction_id: 'gitops_flux_investigate',
         }
       );
 
-      expect(response, `Flux GitOps investigation failed: ${JSON.stringify(response.error || response.data?.result?.error || 'no error field')}`).toMatchObject({
+      expect(
+        response,
+        `Flux GitOps investigation failed: ${JSON.stringify(response.error || response.data?.result?.error || 'no error field')}`
+      ).toMatchObject({
         success: true,
         data: {
           result: {
@@ -1105,25 +1356,27 @@ EOF`);
             sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
             investigation: {
               iterations: expect.any(Number),
-              dataGathered: expect.arrayContaining([expect.any(String)])
+              dataGathered: expect.arrayContaining([expect.any(String)]),
             },
             analysis: {
               rootCause: expect.stringContaining('image'),
               confidence: expect.any(Number),
-              factors: expect.arrayContaining([expect.any(String)])
+              factors: expect.arrayContaining([expect.any(String)]),
             },
             remediation: {
               summary: expect.any(String),
-              actions: expect.arrayContaining([expect.objectContaining({
-                description: expect.any(String),
-                risk: expect.stringMatching(/^(low|medium|high)$/),
-              })]),
-              risk: expect.stringMatching(/^(low|medium|high)$/)
-            }
+              actions: expect.arrayContaining([
+                expect.objectContaining({
+                  description: expect.any(String),
+                  risk: expect.stringMatching(/^(low|medium|high)$/),
+                }),
+              ]),
+              risk: expect.stringMatching(/^(low|medium|high)$/),
+            },
           },
           tool: 'remediate',
-          executionTime: expect.any(Number)
-        }
+          executionTime: expect.any(Number),
+        },
       });
 
       const { investigation, analysis, remediation } = response.data.result;
@@ -1133,8 +1386,13 @@ EOF`);
 
       // PRD #407: AI should detect Flux management and return gitSource
       const actions = remediation.actions;
-      const gitSourceActions = actions.filter((a: Record<string, unknown>) => a.gitSource);
-      expect(gitSourceActions.length, `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`).toBeGreaterThan(0);
+      const gitSourceActions = actions.filter(
+        (a: Record<string, unknown>) => a.gitSource
+      );
+      expect(
+        gitSourceActions.length,
+        `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`
+      ).toBeGreaterThan(0);
 
       // Verify gitSource points to the correct repo and file
       const gitAction = gitSourceActions[0];
@@ -1143,19 +1401,28 @@ EOF`);
       expect(gitAction.gitSource.files[0]).toMatchObject({
         path: expect.stringContaining('deployment.yaml'),
         content: expect.any(String),
-        description: expect.any(String)
+        description: expect.any(String),
       });
 
       // PRD #407: AI should have used git_clone and fs_read/fs_list during investigation
-      const dataGathered: string[] = response.data.result.investigation.dataGathered;
-      const gitToolCalls = dataGathered.filter((entry: string) => entry.startsWith('git_clone'));
-      expect(gitToolCalls.length, `Expected git_clone in dataGathered but got: ${JSON.stringify(dataGathered)}`).toBeGreaterThan(0);
-
-      const fsToolCalls = dataGathered.filter((entry: string) =>
-        entry.startsWith('fs_list') || entry.startsWith('fs_read')
+      const dataGathered: string[] =
+        response.data.result.investigation.dataGathered;
+      const gitToolCalls = dataGathered.filter((entry: string) =>
+        entry.startsWith('git_clone')
       );
-      expect(fsToolCalls.length, `Expected fs_list/fs_read in dataGathered but got: ${JSON.stringify(dataGathered)}`).toBeGreaterThan(0);
+      expect(
+        gitToolCalls.length,
+        `Expected git_clone in dataGathered but got: ${JSON.stringify(dataGathered)}`
+      ).toBeGreaterThan(0);
 
+      const fsToolCalls = dataGathered.filter(
+        (entry: string) =>
+          entry.startsWith('fs_list') || entry.startsWith('fs_read')
+      );
+      expect(
+        fsToolCalls.length,
+        `Expected fs_list/fs_read in dataGathered but got: ${JSON.stringify(dataGathered)}`
+      ).toBeGreaterThan(0);
     }, 1200000); // 20 minute timeout
   });
 });
