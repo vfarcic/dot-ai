@@ -87,7 +87,7 @@ Headers should come from Kubernetes Secrets (not ConfigMaps or Helm values) to k
 
 ### Architecture
 
-```
+```text
                                      MCP Authorization Spec
                                     ┌──────────────────────────────┐
                                     │                              │
@@ -119,7 +119,7 @@ Headers should come from Kubernetes Secrets (not ConfigMaps or Helm values) to k
 
 This PRD fills the weakest link in dot-ai's identity chain:
 
-```
+```text
 User ──[OAuth/Dex]──► dot-ai ──[SubjectAccessReview]──► Tool Check ──[Impersonation]──► K8s API
                       (PRD #380)   (PRD #392)                          (PRD #401)
                           │
@@ -211,7 +211,7 @@ mcpServers:
 
 ### Environment Variable Name Mapping
 
-Server names in `mcpServers` are mapped to environment variable names: convert to uppercase, replace hyphens with underscores.
+Server names in `mcpServers` are mapped to environment variable names: convert to uppercase, then replace any character that is not `A-Z` or `0-9` (including hyphens, dots, slashes, and spaces) with underscores. Consecutive underscores are collapsed to a single underscore.
 
 | Server Name | Token Env Var | Headers Env Var |
 |-------------|--------------|-----------------|
