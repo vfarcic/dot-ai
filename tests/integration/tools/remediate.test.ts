@@ -1157,6 +1157,18 @@ EOF`);
         `PR #${execResult.pullRequest.number}`
       );
 
+      // PRD #408: GitOps should create PR *instead of* kubectl — no direct cluster commands
+      const kubectlResults = execResult.results.filter(
+        (r: { action: string }) =>
+          !r.action.includes('PR created') &&
+          !r.action.includes('gitSource') &&
+          !r.action.includes('branch pushed')
+      );
+      expect(
+        kubectlResults.length,
+        `Expected no kubectl actions but found: ${JSON.stringify(kubectlResults, null, 2)}`
+      ).toBe(0);
+
       // Verify PR exists on GitHub, file content is correct, then clean up
       const gitToken = process.env.DOT_AI_GIT_TOKEN;
       if (gitToken) {
