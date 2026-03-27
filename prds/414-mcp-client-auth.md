@@ -226,6 +226,8 @@ Server names in `mcpServers` are mapped to environment variable names: convert t
 4. **Standard mechanisms only** — `authProvider` and `requestInit.headers` are SDK-native
 5. **Forward-compatible with per-user identity** — when #401 delivers user impersonation, `authProvider` could use the user's OAuth context
 6. **Token privilege restriction** — per MCP spec, servers MUST NOT pass through client tokens to upstream APIs
+7. **Fail-fast on misconfiguration** — configured auth with absent or empty credentials is a hard startup failure, not silent degradation to unauthenticated
+8. **Observable by default** — auth state per MCP server visible in startup logs without enabling debug mode
 
 ## Milestone Summary
 
