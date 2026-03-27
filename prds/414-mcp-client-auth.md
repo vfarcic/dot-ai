@@ -246,45 +246,44 @@ Server names in `mcpServers` are mapped to environment variable names: convert t
 ### M1: Static `authProvider` for Token-Based Auth
 Support static Bearer tokens via `StaticTokenAuthProvider` (wrapping `OAuthClientProvider`). Covers the most common enterprise use case — service account tokens.
 
-- Add `auth` configuration to `McpServerConfig` interface
-- Extend `parseMcpServerConfig()` with runtime type validation
-- Create `StaticTokenAuthProvider` implementing `OAuthClientProvider`
-- Validate mutual exclusivity: `existingSecret` and `oauth` reject configs specifying both
-- Pass `authProvider` to `StreamableHTTPClientTransport`
-- No auth config = current behavior exactly
+- [ ] Add `auth` configuration to `McpServerConfig` interface
+- [ ] Create `StaticTokenAuthProvider` implementing `OAuthClientProvider`
+- [ ] Validate mutual exclusivity: `existingSecret` and `oauth` reject configs specifying both
+- [ ] Pass `authProvider` to `StreamableHTTPClientTransport`
+- [ ] No auth config = current behavior exactly
 
 ### M2: `requestInit.headers` Fallback for Non-Spec Servers
 Support custom HTTP headers for MCP servers that don't use standard Bearer auth.
 
-- Read headers from `MCP_HEADERS_<SERVER_NAME>` env vars (JSON-encoded)
-- Pass `requestInit: { headers }` to transport
-- Runtime validation: `Record<string, string>`, fail fast on malformed config
+- [ ] Read headers from `MCP_HEADERS_<SERVER_NAME>` env vars (JSON-encoded)
+- [ ] Pass `requestInit: { headers }` to transport
+- [ ] Runtime validation: `Record<string, string>`, fail fast on malformed config
 
-**Security Invariant:** Empty or missing auth credentials MUST be a hard startup failure, not a silent degradation to unauthenticated mode.
+- [ ] **Security Invariant:** Empty or missing auth credentials MUST be a hard startup failure, not a silent degradation to unauthenticated mode.
 
 ### M3: Helm Chart — Auth Secrets & Configuration
 Helm chart support for externally-managed auth secrets via `existingSecret` references.
 
-- `auth.existingSecret` and `auth.oauth` in values schema
-- `MCP_AUTH_*` / `MCP_HEADERS_*` env var injection from Secrets
-- Optional `auth.tls.caBundle.existingSecret` for custom CA certificates
-- Backward-compatible: no auth = no change
+- [ ] `auth.existingSecret` and `auth.oauth` in values schema
+- [ ] `MCP_AUTH_*` / `MCP_HEADERS_*` env var injection from Secrets
+- [ ] Optional `auth.tls.caBundle.existingSecret` for custom CA certificates
+- [ ] Backward-compatible: no auth = no change
 
 ### M4: OAuth `authProvider` for MCP-Spec-Compliant Servers
 Full OAuth `client_credentials` flow via `OAuthClientProvider`. Reuses existing #380 infrastructure. Note: `client_credentials` does not use PKCE — PKCE applies only to `authorization_code` flows (future #401).
 
-- OAuth flow: 401 challenge → resource metadata discovery → token exchange
-- Token storage: in-memory with automatic refresh
-- Implement `invalidateCredentials` on both auth providers to clear cached tokens on auth failure
-- Support optional `audience` / `resource` parameter per RFC 8707
-- Implement `saveDiscoveryState` / `discoveryState` to cache RFC 9728 discovery results
-- `codeVerifier()` returns `undefined` for non-PKCE providers
+- [ ] OAuth flow: 401 challenge → resource metadata discovery → token exchange
+- [ ] Token storage: in-memory with automatic refresh
+- [ ] Implement `invalidateCredentials` on both auth providers to clear cached tokens on auth failure
+- [ ] Support optional `audience` / `resource` parameter per RFC 8707
+- [ ] Implement `saveDiscoveryState` / `discoveryState` to cache RFC 9728 discovery results
+- [ ] `codeVerifier()` returns `undefined` for non-PKCE providers
 
 ### M5: Integration Tests, Observability & Documentation
-- Auth status logging: startup log per MCP server (e.g., "Authenticated (OAuth)", "Authenticated (Static)", "Unauthenticated")
-- Test fixture: minimal MCP server with auth middleware
-- Integration tests: auth/no-auth paths, invalid token errors
-- Operator documentation for all auth patterns
+- [ ] Auth status logging: startup log per MCP server (e.g., "Authenticated (OAuth)", "Authenticated (Static)", "Unauthenticated")
+- [ ] Test fixture: minimal MCP server with auth middleware
+- [ ] Integration tests: auth/no-auth paths, invalid token errors
+- [ ] Operator documentation for all auth patterns
 
 ## Technical Scope — Modified Modules
 
