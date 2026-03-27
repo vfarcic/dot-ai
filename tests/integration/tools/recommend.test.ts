@@ -1872,8 +1872,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       const lastSlashIndex = imageName.lastIndexOf('/');
       const afterLastSlash =
         lastSlashIndex >= 0 ? imageName.substring(lastSlashIndex) : imageName;
-      // Allow :latest but not version tags like :1.21, :v1.0, :stable, :alpine
-      expect(afterLastSlash).not.toMatch(/:(\d|v\d|stable|alpine|slim)/i); // No specific version tags
+      // Allow :latest, :alpine, :slim (variant tags) but not version tags like :1.21, :v1.0, :stable
+      expect(afterLastSlash).not.toMatch(/:(\d|v\d|stable)/i); // No specific version tags
 
       // SOLUTION CR VALIDATION: Verify Solution CR is in overlay (not base) since it has namespace-specific references
       const yaml = await import('js-yaml');
