@@ -29,7 +29,7 @@ Before using this guide, complete the [Deployment Guide](../setup/deployment.md)
 **What it does:**
 - **AI-powered root cause analysis** - Multi-iteration investigation loop to understand Kubernetes issues
 - **Helm-aware diagnostics** - Detects and diagnoses issues with Helm-managed applications, including stuck releases and failed upgrades
-- **GitOps-aware remediation** - Detects Argo CD Applications and Flux Kustomizations, clones source repos, and returns Git-based remediation with specific file changes instead of kubectl commands
+- **GitOps-aware remediation** - Detects Argo CD Applications and Flux Kustomizations, clones source repos, and automatically creates GitHub pull requests with the corrected manifests instead of running kubectl commands
 - **Intelligent data gathering** - Safe, read-only cluster investigation with targeted operations
 - **Comprehensive remediation plans** - Step-by-step solutions with risk assessment and validation
 - **Dual execution modes** - Manual approval workflow or automatic execution based on confidence/risk thresholds
@@ -58,7 +58,7 @@ Before using this guide, complete the [Deployment Guide](../setup/deployment.md)
 3. **Iterative Analysis**: Each data point informs the next investigation step
 4. **Root Cause Identification**: AI synthesizes findings into comprehensive analysis
 5. **GitOps Detection**: If the resource is managed by Argo CD or Flux, AI clones the source repo and reads the manifests
-6. **Remediation Generation**: Git-based file changes (GitOps-managed) or kubectl commands (standard), with risk assessment and validation instructions
+6. **Remediation Generation**: Automatic PR creation (GitOps-managed) or kubectl commands (standard), with risk assessment and validation instructions
 
 <!-- 
 Test Scenario Setup for Complex Cross-Resource Example:
@@ -110,7 +110,7 @@ This section demonstrates both manual and automatic execution modes:
 
 - **[Manual Mode Example](#manual-mode-example)** - User controls execution timing with approval choices
 - **[Automatic Mode Example](#automatic-mode-example)** - Tool executes automatically based on confidence/risk thresholds
-- **[GitOps-Aware Remediation Example](#gitops-remediation-example)** - Tool detects Argo CD/Flux management and returns Git-based file changes
+- **[GitOps-Aware Remediation Example](#gitops-remediation-example)** - Tool detects Argo CD/Flux management and automatically creates a GitHub PR with the fix
 
 ---
 
@@ -180,7 +180,7 @@ The visualization URL opens an interactive analysis view in the Web UI:
 
 #### GitOps-Aware Remediation {#gitops-remediation-example}
 
-If the resource were managed by a GitOps controller (Argo CD or Flux), the tool would detect this during investigation and adjust its remediation accordingly. Instead of suggesting kubectl commands, it identifies the source repository and specific file(s) to change:
+If the resource is managed by a GitOps controller (Argo CD or Flux), the tool detects this during investigation and adjusts its remediation accordingly. Instead of running kubectl commands, it identifies the source repository and specific file(s) to change. When the user confirms execution, the tool automatically creates a GitHub pull request with the corrected manifests:
 
 ```text
 🔍 Root Cause (99% confidence): The deployment uses a non-existent image tag
@@ -197,16 +197,37 @@ to nginx:latest in tests/integration/fixtures/gitops/broken-app/deployment.yaml.
 Argo CD has autoSync enabled, so it will automatically reconcile the change.
 ```
 
+When the user confirms execution (choice 1 or 2), the tool creates a PR automatically:
+
+```text
+✅ PR created: https://github.com/vfarcic/dot-ai/pull/42
+Branch: remediate/rem-1234567890-1234567890
+Files changed: tests/integration/fixtures/gitops/broken-app/deployment.yaml
+
+Next steps:
+  1. Review and merge the PR in your Git repository
+  2. Wait for Argo CD/Flux to sync the changes
+  3. Verify the issue is resolved after reconciliation
+```
+
+The response includes a `pullRequest` field with the PR URL, number, branch, base branch, and list of changed files.
+
 **How it works behind the scenes:**
 - AI queries for Argo CD Applications or Flux Kustomizations and finds the one managing the resource
 - AI clones the source repository and reads the manifests that need changing
-- Remediation points to the specific file(s) and changes needed in Git, rather than kubectl commands that would be reverted by the GitOps controller on the next sync
+- On execution, the tool writes corrected files, creates a branch, pushes, and opens a PR via the GitHub API
+- No kubectl commands are run — the GitOps controller syncs the fix after the PR is merged
 
 | Aspect | Standard | GitOps-Aware |
 |--------|----------|--------------|
 | Investigation | kubectl only | kubectl + repo clone + file inspection |
-| Remediation | kubectl commands | Specific file changes in the source Git repo |
-| User action | Run kubectl or execute via MCP | Commit changes to Git; controller syncs automatically |
+| Remediation | kubectl commands | Automatic GitHub PR with corrected manifests |
+| Execution | kubectl runs directly on cluster | Branch pushed, PR created via GitHub API |
+| User action | Approve execution | Approve execution, then review and merge PR |
+
+> **GitHub only**: Automatic PR creation currently supports GitHub repositories. For non-GitHub remotes (GitLab, Bitbucket), the branch is pushed and the user is instructed to create a PR/MR manually.
+
+> **Authentication**: Requires a GitHub token with PR creation permissions configured via `DOT_AI_GIT_TOKEN` environment variable or GitHub App credentials.
 
 > **Fallback**: If no GitOps controller is detected (CRDs not installed or no matching resource found), the tool returns standard kubectl-based remediation as shown above.
 
