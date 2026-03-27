@@ -14,9 +14,7 @@
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
-import { IntegrationTest } from '../helpers/test-base.js';
 import {
-  McpClientManager,
   StaticTokenAuthProvider,
   ClientCredentialsAuthProvider,
   resolveTransportAuth,

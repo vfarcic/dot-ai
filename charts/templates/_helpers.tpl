@@ -181,6 +181,9 @@ Auth credentials are injected as env vars from K8s Secrets (not stored in Config
 {{- if $config.auth.oauth.scope -}}
 {{- $_ := set $oauth "scope" $config.auth.oauth.scope -}}
 {{- end -}}
+{{- if $config.auth.oauth.resource -}}
+{{- $_ := set $oauth "resource" $config.auth.oauth.resource -}}
+{{- end -}}
 {{- $_ := set $auth "oauth" $oauth -}}
 {{- end -}}
 {{- if $auth -}}

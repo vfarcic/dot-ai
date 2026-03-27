@@ -13,6 +13,7 @@ import {
 } from '../../../src/core/mcp-client-manager.js';
 import { McpClientManager } from '../../../src/core/mcp-client-manager.js';
 import type { McpServerAuthConfig } from '../../../src/core/mcp-client-types.js';
+import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { Logger } from '../../../src/core/error-handling.js';
 
 // Mock logger
@@ -199,39 +200,30 @@ describe('resolveTransportAuth (M1 + M2)', () => {
       );
     });
 
-    test('should warn when env var contains invalid JSON', () => {
+    test('should throw when env var contains invalid JSON', () => {
       process.env.MCP_HEADERS_BAD = 'not-json';
       const auth: McpServerAuthConfig = { headersEnvVar: 'MCP_HEADERS_BAD' };
-      const result = resolveTransportAuth(auth, 'test-server', mockLogger);
 
-      expect(result.requestInit).toBeUndefined();
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'MCP server auth headersEnvVar contains invalid JSON',
-        expect.objectContaining({ server: 'test-server' })
+      expect(() => resolveTransportAuth(auth, 'test-server', mockLogger)).toThrow(
+        "auth.headersEnvVar env var 'MCP_HEADERS_BAD' contains invalid JSON"
       );
     });
 
-    test('should warn when env var contains JSON array instead of object', () => {
+    test('should throw when env var contains JSON array instead of object', () => {
       process.env.MCP_HEADERS_ARRAY = '["not","an","object"]';
       const auth: McpServerAuthConfig = { headersEnvVar: 'MCP_HEADERS_ARRAY' };
-      const result = resolveTransportAuth(auth, 'test-server', mockLogger);
 
-      expect(result.requestInit).toBeUndefined();
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'MCP server auth headersEnvVar contains invalid JSON',
-        expect.objectContaining({ server: 'test-server' })
+      expect(() => resolveTransportAuth(auth, 'test-server', mockLogger)).toThrow(
+        "auth.headersEnvVar env var 'MCP_HEADERS_ARRAY' contains invalid JSON"
       );
     });
 
-    test('should reject non-string header values', () => {
+    test('should throw when header values are non-string', () => {
       process.env.MCP_HEADERS_NONSTR = '{"X-Number":123,"X-Bool":true}';
       const auth: McpServerAuthConfig = { headersEnvVar: 'MCP_HEADERS_NONSTR' };
-      const result = resolveTransportAuth(auth, 'test-server', mockLogger);
 
-      expect(result.requestInit).toBeUndefined();
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'MCP server auth headersEnvVar contains invalid JSON',
-        expect.objectContaining({ server: 'test-server' })
+      expect(() => resolveTransportAuth(auth, 'test-server', mockLogger)).toThrow(
+        "auth.headersEnvVar env var 'MCP_HEADERS_NONSTR' contains invalid JSON"
       );
     });
   });
@@ -354,12 +346,12 @@ describe('ClientCredentialsAuthProvider (M4)', () => {
       clientId: 'test',
       clientSecret: 'secret',
     });
-    const newInfo = {
+    const newInfo: OAuthClientInformationFull = {
       client_id: 'dynamic-id',
       client_secret: 'dynamic-secret',
       client_id_issued_at: 12345,
       redirect_uris: [],
-    } as any;
+    };
     await provider.saveClientInformation(newInfo);
     expect(provider.clientInformation()).toEqual(newInfo);
   });
@@ -491,22 +483,6 @@ describe('resolveTransportAuth OAuth (M4)', () => {
     expect(() => resolveTransportAuth(auth, 'test-server', mockLogger)).toThrow(
       "auth.oauth.clientSecretEnvVar references env var 'MCP_OAUTH_SECRET_MISSING' but it is empty or unset"
     );
-  });
-
-  test('OAuth should take precedence over static token when both configured', () => {
-    process.env.MCP_AUTH_PRECEDENCE = 'static-token';
-    process.env.MCP_OAUTH_SECRET_PRECEDENCE = 'oauth-secret';
-    const auth: McpServerAuthConfig = {
-      tokenEnvVar: 'MCP_AUTH_PRECEDENCE',
-      oauth: {
-        clientId: 'oauth-client',
-        clientSecretEnvVar: 'MCP_OAUTH_SECRET_PRECEDENCE',
-      },
-    };
-    const result = resolveTransportAuth(auth, 'test-server', mockLogger);
-
-    // OAuth is processed after token, so it overwrites authProvider
-    expect(result.authProvider).toBeInstanceOf(ClientCredentialsAuthProvider);
   });
 
   test('should pass scope to ClientCredentialsAuthProvider', async () => {

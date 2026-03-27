@@ -251,11 +251,9 @@ export function resolveTransportAuth(
           headerCount: Object.keys(headers).length,
         });
       } catch (err) {
-        logger.warn('MCP server auth headersEnvVar contains invalid JSON', {
-          server: serverName,
-          envVar: auth.headersEnvVar,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        throw new Error(
+          `MCP server '${serverName}' auth.headersEnvVar env var '${auth.headersEnvVar}' contains invalid JSON: ${err instanceof Error ? err.message : String(err)}`
+        );
       }
     } else {
       throw new Error(
