@@ -1120,26 +1120,29 @@ EOF`);
         }
       );
 
-      const execResult = JSON.parse(
-        executionResponse.data.result.content[0].text
-      );
-
-      expect(execResult).toMatchObject({
-        status: 'success',
-        sessionId,
-        executed: true,
-        pullRequest: {
-          url: expect.stringMatching(
-            /^https:\/\/github\.com\/vfarcic\/dot-ai\/pull\/\d+$/
-          ),
-          number: expect.any(Number),
-          branch: expect.stringMatching(/^remediate\//),
-          baseBranch: 'main',
-          filesChanged: expect.arrayContaining([
-            expect.stringContaining('deployment.yaml'),
-          ]),
+      expect(executionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            sessionId,
+            executed: true,
+            pullRequest: {
+              url: expect.stringMatching(
+                /^https:\/\/github\.com\/vfarcic\/dot-ai\/pull\/\d+$/
+              ),
+              number: expect.any(Number),
+              branch: expect.stringMatching(/^remediate\//),
+              baseBranch: 'main',
+              filesChanged: expect.arrayContaining([
+                expect.stringContaining('deployment.yaml'),
+              ]),
+            },
+          },
         },
       });
+
+      const execResult = executionResponse.data.result;
 
       // Verify results array contains PR creation entry
       const prCreatedResult = execResult.results.find((r: { action: string }) =>
@@ -1160,72 +1163,74 @@ EOF`);
         const prNumber = execResult.pullRequest.number;
         const prBranch = execResult.pullRequest.branch;
 
-        // Verify PR metadata
-        const prResponse = await fetch(
-          `https://api.github.com/repos/vfarcic/dot-ai/pulls/${prNumber}`,
-          {
-            headers: {
-              Authorization: `token ${gitToken}`,
-              Accept: 'application/vnd.github+json',
-            },
-          }
-        );
-        expect(prResponse.ok).toBe(true);
-        const prData = (await prResponse.json()) as {
-          title: string;
-          body: string;
-          state: string;
-          head: { ref: string };
-        };
-        expect(prData.state).toBe('open');
-        expect(prData.title).toContain('fix:');
-        expect(prData.body).toContain('Remediation');
-        expect(prData.head.ref).toBe(prBranch);
+        try {
+          // Verify PR metadata
+          const prResponse = await fetch(
+            `https://api.github.com/repos/vfarcic/dot-ai/pulls/${prNumber}`,
+            {
+              headers: {
+                Authorization: `token ${gitToken}`,
+                Accept: 'application/vnd.github+json',
+              },
+            }
+          );
+          expect(prResponse.ok).toBe(true);
+          const prData = (await prResponse.json()) as {
+            title: string;
+            body: string;
+            state: string;
+            head: { ref: string };
+          };
+          expect(prData.state).toBe('open');
+          expect(prData.title).toContain('fix:');
+          expect(prData.body).toContain('Remediation');
+          expect(prData.head.ref).toBe(prBranch);
 
-        // Verify the deployment.yaml in the PR branch has the broken image fixed
-        const fileResponse = await fetch(
-          `https://api.github.com/repos/vfarcic/dot-ai/contents/${fixturePath}/deployment.yaml?ref=${prBranch}`,
-          {
-            headers: {
-              Authorization: `token ${gitToken}`,
-              Accept: 'application/vnd.github.v3+json',
-            },
-          }
-        );
-        expect(fileResponse.ok).toBe(true);
-        const fileData = (await fileResponse.json()) as {
-          content: string;
-          encoding: string;
-        };
-        const fileContent = Buffer.from(fileData.content, 'base64').toString(
-          'utf-8'
-        );
-        expect(fileContent).not.toContain('v999-nonexistent');
-        expect(fileContent).toContain('image:');
-
-        // Cleanup: close PR and delete branch
-        await fetch(
-          `https://api.github.com/repos/vfarcic/dot-ai/pulls/${prNumber}`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: `token ${gitToken}`,
-              'Content-Type': 'application/json',
-              Accept: 'application/vnd.github+json',
-            },
-            body: JSON.stringify({ state: 'closed' }),
-          }
-        );
-        await fetch(
-          `https://api.github.com/repos/vfarcic/dot-ai/git/refs/heads/${prBranch}`,
-          {
-            method: 'DELETE',
-            headers: {
-              Authorization: `token ${gitToken}`,
-              Accept: 'application/vnd.github+json',
-            },
-          }
-        );
+          // Verify the deployment.yaml in the PR branch has the broken image fixed
+          const fileResponse = await fetch(
+            `https://api.github.com/repos/vfarcic/dot-ai/contents/${fixturePath}/deployment.yaml?ref=${prBranch}`,
+            {
+              headers: {
+                Authorization: `token ${gitToken}`,
+                Accept: 'application/vnd.github.v3+json',
+              },
+            }
+          );
+          expect(fileResponse.ok).toBe(true);
+          const fileData = (await fileResponse.json()) as {
+            content: string;
+            encoding: string;
+          };
+          const fileContent = Buffer.from(fileData.content, 'base64').toString(
+            'utf-8'
+          );
+          expect(fileContent).not.toContain('v999-nonexistent');
+          expect(fileContent).toContain('image:');
+        } finally {
+          // Always cleanup: close PR and delete branch
+          await fetch(
+            `https://api.github.com/repos/vfarcic/dot-ai/pulls/${prNumber}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Authorization: `token ${gitToken}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/vnd.github+json',
+              },
+              body: JSON.stringify({ state: 'closed' }),
+            }
+          );
+          await fetch(
+            `https://api.github.com/repos/vfarcic/dot-ai/git/refs/heads/${prBranch}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `token ${gitToken}`,
+                Accept: 'application/vnd.github+json',
+              },
+            }
+          );
+        }
       }
     }, 1200000); // 20 minute timeout
   });
