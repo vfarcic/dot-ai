@@ -19,19 +19,19 @@ import {
   ClientCredentialsAuthProvider,
   resolveTransportAuth,
 } from '../../../src/core/mcp-client-manager.js';
-import type { McpServerAuthConfig, McpServerConfig } from '../../../src/core/mcp-client-types.js';
+import type { McpServerAuthConfig } from '../../../src/core/mcp-client-types.js';
 import type { Logger } from '../../../src/core/error-handling.js';
 import * as http from 'http';
 
 // --- Test logger that captures log calls ---
-function createTestLogger(): Logger & { calls: { level: string; msg: string; meta?: any }[] } {
-  const calls: { level: string; msg: string; meta?: any }[] = [];
+function createTestLogger(): Logger & { calls: { level: string; msg: string; meta?: unknown }[] } {
+  const calls: { level: string; msg: string; meta?: unknown }[] = [];
   return {
     calls,
-    debug: (msg: string, meta?: any) => calls.push({ level: 'debug', msg, meta }),
-    info: (msg: string, meta?: any) => calls.push({ level: 'info', msg, meta }),
-    warn: (msg: string, meta?: any) => calls.push({ level: 'warn', msg, meta }),
-    error: (msg: string, meta?: any) => calls.push({ level: 'error', msg, meta }),
+    debug: (msg: string, meta?: unknown) => calls.push({ level: 'debug', msg, meta }),
+    info: (msg: string, meta?: unknown) => calls.push({ level: 'info', msg, meta }),
+    warn: (msg: string, meta?: unknown) => calls.push({ level: 'warn', msg, meta }),
+    error: (msg: string, meta?: unknown) => calls.push({ level: 'error', msg, meta }),
   };
 }
 

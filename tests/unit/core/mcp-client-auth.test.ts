@@ -511,7 +511,7 @@ vi.mock('node:fs', async (importOriginal) => {
       if (p === CONFIG_PATH && mockFileContent !== null) return true;
       return actual.existsSync(p);
     },
-    readFileSync: (p: string | URL, encoding?: any) => {
+    readFileSync: (p: string | URL, encoding?: BufferEncoding) => {
       if (String(p) === CONFIG_PATH && mockFileContent !== null) return mockFileContent;
       return actual.readFileSync(p, encoding);
     },
