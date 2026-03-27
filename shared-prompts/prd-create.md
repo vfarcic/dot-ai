@@ -87,6 +87,93 @@ Work through the PRD template focusing on project management, milestone tracking
 **Priority**: [High/Medium/Low]
 ```
 
+## PRD File Template
+
+Use this structure when creating the PRD file. Include all sections marked **Required**. Include sections marked **Recommended** when applicable — they significantly improve review quality and decision traceability.
+
+````markdown
+# PRD: [Feature Name]
+
+**Status**: Draft
+**Priority**: [High/Medium/Low]
+**GitHub Issue**: [#ID](https://github.com/vfarcic/dot-ai/issues/ID)
+**Created**: [YYYY-MM-DD]
+**Last Updated**: [YYYY-MM-DD]
+**Depends on**: [Link to dependency PRDs, if any]
+
+---
+
+## Table of Contents
+<!-- Required for PRDs over ~100 lines. Link to all H2 sections. -->
+
+---
+
+## Problem Statement
+<!-- Required. What is broken or missing? Include specific code/config references. -->
+
+## Proposed Solution
+<!-- Required. How does this solve the problem? Include architecture diagrams (ASCII) when the feature involves multiple components or data flows. -->
+
+## Milestone Summary
+<!-- Required. One-line-per-milestone overview table for quick scanning. -->
+
+| Milestone | Scope | Key Deliverable |
+|-----------|-------|-----------------|
+| **M1** | [Short name] | [One sentence] |
+| **M2** | [Short name] | [One sentence] |
+| ...    | ...           | ...             |
+
+## Milestones
+<!-- Required. 5-10 major milestones with task lists and success criteria. -->
+
+### M1: [Name]
+[Objective sentence]
+
+- [ ] Task 1
+- [ ] Task 2
+
+**Success Criteria:** [How do we know M1 is done?]
+
+## Success Criteria
+<!-- Required. Must Have / Nice to Have / Success Metrics -->
+
+## Technical Scope
+<!-- Required. Modified modules table: Location | File | What Changes -->
+
+## Dependencies
+<!-- Required. External and internal dependencies, dependent PRDs. -->
+
+## Security Considerations
+<!-- Recommended. Include for any feature touching auth, secrets, network, RBAC, or external systems. Cover: credential management, backward compatibility, defense-in-depth layers, fail-fast invariants. -->
+
+## Alternatives Considered
+<!-- Recommended. Table format: Alternative | Why Not. Shows design rigor and helps reviewers understand trade-offs. -->
+
+| Alternative | Why Not |
+|-------------|---------|
+| [Option A] | [Rationale] |
+
+## References
+<!-- Recommended. Link to specs, RFCs, SDK docs, K8s docs. Prefer finalized standards over draft RFCs — cite drafts as informational alignment only. -->
+
+## Decision Log
+<!-- Recommended. Tracks why decisions were made — invaluable during review and future maintenance. -->
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| [YYYY-MM-DD] | [What was decided] | [Why] |
+````
+
+### Template Usage Notes
+
+- **Table of Contents**: Always include for PRDs over ~100 lines. Omit for short PRDs.
+- **Milestone Summary Table**: Place immediately before detailed milestones. Lets reviewers scan scope in 10 seconds before diving into details.
+- **Security Considerations**: Even non-auth features often touch trust boundaries in Kubernetes (ServiceAccount permissions, Secret access, network policies). Include this section proactively.
+- **Alternatives Considered**: Forces design rigor during authoring and prevents "why didn't you just..." questions during review. Even 2-3 rows add significant value.
+- **Decision Log**: Start with decisions made during PRD creation. Update as implementation progresses via `/prd-update-decisions`. Critical for onboarding new contributors.
+- **Security Invariants**: For security-sensitive milestones, state invariants inline (e.g., "Empty credentials MUST be a hard failure, not silent degradation"). This prevents implementation drift from the PRD's intent.
+- **References**: When referencing standards, prefer finalized RFCs over draft specifications. If a draft is relevant, cite it as "informational alignment" and list the finalized RFCs that back individual behaviors.
+
 ## Discussion Guidelines
 
 ### PRD Planning Questions
@@ -100,6 +187,8 @@ Work through the PRD template focusing on project management, milestone tracking
 8. **Risk Assessment**: "What are the main risks and how do we mitigate them?"
 9. **Dependencies**: "What other systems or features does this depend on?"
 10. **Validation Strategy**: "How will we test and validate the implementation?"
+11. **Alternatives**: "What other approaches did you consider? Why not those?"
+12. **Security Boundaries**: "Does this feature touch auth, secrets, network, or RBAC? What could go wrong?"
 
 ### Discussion Tips:
 - **Clarify ambiguity**: If something isn't clear, ask follow-up questions until you understand
