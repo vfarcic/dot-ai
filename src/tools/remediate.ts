@@ -28,6 +28,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
+import { getSessionEventBus, SESSION_EVENTS } from '../core/session-events';
 import {
   getInternalTools,
   createInternalToolExecutor,
@@ -430,6 +431,13 @@ async function conductInvestigation(
       finalAnalysis: output,
       status: 'analysis_complete',
     });
+    getSessionEventBus().publish(SESSION_EVENTS.SESSION_UPDATED, {
+      sessionId: session.sessionId,
+      toolName: 'remediate',
+      status: 'analysis_complete',
+      issue: session.data.issue,
+      timestamp: new Date().toISOString(),
+    });
 
     logger.info('Investigation and analysis completed', {
       requestId,
@@ -447,6 +455,13 @@ async function conductInvestigation(
 
     // Mark session as failed
     sessionManager.updateSession(session.sessionId, { status: 'failed' });
+    getSessionEventBus().publish(SESSION_EVENTS.SESSION_UPDATED, {
+      sessionId: session.sessionId,
+      toolName: 'remediate',
+      status: 'failed',
+      issue: session.data.issue,
+      timestamp: new Date().toISOString(),
+    });
 
     throw ErrorHandler.createError(
       ErrorCategory.AI_SERVICE,
@@ -1104,6 +1119,13 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     status: overallSuccess ? 'executed_successfully' : 'executed_with_errors',
     executionResults: results,
   });
+  getSessionEventBus().publish(SESSION_EVENTS.SESSION_UPDATED, {
+    sessionId: session.sessionId,
+    toolName: 'remediate',
+    status: overallSuccess ? 'executed_successfully' : 'executed_with_errors',
+    issue: session.data.issue,
+    timestamp: new Date().toISOString(),
+  });
 
   const hasOnlyGitOps = executedCommandCount === 0 && pullRequestInfo !== undefined;
   const prInfo = pullRequestInfo;
@@ -1285,6 +1307,13 @@ export async function handleRemediateTool(
       mode: validatedInput.mode || 'manual',
       interaction_id: validatedInput.interaction_id,
       status: 'investigating',
+    });
+    getSessionEventBus().publish(SESSION_EVENTS.SESSION_CREATED, {
+      sessionId: session.sessionId,
+      toolName: 'remediate',
+      status: 'investigating',
+      issue: validatedInput.issue,
+      timestamp: session.createdAt,
     });
     logger.info('Investigation session created', {
       requestId,
