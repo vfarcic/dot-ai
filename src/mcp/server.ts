@@ -158,8 +158,7 @@ async function main() {
         const stats = mcpClientManager.getStats();
         process.stderr.write(`MCP server discovery complete: ${stats.serverCount} server(s), ${stats.toolCount} tool(s)\n`);
       } catch (error) {
-        process.stderr.write(`FATAL: MCP server discovery failed: ${error instanceof Error ? error.message : String(error)}\n`);
-        process.exit(1);
+        process.stderr.write(`WARNING: MCP server discovery failed (continuing without MCP servers): ${error instanceof Error ? error.message : String(error)}\n`);
       }
 
       initializeMcpClientRegistry(mcpClientManager);
