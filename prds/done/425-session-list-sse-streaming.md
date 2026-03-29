@@ -1,7 +1,7 @@
 # PRD: Session List API and SSE Streaming for Remediation Events
 
 **Issue**: [#425](https://github.com/vfarcic/dot-ai/issues/425)
-**Status**: Open
+**Status**: Complete (2026-03-29)
 **Priority**: High
 **Created**: 2026-03-27
 
@@ -282,7 +282,7 @@ data: {"sessionId":"rem-...","status":"analysis_complete","issue":"...","timesta
 - [x] All existing tests still pass
 
 ### Milestone 5: Follow-Up
-- [ ] Create PRD in `../dot-ai-cli` for TUI dashboard consuming these APIs
+- [x] Send feature requests to `../dot-ai-cli` and `../dot-ai-ui` for consuming these APIs
 
 ---
 
