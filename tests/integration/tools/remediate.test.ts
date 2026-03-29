@@ -6,7 +6,7 @@
  * and actual cluster state fixes.
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, onTestFinished } from 'vitest';
 import * as http from 'http';
 import { IntegrationTest } from '../helpers/test-base.js';
 
@@ -138,6 +138,7 @@ EOF`);
 
       // SSE: Open streaming connection BEFORE remediation to capture real-time events
       const sse = openSSE('/api/v1/events/remediations');
+      onTestFinished(() => sse.close());
       const sseResponse = await sse.response;
 
       // Verify SSE headers immediately on connect
@@ -487,9 +488,6 @@ EOF`);
       expect(actualMi).toBeGreaterThan(128); // AI should have increased from 128Mi
 
       // PHASE 4: Verify SSE events received during remediation (PRD #425)
-      // Close the SSE connection now that remediation is complete
-      sse.close();
-
       const allSSEData = sse.chunks.join('');
 
       // Should have received session-created when investigation started
