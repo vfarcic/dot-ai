@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.14.0] - 2026-03-29
+
+### Features
+
+- ## Session List API and SSE Streaming for Remediation Events
+
+  External consumers such as TUI dashboards and controllers can now discover and monitor remediation sessions in real-time without knowing session IDs upfront.
+
+  The new `GET /api/v1/sessions` endpoint lists remediation sessions with status filtering (`?status=analysis_complete`) and pagination (`?limit=10&offset=0`). Responses contain summary metadata only (sessionId, status, issue, mode, timestamps) to keep payloads lean. The new `GET /api/v1/events/remediations` endpoint provides a Server-Sent Events (SSE) stream that delivers `session-created` and `session-updated` events as remediations progress through their lifecycle — from investigation through analysis completion or execution. A 30-second heartbeat keeps connections alive through proxies, and client disconnections are handled with proper listener cleanup.
+
+  The underlying session event bus is generic and tool-agnostic, using a `SessionEventBus` interface with an in-memory implementation. Each event carries a `toolName` field, so other tools (query, recommend, operate) can adopt real-time streaming with zero infrastructure changes. ([#425](https://github.com/vfarcic/dot-ai/issues/425))
+- ## Custom Headers and Base URL Support for All AI Providers
+
+  Enterprise users accessing AI providers through custom gateways or proxy deployments can now pass arbitrary HTTP headers and use custom base URLs without losing provider-specific features.
+
+  The `CUSTOM_LLM_HEADERS` environment variable accepts a JSON string of key-value pairs that are merged with provider-specific defaults (such as the Anthropic beta header), with custom headers taking precedence. Setting `CUSTOM_LLM_BASE_URL` with an explicit `AI_PROVIDER` (e.g., `anthropic`) now preserves the native provider SDK instead of forcing OpenAI-compatible mode — so Anthropic-specific features like cache control and extended context remain available through a corporate proxy. Existing custom endpoint configurations and OpenRouter auto-detection continue to work without changes.
+
+  Helm chart users can configure custom headers via `ai.customEndpoint.headers` in `values.yaml`, which maps to the `CUSTOM_LLM_HEADERS` environment variable in the deployment.
+
+  See the [Custom Endpoint Configuration Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/deployment) for setup details and examples. ([#443](https://github.com/vfarcic/dot-ai/issues/443))
+
+
 ## [1.13.0] - 2026-03-27
 
 ### Features
