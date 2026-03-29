@@ -120,6 +120,15 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
           'CUSTOM_LLM_HEADERS is not valid JSON'
         )
       );
+
+      // Verify invalid headers are ignored — only provider defaults remain
+      const anthropicConfig = mockCreateAnthropic.mock.calls[0]?.[0];
+      expect(anthropicConfig.headers).toEqual(
+        expect.objectContaining({
+          'anthropic-beta': 'context-1m-2025-08-07',
+        })
+      );
+      expect(anthropicConfig.headers).not.toHaveProperty('x-custom-auth');
     });
 
     it('should work without CUSTOM_LLM_HEADERS set', () => {

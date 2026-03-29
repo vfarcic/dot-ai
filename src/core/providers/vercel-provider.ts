@@ -179,6 +179,7 @@ export class VercelProvider implements AIProvider {
           break;
         case 'alibaba':
           // PRD #382: Alibaba Qwen 3.5 Plus - uses @ai-sdk/alibaba dedicated SDK
+          // Note: @ai-sdk/alibaba does not accept baseURL (PRD #443 only covers Anthropic/OpenAI/Google/xAI)
           provider = createAlibaba({
             apiKey: this.apiKey,
             ...(mergeHeaders() && { headers: mergeHeaders() }),
