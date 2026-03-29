@@ -51,6 +51,7 @@ import {
   SessionListQuerySchema,
   SessionListResponseSchema,
   SessionListErrorSchema,
+  RemediationSSEEventSchema,
   // Knowledge schemas
   DeleteBySourceResponseSchema,
   DeleteBySourcePluginUnavailableErrorSchema,
@@ -453,6 +454,21 @@ export const routeDefinitions: RouteDefinition<
     response: SessionResponseSchema,
     errorResponses: {
       404: SessionNotFoundErrorSchema,
+      500: InternalServerErrorSchema,
+    },
+  },
+
+  // ============================================
+  // SSE Streaming Endpoints (PRD #425)
+  // ============================================
+  {
+    path: '/api/v1/events/remediations',
+    method: 'GET',
+    description:
+      'SSE stream for real-time remediation session events. Returns text/event-stream.',
+    tags: ['Sessions'],
+    response: RemediationSSEEventSchema,
+    errorResponses: {
       500: InternalServerErrorSchema,
     },
   },

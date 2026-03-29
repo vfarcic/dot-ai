@@ -21,6 +21,11 @@ import {
   loadAllPrompts,
 } from '../tools/prompts';
 import { GenericSessionManager } from '../core/generic-session-manager';
+import {
+  getSessionEventBus,
+  type SessionEvent,
+  type SessionEventHandler,
+} from '../core/session-events';
 import { QuerySessionData } from '../tools/query';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import {
@@ -425,6 +430,8 @@ export class RestApiRouter {
           params.sessionId,
           searchParams
         ),
+      'GET:/api/v1/events/remediations': () =>
+        this.handleRemediationSSE(req, res, requestId),
       'GET:/api/v1/sessions': () =>
         this.handleListSessions(req, res, requestId, searchParams),
       'GET:/api/v1/sessions/:sessionId': () =>
@@ -2443,6 +2450,57 @@ export class RestApiRouter {
         { error: errorMessage }
       );
     }
+  }
+
+  /**
+   * Handle SSE streaming for remediation session events
+   * PRD #425: Real-time event stream filtered to toolName='remediate'
+   */
+  private async handleRemediationSSE(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string
+  ): Promise<void> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    };
+
+    if (this.config.enableCors) {
+      headers['Access-Control-Allow-Origin'] = '*';
+      headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
+    }
+
+    res.writeHead(HttpStatus.OK, headers);
+
+    this.logger.info('SSE connection established', { requestId });
+
+    const eventBus = getSessionEventBus();
+
+    const createHandler =
+      (eventType: string): SessionEventHandler =>
+      (event: SessionEvent) => {
+        if (event.toolName !== 'remediate') return;
+        res.write(`event: ${eventType}\ndata: ${JSON.stringify(event)}\n\n`);
+      };
+
+    const onCreated = createHandler('session-created');
+    const onUpdated = createHandler('session-updated');
+
+    eventBus.subscribe('session-created', onCreated);
+    eventBus.subscribe('session-updated', onUpdated);
+
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+    }, 30000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      eventBus.unsubscribe('session-created', onCreated);
+      eventBus.unsubscribe('session-updated', onUpdated);
+      this.logger.info('SSE connection closed', { requestId });
+    });
   }
 
   /**

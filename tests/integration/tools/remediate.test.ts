@@ -7,7 +7,46 @@
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
+import * as http from 'http';
 import { IntegrationTest } from '../helpers/test-base.js';
+
+const SSE_BASE_URL = process.env.MCP_BASE_URL || 'http://localhost:3456';
+
+/**
+ * Open an SSE connection and collect raw chunks.
+ */
+function openSSE(path: string): {
+  chunks: string[];
+  response: Promise<http.IncomingMessage>;
+  close: () => void;
+} {
+  const chunks: string[] = [];
+  let resolveResponse: (res: http.IncomingMessage) => void;
+  const response = new Promise<http.IncomingMessage>((resolve) => {
+    resolveResponse = resolve;
+  });
+
+  const url = new URL(path, SSE_BASE_URL);
+  const headers: Record<string, string> = { Accept: 'text/event-stream' };
+  const authToken = process.env.DOT_AI_AUTH_TOKEN;
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const req = http.get(url, { headers }, (res) => {
+    resolveResponse(res);
+    res.setEncoding('utf8');
+    res.on('data', (chunk: string) => {
+      chunks.push(chunk);
+    });
+  });
+
+  return {
+    chunks,
+    response,
+    close: () => req.destroy(),
+  };
+}
 
 describe.concurrent('Remediate Tool Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -96,6 +135,18 @@ EOF`);
 
       // Verify pod has restarted at least once (indicating OOM crashes)
       expect(restartCountInitial).toBeGreaterThan(0); // Should have crashed at least once
+
+      // SSE: Open streaming connection BEFORE remediation to capture real-time events
+      const sse = openSSE('/api/v1/events/remediations');
+      const sseResponse = await sse.response;
+
+      // Verify SSE headers immediately on connect
+      expect(sseResponse.statusCode).toBe(200);
+      expect(sseResponse.headers).toMatchObject({
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+      });
 
       // PHASE 1: AI Investigation
       const investigationResponse = await integrationTest.httpClient.post(
@@ -434,6 +485,43 @@ EOF`);
       const isGi = memoryLimit.includes('Gi');
       const actualMi = isGi ? memValue * 1024 : memValue;
       expect(actualMi).toBeGreaterThan(128); // AI should have increased from 128Mi
+
+      // PHASE 4: Verify SSE events received during remediation (PRD #425)
+      // Close the SSE connection now that remediation is complete
+      sse.close();
+
+      const allSSEData = sse.chunks.join('');
+
+      // Should have received session-created when investigation started
+      expect(allSSEData).toContain('event: session-created');
+
+      // Should have received session-updated as status changed
+      expect(allSSEData).toContain('event: session-updated');
+
+      // Verify events reference the correct session
+      expect(allSSEData).toContain(`"sessionId":"${sessionId}"`);
+      expect(allSSEData).toContain('"toolName":"remediate"');
+
+      // Verify all SSE data lines are valid JSON with expected shape
+      const dataLines = allSSEData
+        .split('\n')
+        .filter((line) => line.startsWith('data: '));
+      expect(dataLines.length).toBeGreaterThanOrEqual(2); // At least created + updated
+
+      for (const line of dataLines) {
+        const parsed = JSON.parse(line.replace('data: ', ''));
+        expect(parsed).toMatchObject({
+          sessionId: expect.any(String),
+          toolName: 'remediate',
+          status: expect.any(String),
+          issue: expect.any(String),
+          timestamp: expect.any(String),
+        });
+      }
+
+      // Verify server is still healthy after SSE disconnect
+      const healthResponse = await integrationTest.httpClient.get('/api/v1/sessions');
+      expect(healthResponse.success).toBe(true);
     }, 1200000); // 20 minute timeout for AI investigation + execution + validation (accommodates slower AI models like Gemini)
   });
 

@@ -272,13 +272,13 @@ data: {"sessionId":"rem-...","status":"analysis_complete","issue":"...","timesta
 - [x] Implement `handleListSessions()` handler with filtering and pagination
 
 ### Milestone 3: SSE Streaming Endpoint
-- [ ] Register `GET /api/v1/events/remediations` route
-- [ ] Implement `handleRemediationSSE()` with subscribe, heartbeat, and cleanup
-- [ ] Handle CORS headers for SSE connections
+- [x] Register `GET /api/v1/events/remediations` route
+- [x] Implement `handleRemediationSSE()` with subscribe, heartbeat, and cleanup
+- [x] Handle CORS headers for SSE connections
 
 ### Milestone 4: Integration Tests
 - [x] List endpoint tests (shape, filtering, pagination, no data leakage)
-- [ ] SSE endpoint tests (headers, connection, event receipt)
+- [x] SSE endpoint tests (headers, connection, event receipt)
 - [x] All existing tests still pass
 
 ### Milestone 5: Follow-Up

@@ -122,3 +122,21 @@ export const SessionListErrorSchema = InternalServerErrorSchema.extend({
     details: z.any().optional(),
   }),
 });
+
+/**
+ * SSE Streaming Endpoint Schema
+ * GET /api/v1/events/remediations
+ * PRD #425: Real-time remediation session events via Server-Sent Events
+ */
+export const RemediationSSEEventSchema = z.object({
+  event: z.enum(['session-created', 'session-updated']).describe('SSE event type'),
+  data: z.object({
+    sessionId: z.string().describe('Session ID'),
+    toolName: z.string().describe('Tool that owns the session'),
+    status: z.string().describe('Current session status'),
+    issue: z.string().describe('Issue being investigated'),
+    timestamp: z.string().describe('Event timestamp'),
+  }),
+}).describe('SSE event for remediation session changes (Content-Type: text/event-stream)');
+
+export type RemediationSSEEvent = z.infer<typeof RemediationSSEEventSchema>;

@@ -161,6 +161,7 @@ export {
   SessionListDataSchema,
   SessionListResponseSchema,
   SessionListErrorSchema,
+  RemediationSSEEventSchema,
   type SessionMetadata,
   type SessionData,
   type SessionResponseData,
@@ -169,6 +170,7 @@ export {
   type SessionSummary,
   type SessionListData,
   type SessionListResponse,
+  type RemediationSSEEvent,
 } from './sessions';
 
 // Prompts schemas
