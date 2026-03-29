@@ -131,4 +131,4 @@ The change passes `this.baseURL` to all provider cases, not just the `custom` ca
 - [x] Helm chart support (`ai.customEndpoint.headers` in values.yaml and deployment template)
 - [x] Integration tests covering custom headers and base URL combinations
 - [x] Documentation for custom endpoint configuration with headers
-- [ ] Comment on vfarcic/dot-ai-stack#5 linking to this PRD and close the upstream issue
+- [x] Comment on vfarcic/dot-ai-stack#5 linking to this PRD (invited user to verify after next release)
