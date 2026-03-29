@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.12.0",
+    "version": "1.13.0",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -1750,6 +1750,75 @@
         ]
       }
     },
+    "/api/v1/sessions": {
+      "get": {
+        "summary": "List sessions with optional status filtering and pagination",
+        "description": "List sessions with optional status filtering and pagination",
+        "tags": [
+          "Sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsGetResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsGetError500"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by session status (e.g., analysis_complete, failed, investigating)",
+            "schema": {
+              "description": "Filter by session status (e.g., analysis_complete, failed, investigating)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "description": "Max results per page",
+            "schema": {
+              "default": 50,
+              "description": "Max results per page",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": true,
+            "description": "Pagination offset",
+            "schema": {
+              "default": 0,
+              "description": "Pagination offset",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/sessions/{sessionId}": {
       "get": {
         "summary": "Get raw session data for any tool type (remediate, query, recommend, etc.)",
@@ -1801,6 +1870,37 @@
             }
           }
         ]
+      }
+    },
+    "/api/v1/events/remediations": {
+      "get": {
+        "summary": "SSE stream for real-time remediation session events. Returns text/event-stream.",
+        "description": "SSE stream for real-time remediation session events. Returns text/event-stream.",
+        "tags": [
+          "Sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsRemediationsGetResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsRemediationsGetError500"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/knowledge/source/{sourceIdentifier}": {
@@ -6439,6 +6539,161 @@
           "error"
         ]
       },
+      "SessionsGetResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sessions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID"
+                    },
+                    "status": {
+                      "description": "Session status",
+                      "type": "string"
+                    },
+                    "issue": {
+                      "description": "Issue being investigated",
+                      "type": "string"
+                    },
+                    "mode": {
+                      "description": "Remediation mode (manual/automatic)",
+                      "type": "string"
+                    },
+                    "toolName": {
+                      "description": "Tool that created this session",
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "description": "Session creation timestamp"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "description": "Session last update timestamp"
+                    }
+                  },
+                  "required": [
+                    "sessionId",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "List of session summaries"
+              },
+              "total": {
+                "type": "number",
+                "description": "Total number of sessions matching the filter"
+              },
+              "limit": {
+                "type": "number",
+                "description": "Max results per page"
+              },
+              "offset": {
+                "type": "number",
+                "description": "Pagination offset"
+              }
+            },
+            "required": [
+              "sessions",
+              "total",
+              "limit",
+              "offset"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "SessionsGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "SESSION_LIST_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
       "SessionsSessionIdGetResponse": {
         "type": "object",
         "properties": {
@@ -6565,6 +6820,133 @@
         ]
       },
       "SessionsSessionIdGetError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "DISCOVERY_ERROR",
+                  "EXECUTION_ERROR",
+                  "OPENAPI_ERROR",
+                  "SYNC_ERROR",
+                  "RESOURCE_KINDS_ERROR",
+                  "SEARCH_ERROR",
+                  "LIST_RESOURCES_ERROR",
+                  "NAMESPACES_ERROR",
+                  "RESOURCE_ERROR",
+                  "EVENTS_ERROR",
+                  "LOGS_ERROR",
+                  "PROMPTS_LIST_ERROR",
+                  "PROMPT_GET_ERROR",
+                  "VISUALIZATION_ERROR",
+                  "SESSION_RETRIEVAL_ERROR",
+                  "MIGRATION_ERROR",
+                  "PROMPTS_CACHE_REFRESH_ERROR",
+                  "USER_MANAGEMENT_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "EventsRemediationsGetResponse": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "session-created",
+              "session-updated"
+            ],
+            "description": "SSE event type"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sessionId": {
+                "type": "string",
+                "description": "Session ID"
+              },
+              "toolName": {
+                "type": "string",
+                "description": "Tool that owns the session"
+              },
+              "status": {
+                "type": "string",
+                "description": "Current session status"
+              },
+              "issue": {
+                "type": "string",
+                "description": "Issue being investigated"
+              },
+              "timestamp": {
+                "type": "string",
+                "description": "Event timestamp"
+              }
+            },
+            "required": [
+              "sessionId",
+              "toolName",
+              "status",
+              "issue",
+              "timestamp"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "description": "SSE event for remediation session changes (Content-Type: text/event-stream)"
+      },
+      "EventsRemediationsGetError500": {
         "type": "object",
         "properties": {
           "success": {
