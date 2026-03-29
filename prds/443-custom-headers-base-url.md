@@ -124,11 +124,11 @@ The change passes `this.baseURL` to all provider cases, not just the `custom` ca
 
 ## Milestones
 
-- [ ] Custom headers parsing and propagation through provider config (`CUSTOM_LLM_HEADERS` env var parsed in factory, passed through config interface to provider)
-- [ ] Header merging in vercel-provider for all provider types (custom headers merged with provider-specific defaults like Anthropic beta header)
-- [ ] Base URL passthrough for native providers (allow `CUSTOM_LLM_BASE_URL` with Anthropic/OpenAI/Google without forcing to OpenAI-compatible mode)
-- [ ] Backward compatibility safeguards (existing custom endpoint users unaffected, OpenRouter auto-detection preserved)
-- [ ] Helm chart support (`ai.customEndpoint.headers` in values.yaml and deployment template)
-- [ ] Integration tests covering custom headers and base URL combinations
+- [x] Custom headers parsing and propagation through provider config (`CUSTOM_LLM_HEADERS` env var parsed in factory, passed through config interface to provider)
+- [x] Header merging in vercel-provider for all provider types (custom headers merged with provider-specific defaults like Anthropic beta header)
+- [x] Base URL passthrough for native providers (allow `CUSTOM_LLM_BASE_URL` with Anthropic/OpenAI/Google without forcing to OpenAI-compatible mode)
+- [x] Backward compatibility safeguards (existing custom endpoint users unaffected, OpenRouter auto-detection preserved)
+- [x] Helm chart support (`ai.customEndpoint.headers` in values.yaml and deployment template)
+- [x] Integration tests covering custom headers and base URL combinations
 - [ ] Documentation for custom endpoint configuration with headers
 - [ ] Comment on vfarcic/dot-ai-stack#5 linking to this PRD and close the upstream issue

@@ -62,6 +62,10 @@ spec:
         - name: EMBEDDINGS_DIMENSIONS
           value: {{ .Values.ai.customEndpoint.embeddingsDimensions | quote }}
 {{- end }}
+{{- if .Values.ai.customEndpoint.headers }}
+        - name: CUSTOM_LLM_HEADERS
+          value: {{ .Values.ai.customEndpoint.headers | quote }}
+{{- end }}
 {{- end }}
 {{- if .Values.localEmbeddings.enabled }}
         # Local embedding service auto-fallback (PRD #384)

@@ -88,6 +88,7 @@ export class VercelProvider implements AIProvider {
   private apiKey: string;
   private debugMode: boolean;
   private baseURL?: string; // PRD #194: Custom endpoint URL for OpenAI-compatible APIs
+  private customHeaders?: Record<string, string>; // PRD #443: Custom HTTP headers
   private modelInstance!: LanguageModel; // Vercel AI SDK model instance - initialized by initializeModel()
 
   constructor(config: AIProviderConfig) {
@@ -96,6 +97,7 @@ export class VercelProvider implements AIProvider {
     this.model = config.model || this.getDefaultModel();
     this.debugMode = config.debugMode ?? process.env.DEBUG_DOT_AI === 'true';
     this.baseURL = config.baseURL; // PRD #194: Store custom endpoint URL
+    this.customHeaders = config.customHeaders; // PRD #443: Store custom headers
 
     this.validateConfiguration();
     this.initializeModel();
@@ -123,34 +125,64 @@ export class VercelProvider implements AIProvider {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Vercel AI SDK provider types vary
       let provider: any;
 
+      // PRD #443: Helper to build merged headers (provider defaults + custom headers)
+      // Custom headers take precedence over provider defaults via spread order
+      const mergeHeaders = (
+        providerDefaults?: Record<string, string>
+      ): Record<string, string> | undefined => {
+        if (!providerDefaults && !this.customHeaders) return undefined;
+        return {
+          ...providerDefaults,
+          ...this.customHeaders,
+        };
+      };
+
+      // PRD #443: Helper for optional baseURL spread
+      const baseURLOpt = this.baseURL ? { baseURL: this.baseURL } : {};
+
       switch (this.providerType) {
         case 'openai':
           provider = createOpenAI({
             apiKey: this.apiKey,
+            ...baseURLOpt,
+            ...(mergeHeaders() && { headers: mergeHeaders() }),
           });
           break;
         case 'google':
         case 'google_flash': // PRD #294: Gemini 3 Flash variant
-          provider = createGoogleGenerativeAI({ apiKey: this.apiKey });
+          provider = createGoogleGenerativeAI({
+            apiKey: this.apiKey,
+            ...baseURLOpt,
+            ...(mergeHeaders() && { headers: mergeHeaders() }),
+          });
           break;
         case 'anthropic':
         case 'anthropic_opus':
         case 'anthropic_haiku':
           provider = createAnthropic({
             apiKey: this.apiKey,
+            ...baseURLOpt,
             // Enable 1M token context window for Claude Sonnet 4 (5x increase from 200K)
             // Required for models like claude-sonnet-4-5-20250929
-            headers: {
+            // PRD #443: Custom headers merge with (and can override) the anthropic-beta default
+            headers: mergeHeaders({
               'anthropic-beta': 'context-1m-2025-08-07',
-            },
+            })!,
           });
           break;
         case 'xai':
-          provider = createXai({ apiKey: this.apiKey });
+          provider = createXai({
+            apiKey: this.apiKey,
+            ...baseURLOpt,
+            ...(mergeHeaders() && { headers: mergeHeaders() }),
+          });
           break;
         case 'alibaba':
           // PRD #382: Alibaba Qwen 3.5 Plus - uses @ai-sdk/alibaba dedicated SDK
-          provider = createAlibaba({ apiKey: this.apiKey });
+          provider = createAlibaba({
+            apiKey: this.apiKey,
+            ...(mergeHeaders() && { headers: mergeHeaders() }),
+          });
           break;
         case 'kimi':
           // PRD #353: Moonshot AI Kimi K2.5 - uses @ai-sdk/openai-compatible for proper
@@ -160,6 +192,7 @@ export class VercelProvider implements AIProvider {
             name: 'kimi',
             apiKey: this.apiKey,
             baseURL: 'https://api.moonshot.ai/v1',
+            ...(mergeHeaders() && { headers: mergeHeaders() }),
           });
           this.modelInstance = provider.chatModel(this.model);
           return; // Early return - model instance already set
@@ -169,6 +202,7 @@ export class VercelProvider implements AIProvider {
           // 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
           // 2. ~/.aws/credentials file
           // 3. IAM roles (EC2 instance profiles, ECS roles, EKS service accounts)
+          // Note: Custom headers not supported - AWS SDK handles auth via credential chain
           provider = createAmazonBedrock({
             region: process.env.AWS_REGION || 'us-east-1',
           });
@@ -178,6 +212,8 @@ export class VercelProvider implements AIProvider {
           // Use dedicated OpenRouter provider for proper format conversion
           provider = createOpenRouter({
             apiKey: this.apiKey,
+            ...baseURLOpt,
+            ...(mergeHeaders() && { headers: mergeHeaders() }),
           });
           break;
         case 'custom':
@@ -191,6 +227,7 @@ export class VercelProvider implements AIProvider {
           provider = createOpenAI({
             apiKey: this.apiKey,
             baseURL: this.baseURL,
+            ...(mergeHeaders() && { headers: mergeHeaders() }),
           });
           // Use .chat() explicitly for custom endpoints to use /chat/completions instead of /responses
           this.modelInstance = provider.chat(this.model);
