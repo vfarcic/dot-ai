@@ -1,7 +1,7 @@
 # PRD: Custom Headers and Base URL Support for All AI Providers
 
 **Issue**: [#443](https://github.com/vfarcic/dot-ai/issues/443)
-**Status**: Open
+**Status**: Complete (2026-03-30)
 **Priority**: Medium
 **Created**: 2026-03-29
 

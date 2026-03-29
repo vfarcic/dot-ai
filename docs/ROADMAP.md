@@ -19,7 +19,6 @@ This roadmap is a living document and may change based on community feedback and
 
 ## Medium-term (3-6 Months)
 
-- Custom headers and base URL support for all AI providers - enterprise proxy/gateway compatibility (PRD #443)
 - Auto-generated Go CLI as alternative to MCP - self-contained multi-arch binaries from OpenAPI spec (PRD #371)
 - MCP tool filtering - server-side allow/deny lists to control tool exposure (PRD #347)
 - Elicitation enhancement across MCP tools - systematic review and improvement of confirmation, clarification, and adaptive questioning (PRD #307)
