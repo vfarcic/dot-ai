@@ -160,6 +160,7 @@ ai:
     embeddingsBaseURL: ""           # Optional: custom embeddings endpoint URL (if different from LLM endpoint, also requires /v1 suffix)
     embeddingsModel: ""             # Optional: custom embeddings model name (e.g., "nomic-embed-text" for Ollama, defaults to "text-embedding-3-small" for OpenAI)
     embeddingsDimensions: ""        # Optional: custom embeddings dimensions (e.g., "768" for nomic-embed-text, defaults to "1536" for OpenAI)
+    headers: ""                     # Optional: custom HTTP headers as JSON string (PRD #443) (e.g., '{"version": "2026-02-20", "x-custom-auth": "token123"}')
 
   # Examples (commented out):
   # Example 1: Ollama (self-hosted) - IMPORTANT: Include /v1 suffix

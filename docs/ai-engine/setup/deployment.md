@@ -408,6 +408,52 @@ secrets:
 
 Get your OpenRouter API key at [https://openrouter.ai/](https://openrouter.ai/)
 
+### Custom Headers
+
+Pass custom HTTP headers to AI provider APIs using `ai.customEndpoint.headers`. Headers are specified as a JSON string and sent with every LLM request. Custom headers are merged with provider-specific defaults (e.g., the Anthropic beta header), with your custom headers taking precedence on conflicts.
+
+This is useful for enterprise LLM gateways and proxies that require authentication, versioning, or routing headers.
+
+**Example — corporate proxy with authentication headers:**
+
+```yaml
+ai:
+  provider: anthropic
+  customEndpoint:
+    enabled: true
+    baseURL: "https://proxy.corp.example.com/anthropic"
+    headers: '{"x-api-version": "2026-02-20", "x-proxy-auth": "token123"}'
+
+secrets:
+  anthropic:
+    apiKey: "your-anthropic-key"
+```
+
+**Notes:**
+- `headers` must be valid JSON (e.g., `'{"key": "value"}'`). Invalid JSON is ignored with a warning.
+- Headers apply to LLM requests only, not embeddings.
+- Custom headers override provider defaults when the same header key is used.
+
+### Native Provider with Custom Base URL
+
+By default, setting a custom base URL without specifying a provider routes requests through an OpenAI-compatible endpoint. If your proxy fronts a non-OpenAI provider (e.g., Anthropic), you can preserve native provider features — such as cache control, extended context, and native tool calling — by explicitly setting the provider.
+
+**Example — Anthropic proxy with native features preserved:**
+
+```yaml
+ai:
+  provider: anthropic  # Preserves Anthropic-specific features (cache control, extended context)
+  customEndpoint:
+    enabled: true
+    baseURL: "https://proxy.corp.example.com/anthropic"
+
+secrets:
+  anthropic:
+    apiKey: "your-anthropic-key"
+```
+
+Without `provider: anthropic`, this would fall back to OpenAI-compatible mode and lose Anthropic-specific capabilities. The same pattern works for other providers (`openai`, `google`, `xai`).
+
 ### Important Notes
 
 - **Context window**: 200K+ tokens recommended

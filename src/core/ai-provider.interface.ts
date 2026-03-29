@@ -56,6 +56,16 @@ export interface AIProviderConfig {
    * maxOutputTokens=8192 in API requests.
    */
   baseURL?: string;
+
+  /** Custom HTTP headers to pass to the AI provider SDK (PRD #443)
+   *
+   * Parsed from CUSTOM_LLM_HEADERS environment variable (JSON string).
+   * Merged with provider-specific default headers (e.g., Anthropic beta header),
+   * with custom headers taking precedence.
+   *
+   * Example: { "version": "2026-02-20", "x-custom-auth": "token123" }
+   */
+  customHeaders?: Record<string, string>;
 }
 
 /**

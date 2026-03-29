@@ -165,6 +165,19 @@ export class AIProviderFactory {
     // Use CUSTOM_LLM_BASE_URL for LLM endpoints (separate from OPENAI_BASE_URL used for embeddings)
     const baseURL = process.env.CUSTOM_LLM_BASE_URL;
 
+    // PRD #443: Parse custom headers from environment variable
+    let customHeaders: Record<string, string> | undefined;
+    const customHeadersEnv = process.env.CUSTOM_LLM_HEADERS;
+    if (customHeadersEnv) {
+      try {
+        customHeaders = JSON.parse(customHeadersEnv);
+      } catch {
+        process.stderr.write(
+          `WARNING: CUSTOM_LLM_HEADERS is not valid JSON: ${customHeadersEnv}. Custom headers will be ignored.\n`
+        );
+      }
+    }
+
     // Determine effective provider type based on endpoint configuration
     let effectiveProviderType = providerType;
 
@@ -172,8 +185,11 @@ export class AIProviderFactory {
     // OpenRouter requires dedicated provider for proper tool calling support
     if (baseURL && baseURL.includes('openrouter.ai')) {
       effectiveProviderType = 'openrouter';
-    } else if (baseURL) {
-      // Generic custom endpoint (Ollama, vLLM, LiteLLM, etc.)
+    } else if (baseURL && !process.env.AI_PROVIDER) {
+      // PRD #443: Only force 'custom' provider when AI_PROVIDER is NOT explicitly set.
+      // If AI_PROVIDER is explicitly set (e.g., 'anthropic'), preserve it so that
+      // native provider features (cache control, tool calling format) are retained
+      // when using a custom base URL (e.g., corporate Anthropic proxy).
       effectiveProviderType = 'custom';
     }
 
@@ -182,7 +198,8 @@ export class AIProviderFactory {
       apiKey,
       model,
       debugMode,
-      baseURL
+      baseURL,
+      customHeaders,
     });
   }
 
