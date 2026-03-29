@@ -1,7 +1,7 @@
 # PRD: Session List API and SSE Streaming for Remediation Events
 
 **Issue**: [#425](https://github.com/vfarcic/dot-ai/issues/425)
-**Status**: Open
+**Status**: Complete (2026-03-29)
 **Priority**: High
 **Created**: 2026-03-27
 
@@ -51,19 +51,20 @@ TUI Dashboard (dot-ai-cli)
 │    → Filter by status, paginate, return                  │
 │                                                          │
 │  handleRemediationSSE()                                  │
-│    → Subscribe to remediationEvents EventEmitter          │
-│    → Forward events as SSE to connected clients           │
+│    → Subscribe to sessionEmitter (generic EventEmitter)   │
+│    → Filter by toolName='remediate', forward as SSE       │
 │    → Heartbeat every 30s, cleanup on disconnect          │
 │                                                          │
 │  remediate.ts (existing)                                 │
 │    → Emits session-created / session-updated events       │
+│    → Via generic session-events.ts emitter                │
 │    → At 4 existing state transition points               │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### Key Design Decisions
 
-1. **Module-level EventEmitter singleton**: `remediate.ts` creates a new `GenericSessionManager` per invocation, so the event emitter must live outside the session manager as a shared singleton
+1. **Generic session event emitter**: A tool-agnostic `SessionEvent` emitter (not remediation-specific) so any tool can emit session lifecycle events through the same singleton. `remediate.ts` creates a new `GenericSessionManager` per invocation, so the event emitter must live outside the session manager as a shared module-level singleton. Each event includes a `toolName` field to identify the source tool
 2. **In-memory loading for list**: Sessions are low-volume (tens to hundreds). Loading all session files, filtering, and paginating in-memory is simpler and sufficient
 3. **Summary-only responses**: The list endpoint returns only metadata (sessionId, status, issue, mode, timestamps) — not the full `finalAnalysis` — to keep responses lean
 4. **No timeout on SSE**: The existing 30-minute `requestTimeout` only applies to `handleToolExecution`, not `dispatchRoute`, so SSE connections are unaffected
@@ -119,22 +120,34 @@ GET /api/v1/sessions?limit=10&offset=10
 
 ## Technical Design
 
-### Event Emitter Singleton
+### Session Event Bus (Generic, Swappable)
 
-New file: `src/core/remediation-events.ts`
+New file: `src/core/session-events.ts`
 
 ```typescript
-interface RemediationEvent {
+interface SessionEvent {
   sessionId: string;
+  toolName: string;   // 'remediate', 'query', 'recommend', 'operate', etc.
   status: string;
   issue: string;
   timestamp: string;
 }
 
-// Module-level singleton EventEmitter
-// Events: 'session-created', 'session-updated'
-// Helper functions: emitSessionCreated(), emitSessionUpdated()
+type SessionEventType = 'session-created' | 'session-updated';
+
+interface SessionEventBus {
+  publish(eventType: SessionEventType, event: SessionEvent): void;
+  subscribe(eventType: SessionEventType, handler: SessionEventHandler): void;
+  unsubscribe(eventType: SessionEventType, handler: SessionEventHandler): void;
+}
+
+// In-memory implementation using Node.js EventEmitter (default)
+// Singleton via getSessionEventBus() / setSessionEventBus()
 ```
+
+> **Design decision (2026-03-28)**: Generic `SessionEvent` with `toolName` field instead of remediation-specific `RemediationEvent`. Rationale: avoids duplicating the pattern when other tools (query, recommend, operate) need real-time events. Only `remediate.ts` is instrumented in this PRD; other tools can adopt later with zero infrastructure changes.
+
+> **Design decision (2026-03-28)**: Interface-based `SessionEventBus` with in-memory default implementation. Rationale: producers and consumers depend on the interface, not the EventEmitter directly. Swapping to NATS or another external bus later requires only a new implementation class and a `setSessionEventBus()` call at startup — no changes to tool code or SSE handler.
 
 ### List Sessions Endpoint
 
@@ -249,27 +262,27 @@ data: {"sessionId":"rem-...","status":"analysis_complete","issue":"...","timesta
 ## Milestones
 
 ### Milestone 1: Event Emitter Infrastructure
-- [ ] Create `src/core/remediation-events.ts` with singleton EventEmitter
-- [ ] Define `RemediationEvent` interface and typed emit helpers
-- [ ] Instrument `src/tools/remediate.ts` at 4 state transition points
+- [x] Create `src/core/session-events.ts` with `SessionEventBus` interface and `InMemorySessionEventBus` implementation
+- [x] Define `SessionEvent` interface (with `toolName` field), `publish`/`subscribe`/`unsubscribe` API, and `getSessionEventBus()`/`setSessionEventBus()` singleton management
+- [x] Instrument `src/tools/remediate.ts` at 4 state transition points
 
 ### Milestone 2: List Sessions Endpoint
-- [ ] Add Zod schemas for session list query/response in `src/interfaces/schemas/sessions.ts`
-- [ ] Register `GET /api/v1/sessions` route in route registry
-- [ ] Implement `handleListSessions()` handler with filtering and pagination
+- [x] Add Zod schemas for session list query/response in `src/interfaces/schemas/sessions.ts`
+- [x] Register `GET /api/v1/sessions` route in route registry
+- [x] Implement `handleListSessions()` handler with filtering and pagination
 
 ### Milestone 3: SSE Streaming Endpoint
-- [ ] Register `GET /api/v1/events/remediations` route
-- [ ] Implement `handleRemediationSSE()` with subscribe, heartbeat, and cleanup
-- [ ] Handle CORS headers for SSE connections
+- [x] Register `GET /api/v1/events/remediations` route
+- [x] Implement `handleRemediationSSE()` with subscribe, heartbeat, and cleanup
+- [x] Handle CORS headers for SSE connections
 
 ### Milestone 4: Integration Tests
-- [ ] List endpoint tests (shape, filtering, pagination, no data leakage)
-- [ ] SSE endpoint tests (headers, connection, event receipt)
-- [ ] All existing tests still pass
+- [x] List endpoint tests (shape, filtering, pagination, no data leakage)
+- [x] SSE endpoint tests (headers, connection, event receipt)
+- [x] All existing tests still pass
 
 ### Milestone 5: Follow-Up
-- [ ] Create PRD in `../dot-ai-cli` for TUI dashboard consuming these APIs
+- [x] Send feature requests to `../dot-ai-cli` and `../dot-ai-ui` for consuming these APIs
 
 ---
 
@@ -277,7 +290,7 @@ data: {"sessionId":"rem-...","status":"analysis_complete","issue":"...","timesta
 
 | File | Action |
 |------|--------|
-| `src/core/remediation-events.ts` | Create — event emitter singleton |
+| `src/core/session-events.ts` | Create — generic session event emitter singleton |
 | `src/tools/remediate.ts` | Modify — emit events at 4 sites |
 | `src/interfaces/schemas/sessions.ts` | Modify — add list schemas |
 | `src/interfaces/schemas/index.ts` | Modify — export new schemas |

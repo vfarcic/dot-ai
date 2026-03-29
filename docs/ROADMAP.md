@@ -14,7 +14,6 @@ This roadmap is a living document and may change based on community feedback and
 - Deployment documentation generation for knowledge base - organizational memory of deployment decisions (PRD #377)
 - GitOps operations for remediate tool - create PRs with fixes for GitOps-managed resources (PRD #408)
 - Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
-- Session list API and SSE streaming for remediation events dashboard (PRD #425)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
 

@@ -327,7 +327,10 @@ export async function pushRepo(
   await git.addConfig('user.name', gitUserName);
   await git.addConfig('user.email', gitUserEmail);
 
-  const commitResult = await git.commit(commitMessage);
+  const finalMessage = process.env.CI === 'true'
+    ? `${commitMessage} [skip ci]`
+    : commitMessage;
+  const commitResult = await git.commit(finalMessage);
 
   if (!commitResult.commit) {
     return {
