@@ -267,9 +267,9 @@ data: {"sessionId":"rem-...","status":"analysis_complete","issue":"...","timesta
 - [x] Instrument `src/tools/remediate.ts` at 4 state transition points
 
 ### Milestone 2: List Sessions Endpoint
-- [ ] Add Zod schemas for session list query/response in `src/interfaces/schemas/sessions.ts`
-- [ ] Register `GET /api/v1/sessions` route in route registry
-- [ ] Implement `handleListSessions()` handler with filtering and pagination
+- [x] Add Zod schemas for session list query/response in `src/interfaces/schemas/sessions.ts`
+- [x] Register `GET /api/v1/sessions` route in route registry
+- [x] Implement `handleListSessions()` handler with filtering and pagination
 
 ### Milestone 3: SSE Streaming Endpoint
 - [ ] Register `GET /api/v1/events/remediations` route
@@ -277,9 +277,9 @@ data: {"sessionId":"rem-...","status":"analysis_complete","issue":"...","timesta
 - [ ] Handle CORS headers for SSE connections
 
 ### Milestone 4: Integration Tests
-- [ ] List endpoint tests (shape, filtering, pagination, no data leakage)
+- [x] List endpoint tests (shape, filtering, pagination, no data leakage)
 - [ ] SSE endpoint tests (headers, connection, event receipt)
-- [ ] All existing tests still pass
+- [x] All existing tests still pass
 
 ### Milestone 5: Follow-Up
 - [ ] Create PRD in `../dot-ai-cli` for TUI dashboard consuming these APIs

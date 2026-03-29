@@ -197,7 +197,13 @@ export const routes: RouteDefinition[] = [
     fixture: 'visualization/success-mermaid.json',
   },
 
-  // Sessions Endpoint
+  // Sessions Endpoints
+  {
+    path: '/api/v1/sessions',
+    method: 'GET',
+    description: 'List sessions with optional filtering and pagination',
+    fixture: 'sessions/list-success.json',
+  },
   {
     path: '/api/v1/sessions/:sessionId',
     method: 'GET',

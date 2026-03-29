@@ -254,6 +254,81 @@ EOF`);
 
       expect(sessionResponse).toMatchObject(expectedSessionResponse);
 
+      // SESSION LIST: Test GET /api/v1/sessions (PRD #425)
+      const listResponse = await integrationTest.httpClient.get(
+        '/api/v1/sessions'
+      );
+
+      expect(listResponse).toMatchObject({
+        success: true,
+        data: {
+          sessions: expect.any(Array),
+          total: expect.any(Number),
+          limit: 50,
+          offset: 0,
+        },
+        meta: {
+          timestamp: expect.any(String),
+          requestId: expect.any(String),
+          version: 'v1',
+        },
+      });
+
+      // Verify our session appears in the list
+      const sessions = listResponse.data.sessions as Array<Record<string, unknown>>;
+      const ourSession = sessions.find((s) => s.sessionId === sessionId);
+      expect(ourSession).toBeDefined();
+      expect(ourSession).toMatchObject({
+        sessionId: sessionId,
+        status: 'analysis_complete',
+        issue: expect.stringContaining(testNamespace),
+        mode: 'manual',
+        toolName: 'remediate',
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      });
+
+      // Verify no finalAnalysis leakage in list response
+      expect(ourSession).not.toHaveProperty('finalAnalysis');
+      expect(ourSession).not.toHaveProperty('data');
+
+      // Verify status filtering works
+      const filteredResponse = await integrationTest.httpClient.get(
+        '/api/v1/sessions?status=analysis_complete'
+      );
+      expect(filteredResponse.success).toBe(true);
+      const filteredSessions = filteredResponse.data.sessions as Array<Record<string, unknown>>;
+      for (const s of filteredSessions) {
+        expect(s.status).toBe('analysis_complete');
+      }
+      expect(filteredSessions.some((s) => s.sessionId === sessionId)).toBe(true);
+
+      // Verify pagination works
+      const paginatedResponse = await integrationTest.httpClient.get(
+        '/api/v1/sessions?limit=1&offset=0'
+      );
+      expect(paginatedResponse).toMatchObject({
+        success: true,
+        data: {
+          sessions: expect.any(Array),
+          limit: 1,
+          offset: 0,
+        },
+      });
+      expect(paginatedResponse.data.sessions.length).toBeLessThanOrEqual(1);
+
+      // Verify empty filter returns no results
+      const emptyResponse = await integrationTest.httpClient.get(
+        '/api/v1/sessions?status=nonexistent_status_xyz'
+      );
+      expect(emptyResponse).toMatchObject({
+        success: true,
+        data: {
+          sessions: [],
+          total: 0,
+        },
+      });
+
       // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 2: Execute remediation via MCP (choice 1)

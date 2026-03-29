@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "data": {
+    "sessions": [
+      {
+        "sessionId": "rem-1726789200000-a1b2c3d4",
+        "status": "analysis_complete",
+        "issue": "pods in production are crashlooping",
+        "mode": "manual",
+        "toolName": "remediate",
+        "createdAt": "2026-03-27T10:00:00.000Z",
+        "updatedAt": "2026-03-27T10:02:30.000Z"
+      },
+      {
+        "sessionId": "rem-1726789100000-e5f6g7h8",
+        "status": "investigating",
+        "issue": "high memory usage in staging namespace",
+        "mode": "automatic",
+        "toolName": "remediate",
+        "createdAt": "2026-03-27T09:50:00.000Z",
+        "updatedAt": "2026-03-27T09:51:00.000Z"
+      }
+    ],
+    "total": 2,
+    "limit": 50,
+    "offset": 0
+  },
+  "meta": {
+    "timestamp": "2026-03-27T10:05:00.000Z",
+    "requestId": "rest_1234567890_001",
+    "version": "v1"
+  }
+}

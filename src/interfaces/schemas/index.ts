@@ -156,10 +156,19 @@ export {
   SessionResponseSchema,
   SessionNotFoundErrorSchema,
   SessionRetrievalErrorSchema,
+  SessionListQuerySchema,
+  SessionSummarySchema,
+  SessionListDataSchema,
+  SessionListResponseSchema,
+  SessionListErrorSchema,
   type SessionMetadata,
   type SessionData,
   type SessionResponseData,
   type SessionResponse,
+  type SessionListQuery,
+  type SessionSummary,
+  type SessionListData,
+  type SessionListResponse,
 } from './sessions';
 
 // Prompts schemas

@@ -48,6 +48,9 @@ import {
   // Sessions schemas
   SessionResponseSchema,
   SessionNotFoundErrorSchema,
+  SessionListQuerySchema,
+  SessionListResponseSchema,
+  SessionListErrorSchema,
   // Knowledge schemas
   DeleteBySourceResponseSchema,
   DeleteBySourcePluginUnavailableErrorSchema,
@@ -426,8 +429,20 @@ export const routeDefinitions: RouteDefinition<
   },
 
   // ============================================
-  // Sessions Endpoint
+  // Sessions Endpoints
   // ============================================
+  {
+    path: '/api/v1/sessions',
+    method: 'GET',
+    description:
+      'List sessions with optional status filtering and pagination',
+    tags: ['Sessions'],
+    query: SessionListQuerySchema,
+    response: SessionListResponseSchema,
+    errorResponses: {
+      500: SessionListErrorSchema,
+    },
+  },
   {
     path: '/api/v1/sessions/:sessionId',
     method: 'GET',

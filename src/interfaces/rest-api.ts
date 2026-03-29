@@ -425,6 +425,8 @@ export class RestApiRouter {
           params.sessionId,
           searchParams
         ),
+      'GET:/api/v1/sessions': () =>
+        this.handleListSessions(req, res, requestId, searchParams),
       'GET:/api/v1/sessions/:sessionId': () =>
         this.handleSessionRetrieval(req, res, requestId, params.sessionId),
       'DELETE:/api/v1/knowledge/source/:sourceIdentifier': () =>
@@ -2324,6 +2326,120 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'VISUALIZATION_ERROR',
         'Failed to generate visualization',
+        { error: errorMessage }
+      );
+    }
+  }
+
+  /**
+   * Handle GET /api/v1/sessions (PRD #425)
+   * Lists sessions with optional status filtering and pagination.
+   * Returns summary-only data (excludes finalAnalysis).
+   */
+  private async handleListSessions(
+    _req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    searchParams: URLSearchParams
+  ): Promise<void> {
+    try {
+      const status = searchParams.get('status') || undefined;
+      const limit = Math.min(
+        Math.max(parseInt(searchParams.get('limit') || '50', 10) || 50, 1),
+        200
+      );
+      const offset = Math.max(
+        parseInt(searchParams.get('offset') || '0', 10) || 0,
+        0
+      );
+
+      this.logger.info('Listing sessions', { requestId, status, limit, offset });
+
+      const sessionManager = new GenericSessionManager<Record<string, unknown>>(
+        'rem'
+      );
+      const sessionIds = sessionManager.listSessions();
+
+      // Load all sessions and build summaries
+      const allSessions: Array<{
+        sessionId: string;
+        status?: string;
+        issue?: string;
+        mode?: string;
+        toolName?: string;
+        createdAt: string;
+        updatedAt: string;
+      }> = [];
+
+      for (const id of sessionIds) {
+        const session = sessionManager.getSession(id);
+        if (!session) continue;
+
+        const data = session.data || {};
+        const sessionStatus =
+          typeof data.status === 'string' ? data.status : undefined;
+
+        // Filter by status if provided
+        if (status && sessionStatus !== status) continue;
+
+        allSessions.push({
+          sessionId: session.sessionId,
+          status: sessionStatus,
+          issue: typeof data.issue === 'string' ? data.issue : undefined,
+          mode: typeof data.mode === 'string' ? data.mode : undefined,
+          toolName:
+            typeof data.toolName === 'string' ? data.toolName : undefined,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+        });
+      }
+
+      // Sort by updatedAt descending (newest first)
+      allSessions.sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+
+      const total = allSessions.length;
+      const paginatedSessions = allSessions.slice(offset, offset + limit);
+
+      const response: RestApiResponse = {
+        success: true,
+        data: {
+          sessions: paginatedSessions,
+          total,
+          limit,
+          offset,
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Sessions listed successfully', {
+        requestId,
+        total,
+        returned: paginatedSessions.length,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        'Session list failed',
+        error instanceof Error ? error : new Error(String(error)),
+        { requestId }
+      );
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'SESSION_LIST_ERROR',
+        'Failed to list sessions',
         { error: errorMessage }
       );
     }
