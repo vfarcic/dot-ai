@@ -130,5 +130,5 @@ The change passes `this.baseURL` to all provider cases, not just the `custom` ca
 - [x] Backward compatibility safeguards (existing custom endpoint users unaffected, OpenRouter auto-detection preserved)
 - [x] Helm chart support (`ai.customEndpoint.headers` in values.yaml and deployment template)
 - [x] Integration tests covering custom headers and base URL combinations
-- [ ] Documentation for custom endpoint configuration with headers
+- [x] Documentation for custom endpoint configuration with headers
 - [ ] Comment on vfarcic/dot-ai-stack#5 linking to this PRD and close the upstream issue
