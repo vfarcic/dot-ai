@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.14.1] - 2026-03-30
+
+### Bug Fixes
+
+- ## AI provider errors no longer masked by JSON parse failures
+
+  When an AI provider call fails (e.g., proxy authentication error, network timeout), the actual error message is now surfaced to the user. Previously, the error string was passed directly to `JSON.parse()`, producing a confusing `SyntaxError: Unexpected token 'E', "Error duri"... is not valid JSON` that hid the real cause. This affected the query, remediate, impact-analysis tools, and the REST API visualization endpoint. ([#fix-status-guard](https://github.com/vfarcic/dot-ai/issues/fix-status-guard))
+
+
 ## [1.14.0] - 2026-03-29
 
 ### Features
