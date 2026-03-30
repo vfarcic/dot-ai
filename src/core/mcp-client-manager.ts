@@ -79,7 +79,9 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
   async codeVerifier(): Promise<string> { return ''; }
 
   async invalidateCredentials(_scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
-    // Static tokens cannot be refreshed — log that re-auth is needed
+    // No-op for all scopes: static tokens are pre-provisioned and cannot be refreshed.
+    // 'client'/'verifier' are for interactive OAuth (authorization_code + PKCE).
+    // 'tokens'/'discovery' have no effect since the token is fixed at construction.
   }
 
   async saveDiscoveryState(_state: OAuthDiscoveryState): Promise<void> { /* no-op for static tokens */ }
@@ -158,21 +160,12 @@ export function resolveTransportAuth(
   // instead of custom implementation. The SDK handles:
   //   - prepareTokenRequest() → sets grant_type=client_credentials + scope
   //   - client_secret_basic auth method (RFC 6749 §2.3.1)
-  //   - RFC 8707 resource parameter at framework level (auth.js executeTokenRequest)
   //   - Token caching and automatic refresh on 401
   // No PKCE: client_credentials is non-interactive (RFC 6749 §4.4), PKCE is for
   // authorization_code grants only (RFC 7636 §1).
   if (auth.oauth) {
     const clientSecret = process.env[auth.oauth.clientSecretEnvVar];
     if (clientSecret) {
-      if (auth.oauth.resource) {
-        // resource is now handled by SDK via RFC 9728 discovery (selectResourceURL).
-        // Config value is ignored — tracked in #1529 for removal.
-        logger.warn('MCP server auth.oauth.resource is deprecated — SDK handles resource via RFC 9728 discovery', {
-          server: serverName,
-          configuredResource: auth.oauth.resource,
-        });
-      }
       result.authProvider = new ClientCredentialsProvider({
         clientId: auth.oauth.clientId,
         clientSecret,
@@ -332,16 +325,10 @@ export class McpClientManager {
               `MCP server at index ${index} (${serverLabel}) auth.oauth.scope must be a non-empty string`
             );
           }
-          if ('resource' in rawOAuth && (typeof rawOAuth.resource !== 'string' || rawOAuth.resource.trim() === '')) {
-            throw new Error(
-              `MCP server at index ${index} (${serverLabel}) auth.oauth.resource must be a non-empty string`
-            );
-          }
           auth.oauth = {
             clientId: rawOAuth.clientId,
             clientSecretEnvVar: rawOAuth.clientSecretEnvVar,
             scope: typeof rawOAuth.scope === 'string' ? rawOAuth.scope : undefined,
-            resource: typeof rawOAuth.resource === 'string' ? rawOAuth.resource : undefined,
           };
         }
         // Fail-fast: auth block present but no valid fields configured

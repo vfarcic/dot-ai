@@ -314,47 +314,6 @@ describe('resolveTransportAuth (M1 + M2)', () => {
   });
 });
 
-describe('resolveTransportAuth resource deprecation (M4)', () => {
-  const originalEnv = process.env;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    process.env = { ...originalEnv };
-  });
-
-  afterEach(() => {
-    process.env = originalEnv;
-  });
-
-  test('should log deprecation warning when resource is configured', () => {
-    process.env.MCP_OAUTH_SECRET_RES = 'secret';
-    const auth: McpServerAuthConfig = {
-      oauth: {
-        clientId: 'test',
-        clientSecretEnvVar: 'MCP_OAUTH_SECRET_RES',
-        resource: 'https://mcp.example.com/',
-      },
-    };
-    resolveTransportAuth(auth, 'test-server', mockLogger);
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('auth.oauth.resource is deprecated'),
-      expect.objectContaining({ configuredResource: 'https://mcp.example.com/' })
-    );
-  });
-
-  test('should not log deprecation warning when resource is not configured', () => {
-    process.env.MCP_OAUTH_SECRET_NORES = 'secret';
-    const auth: McpServerAuthConfig = {
-      oauth: {
-        clientId: 'test',
-        clientSecretEnvVar: 'MCP_OAUTH_SECRET_NORES',
-      },
-    };
-    resolveTransportAuth(auth, 'test-server', mockLogger);
-    expect(mockLogger.warn).not.toHaveBeenCalled();
-  });
-});
-
 describe('resolveTransportAuth OAuth (M4)', () => {
   const originalEnv = process.env;
 
@@ -563,20 +522,4 @@ describe('parseMcpServerConfig auth parsing', () => {
     );
   });
 
-  test('should parse valid oauth.resource field', () => {
-    mockConfigFile(JSON.stringify([{
-      ...baseServer,
-      auth: { oauth: { clientId: 'c', clientSecretEnvVar: 'S', resource: 'https://mcp.example.com/' } },
-    }]));
-    const configs = McpClientManager.parseMcpServerConfig();
-    expect(configs[0].auth?.oauth?.resource).toBe('https://mcp.example.com/');
-  });
-
-  test('should throw on oauth.resource: "" (empty string)', () => {
-    mockConfigFile(JSON.stringify([{
-      ...baseServer,
-      auth: { oauth: { clientId: 'c', clientSecretEnvVar: 'S', resource: '' } },
-    }]));
-    expect(() => McpClientManager.parseMcpServerConfig()).toThrow('auth.oauth.resource must be a non-empty string');
-  });
 });

@@ -76,13 +76,6 @@ export interface McpOAuthConfig {
 
   /** Optional OAuth scope to request (e.g., "mcp:tools mcp:read") */
   scope?: string;
-
-  /**
-   * Optional RFC 8707 resource indicator for the target MCP server.
-   * When set, included as the `resource` parameter in token requests
-   * so the authorization server can audience-restrict the issued token.
-   */
-  resource?: string;
 }
 
 /**

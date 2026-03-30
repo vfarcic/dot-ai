@@ -13,7 +13,7 @@
  * PRD #414: MCP Client Outbound Authentication
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import {
   StaticTokenAuthProvider,
   resolveTransportAuth,
@@ -228,6 +228,11 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       process.env.MCP_AUTH_INTEGRATION_TEST = TEST_TOKEN;
     });
 
+    afterAll(() => {
+      mockServer.server.close();
+      delete process.env.MCP_AUTH_INTEGRATION_TEST;
+    });
+
     test('should connect to MCP server with static bearer token', async () => {
       const logger = createTestLogger();
       const auth: McpServerAuthConfig = { tokenEnvVar: 'MCP_AUTH_INTEGRATION_TEST' };
@@ -251,8 +256,6 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
           msg: 'MCP server auth configured via authProvider (static token)',
         })
       );
-
-      mockServer.server.close();
     }, 30000);
 
     test('should be rejected when token is wrong', async () => {
@@ -362,6 +365,10 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
 
   // --- M4: OAuth client_credentials ---
   describe('M4: OAuth client_credentials', () => {
+    afterAll(() => {
+      delete process.env.MCP_OAUTH_SECRET_INTEGRATION;
+    });
+
     test('should create ClientCredentialsAuthProvider from config', () => {
       const testSecret = 'integration-test-client-secret';
       process.env.MCP_OAUTH_SECRET_INTEGRATION = testSecret;
@@ -395,8 +402,6 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
           msg: 'MCP server auth configured via authProvider (OAuth client_credentials)',
         })
       );
-
-      delete process.env.MCP_OAUTH_SECRET_INTEGRATION;
     });
 
     test('should throw when OAuth client secret env var is missing (fail-fast)', () => {
@@ -436,6 +441,12 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       });
       mcpServer = await createMockMcpServer({ expectedBearer: TEST_ACCESS_TOKEN });
       process.env.MCP_OAUTH_SECRET_LIFECYCLE = TEST_CLIENT_SECRET;
+    });
+
+    afterAll(() => {
+      oauthServer.server.close();
+      mcpServer.server.close();
+      delete process.env.MCP_OAUTH_SECRET_LIFECYCLE;
     });
 
     test('prepareTokenRequest generates valid client_credentials params', () => {
@@ -585,11 +596,6 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       expect(response.statusCode).toBe(200);
       const result = JSON.parse(response.body);
       expect(result.result.serverInfo.name).toBe('test-auth-server');
-
-      // Cleanup
-      oauthServer.server.close();
-      mcpServer.server.close();
-      delete process.env.MCP_OAUTH_SECRET_LIFECYCLE;
     }, 30000);
   });
 
