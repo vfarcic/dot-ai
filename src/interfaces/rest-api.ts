@@ -2223,8 +2223,8 @@ export class RestApiRouter {
       let visualizationResponse: VisualizationResponse;
       let isFallbackResponse = false;
       try {
-        if (result.status === 'failed') {
-          throw new Error(`AI visualization generation failed: ${result.finalMessage}`);
+        if (result.status && result.status !== 'success') {
+          throw new Error(`AI visualization generation ${result.status}: ${result.finalMessage}`);
         }
         const toolsUsed = [
           ...new Set(result.toolCallsExecuted.map(tc => tc.tool)),

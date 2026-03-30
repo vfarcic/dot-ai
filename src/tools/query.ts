@@ -260,12 +260,12 @@ export async function handleQueryTool(
       visualizationMode
     });
 
-    // Guard: if the AI call failed, surface the real error instead of trying to parse
-    if (result.status === 'failed') {
+    // Guard: if the AI call did not succeed, surface the real error instead of trying to parse
+    if (result.status && result.status !== 'success') {
       throw ErrorHandler.createError(
         ErrorCategory.AI_SERVICE,
         ErrorSeverity.HIGH,
-        `Query failed: ${result.finalMessage}`,
+        `Query ${result.status}: ${result.finalMessage}`,
         { operation: 'query_tool_execution', component: 'QueryTool', isRetryable: true, requestId, input: { intent } }
       );
     }
