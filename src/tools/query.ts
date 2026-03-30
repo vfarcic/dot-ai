@@ -260,6 +260,16 @@ export async function handleQueryTool(
       visualizationMode
     });
 
+    // Guard: if the AI call failed, surface the real error instead of trying to parse
+    if (result.status === 'failed') {
+      throw ErrorHandler.createError(
+        ErrorCategory.AI_SERVICE,
+        ErrorSeverity.HIGH,
+        `Query failed: ${result.finalMessage}`,
+        { operation: 'query_tool_execution', component: 'QueryTool', isRetryable: true, requestId, input: { intent } }
+      );
+    }
+
     // Handle visualization mode - return visualization response with sessionId for caching
     if (visualizationMode) {
       const visualizationResponse = parseVisualizationResponse(result.finalMessage, toolsUsed);

@@ -353,6 +353,11 @@ async function conductInvestigation(
       responseLength: result.finalMessage.length,
     });
 
+    // Guard: if the AI call failed, surface the real error instead of trying to parse
+    if (result.status === 'failed') {
+      throw new Error(`Remediation investigation failed: ${result.finalMessage}`);
+    }
+
     // Parse final response as JSON (AI returns final analysis in JSON format)
     const finalAnalysis = parseAIFinalAnalysis(result.finalMessage);
 
