@@ -221,6 +221,11 @@ export async function handleImpactAnalysisTool(
       interaction_id: args.interaction_id
     });
 
+    // Guard: if the AI call did not succeed, surface the real error instead of trying to parse
+    if (result.status && result.status !== 'success') {
+      throw new Error(`Impact analysis ${result.status}: ${result.finalMessage}`);
+    }
+
     // Parse AI response
     const { safe, summary } = parseImpactAnalysis(result.finalMessage);
 
