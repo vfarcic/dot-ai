@@ -16,9 +16,9 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import {
   StaticTokenAuthProvider,
-  ClientCredentialsAuthProvider,
   resolveTransportAuth,
 } from '../../../src/core/mcp-client-manager.js';
+import { ClientCredentialsProvider } from '@modelcontextprotocol/sdk/client/auth-extensions.js';
 import type { McpServerAuthConfig } from '../../../src/core/mcp-client-types.js';
 import type { Logger } from '../../../src/core/error-handling.js';
 import * as http from 'http';
@@ -294,20 +294,18 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       };
       const transportOpts = resolveTransportAuth(auth, 'test-oauth', logger);
 
-      expect(transportOpts.authProvider).toBeInstanceOf(ClientCredentialsAuthProvider);
+      expect(transportOpts.authProvider).toBeInstanceOf(ClientCredentialsProvider);
 
       // Verify client information includes correct client_id
-      const provider = transportOpts.authProvider as ClientCredentialsAuthProvider;
+      const provider = transportOpts.authProvider as ClientCredentialsProvider;
       const clientInfo = provider.clientInformation();
       expect(clientInfo).toMatchObject({
         client_id: 'integration-test-client',
-        grant_types: expect.arrayContaining(['client_credentials']),
       });
 
-      // Verify prepareTokenRequest includes scope
-      const params = provider.prepareTokenRequest();
-      expect(params.get('grant_type')).toBe('client_credentials');
-      expect(params.get('scope')).toBe('mcp:tools mcp:read');
+      // SDK stores scope in clientMetadata; fetchToken reads it and passes to prepareTokenRequest
+      expect(provider.clientMetadata.scope).toBe('mcp:tools mcp:read');
+      expect(provider.clientMetadata.grant_types).toContain('client_credentials');
 
       expect(logger.calls).toContainEqual(
         expect.objectContaining({
@@ -356,7 +354,7 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       const transportOpts = resolveTransportAuth(auth, 'test-combo', logger);
 
       // Both should be set
-      expect(transportOpts.authProvider).toBeInstanceOf(ClientCredentialsAuthProvider);
+      expect(transportOpts.authProvider).toBeInstanceOf(ClientCredentialsProvider);
       expect(transportOpts.requestInit).toMatchObject({ headers: customHeaders });
 
       // Verify the headers work against a real server
@@ -427,25 +425,29 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
 
 const LIVE_TEST_ENABLED = process.env.MCP_AUTH_LIVE_TEST === 'true';
 
+// CF endpoint: use port-forward (ClusterIP service, not NodePort).
+// Start before running: kubectl port-forward svc/riley-context-forge-mcp-stack-app -n riley-ai-gateway 4444:80
+// Override via CF_ENDPOINT env var if using a different port.
+const CF_ENDPOINT = process.env.CF_ENDPOINT || 'http://localhost:4444';
+
 describe.skipIf(!LIVE_TEST_ENABLED)('MCP Client Auth — Live K3s Cluster', () => {
   // These tests hit real MCP servers on the RILEY K3s cluster.
   // Enable with: MCP_AUTH_LIVE_TEST=true
-  // Requires: WireGuard VPN to MTL-02 (10.200.0.1)
+  // Requires: WireGuard VPN to MTL-02 + kubectl port-forward to CF service
   //
-  // Expected env vars (from ~/.config/secrets.env or kubectl):
-  //   CF_JWT_TOKEN — Context Forge JWT (from Vault via ESO)
-  //   ARGOCD_API_TOKEN — ArgoCD MCP API token
+  // Setup:
+  //   kubectl port-forward svc/riley-context-forge-mcp-stack-app -n riley-ai-gateway 4444:80
+  //   export MCP_AUTH_LIVE_TEST=true CF_JWT_TOKEN=$(kubectl get secret ...)
+  //
+  // Expected env vars:
+  //   CF_JWT_TOKEN — Context Forge JWT (generate from JWT_SECRET_KEY in context-forge-secrets)
+  //   CF_ENDPOINT — Optional, defaults to http://localhost:4444
 
-  describe('Context Forge (Static Bearer Token)', () => {
-    test('should authenticate to Context Forge with JWT', async () => {
-      const cfToken = process.env.CF_JWT_TOKEN;
-      expect(cfToken).toBeDefined();
-
-      // Hit CF health endpoint with bearer token
+  describe('Context Forge Connectivity', () => {
+    test('should reach CF health endpoint (no auth required)', async () => {
       const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request('http://10.200.0.1:30402/health', {
+        const req = http.request(`${CF_ENDPOINT}/health`, {
           method: 'GET',
-          headers: { Authorization: `Bearer ${cfToken}` },
         }, (res) => {
           let data = '';
           res.on('data', (chunk) => (data += chunk));
@@ -455,19 +457,48 @@ describe.skipIf(!LIVE_TEST_ENABLED)('MCP Client Auth — Live K3s Cluster', () =
         req.end();
       });
 
-      // CF should accept the token (200 or 204)
-      expect(response.statusCode).toBeLessThan(400);
+      expect(response.statusCode).toBe(200);
+      const health = JSON.parse(response.body);
+      expect(health.status).toBe('healthy');
+    }, 30000);
+
+    test('should reject unauthenticated requests to /mcp/ endpoint', async () => {
+      const response = await new Promise<{ statusCode: number }>((resolve, reject) => {
+        const req = http.request(`${CF_ENDPOINT}/mcp/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => resolve({ statusCode: res.statusCode || 0 }));
+        });
+        req.on('error', reject);
+        req.write(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {},
+        }));
+        req.end();
+      });
+
+      // CF enforces JWT auth on /mcp/ — Security by Design
+      expect(response.statusCode).toBeGreaterThanOrEqual(400);
     }, 30000);
   });
 
-  describe('Context Forge MCP Endpoint (Static Bearer Token)', () => {
-    test('should connect to CF /mcp/ endpoint with JWT and get tool list', async () => {
-      const cfToken = process.env.CF_JWT_TOKEN;
+  // Authenticated MCP test requires a valid OAuth-issued RS256 JWT.
+  // CF OAuth AS uses RS256 (not HS256) — manually generated tokens won't work.
+  // Blocked on #1528: CF OAuth AS client registration for dot-ai-service.
+  const OAUTH_TOKEN_AVAILABLE = process.env.CF_OAUTH_TOKEN !== undefined;
+
+  describe.skipIf(!OAUTH_TOKEN_AVAILABLE)('Context Forge MCP Endpoint (OAuth Token)', () => {
+    test('should connect to CF /mcp/ with OAuth-issued JWT and get tool list', async () => {
+      const cfToken = process.env.CF_OAUTH_TOKEN;
       expect(cfToken).toBeDefined();
 
-      // MCP initialize via StreamableHTTP
       const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request('http://10.200.0.1:30402/mcp/', {
+        const req = http.request(`${CF_ENDPOINT}/mcp/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -498,30 +529,6 @@ describe.skipIf(!LIVE_TEST_ENABLED)('MCP Client Auth — Live K3s Cluster', () =
         serverInfo: expect.objectContaining({ name: expect.any(String) }),
         capabilities: expect.any(Object),
       });
-    }, 30000);
-
-    test('should be rejected without JWT', async () => {
-      const response = await new Promise<{ statusCode: number }>((resolve, reject) => {
-        const req = http.request('http://10.200.0.1:30402/mcp/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0 }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {},
-        }));
-        req.end();
-      });
-
-      // Should get 401 or 403
-      expect(response.statusCode).toBeGreaterThanOrEqual(400);
     }, 30000);
   });
 });

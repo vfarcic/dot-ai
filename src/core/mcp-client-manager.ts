@@ -14,7 +14,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { OAuthClientProvider, OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth.js';
-import type { OAuthTokens, OAuthClientMetadata, OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
+import { ClientCredentialsProvider } from '@modelcontextprotocol/sdk/client/auth-extensions.js';
+import type { OAuthTokens, OAuthClientMetadata } from '@modelcontextprotocol/sdk/shared/auth.js';
 import {
   McpServerConfig,
   McpServerAuthConfig,
@@ -86,117 +87,6 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
 }
 
 /**
- * OAuthClientProvider using client_credentials grant for server-to-server auth.
- *
- * When the MCP SDK detects a 401 from the target server, it uses this provider
- * to perform OAuth 2.1 discovery (RFC 9728) and obtain tokens via the
- * client_credentials grant. Tokens are cached in memory and refreshed
- * automatically by the SDK when they expire.
- *
- * PRD #414: MCP Client Outbound Authentication (M4)
- */
-export class ClientCredentialsAuthProvider implements OAuthClientProvider {
-  private readonly clientId: string;
-  private readonly clientSecret: string;
-  private readonly scope?: string;
-  private readonly resource?: string;
-  private cachedTokens?: OAuthTokens;
-  private cachedClientInfo?: OAuthClientInformationFull;
-  private cachedCodeVerifier = '';
-  private cachedDiscoveryState?: OAuthDiscoveryState;
-
-  constructor(config: { clientId: string; clientSecret: string; scope?: string; resource?: string }) {
-    this.clientId = config.clientId;
-    this.clientSecret = config.clientSecret;
-    this.scope = config.scope;
-    this.resource = config.resource;
-  }
-
-  get redirectUrl(): undefined { return undefined; }
-
-  get clientMetadata(): OAuthClientMetadata {
-    return {
-      redirect_uris: [],
-      client_name: 'dot-ai',
-      grant_types: ['client_credentials'],
-      token_endpoint_auth_method: 'client_secret_post',
-    };
-  }
-
-  clientInformation(): OAuthClientInformationFull | undefined {
-    if (this.cachedClientInfo) return this.cachedClientInfo;
-    // Return pre-registered client info so the SDK skips dynamic registration.
-    // NOTE: client_secret is intentionally included — the MCP SDK requires it
-    // to perform client_credentials token requests. Do NOT log this object.
-    return {
-      client_id: this.clientId,
-      client_secret: this.clientSecret,
-      client_id_issued_at: 0,
-      redirect_uris: [],
-      client_name: 'dot-ai',
-      grant_types: ['client_credentials'],
-      token_endpoint_auth_method: 'client_secret_post',
-    } as OAuthClientInformationFull;
-  }
-
-  async saveClientInformation(info: OAuthClientInformationFull): Promise<void> {
-    this.cachedClientInfo = info;
-  }
-
-  async tokens(): Promise<OAuthTokens | undefined> {
-    return this.cachedTokens;
-  }
-
-  async saveTokens(tokens: OAuthTokens): Promise<void> {
-    this.cachedTokens = tokens;
-  }
-
-  async redirectToAuthorization(): Promise<void> {
-    // client_credentials is non-interactive — no browser redirect needed
-  }
-
-  async saveCodeVerifier(verifier: string): Promise<void> {
-    this.cachedCodeVerifier = verifier;
-  }
-
-  // Returns cached verifier or empty string because the SDK type requires string (not undefined).
-  // client_credentials does not use PKCE, so the verifier is never meaningful.
-  async codeVerifier(): Promise<string> {
-    return this.cachedCodeVerifier;
-  }
-
-  async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
-    if (scope === 'all' || scope === 'tokens') {
-      this.cachedTokens = undefined;
-    }
-    if (scope === 'all' || scope === 'discovery') {
-      this.cachedDiscoveryState = undefined;
-    }
-  }
-
-  async saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
-    this.cachedDiscoveryState = state;
-  }
-
-  async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
-    return this.cachedDiscoveryState;
-  }
-
-  /**
-   * Prepare a client_credentials token request.
-   * The SDK calls this to determine which grant type to use.
-   */
-  prepareTokenRequest(scope?: string): URLSearchParams {
-    const params = new URLSearchParams();
-    params.set('grant_type', 'client_credentials');
-    const effectiveScope = scope ?? this.scope;
-    if (effectiveScope) params.set('scope', effectiveScope);
-    if (this.resource) params.set('resource', this.resource);
-    return params;
-  }
-}
-
-/**
  * Resolve transport options (authProvider and/or requestInit) from auth config.
  *
  * Reads token/header values from environment variables (sourced from K8s Secrets).
@@ -264,14 +154,30 @@ export function resolveTransportAuth(
   }
 
   // M4: OAuth client_credentials → authProvider (takes precedence over tokenEnvVar)
+  // Uses SDK built-in ClientCredentialsProvider (@modelcontextprotocol/sdk ^1.27.1)
+  // instead of custom implementation. The SDK handles:
+  //   - prepareTokenRequest() → sets grant_type=client_credentials + scope
+  //   - client_secret_basic auth method (RFC 6749 §2.3.1)
+  //   - RFC 8707 resource parameter at framework level (auth.js executeTokenRequest)
+  //   - Token caching and automatic refresh on 401
+  // No PKCE: client_credentials is non-interactive (RFC 6749 §4.4), PKCE is for
+  // authorization_code grants only (RFC 7636 §1).
   if (auth.oauth) {
     const clientSecret = process.env[auth.oauth.clientSecretEnvVar];
     if (clientSecret) {
-      result.authProvider = new ClientCredentialsAuthProvider({
+      if (auth.oauth.resource) {
+        // resource is now handled by SDK via RFC 9728 discovery (selectResourceURL).
+        // Config value is ignored — tracked in #1529 for removal.
+        logger.warn('MCP server auth.oauth.resource is deprecated — SDK handles resource via RFC 9728 discovery', {
+          server: serverName,
+          configuredResource: auth.oauth.resource,
+        });
+      }
+      result.authProvider = new ClientCredentialsProvider({
         clientId: auth.oauth.clientId,
         clientSecret,
+        clientName: 'dot-ai',
         scope: auth.oauth.scope,
-        resource: auth.oauth.resource,
       });
       logger.info('MCP server auth configured via authProvider (OAuth client_credentials)', {
         server: serverName,

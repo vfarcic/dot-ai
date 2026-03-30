@@ -8,12 +8,11 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   StaticTokenAuthProvider,
-  ClientCredentialsAuthProvider,
   resolveTransportAuth,
 } from '../../../src/core/mcp-client-manager.js';
 import { McpClientManager } from '../../../src/core/mcp-client-manager.js';
+import { ClientCredentialsProvider } from '@modelcontextprotocol/sdk/client/auth-extensions.js';
 import type { McpServerAuthConfig } from '../../../src/core/mcp-client-types.js';
-import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { Logger } from '../../../src/core/error-handling.js';
 
 // Mock logger
@@ -86,22 +85,76 @@ describe('StaticTokenAuthProvider (M1)', () => {
   });
 });
 
-describe('ClientCredentialsAuthProvider codeVerifier (M4)', () => {
-  test('codeVerifier should return empty string initially', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
+describe('SDK ClientCredentialsProvider (M4)', () => {
+  // Tests verify the SDK built-in provider works correctly with our integration.
+  // We do NOT exhaustively test SDK internals — only our usage contract.
+
+  test('should return client metadata with client_credentials grant', () => {
+    const provider = new ClientCredentialsProvider({
+      clientId: 'test-client',
+      clientSecret: 'test-secret',
+      clientName: 'dot-ai',
     });
-    await expect(provider.codeVerifier()).resolves.toBe('');
+    expect(provider.clientMetadata.grant_types).toContain('client_credentials');
+    expect(provider.clientMetadata.client_name).toBe('dot-ai');
   });
 
-  test('saveCodeVerifier should persist and return the verifier', async () => {
-    const provider = new ClientCredentialsAuthProvider({
+  test('should return client information with client_id', () => {
+    const provider = new ClientCredentialsProvider({
+      clientId: 'my-client-id',
+      clientSecret: 'my-secret',
+    });
+    const info = provider.clientInformation();
+    expect(info).toBeDefined();
+    expect(info!.client_id).toBe('my-client-id');
+  });
+
+  test('prepareTokenRequest should return client_credentials grant type', () => {
+    const provider = new ClientCredentialsProvider({
       clientId: 'test',
       clientSecret: 'secret',
     });
-    await provider.saveCodeVerifier('my-pkce-verifier');
-    await expect(provider.codeVerifier()).resolves.toBe('my-pkce-verifier');
+    const params = provider.prepareTokenRequest();
+    expect(params.get('grant_type')).toBe('client_credentials');
+  });
+
+  test('prepareTokenRequest should include scope when passed as argument', () => {
+    const provider = new ClientCredentialsProvider({
+      clientId: 'test',
+      clientSecret: 'secret',
+      scope: 'mcp:tools mcp:read',
+    });
+    // SDK fetchToken() passes clientMetadata.scope to prepareTokenRequest
+    const params = provider.prepareTokenRequest('mcp:tools mcp:read');
+    expect(params.get('grant_type')).toBe('client_credentials');
+    expect(params.get('scope')).toBe('mcp:tools mcp:read');
+  });
+
+  test('should store scope in clientMetadata for SDK fetchToken integration', () => {
+    const provider = new ClientCredentialsProvider({
+      clientId: 'test',
+      clientSecret: 'secret',
+      scope: 'mcp:tools',
+    });
+    expect(provider.clientMetadata.scope).toBe('mcp:tools');
+  });
+
+  test('should return undefined tokens initially', () => {
+    const provider = new ClientCredentialsProvider({
+      clientId: 'test',
+      clientSecret: 'secret',
+    });
+    expect(provider.tokens()).toBeUndefined();
+  });
+
+  test('should cache tokens after saveTokens', () => {
+    const provider = new ClientCredentialsProvider({
+      clientId: 'test',
+      clientSecret: 'secret',
+    });
+    const testTokens = { access_token: 'new-access-token', token_type: 'bearer' as const };
+    provider.saveTokens(testTokens);
+    expect(provider.tokens()).toEqual(testTokens);
   });
 });
 
@@ -255,186 +308,50 @@ describe('resolveTransportAuth (M1 + M2)', () => {
       };
       const result = resolveTransportAuth(auth, 'test-server', mockLogger);
 
-      expect(result.authProvider).toBeInstanceOf(ClientCredentialsAuthProvider);
+      expect(result.authProvider).toBeInstanceOf(ClientCredentialsProvider);
       expect(result.requestInit).toEqual({ headers: { 'X-Trace-Id': 'abc' } });
     });
   });
 });
 
-describe('ClientCredentialsAuthProvider (M4)', () => {
-  test('should return undefined redirectUrl (non-interactive)', () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test-client',
-      clientSecret: 'test-secret',
-    });
-    expect(provider.redirectUrl).toBeUndefined();
+describe('resolveTransportAuth resource deprecation (M4)', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...originalEnv };
   });
 
-  test('should return client metadata with client_credentials grant', () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test-client',
-      clientSecret: 'test-secret',
-    });
-    expect(provider.clientMetadata.grant_types).toContain('client_credentials');
-    expect(provider.clientMetadata.client_name).toBe('dot-ai');
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
-  test('should return pre-registered client information', () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'my-client-id',
-      clientSecret: 'my-secret',
-    });
-    const info = provider.clientInformation();
-    expect(info).toBeDefined();
-    expect(info!.client_id).toBe('my-client-id');
-    expect(info!.client_secret).toBe('my-secret');
-    expect(info!.grant_types).toContain('client_credentials');
-  });
-
-  test('should return undefined tokens initially', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    const tokens = await provider.tokens();
-    expect(tokens).toBeUndefined();
-  });
-
-  test('should cache tokens after saveTokens', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    const testTokens = { access_token: 'new-access-token', token_type: 'bearer' as const };
-    await provider.saveTokens(testTokens);
-    const tokens = await provider.tokens();
-    expect(tokens).toEqual(testTokens);
-  });
-
-  test('prepareTokenRequest should return client_credentials grant type', () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    const params = provider.prepareTokenRequest();
-    expect(params.get('grant_type')).toBe('client_credentials');
-  });
-
-  test('prepareTokenRequest should include scope when configured', () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-      scope: 'mcp:tools mcp:read',
-    });
-    const params = provider.prepareTokenRequest();
-    expect(params.get('grant_type')).toBe('client_credentials');
-    expect(params.get('scope')).toBe('mcp:tools mcp:read');
-  });
-
-  test('prepareTokenRequest should use argument scope over configured scope', () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-      scope: 'default-scope',
-    });
-    const params = provider.prepareTokenRequest('override-scope');
-    expect(params.get('scope')).toBe('override-scope');
-  });
-
-  test('should save and return client information', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    const newInfo: OAuthClientInformationFull = {
-      client_id: 'dynamic-id',
-      client_secret: 'dynamic-secret',
-      client_id_issued_at: 12345,
-      redirect_uris: [],
+  test('should log deprecation warning when resource is configured', () => {
+    process.env.MCP_OAUTH_SECRET_RES = 'secret';
+    const auth: McpServerAuthConfig = {
+      oauth: {
+        clientId: 'test',
+        clientSecretEnvVar: 'MCP_OAUTH_SECRET_RES',
+        resource: 'https://mcp.example.com/',
+      },
     };
-    await provider.saveClientInformation(newInfo);
-    expect(provider.clientInformation()).toEqual(newInfo);
+    resolveTransportAuth(auth, 'test-server', mockLogger);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('auth.oauth.resource is deprecated'),
+      expect.objectContaining({ configuredResource: 'https://mcp.example.com/' })
+    );
   });
 
-  test('invalidateCredentials("tokens") should clear cached tokens', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    await provider.saveTokens({ access_token: 'cached', token_type: 'bearer' });
-    expect(await provider.tokens()).toBeDefined();
-
-    await provider.invalidateCredentials('tokens');
-    expect(await provider.tokens()).toBeUndefined();
-  });
-
-  test('invalidateCredentials("all") should clear tokens and discovery state', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    await provider.saveTokens({ access_token: 'cached', token_type: 'bearer' });
-    await provider.saveDiscoveryState({ authorizationServerUrl: 'https://auth.example.com' });
-
-    await provider.invalidateCredentials('all');
-    expect(await provider.tokens()).toBeUndefined();
-    expect(await provider.discoveryState()).toBeUndefined();
-  });
-
-  test('invalidateCredentials("discovery") should clear only discovery state', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    await provider.saveTokens({ access_token: 'cached', token_type: 'bearer' });
-    await provider.saveDiscoveryState({ authorizationServerUrl: 'https://auth.example.com' });
-
-    await provider.invalidateCredentials('discovery');
-    // Tokens should remain
-    expect(await provider.tokens()).toEqual({ access_token: 'cached', token_type: 'bearer' });
-    // Discovery state should be cleared
-    expect(await provider.discoveryState()).toBeUndefined();
-  });
-
-  test('saveDiscoveryState then discoveryState should return saved state', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    const state = {
-      authorizationServerUrl: 'https://auth.example.com',
-      resourceMetadataUrl: 'https://resource.example.com/.well-known/oauth-protected-resource',
+  test('should not log deprecation warning when resource is not configured', () => {
+    process.env.MCP_OAUTH_SECRET_NORES = 'secret';
+    const auth: McpServerAuthConfig = {
+      oauth: {
+        clientId: 'test',
+        clientSecretEnvVar: 'MCP_OAUTH_SECRET_NORES',
+      },
     };
-    await provider.saveDiscoveryState(state);
-    expect(await provider.discoveryState()).toEqual(state);
-  });
-
-  test('discoveryState should return undefined initially', async () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    expect(await provider.discoveryState()).toBeUndefined();
-  });
-
-  test('prepareTokenRequest should include resource when configured', () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-      resource: 'https://mcp.example.com/',
-    });
-    const params = provider.prepareTokenRequest();
-    expect(params.get('grant_type')).toBe('client_credentials');
-    expect(params.get('resource')).toBe('https://mcp.example.com/');
-  });
-
-  test('prepareTokenRequest should omit resource when not configured', () => {
-    const provider = new ClientCredentialsAuthProvider({
-      clientId: 'test',
-      clientSecret: 'secret',
-    });
-    const params = provider.prepareTokenRequest();
-    expect(params.get('resource')).toBeNull();
+    resolveTransportAuth(auth, 'test-server', mockLogger);
+    expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 });
 
@@ -450,7 +367,7 @@ describe('resolveTransportAuth OAuth (M4)', () => {
     process.env = originalEnv;
   });
 
-  test('should create ClientCredentialsAuthProvider when oauth configured', () => {
+  test('should create SDK ClientCredentialsProvider when oauth configured', () => {
     process.env.MCP_OAUTH_SECRET_TEST = 'my-client-secret';
     const auth: McpServerAuthConfig = {
       oauth: {
@@ -461,7 +378,7 @@ describe('resolveTransportAuth OAuth (M4)', () => {
     const result = resolveTransportAuth(auth, 'test-server', mockLogger);
 
     expect(result.authProvider).toBeDefined();
-    expect(result.authProvider).toBeInstanceOf(ClientCredentialsAuthProvider);
+    expect(result.authProvider).toBeInstanceOf(ClientCredentialsProvider);
     expect(mockLogger.info).toHaveBeenCalledWith(
       'MCP server auth configured via authProvider (OAuth client_credentials)',
       expect.objectContaining({
@@ -485,7 +402,7 @@ describe('resolveTransportAuth OAuth (M4)', () => {
     );
   });
 
-  test('should pass scope to ClientCredentialsAuthProvider', async () => {
+  test('should pass scope to SDK ClientCredentialsProvider via clientMetadata', () => {
     process.env.MCP_OAUTH_SECRET_SCOPE = 'secret';
     const auth: McpServerAuthConfig = {
       oauth: {
@@ -495,9 +412,8 @@ describe('resolveTransportAuth OAuth (M4)', () => {
       },
     };
     const result = resolveTransportAuth(auth, 'test-server', mockLogger);
-    const provider = result.authProvider as ClientCredentialsAuthProvider;
-    const params = provider.prepareTokenRequest();
-    expect(params.get('scope')).toBe('mcp:tools');
+    // SDK stores scope in clientMetadata; fetchToken() reads it and passes to prepareTokenRequest
+    expect(result.authProvider!.clientMetadata.scope).toBe('mcp:tools');
   });
 });
 
