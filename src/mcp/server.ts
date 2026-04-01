@@ -158,6 +158,9 @@ async function main() {
         const stats = mcpClientManager.getStats();
         process.stderr.write(`MCP server discovery complete: ${stats.serverCount} server(s), ${stats.toolCount} tool(s)\n`);
       } catch (error) {
+        // Fail-fast: in Kubernetes, crash + backoff is easier to detect than a Running
+        // pod silently missing MCP tools. Config errors (bad endpoint, missing auth)
+        // surface immediately via CrashLoopBackOff events and alerts.
         process.stderr.write(`FATAL: MCP server discovery failed: ${error instanceof Error ? error.message : String(error)}\n`);
         process.exit(1);
       }

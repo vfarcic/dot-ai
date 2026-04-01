@@ -192,6 +192,33 @@ spec:
         # Additional environment variables
         {{- toYaml . | nindent 8 }}
 {{- end }}
+{{- /* MCP Server Authentication env vars (PRD #414) */}}
+{{- range $name, $config := .Values.mcpServers }}
+{{- if and $config.enabled $config.auth }}
+{{- $upperName := $name | upper | replace "-" "_" }}
+{{- if and $config.auth.token $config.auth.token.existingSecret }}
+        - name: MCP_AUTH_{{ $upperName }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $config.auth.token.existingSecret.name }}
+              key: {{ $config.auth.token.existingSecret.key }}
+{{- end }}
+{{- if and $config.auth.headers $config.auth.headers.existingSecret }}
+        - name: MCP_HEADERS_{{ $upperName }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $config.auth.headers.existingSecret.name }}
+              key: {{ $config.auth.headers.existingSecret.key }}
+{{- end }}
+{{- if and $config.auth.oauth $config.auth.oauth.existingSecret }}
+        - name: MCP_OAUTH_SECRET_{{ $upperName }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $config.auth.oauth.existingSecret.name }}
+              key: {{ $config.auth.oauth.existingSecret.key }}
+{{- end }}
+{{- end }}
+{{- end }}
         lifecycle:
           preStop:
             exec:
