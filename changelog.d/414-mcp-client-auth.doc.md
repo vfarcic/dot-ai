@@ -1,6 +1,7 @@
-**PRD: MCP Client Outbound Authentication**
+**PRD: MCP Client Outbound Authentication (v4.0 — Shipped)**
 
 Product Requirements Document for authenticating outbound MCP server
-connections using the SDK's native `OAuthClientProvider` interface,
-`requestInit.headers` fallback, and Helm chart auth secret configuration.
-Covers static tokens, custom headers, and OAuth `client_credentials` flows.
+connections. Covers static tokens (`StaticTokenAuthProvider`), custom headers
+(`requestInit`), and OAuth `client_credentials` flows. All milestones shipped
+in v1.15.0 via PR #417. Validated in production with OAuth auth to Context Forge
+MCP server (88 tools discovered).
