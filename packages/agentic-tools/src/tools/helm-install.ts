@@ -29,18 +29,34 @@ interface HelmInstallParams {
 }
 
 function buildAndExecuteHelmInstall(params: HelmInstallParams) {
-  const { releaseName, chart, namespace, version, values, dryRun, wait, timeout, createNamespace } = params;
+  const {
+    releaseName,
+    chart,
+    namespace,
+    version,
+    values,
+    dryRun,
+    wait,
+    timeout,
+    createNamespace,
+  } = params;
 
-  const cmdArgs = ['upgrade', '--install', '--reuse-values', releaseName, chart];
+  const cmdArgs = [
+    'upgrade',
+    '--install',
+    '--reuse-values',
+    releaseName,
+    chart,
+  ];
 
   if (version) {
     cmdArgs.push('--version', version);
   }
 
   if (dryRun) {
-    // Helm 4: --dry-run without value defaults to "none" (no dry-run!)
-    // Must explicitly use --dry-run=client for simulation
-    cmdArgs.push('--dry-run=client');
+    // Use server-side dry-run to validate against chart JSON schemas
+    // (client-side dry-run skips schema validation, missing errors like invalid enum values)
+    cmdArgs.push('--dry-run=server');
   }
 
   if (wait) {
@@ -79,11 +95,13 @@ export const helmInstall: KubectlTool = {
         },
         chart: {
           type: 'string',
-          description: 'Chart reference (e.g., "prometheus-community/prometheus" or path to local chart)',
+          description:
+            'Chart reference (e.g., "prometheus-community/prometheus" or path to local chart)',
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace to install into (default: "default")',
+          description:
+            'Kubernetes namespace to install into (default: "default")',
         },
         values: {
           type: 'string',
@@ -91,31 +109,40 @@ export const helmInstall: KubectlTool = {
         },
         version: {
           type: 'string',
-          description: 'Specific chart version to install (optional, uses latest if not specified)',
+          description:
+            'Specific chart version to install (optional, uses latest if not specified)',
         },
         dryRun: {
           type: 'boolean',
-          description: 'If true, performs a dry-run without actually installing (default: false)',
+          description:
+            'If true, performs a dry-run without actually installing (default: false)',
         },
         wait: {
           type: 'boolean',
-          description: 'If true, waits for all resources to be ready (default: false)',
+          description:
+            'If true, waits for all resources to be ready (default: false)',
         },
         timeout: {
           type: 'string',
-          description: 'Time to wait for operations (e.g., "5m", "300s"). Default: "5m"',
+          description:
+            'Time to wait for operations (e.g., "5m", "300s"). Default: "5m"',
         },
         createNamespace: {
           type: 'boolean',
-          description: 'If true, creates the namespace if it does not exist (default: true)',
+          description:
+            'If true, creates the namespace if it does not exist (default: true)',
         },
       },
       required: ['releaseName', 'chart'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const releaseName = requireParam<string>(args, 'releaseName', 'helm_install');
+  handler: withValidation(async args => {
+    const releaseName = requireParam<string>(
+      args,
+      'releaseName',
+      'helm_install'
+    );
     const chart = requireParam<string>(args, 'chart', 'helm_install');
     const dryRun = optionalParam<boolean>(args, 'dryRun', false);
 
@@ -159,15 +186,18 @@ export const helmInstallDryrun: KubectlTool = {
         },
         chart: {
           type: 'string',
-          description: 'Chart reference (e.g., "prometheus-community/prometheus" or path to local chart)',
+          description:
+            'Chart reference (e.g., "prometheus-community/prometheus" or path to local chart)',
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace for the release (default: "default")',
+          description:
+            'Kubernetes namespace for the release (default: "default")',
         },
         version: {
           type: 'string',
-          description: 'Specific chart version to validate (optional, uses latest if not specified)',
+          description:
+            'Specific chart version to validate (optional, uses latest if not specified)',
         },
         values: {
           type: 'string',
@@ -178,8 +208,12 @@ export const helmInstallDryrun: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
-    const releaseName = requireParam<string>(args, 'releaseName', 'helm_install_dryrun');
+  handler: withValidation(async args => {
+    const releaseName = requireParam<string>(
+      args,
+      'releaseName',
+      'helm_install_dryrun'
+    );
     const chart = requireParam<string>(args, 'chart', 'helm_install_dryrun');
     const namespace = optionalParam<string>(args, 'namespace', 'default');
 

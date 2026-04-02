@@ -16,7 +16,7 @@ import { Logger, ConsoleLogger } from './error-handling';
 export enum CircuitState {
   CLOSED = 'closed',
   OPEN = 'open',
-  HALF_OPEN = 'half_open'
+  HALF_OPEN = 'half_open',
 }
 
 /**
@@ -56,7 +56,9 @@ export class CircuitOpenError extends Error {
   public readonly state: CircuitState;
 
   constructor(circuitName: string, remainingCooldownMs: number) {
-    super(`Circuit '${circuitName}' is open. Retry after ${Math.ceil(remainingCooldownMs)}ms`);
+    super(
+      `Circuit '${circuitName}' is open. Retry after ${Math.ceil(remainingCooldownMs)}ms`
+    );
     this.name = 'CircuitOpenError';
     this.circuitName = circuitName;
     this.remainingCooldownMs = remainingCooldownMs;
@@ -82,7 +84,10 @@ export class CircuitOpenError extends Error {
  */
 export class CircuitBreaker {
   private readonly name: string;
-  private readonly config: Required<Omit<CircuitBreakerConfig, 'onStateChange'>> & Pick<CircuitBreakerConfig, 'onStateChange'>;
+  private readonly config: Required<
+    Omit<CircuitBreakerConfig, 'onStateChange'>
+  > &
+    Pick<CircuitBreakerConfig, 'onStateChange'>;
   private readonly logger: Logger;
 
   private state: CircuitState = CircuitState.CLOSED;
@@ -94,6 +99,10 @@ export class CircuitBreaker {
   private openedAt?: Date;
   private halfOpenAttempts: number = 0;
   private lastCircuitOpenLogTime?: Date;
+  private lastFailureLogTime?: Date;
+  private suppressedFailureLogCount: number = 0;
+  /** Minimum interval between failure WARN logs (ms) */
+  private static readonly FAILURE_LOG_INTERVAL_MS = 30000;
 
   constructor(name: string, config?: CircuitBreakerConfig, logger?: Logger) {
     this.name = name;
@@ -101,7 +110,7 @@ export class CircuitBreaker {
       failureThreshold: config?.failureThreshold ?? 3,
       cooldownPeriodMs: config?.cooldownPeriodMs ?? 30000,
       halfOpenMaxAttempts: config?.halfOpenMaxAttempts ?? 1,
-      onStateChange: config?.onStateChange
+      onStateChange: config?.onStateChange,
     };
     this.logger = logger ?? new ConsoleLogger('CircuitBreaker');
   }
@@ -117,11 +126,13 @@ export class CircuitBreaker {
       const remainingCooldown = this.getRemainingCooldown();
 
       // Only log once per circuit open period to avoid log spam
-      if (!this.lastCircuitOpenLogTime ||
-          this.lastCircuitOpenLogTime < this.openedAt!) {
+      if (
+        !this.lastCircuitOpenLogTime ||
+        this.lastCircuitOpenLogTime < this.openedAt!
+      ) {
         this.logger.warn(`Circuit '${this.name}' is open, blocking requests`, {
           remainingCooldownMs: remainingCooldown,
-          willRetryAt: new Date(Date.now() + remainingCooldown).toISOString()
+          willRetryAt: new Date(Date.now() + remainingCooldown).toISOString(),
         });
         this.lastCircuitOpenLogTime = new Date();
       }
@@ -132,10 +143,13 @@ export class CircuitBreaker {
     // Track half-open attempts
     if (this.state === CircuitState.HALF_OPEN) {
       this.halfOpenAttempts++;
-      this.logger.info(`Circuit '${this.name}' attempting request in half-open state`, {
-        attempt: this.halfOpenAttempts,
-        maxAttempts: this.config.halfOpenMaxAttempts
-      });
+      this.logger.info(
+        `Circuit '${this.name}' attempting request in half-open state`,
+        {
+          attempt: this.halfOpenAttempts,
+          maxAttempts: this.config.halfOpenMaxAttempts,
+        }
+      );
     }
 
     try {
@@ -160,9 +174,12 @@ export class CircuitBreaker {
       // Success in half-open state closes the circuit
       this.transitionTo(CircuitState.CLOSED);
       this.halfOpenAttempts = 0;
-      this.logger.info(`Circuit '${this.name}' recovered, transitioning to closed`, {
-        totalSuccesses: this.totalSuccesses
-      });
+      this.logger.info(
+        `Circuit '${this.name}' recovered, transitioning to closed`,
+        {
+          totalSuccesses: this.totalSuccesses,
+        }
+      );
     }
   }
 
@@ -174,23 +191,47 @@ export class CircuitBreaker {
     this.totalFailures++;
     this.lastFailureTime = new Date();
 
-    this.logger.warn(`Circuit '${this.name}' recorded failure`, {
-      consecutiveFailures: this.consecutiveFailures,
-      threshold: this.config.failureThreshold,
-      error: error?.message
-    });
+    // Rate-limit failure WARN logs to avoid log spam during sustained outages
+    const now = Date.now();
+    const shouldLogFailure =
+      !this.lastFailureLogTime ||
+      now - this.lastFailureLogTime.getTime() >=
+        CircuitBreaker.FAILURE_LOG_INTERVAL_MS;
+
+    if (shouldLogFailure) {
+      const logData: Record<string, unknown> = {
+        consecutiveFailures: this.consecutiveFailures,
+        threshold: this.config.failureThreshold,
+        error: error?.message,
+      };
+      if (this.suppressedFailureLogCount > 0) {
+        logData.suppressedLogCount = this.suppressedFailureLogCount;
+      }
+      this.logger.warn(`Circuit '${this.name}' recorded failure`, logData);
+      this.lastFailureLogTime = new Date(now);
+      this.suppressedFailureLogCount = 0;
+    } else {
+      this.suppressedFailureLogCount++;
+    }
 
     if (this.state === CircuitState.HALF_OPEN) {
       // Failure in half-open state opens the circuit again
       this.transitionTo(CircuitState.OPEN);
       this.openedAt = new Date();
       this.halfOpenAttempts = 0;
-      this.logger.warn(`Circuit '${this.name}' failed in half-open state, reopening`);
-    } else if (this.state === CircuitState.CLOSED && this.consecutiveFailures >= this.config.failureThreshold) {
+      this.logger.warn(
+        `Circuit '${this.name}' failed in half-open state, reopening`
+      );
+    } else if (
+      this.state === CircuitState.CLOSED &&
+      this.consecutiveFailures >= this.config.failureThreshold
+    ) {
       // Threshold reached, open the circuit
       this.transitionTo(CircuitState.OPEN);
       this.openedAt = new Date();
-      this.logger.error(`Circuit '${this.name}' opened after ${this.consecutiveFailures} consecutive failures`);
+      this.logger.error(
+        `Circuit '${this.name}' opened after ${this.consecutiveFailures} consecutive failures`
+      );
     }
   }
 
@@ -204,10 +245,16 @@ export class CircuitBreaker {
     this.halfOpenAttempts = 0;
     this.openedAt = undefined;
     this.lastCircuitOpenLogTime = undefined;
+    this.lastFailureLogTime = undefined;
+    this.suppressedFailureLogCount = 0;
 
     if (previousState !== CircuitState.CLOSED) {
       this.logger.info(`Circuit '${this.name}' manually reset to closed`);
-      this.config.onStateChange?.(previousState, CircuitState.CLOSED, this.name);
+      this.config.onStateChange?.(
+        previousState,
+        CircuitState.CLOSED,
+        this.name
+      );
     }
   }
 
@@ -219,7 +266,9 @@ export class CircuitBreaker {
     if (this.state === CircuitState.OPEN && this.shouldTransitionToHalfOpen()) {
       this.transitionTo(CircuitState.HALF_OPEN);
       this.halfOpenAttempts = 0;
-      this.logger.info(`Circuit '${this.name}' cooldown elapsed, transitioning to half-open`);
+      this.logger.info(
+        `Circuit '${this.name}' cooldown elapsed, transitioning to half-open`
+      );
     }
 
     return this.state;
@@ -237,7 +286,7 @@ export class CircuitBreaker {
       lastFailureTime: this.lastFailureTime,
       lastSuccessTime: this.lastSuccessTime,
       openedAt: this.openedAt,
-      halfOpenAttempts: this.halfOpenAttempts
+      halfOpenAttempts: this.halfOpenAttempts,
     };
   }
 

@@ -36,13 +36,13 @@ Ask the user what documentation to write. Options:
 
 1. **Tear down existing test cluster if present**
    ```bash
-   kind delete cluster --name dot-test 2>/dev/null || true
+   kind delete cluster --name dot-ai-test 2>/dev/null || true
    rm -f ./kubeconfig.yaml
    ```
 
 2. **Create fresh Kind cluster with local kubeconfig**
    ```bash
-   kind create cluster --name dot-test --kubeconfig ./kubeconfig.yaml
+   kind create cluster --name dot-ai-test --kubeconfig ./kubeconfig.yaml
    export KUBECONFIG=./kubeconfig.yaml
    ```
 
@@ -67,11 +67,11 @@ Ask the user what documentation to write. Options:
    # Build MCP server image
    npm run build
    docker build -t dot-ai:test .
-   kind load docker-image dot-ai:test --name dot-test
+   kind load docker-image dot-ai:test --name dot-ai-test
 
    # Build agentic-tools plugin image
    docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools
-   kind load docker-image dot-ai-agentic-tools:test --name dot-test
+   kind load docker-image dot-ai-agentic-tools:test --name dot-ai-test
    ```
 
    Add these flags to helm install:

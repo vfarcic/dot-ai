@@ -5,7 +5,7 @@
 
 set -e
 
-CLUSTER_NAME="dot-test"
+CLUSTER_NAME="dot-ai-test"
 KUBECONFIG_PATH="$(pwd)/kubeconfig-test.yaml"
 
 echo "🧹 Tearing down integration test cluster..."

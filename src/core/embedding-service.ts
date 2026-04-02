@@ -358,6 +358,9 @@ function createEmbeddingProvider(
  */
 export class EmbeddingService {
   private provider: EmbeddingProvider | null;
+  private lastBatchFailureLogTime?: number;
+  private suppressedBatchFailureCount: number = 0;
+  private static readonly BATCH_FAILURE_LOG_INTERVAL_MS = 30000;
 
   constructor(config: EmbeddingConfig = {}) {
     // Use factory to initialize appropriate provider
@@ -396,11 +399,24 @@ export class EmbeddingService {
     try {
       return await this.provider!.generateEmbeddings(texts);
     } catch (error) {
-      // Log error but don't throw - allow graceful fallback
-      console.warn(
-        'Batch embedding generation failed, falling back to keyword search:',
-        error
-      );
+      // Rate-limit fallback warnings to avoid log spam during sustained outages
+      const now = Date.now();
+      if (
+        !this.lastBatchFailureLogTime ||
+        now - this.lastBatchFailureLogTime >=
+          EmbeddingService.BATCH_FAILURE_LOG_INTERVAL_MS
+      ) {
+        const suppressed = this.suppressedBatchFailureCount;
+        this.suppressedBatchFailureCount = 0;
+        this.lastBatchFailureLogTime = now;
+        console.warn(
+          'Batch embedding generation failed, falling back to keyword search:',
+          error instanceof Error ? error.message : String(error),
+          suppressed > 0 ? `(${suppressed} similar warnings suppressed)` : ''
+        );
+      } else {
+        this.suppressedBatchFailureCount++;
+      }
       return [];
     }
   }

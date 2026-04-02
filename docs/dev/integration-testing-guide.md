@@ -44,7 +44,7 @@ npm run test:integration:setup
 ```
 
 **What it does:**
-- Creates a Kind cluster named `dot-test`
+- Creates a Kind cluster named `dot-ai-test`
 - Installs CloudNativePG operator (PostgreSQL)
 - Installs Kyverno policy engine
 - Starts Qdrant vector database in Docker

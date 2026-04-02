@@ -9,7 +9,7 @@ import {
   CircuitBreaker,
   CircuitBreakerFactory,
   CircuitState,
-  CircuitOpenError
+  CircuitOpenError,
 } from '../../../src/core/circuit-breaker';
 
 describe('CircuitBreaker', () => {
@@ -19,7 +19,7 @@ describe('CircuitBreaker', () => {
     breaker = new CircuitBreaker('test-circuit', {
       failureThreshold: 3,
       cooldownPeriodMs: 1000,
-      halfOpenMaxAttempts: 1
+      halfOpenMaxAttempts: 1,
     });
   });
 
@@ -35,7 +35,7 @@ describe('CircuitBreaker', () => {
         consecutiveFailures: 0,
         totalFailures: 0,
         totalSuccesses: 0,
-        halfOpenAttempts: 0
+        halfOpenAttempts: 0,
       });
       expect(stats.lastFailureTime).toBeUndefined();
       expect(stats.lastSuccessTime).toBeUndefined();
@@ -61,9 +61,11 @@ describe('CircuitBreaker', () => {
     });
 
     test('should track failed operations', async () => {
-      await expect(breaker.execute(async () => {
-        throw new Error('test error');
-      })).rejects.toThrow('test error');
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('test error');
+        })
+      ).rejects.toThrow('test error');
 
       const stats = breaker.getStats();
       expect(stats.totalFailures).toBe(1);
@@ -74,9 +76,11 @@ describe('CircuitBreaker', () => {
     test('should reset consecutive failures on success', async () => {
       // Record some failures
       for (let i = 0; i < 2; i++) {
-        await expect(breaker.execute(async () => {
-          throw new Error('fail');
-        })).rejects.toThrow();
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow();
       }
       expect(breaker.getStats().consecutiveFailures).toBe(2);
 
@@ -90,9 +94,11 @@ describe('CircuitBreaker', () => {
     test('should open after reaching failure threshold', async () => {
       // Record failures up to threshold
       for (let i = 0; i < 3; i++) {
-        await expect(breaker.execute(async () => {
-          throw new Error('fail');
-        })).rejects.toThrow('fail');
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow('fail');
       }
 
       expect(breaker.getState()).toBe(CircuitState.OPEN);
@@ -101,9 +107,11 @@ describe('CircuitBreaker', () => {
 
     test('should not open before reaching threshold', async () => {
       for (let i = 0; i < 2; i++) {
-        await expect(breaker.execute(async () => {
-          throw new Error('fail');
-        })).rejects.toThrow();
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow();
       }
 
       expect(breaker.getState()).toBe(CircuitState.CLOSED);
@@ -114,13 +122,15 @@ describe('CircuitBreaker', () => {
       const onStateChange = vi.fn();
       const breakerWithCallback = new CircuitBreaker('test', {
         failureThreshold: 2,
-        onStateChange
+        onStateChange,
       });
 
       for (let i = 0; i < 2; i++) {
-        await expect(breakerWithCallback.execute(async () => {
-          throw new Error('fail');
-        })).rejects.toThrow();
+        await expect(
+          breakerWithCallback.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow();
       }
 
       expect(onStateChange).toHaveBeenCalledWith(
@@ -135,14 +145,18 @@ describe('CircuitBreaker', () => {
     beforeEach(async () => {
       // Open the circuit
       for (let i = 0; i < 3; i++) {
-        await expect(breaker.execute(async () => {
-          throw new Error('fail');
-        })).rejects.toThrow('fail');
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow('fail');
       }
     });
 
     test('should block requests with CircuitOpenError', async () => {
-      await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+      await expect(breaker.execute(async () => 'success')).rejects.toThrow(
+        CircuitOpenError
+      );
     });
 
     test('should include circuit name in error', async () => {
@@ -159,8 +173,12 @@ describe('CircuitBreaker', () => {
         await breaker.execute(async () => 'success');
       } catch (error) {
         expect(error).toBeInstanceOf(CircuitOpenError);
-        expect((error as CircuitOpenError).remainingCooldownMs).toBeGreaterThan(0);
-        expect((error as CircuitOpenError).remainingCooldownMs).toBeLessThanOrEqual(1000);
+        expect((error as CircuitOpenError).remainingCooldownMs).toBeGreaterThan(
+          0
+        );
+        expect(
+          (error as CircuitOpenError).remainingCooldownMs
+        ).toBeLessThanOrEqual(1000);
       }
     });
 
@@ -174,9 +192,11 @@ describe('CircuitBreaker', () => {
     beforeEach(async () => {
       // Open the circuit
       for (let i = 0; i < 3; i++) {
-        await expect(breaker.execute(async () => {
-          throw new Error('fail');
-        })).rejects.toThrow('fail');
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow('fail');
       }
     });
 
@@ -203,9 +223,11 @@ describe('CircuitBreaker', () => {
     beforeEach(async () => {
       // Open the circuit and wait for cooldown
       for (let i = 0; i < 3; i++) {
-        await expect(breaker.execute(async () => {
-          throw new Error('fail');
-        })).rejects.toThrow('fail');
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow('fail');
       }
       await new Promise(resolve => setTimeout(resolve, 1100));
     });
@@ -230,9 +252,11 @@ describe('CircuitBreaker', () => {
     test('should reopen circuit on failure in HALF_OPEN', async () => {
       expect(breaker.getState()).toBe(CircuitState.HALF_OPEN);
 
-      await expect(breaker.execute(async () => {
-        throw new Error('still failing');
-      })).rejects.toThrow('still failing');
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('still failing');
+        })
+      ).rejects.toThrow('still failing');
 
       expect(breaker.getState()).toBe(CircuitState.OPEN);
       expect(breaker.isOpen()).toBe(true);
@@ -248,7 +272,9 @@ describe('CircuitBreaker', () => {
       });
 
       // Second request should be blocked while first is in progress
-      await expect(breaker.execute(async () => 'second')).rejects.toThrow(CircuitOpenError);
+      await expect(breaker.execute(async () => 'second')).rejects.toThrow(
+        CircuitOpenError
+      );
 
       // Wait for first to complete
       await slowOperation;
@@ -286,7 +312,7 @@ describe('CircuitBreaker', () => {
       const onStateChange = vi.fn();
       const breakerWithCallback = new CircuitBreaker('test', {
         failureThreshold: 2,
-        onStateChange
+        onStateChange,
       });
 
       // Open it
@@ -320,7 +346,9 @@ describe('CircuitBreaker', () => {
     });
 
     test('should respect custom failure threshold', () => {
-      const customBreaker = new CircuitBreaker('custom', { failureThreshold: 5 });
+      const customBreaker = new CircuitBreaker('custom', {
+        failureThreshold: 5,
+      });
 
       for (let i = 0; i < 4; i++) {
         customBreaker.recordFailure();
@@ -418,12 +446,12 @@ describe('CircuitBreakerFactory', () => {
     expect(allStats['service-1']).toMatchObject({
       state: CircuitState.CLOSED,
       totalSuccesses: 1,
-      totalFailures: 0
+      totalFailures: 0,
     });
     expect(allStats['service-2']).toMatchObject({
       state: CircuitState.CLOSED,
       totalSuccesses: 0,
-      totalFailures: 1
+      totalFailures: 1,
     });
   });
 });
@@ -452,19 +480,25 @@ describe('Log Suppression', () => {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-      debug: vi.fn()
+      debug: vi.fn(),
     };
 
-    const breaker = new CircuitBreaker('test-circuit', {
-      failureThreshold: 2,
-      cooldownPeriodMs: 10000
-    }, mockLogger as any);
+    const breaker = new CircuitBreaker(
+      'test-circuit',
+      {
+        failureThreshold: 2,
+        cooldownPeriodMs: 10000,
+      },
+      mockLogger as any
+    );
 
     // Open the circuit
     for (let i = 0; i < 2; i++) {
-      await expect(breaker.execute(async () => {
-        throw new Error('fail');
-      })).rejects.toThrow('fail');
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow('fail');
     }
 
     // Clear mock calls from the failure recording
@@ -472,12 +506,14 @@ describe('Log Suppression', () => {
 
     // Make multiple blocked requests
     for (let i = 0; i < 5; i++) {
-      await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+      await expect(breaker.execute(async () => 'success')).rejects.toThrow(
+        CircuitOpenError
+      );
     }
 
     // Should only log "circuit open" once, not 5 times
-    const circuitOpenLogs = mockLogger.warn.mock.calls.filter(
-      (call: any[]) => call[0]?.includes('is open, blocking')
+    const circuitOpenLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+      call[0]?.includes('is open, blocking')
     );
     expect(circuitOpenLogs.length).toBe(1);
   });
@@ -487,23 +523,31 @@ describe('Log Suppression', () => {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-      debug: vi.fn()
+      debug: vi.fn(),
     };
 
-    const breaker = new CircuitBreaker('test-circuit', {
-      failureThreshold: 2,
-      cooldownPeriodMs: 10000
-    }, mockLogger as any);
+    const breaker = new CircuitBreaker(
+      'test-circuit',
+      {
+        failureThreshold: 2,
+        cooldownPeriodMs: 10000,
+      },
+      mockLogger as any
+    );
 
     // Open the circuit first time
     for (let i = 0; i < 2; i++) {
-      await expect(breaker.execute(async () => {
-        throw new Error('fail');
-      })).rejects.toThrow('fail');
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow('fail');
     }
 
     // Make a blocked request (should log once)
-    await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+    await expect(breaker.execute(async () => 'success')).rejects.toThrow(
+      CircuitOpenError
+    );
 
     // Reset the circuit
     breaker.reset();
@@ -511,19 +555,25 @@ describe('Log Suppression', () => {
 
     // Open the circuit again
     for (let i = 0; i < 2; i++) {
-      await expect(breaker.execute(async () => {
-        throw new Error('fail');
-      })).rejects.toThrow('fail');
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow('fail');
     }
 
     mockLogger.warn.mockClear();
 
     // Make blocked requests again - should log once for new open period
-    await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
-    await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+    await expect(breaker.execute(async () => 'success')).rejects.toThrow(
+      CircuitOpenError
+    );
+    await expect(breaker.execute(async () => 'success')).rejects.toThrow(
+      CircuitOpenError
+    );
 
-    const circuitOpenLogs = mockLogger.warn.mock.calls.filter(
-      (call: any[]) => call[0]?.includes('is open, blocking')
+    const circuitOpenLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+      call[0]?.includes('is open, blocking')
     );
     expect(circuitOpenLogs.length).toBe(1);
   });
@@ -533,32 +583,142 @@ describe('Log Suppression', () => {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-      debug: vi.fn()
+      debug: vi.fn(),
     };
 
-    const breaker = new CircuitBreaker('test-circuit', {
-      failureThreshold: 2,
-      cooldownPeriodMs: 5000
-    }, mockLogger as any);
+    const breaker = new CircuitBreaker(
+      'test-circuit',
+      {
+        failureThreshold: 2,
+        cooldownPeriodMs: 5000,
+      },
+      mockLogger as any
+    );
 
     // Open the circuit
     for (let i = 0; i < 2; i++) {
-      await expect(breaker.execute(async () => {
-        throw new Error('fail');
-      })).rejects.toThrow('fail');
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow('fail');
     }
 
     mockLogger.warn.mockClear();
 
     // Make a blocked request
-    await expect(breaker.execute(async () => 'success')).rejects.toThrow(CircuitOpenError);
+    await expect(breaker.execute(async () => 'success')).rejects.toThrow(
+      CircuitOpenError
+    );
 
     // Find the "circuit open" log call
-    const circuitOpenLog = mockLogger.warn.mock.calls.find(
-      (call: any[]) => call[0]?.includes('is open, blocking')
+    const circuitOpenLog = mockLogger.warn.mock.calls.find((call: any[]) =>
+      call[0]?.includes('is open, blocking')
     );
     expect(circuitOpenLog).toBeDefined();
     expect(circuitOpenLog[1]).toHaveProperty('willRetryAt');
     expect(circuitOpenLog[1]).toHaveProperty('remainingCooldownMs');
+  });
+
+  test('should rate-limit failure WARN logs', async () => {
+    const mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    const breaker = new CircuitBreaker(
+      'test-circuit',
+      {
+        failureThreshold: 100, // High threshold so we stay in CLOSED
+        cooldownPeriodMs: 10000,
+      },
+      mockLogger as any
+    );
+
+    // Record many failures rapidly
+    for (let i = 0; i < 20; i++) {
+      breaker.recordFailure(new Error('fail'));
+    }
+
+    // Should have logged the first failure, then suppressed the rest
+    const failureLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+      call[0]?.includes('recorded failure')
+    );
+    expect(failureLogs.length).toBe(1);
+  });
+
+  test('should include suppressed count when logging after rate-limit', async () => {
+    vi.useFakeTimers();
+    const mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    const breaker = new CircuitBreaker(
+      'test-circuit',
+      {
+        failureThreshold: 100,
+        cooldownPeriodMs: 10000,
+      },
+      mockLogger as any
+    );
+
+    // Record failures rapidly
+    for (let i = 0; i < 10; i++) {
+      breaker.recordFailure(new Error('fail'));
+    }
+
+    // Advance past the rate-limit interval (30s)
+    vi.advanceTimersByTime(31000);
+
+    // Record another failure - should log with suppressed count
+    breaker.recordFailure(new Error('fail'));
+
+    const failureLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+      call[0]?.includes('recorded failure')
+    );
+    expect(failureLogs.length).toBe(2);
+    // Second log should include suppressed count (9 suppressed between the two logged calls)
+    expect(failureLogs[1][1]).toHaveProperty('suppressedLogCount', 9);
+
+    vi.useRealTimers();
+  });
+
+  test('should reset failure log rate-limit on circuit reset', async () => {
+    const mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    const breaker = new CircuitBreaker(
+      'test-circuit',
+      {
+        failureThreshold: 100,
+        cooldownPeriodMs: 10000,
+      },
+      mockLogger as any
+    );
+
+    // Record some failures
+    for (let i = 0; i < 5; i++) {
+      breaker.recordFailure(new Error('fail'));
+    }
+
+    mockLogger.warn.mockClear();
+
+    // Reset and record more - should log immediately
+    breaker.reset();
+    breaker.recordFailure(new Error('fail again'));
+
+    const failureLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+      call[0]?.includes('recorded failure')
+    );
+    expect(failureLogs.length).toBe(1);
   });
 });

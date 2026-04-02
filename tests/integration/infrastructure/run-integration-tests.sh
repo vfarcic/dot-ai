@@ -63,16 +63,16 @@ fi
 # Step 2: Setup infrastructure
 # Recreate Kind cluster for guaranteed clean state
 log_info "Deleting existing Kind cluster (if any)..."
-kind delete cluster --name dot-test 2>/dev/null || true
+kind delete cluster --name dot-ai-test 2>/dev/null || true
 
 log_info "Creating fresh Kind cluster..."
-kind create cluster --name dot-test --config=tests/integration/infrastructure/kind-test.yaml --kubeconfig ./kubeconfig-test.yaml || {
+kind create cluster --name dot-ai-test --config=tests/integration/infrastructure/kind-test.yaml --kubeconfig ./kubeconfig-test.yaml || {
     log_error "Failed to create Kind cluster"
     exit 1
 }
 
 log_info "Exporting kubeconfig for test cluster..."
-kind export kubeconfig --name dot-test --kubeconfig ./kubeconfig-test.yaml || {
+kind export kubeconfig --name dot-ai-test --kubeconfig ./kubeconfig-test.yaml || {
     log_error "Failed to export kubeconfig"
     exit 1
 }
@@ -319,13 +319,13 @@ else
 fi
 
 log_info "Loading dot-ai image into Kind cluster..."
-kind load docker-image dot-ai:test --name dot-test || {
+kind load docker-image dot-ai:test --name dot-ai-test || {
     log_error "Failed to load dot-ai image into Kind"
     exit 1
 }
 
 log_info "Loading agentic-tools plugin image into Kind cluster..."
-kind load docker-image dot-ai-agentic-tools:test --name dot-test || {
+kind load docker-image dot-ai-agentic-tools:test --name dot-ai-test || {
     log_error "Failed to load agentic-tools image into Kind"
     exit 1
 }

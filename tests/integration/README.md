@@ -68,9 +68,9 @@ process.env.DEBUG_DOT_AI = 'true';                 // Detailed logging
 
 ### Test Cluster Details
 
-- **Cluster Name**: `dot-test` (Kind cluster)
+- **Cluster Name**: `dot-ai-test` (Kind cluster)
 - **Kubeconfig**: `./kubeconfig-test.yaml`
-- **Context**: `kind-dot-test`
+- **Context**: `kind-dot-ai-test`
 - **Operators**: CloudNativePG, Kyverno (optional)
 - **Port Forwarding**: 3456 → REST API server
 
