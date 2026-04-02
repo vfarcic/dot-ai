@@ -1,6 +1,8 @@
-## PRD: MCP Client Outbound Authentication (v3.0)
+## PRD: MCP Client Outbound Authentication (v4.0 — Shipped)
 
-> **Context**: This PRD was developed alongside PR #415 (now closed) which implemented Milestones 1-4. Posting here for review and discussion before resubmitting. This PRD has been through a 4-reviewer expert panel (security architecture, MCP SDK/TypeScript, Helm/K8s patterns, and platform engineering).
+> **Status**: Implemented and shipped in dot-ai v1.15.0 (2026-04-01).
+> Implementation: PR #417. Original proposal: PR #415 (closed), PR #416 (this doc).
+> Validated in production on a K3s cluster running upstream `dot-ai-stack:0.82.0` with OAuth `client_credentials` auth to Context Forge MCP server (88 tools discovered).
 
 ---
 
@@ -49,41 +51,26 @@ For MCP servers that implement the [MCP Authorization spec](https://modelcontext
 ```typescript
 // Simple case: static token (service account, API key)
 // StaticTokenAuthProvider implements the full OAuthClientProvider interface
-// (clientMetadata, tokens, saveTokens, redirectToAuthorization, saveCodeVerifier,
-// codeVerifier) while returning a fixed token from tokens().
 const authProvider: OAuthClientProvider = new StaticTokenAuthProvider(process.env.MCP_AUTH_TOKEN);
 
-// Full OAuth case: MCP-spec-compliant servers
-const authProvider: OAuthClientProvider = {
-  // Full OAuth 2.1 flow: 401 challenge → resource metadata discovery →
-  // authorization server discovery → token exchange → automatic refresh
-  // clientMetadata, tokens, saveTokens, redirectToAuthorization,
-  // saveCodeVerifier, codeVerifier all required by the interface
-  // ...
-};
+// Full OAuth case: client_credentials grant for server-to-server auth
+// SDK discovers auth server via RFC 9728 metadata from the MCP endpoint
 ```
-
-The SDK exports `OAuthClientProvider` as the auth provider interface. Implementations must satisfy all required methods: `clientMetadata`, `tokens()`, `saveTokens()`, `redirectToAuthorization()`, `saveCodeVerifier()`, and `codeVerifier()`. For static token use cases, a `StaticTokenAuthProvider` wrapper implements the full interface while returning a fixed token.
-
-Since PRD #380 implemented the MCP Authorization spec for inbound auth via Dex, dot-ai already has the OAuth infrastructure. The same `OAuthClientProvider` approach can be used outbound — dot-ai authenticates to a target MCP server using the standard OAuth flow, not custom header injection.
 
 ### 2. `requestInit.headers` — Non-Spec Servers (Fallback)
 
-For MCP servers that don't implement the MCP Authorization spec (service-to-service JWT auth, legacy systems, custom auth schemes), static headers via `requestInit` provide a fallback:
+For MCP servers that don't implement the MCP Authorization spec, static headers via `requestInit`:
 
 ```typescript
 const transport = new StreamableHTTPClientTransport(
   new URL(config.endpoint),
   {
     requestInit: {
-      headers: config.headers, // e.g., { Authorization: "Bearer <token>" }
+      headers: config.headers, // e.g., { "X-API-Key": "abc123" }
     },
-    reconnectionOptions: { ... },
   }
 );
 ```
-
-Headers should come from Kubernetes Secrets (not ConfigMaps or Helm values) to keep tokens out of version control and unencrypted stores.
 
 ### Architecture
 
@@ -92,8 +79,8 @@ Headers should come from Kubernetes Secrets (not ConfigMaps or Helm values) to k
                                     ┌──────────────────────────────┐
                                     │                              │
   User ──► dot-ai ──► MCP Client ──┤  authProvider (OAuth)        │──► MCP Server (spec-compliant)
-           (PRD #380)  Manager      │  - OAuthClientProvider       │    e.g., another dot-ai instance
-           OAuth/Dex               │  - 401 → token exchange      │
+           (PRD #380)  Manager      │  - client_credentials grant  │    e.g., another dot-ai instance
+           OAuth/Dex               │  - RFC 9728 discovery        │
                                     │  - automatic refresh         │
                                     │                              │
                                     ├──────────────────────────────┤
@@ -104,8 +91,7 @@ Headers should come from Kubernetes Secrets (not ConfigMaps or Helm values) to k
                                     ├──────────────────────────────┤
                                     │                              │
                                     │  requestInit.headers         │──► MCP Server (custom auth)
-                                    │  - { Authorization: "..." }  │    e.g., legacy systems
-                                    │  - from K8s Secret           │
+                                    │  - from K8s Secret env var   │    e.g., legacy systems
                                     │                              │
                                     ├──────────────────────────────┤
                                     │                              │
@@ -123,10 +109,7 @@ This PRD fills the weakest link in dot-ai's identity chain:
 User ──[OAuth/Dex]──► dot-ai ──[SubjectAccessReview]──► Tool Check ──[Impersonation]──► K8s API
                       (PRD #380)   (PRD #392)                          (PRD #401)
                           │
-                          └──[??? currently unauthenticated]──► MCP Server
-                              ▲
-                              │
-                           This PRD fills this gap
+                          └──[MCP Client Auth (this PRD)]──► MCP Server
 ```
 
 | Layer | Direction | Mechanism | PRD | Status |
@@ -134,89 +117,84 @@ User ──[OAuth/Dex]──► dot-ai ──[SubjectAccessReview]──► Tool
 | Authentication | Inbound (user → dot-ai) | OAuth via Dex, MCP Authorization spec | #380 | Complete |
 | Tool-level authz | Internal | SubjectAccessReview | #392 | Complete |
 | Namespace-level authz | Outbound (dot-ai → K8s API) | User impersonation (`--as`) | #401 | Draft |
-| MCP client auth | Outbound (dot-ai → MCP servers) | `authProvider` / `requestInit` | This PRD | Proposed |
+| MCP client auth | Outbound (dot-ai → MCP servers) | `authProvider` / `requestInit` | **#414** | **Complete (v1.15.0)** |
 
 ## Authentication Modes
 
 | Target Server | Auth Mechanism | Config | When to Use |
 |---------------|---------------|--------|-------------|
-| MCP-spec-compliant (OAuth) | `authProvider` with `OAuthClientProvider` | `mcpServers.*.auth.oauth` | Another dot-ai instance, or any server implementing MCP Authorization spec |
-| Static token / API key | `authProvider` with `StaticTokenAuthProvider` | `mcpServers.*.auth.existingSecret` | MCP servers with service account JWTs, API key auth |
-| Custom headers | `requestInit.headers` | `mcpServers.*.auth.headers` (from Secret) | Legacy systems, non-standard auth schemes, multiple custom headers |
-| No auth (in-cluster trust) | None | No auth config | Same-cluster trust model (current behavior) |
+| MCP-spec-compliant (OAuth) | `authProvider` with `client_credentials` | `mcpServers.*.auth.oauth` | Another dot-ai instance, or any server implementing MCP Authorization spec |
+| Static token / API key | `authProvider` with `StaticTokenAuthProvider` | `mcpServers.*.auth.token.existingSecret` | MCP servers with service account JWTs, API key auth |
+| Custom headers | `requestInit.headers` | `mcpServers.*.auth.headers.existingSecret` | Legacy systems, non-standard auth schemes |
+| No auth (in-cluster trust) | None | No auth config | Same-cluster trust model (backward compatible) |
 
 ## Helm Configuration
 
-The implementation exclusively uses `existingSecret` references. Inline tokens in Helm values (chart-managed secrets) are intentionally not supported — tokens in values files risk being committed to git and appear in Helm release metadata, violating security-by-design.
+The implementation exclusively uses `existingSecret` references. Inline tokens in Helm values are intentionally not supported — tokens in values files risk being committed to git and appear in Helm release metadata.
 
-### Pattern 1: Existing Secret Reference (Static Token / Production / GitOps)
+### Environment Variable Name Mapping
+
+Server names are auto-mapped to environment variable names: uppercase, replace non-alphanumeric characters with underscores, collapse consecutive underscores.
+
+| Auth Type | Server Name | Env Var Name |
+|-----------|-------------|-------------|
+| Token | `context-forge` | `MCP_AUTH_CONTEXT_FORGE` |
+| Headers | `legacy-server` | `MCP_HEADERS_LEGACY_SERVER` |
+| OAuth secret | `context-forge` | `MCP_OAUTH_SECRET_CONTEXT_FORGE` |
+
+### Pattern 1: Static Bearer Token
 
 ```yaml
 mcpServers:
-  my-mcp-server:
+  context-forge:
     enabled: true
-    endpoint: "http://my-mcp-server.namespace.svc:8080/mcp"
+    endpoint: "http://context-forge.ai-ops.svc:4444/mcp"
     attachTo:
       - remediate
       - query
     auth:
-      # Reference existing Secret (for Vault/ESO, SealedSecrets, SOPS)
-      existingSecret:
-        name: my-mcp-auth-secret
-        key: token    # Secret key containing the Bearer token string
+      token:
+        existingSecret:
+          name: context-forge-auth
+          key: bearer-token
 ```
 
-### Pattern 2: OAuth (MCP-Spec-Compliant Servers)
+### Pattern 2: Custom Auth Headers
 
 ```yaml
 mcpServers:
-  another-dotai:
+  legacy-server:
     enabled: true
-    endpoint: "https://other-dotai.example.com/mcp"
+    endpoint: "http://legacy-mcp.tools.svc:8080/mcp"
+    attachTo:
+      - operate
+    auth:
+      headers:
+        existingSecret:
+          name: legacy-auth
+          key: auth-headers    # JSON: {"X-API-Key":"abc123"}
+```
+
+### Pattern 3: OAuth client_credentials
+
+```yaml
+mcpServers:
+  upstream-dot-ai:
+    enabled: true
+    endpoint: "https://dot-ai.example.com/mcp"
     attachTo:
       - query
+      - remediate
     auth:
       oauth:
-        clientId: "dot-ai-client"
-        audience: "https://other-dotai.example.com"  # Optional: RFC 8707 resource indicator
-        clientSecret:
-          existingSecret:
-            name: dotai-oauth-client
-            key: client-secret
+        clientId: "dot-ai-downstream"
+        scope: "mcp:tools"
+        existingSecret:
+          name: upstream-oauth-creds
+          key: client-secret
 ```
 
-### TLS / Custom CA Bundle
-
-For cross-cluster OAuth or MCP servers behind private CAs:
-
-```yaml
-mcpServers:
-  cross-cluster-mcp:
-    enabled: true
-    endpoint: "https://mcp.internal.corp:8443/mcp"
-    attachTo:
-      - query
-    auth:
-      existingSecret:
-        name: cross-cluster-token
-        key: token
-      tls:
-        caBundle:
-          existingSecret:
-            name: internal-ca-cert
-            key: ca.crt
-```
-
-**Key design point**: Auth credentials are stored in Kubernetes **Secrets** (not the ConfigMap). The ConfigMap continues to hold only routing config (`name`, `endpoint`, `attachTo`).
-
-### Environment Variable Name Mapping
-
-Server names in `mcpServers` are mapped to environment variable names: convert to uppercase, then replace any character that is not `A-Z` or `0-9` (including hyphens, dots, slashes, and spaces) with underscores. Consecutive underscores are collapsed to a single underscore.
-
-| Server Name | Token Env Var | Headers Env Var |
-|-------------|--------------|-----------------|
-| `my-mcp-server` | `MCP_AUTH_MY_MCP_SERVER` | `MCP_HEADERS_MY_MCP_SERVER` |
-| `another-dotai` | `MCP_AUTH_ANOTHER_DOTAI` | `MCP_HEADERS_ANOTHER_DOTAI` |
+**Key design point**: Auth credentials are stored in Kubernetes **Secrets** (not the ConfigMap). The ConfigMap holds only routing config (`name`, `endpoint`, `attachTo`). The chart auto-injects env vars from `existingSecret` references — no manual `extraEnv` needed.
 
 ## Key Design Principles
 
@@ -231,70 +209,69 @@ Server names in `mcpServers` are mapped to environment variable names: convert t
 
 ## Milestone Summary
 
-| Milestone | Scope | Key Deliverable |
-|-----------|-------|-----------------|
-| **M1** | Static `authProvider` | `StaticTokenAuthProvider` wrapping `OAuthClientProvider` for Bearer tokens from K8s Secrets |
-| **M2** | `requestInit.headers` fallback | Custom HTTP headers for non-spec servers; fail-fast on missing credentials |
-| **M3** | Helm chart configuration | `existingSecret` references, env var injection, optional TLS CA bundle |
-| **M4** | OAuth `client_credentials` | Full OAuth flow reusing #380 infrastructure; `invalidateCredentials`, discovery caching, RFC 8707 `audience` |
-| **M5** | Tests, observability, docs | Auth status logging, integration tests, operator documentation |
+| Milestone | Scope | Status |
+|-----------|-------|--------|
+| **M1** | Static `authProvider` — `StaticTokenAuthProvider` wrapping `OAuthClientProvider` | **Complete** |
+| **M2** | `requestInit.headers` fallback — custom HTTP headers for non-spec servers | **Complete** |
+| **M3** | Helm chart — `existingSecret` references, env var injection | **Complete** |
+| **M4** | OAuth `client_credentials` — full OAuth flow with RFC 9728 discovery | **Complete** |
+| **M5** | Tests, observability, docs — integration tests, auth status logging | **Complete** |
 
 ---
 
 ## Milestones
 
-### M1: Static `authProvider` for Token-Based Auth
-Support static Bearer tokens via `StaticTokenAuthProvider` (wrapping `OAuthClientProvider`). Covers the most common enterprise use case — service account tokens.
+### M1: Static `authProvider` for Token-Based Auth ✅
+Support static Bearer tokens via `StaticTokenAuthProvider` (wrapping `OAuthClientProvider`).
 
-- [ ] Add `auth` configuration to `McpServerConfig` interface
-- [ ] Create `StaticTokenAuthProvider` implementing `OAuthClientProvider`
-- [ ] Validate mutual exclusivity: `existingSecret` and `oauth` reject configs specifying both
-- [ ] Pass `authProvider` to `StreamableHTTPClientTransport`
-- [ ] No auth config = current behavior exactly
+- [x] Add `auth` configuration to `McpServerConfig` interface (`McpServerAuthConfig`)
+- [x] Create `StaticTokenAuthProvider` implementing `OAuthClientProvider`
+- [x] Validate mutual exclusivity of auth modes
+- [x] Pass `authProvider` to `StreamableHTTPClientTransport`
+- [x] No auth config = current behavior exactly
 
-### M2: `requestInit.headers` Fallback for Non-Spec Servers
+### M2: `requestInit.headers` Fallback for Non-Spec Servers ✅
 Support custom HTTP headers for MCP servers that don't use standard Bearer auth.
 
-- [ ] Read headers from `MCP_HEADERS_<SERVER_NAME>` env vars (JSON-encoded)
-- [ ] Pass `requestInit: { headers }` to transport
-- [ ] Runtime validation: `Record<string, string>`, fail fast on malformed config
+- [x] Read headers from `MCP_HEADERS_<SERVER_NAME>` env vars (JSON-encoded)
+- [x] Pass `requestInit: { headers }` to transport
+- [x] Runtime validation: fail fast on malformed config
+- [x] **Security Invariant:** Empty or missing auth credentials is a hard startup failure
 
-- [ ] **Security Invariant:** Empty or missing auth credentials MUST be a hard startup failure, not a silent degradation to unauthenticated mode.
-
-### M3: Helm Chart — Auth Secrets & Configuration
+### M3: Helm Chart — Auth Secrets & Configuration ✅
 Helm chart support for externally-managed auth secrets via `existingSecret` references.
 
-- [ ] `auth.existingSecret` and `auth.oauth` in values schema
-- [ ] `MCP_AUTH_*` / `MCP_HEADERS_*` env var injection from Secrets
-- [ ] Optional `auth.tls.caBundle.existingSecret` for custom CA certificates
-- [ ] Backward-compatible: no auth = no change
+- [x] `auth.token.existingSecret`, `auth.headers.existingSecret`, `auth.oauth` in values schema
+- [x] Auto-derived `MCP_AUTH_*` / `MCP_HEADERS_*` / `MCP_OAUTH_SECRET_*` env var injection from Secrets
+- [x] Backward-compatible: no auth = no change
 
-### M4: OAuth `authProvider` for MCP-Spec-Compliant Servers
-Full OAuth `client_credentials` flow via `OAuthClientProvider`. Reuses existing #380 infrastructure. Note: `client_credentials` does not use PKCE — PKCE applies only to `authorization_code` flows (future #401).
+### M4: OAuth `authProvider` for MCP-Spec-Compliant Servers ✅
+Full OAuth `client_credentials` flow via `OAuthClientProvider`.
 
-- [ ] OAuth flow: 401 challenge → resource metadata discovery → token exchange
-- [ ] Token storage: in-memory with automatic refresh
-- [ ] Implement `invalidateCredentials` on both auth providers to clear cached tokens on auth failure
-- [ ] Support optional `audience` / `resource` parameter per RFC 8707
-- [ ] Implement `saveDiscoveryState` / `discoveryState` to cache RFC 9728 discovery results
-- [ ] `codeVerifier()` returns `undefined` for non-PKCE providers
+- [x] OAuth flow: client_credentials grant with RFC 9728 discovery
+- [x] Token storage: in-memory with automatic refresh
+- [x] Implement `invalidateCredentials` to clear cached tokens on auth failure
+- [x] Support optional `scope` parameter
+- [x] `clientSecretEnvVar` auto-derived from server name (e.g., `MCP_OAUTH_SECRET_CONTEXT_FORGE`)
 
-### M5: Integration Tests, Observability & Documentation
-- [ ] Auth status logging: startup log per MCP server (e.g., "Authenticated (OAuth)", "Authenticated (Static)", "Unauthenticated")
-- [ ] Test fixture: minimal MCP server with auth middleware
-- [ ] Integration tests: auth/no-auth paths, invalid token errors
-- [ ] Operator documentation for all auth patterns
+### M5: Integration Tests, Observability & Documentation ✅
+- [x] Auth status logging at startup
+- [x] Unit tests: auth config parsing, transport creation (`tests/unit/core/mcp-client-auth.test.ts`)
+- [x] Integration tests: auth/no-auth paths (`tests/integration/tools/mcp-client-auth.test.ts`)
+- [x] Helm template tests (`tests/unit/helm/mcp-auth.test.ts`)
 
 ## Technical Scope — Modified Modules
 
-| Location | File | What Changes |
+| Location | File | What Changed |
 |----------|------|-------------|
-| TypeScript interface | `src/core/mcp-client-types.ts` | Add `auth` config to `McpServerConfig` |
-| Client manager | `src/core/mcp-client-manager.ts` | Read auth config, create `OAuthClientProvider`, pass to transport |
-| Helm values | `charts/values.yaml` | Add `auth` schema to `mcpServers` |
-| Helm template | `charts/templates/secret.yaml` | Add MCP auth Secret (conditional) |
-| Helm template | `charts/templates/deployment.yaml` | Inject `MCP_AUTH_*` / `MCP_HEADERS_*` env vars from Secrets |
-| Tests | `tests/unit/core/mcp-client-manager.test.ts` | Auth config parsing, transport creation |
+| TypeScript interface | `src/core/mcp-client-types.ts` | Added `McpServerAuthConfig`, `McpOAuthConfig` to `McpServerConfig` |
+| Client manager | `src/core/mcp-client-manager.ts` | Auth config parsing, `StaticTokenAuthProvider`, OAuth `client_credentials`, `requestInit.headers` |
+| Server entry | `src/mcp/server.ts` | MCP discovery fail-fast (`process.exit(1)`) |
+| Helm helpers | `charts/templates/_helpers.tpl` | Auth env var name derivation, Secret→env injection |
+| Helm deployment | `charts/templates/deployment.yaml` | `MCP_AUTH_*` / `MCP_HEADERS_*` / `MCP_OAUTH_SECRET_*` env var injection |
+| Helm values | `charts/values.yaml` | `auth` schema in `mcpServers` with examples |
+| Tests | `tests/unit/core/mcp-client-auth.test.ts` | Auth config parsing, transport creation |
+| Tests | `tests/integration/tools/mcp-client-auth.test.ts` | OAuth token lifecycle |
 | Tests | `tests/unit/helm/mcp-auth.test.ts` | Helm template rendering with auth config |
 
 ## Security Considerations
@@ -303,7 +280,7 @@ Full OAuth `client_credentials` flow via `OAuthClientProvider`. Reuses existing 
 - **Token privilege restriction**: Each hop requires its own token per MCP spec
 - **Defense in depth**: Network (Cilium) → Application auth (this PRD) → Tool RBAC (#392) → Namespace (#401)
 - **OAuth security**: PKCE applies to `authorization_code` flows only (not `client_credentials`). Tokens stored in-memory only.
-- **Sidecar exposure**: All containers in the same pod can read `MCP_AUTH_*` / `MCP_HEADERS_*` env vars — inherent to the env-var injection pattern
+- **Sidecar exposure**: All containers in the same pod can read `MCP_AUTH_*` env vars — inherent to the env-var injection pattern
 - **Fail-fast on missing credentials**: Configured auth with absent credentials is a hard failure, not silent degradation
 
 ## Alternatives Considered
@@ -327,14 +304,10 @@ Full OAuth `client_credentials` flow via `OAuthClientProvider`. Reuses existing 
 - [RFC 7591 — OAuth 2.0 Dynamic Client Registration](https://datatracker.ietf.org/doc/rfc7591/)
 - [RFC 9728 — OAuth 2.0 Protected Resource Metadata](https://datatracker.ietf.org/doc/rfc9728/)
 - [RFC 6750 — OAuth 2.0 Bearer Token Usage](https://datatracker.ietf.org/doc/rfc6750/)
-- [RFC 8707 — Resource Indicators for OAuth 2.0](https://datatracker.ietf.org/doc/rfc8707/) — `resource` parameter now MUST per MCP spec 2025-11-25
+- [RFC 8707 — Resource Indicators for OAuth 2.0](https://datatracker.ietf.org/doc/rfc8707/)
 - [RFC 7636 — PKCE](https://datatracker.ietf.org/doc/rfc7636/)
 - [RFC 9068 — JWT Profile for OAuth 2.0 Access Tokens](https://datatracker.ietf.org/doc/rfc9068/)
-- [RFC 9700 — OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/rfc9700/) (finalized Jan 2025)
-
-### Draft Specifications (informational alignment)
-- [OAuth 2.1 (draft-ietf-oauth-v2-1)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1) — consolidates the above; referenced by MCP spec but still a Working Group Internet-Draft
-- [OAuth Client ID Metadata Documents (draft-ietf-oauth-client-id-metadata-document-00)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-client-id-metadata-document-00) — referenced by MCP spec 2025-11-25
+- [RFC 9700 — OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/rfc9700/)
 
 ### Kubernetes
 - [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
@@ -343,10 +316,11 @@ Full OAuth `client_credentials` flow via `OAuthClientProvider`. Reuses existing 
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-03-26 | Lead with `authProvider`, not `requestInit.headers` | MCP SDK's native auth interface. Standards-compliant. Enables future OAuth and per-user identity. |
-| 2026-03-26 | Use `OAuthClientProvider` for static tokens (not just OAuth) | `StaticTokenAuthProvider` wraps the full `OAuthClientProvider` interface — follows SDK's intended pattern |
-| 2026-03-26 | Keep `requestInit.headers` as fallback | Some servers need custom headers (e.g., multiple non-Authorization headers). SDK supports both simultaneously. |
-| 2026-03-26 | Auth credentials in Secrets, never ConfigMap | ConfigMaps are unencrypted, visible via `kubectl describe`. Follows #380's Dex secret patterns. |
-| 2026-03-26 | `existingSecret` only — no chart-managed secrets | Tokens in Helm values risk git commits and appear in Helm release metadata. |
-| 2026-03-26 | `client_credentials` does not use PKCE | PKCE is an `authorization_code` flow concern. Will be addressed in #401 (per-user auth code flows). |
-| 2026-03-26 | Reference finalized RFCs, cite OAuth 2.1 as informational | OAuth 2.1 is still a Working Group Internet-Draft (draft-15). Individual behaviors are backed by finalized RFCs (9700, 7636, 8707, 8414, 9728). |
+| 2026-03-26 | Lead with `authProvider`, not `requestInit.headers` | MCP SDK's native auth interface. Standards-compliant. |
+| 2026-03-26 | Use `OAuthClientProvider` for static tokens (not just OAuth) | `StaticTokenAuthProvider` wraps the full interface — follows SDK pattern |
+| 2026-03-26 | Keep `requestInit.headers` as fallback | Some servers need custom headers. SDK supports both. |
+| 2026-03-26 | Auth credentials in Secrets, never ConfigMap | ConfigMaps are unencrypted, visible via `kubectl describe`. |
+| 2026-03-26 | `existingSecret` only — no chart-managed secrets | Tokens in Helm values risk git commits. |
+| 2026-03-26 | `client_credentials` does not use PKCE | PKCE is `authorization_code` only. |
+| 2026-04-01 | v1.15.0 shipped — all milestones complete | Implementation via PR #417. PRD doc updated to reflect shipped state. |
+| 2026-04-01 | `clientSecretEnvVar` auto-derived from server name | Chart auto-computes env var name (e.g., `MCP_OAUTH_SECRET_CONTEXT_FORGE` from server name `context-forge`), no manual mapping needed. |
