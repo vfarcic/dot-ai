@@ -158,18 +158,43 @@ export class VercelProvider implements AIProvider {
           break;
         case 'anthropic':
         case 'anthropic_opus':
-        case 'anthropic_haiku':
+        case 'anthropic_haiku': {
+          // Detect Authorization header in custom headers (case-insensitive).
+          // Corporate proxies expect Authorization: Bearer auth, but apiKey sends x-api-key.
+          // When Authorization is present, extract the Bearer token and pass it as authToken
+          // so the SDK sends Authorization: Bearer instead of x-api-key.
+          const authHeaderKey = this.customHeaders
+            ? Object.keys(this.customHeaders).find(
+                key => key.toLowerCase() === 'authorization'
+              )
+            : undefined;
+
+          const authOpt = authHeaderKey
+            ? {
+                authToken: this.customHeaders![authHeaderKey].replace(
+                  /^Bearer\s+/i,
+                  ''
+                ),
+              }
+            : { apiKey: this.apiKey };
+
+          // Strip Authorization from custom headers when using authToken (SDK generates it)
+          const filteredCustomHeaders =
+            authHeaderKey && this.customHeaders
+              ? Object.fromEntries(
+                  Object.entries(this.customHeaders).filter(
+                    ([key]) => key.toLowerCase() !== 'authorization'
+                  )
+                )
+              : this.customHeaders;
+
           provider = createAnthropic({
-            apiKey: this.apiKey,
+            ...authOpt,
             ...baseURLOpt,
-            // Enable 1M token context window for Claude Sonnet 4 (5x increase from 200K)
-            // Required for models like claude-sonnet-4-5-20250929
-            // PRD #443: Custom headers merge with (and can override) the anthropic-beta default
-            headers: mergeHeaders({
-              'anthropic-beta': 'context-1m-2025-08-07',
-            })!,
+            ...(filteredCustomHeaders && { headers: filteredCustomHeaders }),
           });
           break;
+        }
         case 'xai':
           provider = createXai({
             apiKey: this.apiKey,

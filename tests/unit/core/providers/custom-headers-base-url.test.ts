@@ -116,19 +116,12 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
       AIProviderFactory.createFromEnv();
 
       expect(stderrSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          'CUSTOM_LLM_HEADERS is not valid JSON'
-        )
+        expect.stringContaining('CUSTOM_LLM_HEADERS is not valid JSON')
       );
 
-      // Verify invalid headers are ignored — only provider defaults remain
+      // Verify invalid headers are ignored — no headers passed
       const anthropicConfig = mockCreateAnthropic.mock.calls[0]?.[0];
-      expect(anthropicConfig.headers).toEqual(
-        expect.objectContaining({
-          'anthropic-beta': 'context-1m-2025-08-07',
-        })
-      );
-      expect(anthropicConfig.headers).not.toHaveProperty('x-custom-auth');
+      expect(anthropicConfig.headers).toBeUndefined();
     });
 
     it('should work without CUSTOM_LLM_HEADERS set', () => {
@@ -138,19 +131,15 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
 
       AIProviderFactory.createFromEnv();
 
-      // Anthropic should still get its default beta header
-      expect(mockCreateAnthropic).toHaveBeenCalledWith(
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'anthropic-beta': 'context-1m-2025-08-07',
-          }),
-        })
-      );
+      // Anthropic should be called with apiKey, no headers
+      const anthropicConfig = mockCreateAnthropic.mock.calls[0]?.[0];
+      expect(anthropicConfig.apiKey).toBe('test-key');
+      expect(anthropicConfig.headers).toBeUndefined();
     });
   });
 
   describe('Header merging with provider defaults', () => {
-    it('should merge custom headers with Anthropic beta header', () => {
+    it('should pass custom headers to Anthropic provider', () => {
       process.env.ANTHROPIC_API_KEY = 'test-key';
       process.env.AI_PROVIDER = 'anthropic';
       process.env.CUSTOM_LLM_HEADERS = '{"x-custom": "value"}';
@@ -160,25 +149,7 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
       expect(mockCreateAnthropic).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {
-            'anthropic-beta': 'context-1m-2025-08-07',
             'x-custom': 'value',
-          },
-        })
-      );
-    });
-
-    it('should allow custom headers to override Anthropic beta header', () => {
-      process.env.ANTHROPIC_API_KEY = 'test-key';
-      process.env.AI_PROVIDER = 'anthropic';
-      process.env.CUSTOM_LLM_HEADERS =
-        '{"anthropic-beta": "custom-beta-value"}';
-
-      AIProviderFactory.createFromEnv();
-
-      expect(mockCreateAnthropic).toHaveBeenCalledWith(
-        expect.objectContaining({
-          headers: {
-            'anthropic-beta': 'custom-beta-value',
           },
         })
       );
@@ -271,7 +242,6 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
         expect.objectContaining({
           baseURL: 'https://proxy.example.com/api',
           headers: {
-            'anthropic-beta': 'context-1m-2025-08-07',
             version: '2026-02-20',
             'x-proxy-auth': 'secret',
           },
@@ -300,8 +270,7 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
     it('should detect OpenRouter URL regardless of AI_PROVIDER', () => {
       process.env.ANTHROPIC_API_KEY = 'test-key';
       process.env.AI_PROVIDER = 'anthropic';
-      process.env.CUSTOM_LLM_BASE_URL =
-        'https://openrouter.ai/api/v1';
+      process.env.CUSTOM_LLM_BASE_URL = 'https://openrouter.ai/api/v1';
 
       AIProviderFactory.createFromEnv();
 
@@ -313,8 +282,7 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
     it('should detect OpenRouter URL when AI_PROVIDER is not set', () => {
       delete process.env.AI_PROVIDER;
       process.env.CUSTOM_LLM_API_KEY = 'test-key';
-      process.env.CUSTOM_LLM_BASE_URL =
-        'https://openrouter.ai/api/v1';
+      process.env.CUSTOM_LLM_BASE_URL = 'https://openrouter.ai/api/v1';
 
       AIProviderFactory.createFromEnv();
 
@@ -329,17 +297,100 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
 
       AIProviderFactory.createFromEnv();
 
-      // Default: anthropic provider with beta header, no baseURL
-      expect(mockCreateAnthropic).toHaveBeenCalledWith(
-        expect.objectContaining({
-          headers: {
-            'anthropic-beta': 'context-1m-2025-08-07',
-          },
-        })
-      );
-      // Should NOT have baseURL in the call
+      // Default: anthropic provider with apiKey, no headers, no baseURL
       const callArgs = mockCreateAnthropic.mock.calls[0][0];
+      expect(callArgs.apiKey).toBe('test-key');
+      expect(callArgs.headers).toBeUndefined();
       expect(callArgs.baseURL).toBeUndefined();
+    });
+  });
+
+  describe('Anthropic Bearer auth (authToken) for corporate proxies', () => {
+    it('should use authToken when Authorization header is in custom headers', () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      process.env.AI_PROVIDER = 'anthropic';
+      process.env.CUSTOM_LLM_HEADERS =
+        '{"Authorization": "Bearer proxy-token", "x-custom": "value"}';
+
+      AIProviderFactory.createFromEnv();
+
+      const config = mockCreateAnthropic.mock.calls[0]?.[0];
+      expect(config.authToken).toBe('proxy-token');
+      expect(config.apiKey).toBeUndefined();
+      // Authorization stripped from headers (SDK generates it from authToken)
+      expect(config.headers).toEqual({ 'x-custom': 'value' });
+    });
+
+    it('should use apiKey when no Authorization header is in custom headers', () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      process.env.AI_PROVIDER = 'anthropic';
+      process.env.CUSTOM_LLM_HEADERS = '{"x-custom": "value"}';
+
+      AIProviderFactory.createFromEnv();
+
+      const config = mockCreateAnthropic.mock.calls[0]?.[0];
+      expect(config.apiKey).toBe('test-key');
+      expect(config.authToken).toBeUndefined();
+    });
+
+    it('should detect Authorization header case-insensitively', () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      process.env.AI_PROVIDER = 'anthropic';
+      process.env.CUSTOM_LLM_HEADERS =
+        '{"authorization": "Bearer proxy-token"}';
+
+      AIProviderFactory.createFromEnv();
+
+      const config = mockCreateAnthropic.mock.calls[0]?.[0];
+      expect(config.authToken).toBe('proxy-token');
+      expect(config.apiKey).toBeUndefined();
+      // Authorization stripped; remaining headers is empty object
+      expect(config.headers).toEqual({});
+    });
+
+    it('should work with anthropic_opus variant', () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      process.env.AI_PROVIDER = 'anthropic_opus';
+      process.env.CUSTOM_LLM_HEADERS =
+        '{"Authorization": "Bearer proxy-token"}';
+
+      AIProviderFactory.createFromEnv();
+
+      const config = mockCreateAnthropic.mock.calls[0]?.[0];
+      expect(config.authToken).toBe('proxy-token');
+      expect(config.apiKey).toBeUndefined();
+    });
+
+    it('should work with anthropic_haiku variant', () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      process.env.AI_PROVIDER = 'anthropic_haiku';
+      process.env.CUSTOM_LLM_HEADERS =
+        '{"Authorization": "Bearer proxy-token"}';
+
+      AIProviderFactory.createFromEnv();
+
+      const config = mockCreateAnthropic.mock.calls[0]?.[0];
+      expect(config.authToken).toBe('proxy-token');
+      expect(config.apiKey).toBeUndefined();
+    });
+
+    it('should combine authToken with baseURL for full proxy scenario', () => {
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+      process.env.AI_PROVIDER = 'anthropic';
+      process.env.CUSTOM_LLM_BASE_URL =
+        'https://proxy.corp.example.com/anthropic/v1';
+      process.env.CUSTOM_LLM_HEADERS =
+        '{"Authorization": "Bearer proxy-token", "version": "2026-02-20"}';
+
+      AIProviderFactory.createFromEnv();
+
+      const config = mockCreateAnthropic.mock.calls[0]?.[0];
+      expect(config.authToken).toBe('proxy-token');
+      expect(config.apiKey).toBeUndefined();
+      expect(config.baseURL).toBe(
+        'https://proxy.corp.example.com/anthropic/v1'
+      );
+      expect(config.headers).toEqual({ version: '2026-02-20' });
     });
   });
 });

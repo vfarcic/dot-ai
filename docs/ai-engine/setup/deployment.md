@@ -434,6 +434,21 @@ secrets:
 - Headers apply to LLM requests only, not embeddings.
 - Custom headers override provider defaults when the same header key is used.
 
+#### Anthropic Proxies with Bearer Authentication
+
+The Anthropic API uses `x-api-key` for authentication by default. If your corporate proxy requires `Authorization: Bearer` authentication instead, include an `Authorization` header in your custom headers. dot-ai automatically detects this and switches the Anthropic SDK to Bearer token mode.
+
+```yaml
+ai:
+  provider: anthropic
+  customEndpoint:
+    enabled: true
+    baseURL: "https://proxy.corp.example.com/anthropic/v1"
+    headers: '{"Authorization": "Bearer your-proxy-token", "version": "2026-02-20"}'
+```
+
+The Bearer token value comes from the `Authorization` header you provide. The `Authorization` header is handled by the SDK's auth mechanism and won't be duplicated in the request. Other providers (OpenAI, Google, xAI) already use Bearer auth by default, so this only applies to Anthropic.
+
 ### Native Provider with Custom Base URL
 
 By default, setting a custom base URL without specifying a provider routes requests through an OpenAI-compatible endpoint. If your proxy fronts a non-OpenAI provider (e.g., Anthropic), you can preserve native provider features — such as cache control, extended context, and native tool calling — by explicitly setting the provider.
