@@ -16,6 +16,7 @@ This roadmap is a living document and may change based on community feedback and
 - Agentic documentation validation and remediation - Pod-based validation, automated fixes, PR creation with feedback loop (PRD #388)
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
+- Use embedMany for batch embeddings - replace manual Promise.all with SDK built-in batching (PRD #453)
 
 ## Medium-term (3-6 Months)
 
@@ -26,10 +27,21 @@ This roadmap is a living document and may change based on community feedback and
 - Integrate patterns & policies into remediation tool (PRD #227)
 - Cost estimation & optimization - integrate with OpenCost/Kubecost for cost insights in recommend and operate workflows (PRD #404)
 - Upgrade path analysis - assess cluster readiness for Kubernetes version upgrades using existing tools (PRD #406)
+- Use generateObject for type-safe structured AI responses (PRD #454)
+- Evaluate streamText for real-time progress in long-running operations (PRD #455)
+- Use SDK built-in telemetry for AI operation tracing (PRD #458)
 
 ## Long-term (6-12 Months)
 
 - Retire legacy collection migration from unified knowledge base (PRD #376)
+- AI SDK middleware for cross-cutting concerns - telemetry, guardrails, RAG (PRD #456)
+- Use prepareStep for dynamic tool control in agentic loops (PRD #457)
+- Configure SDK retry behavior per provider and operation (PRD #459)
+- Abort signal support for cancelling long-running AI operations (PRD #460)
+- smoothStream for better streaming UX (PRD #461)
+- Evaluate generateImage for architecture diagram generation (PRD #462)
+- Evaluate SDK MCP client for consuming external tool servers (PRD #463)
+- Use MockLanguageModelV1 for unit testing AI interactions (PRD #464)
 
 ## How to Contribute
 

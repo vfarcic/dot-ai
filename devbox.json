@@ -21,7 +21,7 @@
       "[ -f .env ] && source .env || true"
     ],
     "scripts": {
-      "agent": ["claude"]
+      "agent": ["claude --continue"]
     }
   }
 }

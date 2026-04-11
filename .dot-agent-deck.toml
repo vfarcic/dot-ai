@@ -1,0 +1,16 @@
+[[modes]]
+name = "develop"
+init_command = "devbox shell"
+reactive_panes = 2
+
+[[modes.panes]]
+command = "git diff --stat HEAD; git ls-files --others --exclude-standard"
+name = "Changed Files"
+
+[[modes.rules]]
+pattern = "npm run (build|build:dev|build:prod)"
+watch = false
+
+[[modes.rules]]
+pattern = "npm run test"
+watch = false
