@@ -4,7 +4,7 @@ init_command = "devbox shell"
 reactive_panes = 2
 
 [[modes.panes]]
-command = "git diff --stat HEAD; git ls-files --others --exclude-standard"
+command = "git diff --stat HEAD"
 name = "Changed Files"
 
 [[modes.rules]]
