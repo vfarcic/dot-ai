@@ -612,6 +612,23 @@ export class MCPServer {
     this.oauthProvider = new DotAIOAuthProvider();
     this.oauthApp = express();
     this.oauthApp.set('trust proxy', 1);
+
+    // Middleware to extract client-requested token expiry before SDK processes /token
+    // This allows clients (like CLI) to request longer-lived tokens
+    this.oauthApp.use(express.urlencoded({ extended: false }));
+    this.oauthApp.use((req, res, next) => {
+      if (req.method === 'POST' && req.url === '/token') {
+        const body = req.body as { code?: string; requested_expiry?: string };
+        if (body.code && body.requested_expiry) {
+          const expirySeconds = parseInt(body.requested_expiry, 10);
+          if (!isNaN(expirySeconds)) {
+            this.oauthProvider!.setRequestedExpiry(body.code, expirySeconds);
+          }
+        }
+      }
+      next();
+    });
+
     this.oauthApp.use(
       mcpAuthRouter({
         provider: this.oauthProvider,

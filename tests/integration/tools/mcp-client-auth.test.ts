@@ -101,7 +101,7 @@ function createMockOAuthServer(options: {
           res.end(JSON.stringify({
             access_token: options.accessToken,
             token_type: 'bearer',
-            expires_in: 3600,
+            expires_in: 86400,
             scope: params.get('scope') || undefined,
           }));
         });
@@ -505,7 +505,7 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       expect(tokenData).toMatchObject({
         access_token: TEST_ACCESS_TOKEN,
         token_type: 'bearer',
-        expires_in: 3600,
+        expires_in: 86400,
         scope: TEST_SCOPE,
       });
 

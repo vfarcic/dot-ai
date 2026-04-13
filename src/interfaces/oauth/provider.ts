@@ -74,6 +74,12 @@ const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
 /** Separator between session ID and original state in the Dex state param. */
 const STATE_SEPARATOR = '|';
 
+/** Default token expiry: 1 day (86400 seconds). */
+const DEFAULT_TOKEN_EXPIRY_SECONDS = 86400;
+
+/** Maximum allowed token expiry: 90 days (7776000 seconds). */
+const MAX_TOKEN_EXPIRY_SECONDS = 7776000;
+
 /**
  * OAuth Server Provider for dot-ai.
  *
@@ -87,6 +93,7 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
   readonly clientsStore: DotAIClientsStore;
   private pendingRequests = new Map<string, PendingAuthRequest>();
   private authCodes = new Map<string, AuthorizationCode>();
+  private requestedExpiries = new Map<string, number>(); // Maps auth code -> requested expiry
   private dexConfig: DexConfig | null;
   private dotAiExternalUrl: string;
   private pruneTimer: ReturnType<typeof setInterval> | null = null;
@@ -129,6 +136,51 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
       clearInterval(this.pruneTimer);
       this.pruneTimer = null;
     }
+  }
+
+  /**
+   * Store a client-requested token expiry for an upcoming token exchange.
+   * Called by middleware that intercepts POST /token before the SDK handler.
+   *
+   * @param authorizationCode - The authorization code from the token request
+   * @param requestedExpiry - Requested expiry in seconds
+   */
+  setRequestedExpiry(authorizationCode: string, requestedExpiry: number): void {
+    this.requestedExpiries.set(authorizationCode, requestedExpiry);
+  }
+
+  /**
+   * Calculate token expiry based on client request, defaults, and limits.
+   *
+   * Priority:
+   * 1. Client-requested expiry (if valid and within max limit)
+   * 2. OAUTH_DEFAULT_TOKEN_TTL_SECONDS env var
+   * 3. Built-in default (1 day)
+   *
+   * @param authorizationCode - The authorization code being exchanged
+   * @returns Expiry time in seconds
+   */
+  private getTokenExpiry(authorizationCode: string): number {
+    const defaultExpiry = parseInt(
+      process.env.OAUTH_DEFAULT_TOKEN_TTL_SECONDS || String(DEFAULT_TOKEN_EXPIRY_SECONDS)
+    );
+    const maxExpiry = parseInt(
+      process.env.OAUTH_MAX_TOKEN_TTL_SECONDS || String(MAX_TOKEN_EXPIRY_SECONDS)
+    );
+
+    // Check if client requested a specific expiry
+    const requestedExpiry = this.requestedExpiries.get(authorizationCode);
+    if (requestedExpiry !== undefined) {
+      // Clean up the stored value (one-time use)
+      this.requestedExpiries.delete(authorizationCode);
+
+      // Validate: must be positive and not exceed max
+      if (requestedExpiry > 0 && requestedExpiry <= maxExpiry) {
+        return requestedExpiry;
+      }
+    }
+
+    return defaultExpiry;
   }
 
   private loadDexConfig(): DexConfig | null {
@@ -255,7 +307,7 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     this.authCodes.delete(authorizationCode);
 
     const now = Math.floor(Date.now() / 1000);
-    const expiresIn = 3600; // 1 hour
+    const expiresIn = this.getTokenExpiry(authorizationCode);
     const secret = getJwtSecret();
 
     const accessToken = signJwt({

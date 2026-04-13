@@ -476,7 +476,7 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
     expect(tokenData).toMatchObject({
       access_token: expect.any(String),
       token_type: 'bearer',
-      expires_in: 3600,
+      expires_in: 86400, // 1 day default
     });
 
     // Verify JWT structure (3 base64url segments)
@@ -507,6 +507,132 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
         },
       },
     });
+  }, 120000);
+
+  test('should honor client-requested token expiry within limits', async () => {
+    // Step 1: Register a client
+    const registerRes = await rawHttp(`${mcpBaseUrl}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        redirect_uris: [clientRedirectUri],
+        client_name: 'CLI Test Client',
+        token_endpoint_auth_method: 'none',
+      }),
+    });
+
+    expect(registerRes.statusCode).toBe(201);
+    const { client_id: clientId } = JSON.parse(registerRes.body);
+
+    // Step 2-7: Complete OAuth flow (same as main test, abbreviated)
+    const { codeVerifier, codeChallenge } = generatePkce();
+    const authorizeUrl = new URL('/authorize', mcpBaseUrl);
+    authorizeUrl.searchParams.set('response_type', 'code');
+    authorizeUrl.searchParams.set('client_id', clientId);
+    authorizeUrl.searchParams.set('redirect_uri', clientRedirectUri);
+    authorizeUrl.searchParams.set('code_challenge', codeChallenge);
+    authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+    authorizeUrl.searchParams.set('state', 'test-expiry-state');
+
+    const authorizeRes = await rawHttp(authorizeUrl.toString());
+    expect(authorizeRes.statusCode).toBe(302);
+
+    let currentUrl = fixTestPort(authorizeRes.headers.location!, mcpBaseUrl, dexIssuerUrl);
+    let dexRes = await rawHttp(currentUrl);
+    for (let i = 0; i < 5 && dexRes.statusCode >= 300 && dexRes.statusCode < 400; i++) {
+      currentUrl = fixTestPort(
+        dexRes.headers.location!.startsWith('http')
+          ? dexRes.headers.location!
+          : new URL(dexRes.headers.location!, currentUrl).toString(),
+        mcpBaseUrl,
+        dexIssuerUrl
+      );
+      dexRes = await rawHttp(currentUrl);
+    }
+
+    const loginPageUrl = new URL(currentUrl);
+    let reqParam = loginPageUrl.searchParams.get('req') || '';
+    const hiddenMatch = dexRes.body.match(/name="req"\s+value="([^"]*)"/);
+    if (hiddenMatch) reqParam = hiddenMatch[1];
+
+    const actionMatch = dexRes.body.match(/action="([^"]*)"/);
+    const loginPostUrl = actionMatch
+      ? fixTestPort(
+          actionMatch[1].replace(/&amp;/g, '&').startsWith('http')
+            ? actionMatch[1].replace(/&amp;/g, '&')
+            : new URL(actionMatch[1].replace(/&amp;/g, '&'), currentUrl).toString(),
+          mcpBaseUrl,
+          dexIssuerUrl
+        )
+      : `${dexIssuerUrl}/auth/local/login${reqParam ? `?req=${reqParam}` : ''}`;
+
+    const loginBody = new URLSearchParams({
+      login: dexEmail,
+      password: dexPassword,
+      ...(reqParam ? { req: reqParam } : {}),
+    }).toString();
+
+    const loginRes = await rawHttp(loginPostUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: loginBody,
+    });
+
+    let nextLocation = loginRes.headers.location!;
+    let dotAiAuthCode: string | null = null;
+    for (let i = 0; i < 10; i++) {
+      const absoluteUrl = nextLocation.startsWith('http')
+        ? nextLocation
+        : new URL(nextLocation, loginPostUrl).toString();
+
+      if (absoluteUrl.includes('127.0.0.1:9999')) {
+        dotAiAuthCode = new URL(absoluteUrl).searchParams.get('code');
+        break;
+      }
+
+      const requestUrl = fixTestPort(absoluteUrl, mcpBaseUrl, dexIssuerUrl);
+      const res = await rawHttp(requestUrl);
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        nextLocation = res.headers.location;
+        continue;
+      }
+      throw new Error(`Unexpected HTTP ${res.statusCode}`);
+    }
+
+    expect(dotAiAuthCode).toBeTruthy();
+
+    // Step 8: Exchange code for token WITH requested_expiry (30 days for CLI)
+    const requestedExpiry = 30 * 24 * 60 * 60; // 30 days
+    const tokenBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: dotAiAuthCode!,
+      redirect_uri: clientRedirectUri,
+      client_id: clientId,
+      code_verifier: codeVerifier,
+      requested_expiry: String(requestedExpiry),
+    }).toString();
+
+    const tokenRes = await rawHttp(`${mcpBaseUrl}/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenBody,
+    });
+
+    expect(tokenRes.statusCode).toBe(200);
+    const tokenData = JSON.parse(tokenRes.body);
+    expect(tokenData).toMatchObject({
+      access_token: expect.any(String),
+      token_type: 'bearer',
+      expires_in: requestedExpiry, // Should honor the requested 30 days
+    });
+
+    // Verify the JWT contains the correct expiry
+    const jwtParts = tokenData.access_token.split('.');
+    expect(jwtParts).toHaveLength(3);
+    const payload = JSON.parse(Buffer.from(jwtParts[1], 'base64url').toString());
+    const expectedExp = Math.floor(Date.now() / 1000) + requestedExpiry;
+    expect(payload.exp).toBeGreaterThanOrEqual(expectedExp - 5); // Allow 5s clock skew
+    expect(payload.exp).toBeLessThanOrEqual(expectedExp + 5);
   }, 120000);
 
   describe('Error Handling', () => {

@@ -78,6 +78,7 @@ export interface TokenRequest {
   redirect_uri: string;
   client_id: string;
   code_verifier: string;
+  requested_expiry?: string; // Custom parameter for client-driven token expiry (in seconds)
 }
 
 /**
