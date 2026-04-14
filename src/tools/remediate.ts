@@ -267,7 +267,7 @@ async function conductInvestigation(
     throw new Error('Plugin system not initialized');
   }
   const pluginManager = getPluginManager()!;
-  const maxIterations = 30; // Increased for thorough investigation workflows
+  const maxIterations = 25;
 
   logger.info('Starting AI investigation with toolLoop', {
     requestId,

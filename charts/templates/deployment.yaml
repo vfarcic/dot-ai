@@ -52,6 +52,7 @@ spec:
 {{- if .Values.ai.customEndpoint.enabled }}
         - name: CUSTOM_LLM_BASE_URL
           value: {{ .Values.ai.customEndpoint.baseURL | quote }}
+{{- if not .Values.localEmbeddings.enabled }}
         - name: CUSTOM_EMBEDDINGS_BASE_URL
           value: {{ .Values.ai.customEndpoint.embeddingsBaseURL | default .Values.ai.customEndpoint.baseURL | quote }}
 {{- if .Values.ai.customEndpoint.embeddingsModel }}
@@ -61,6 +62,7 @@ spec:
 {{- if .Values.ai.customEndpoint.embeddingsDimensions }}
         - name: EMBEDDINGS_DIMENSIONS
           value: {{ .Values.ai.customEndpoint.embeddingsDimensions | quote }}
+{{- end }}
 {{- end }}
 {{- if .Values.ai.customEndpoint.headers }}
         - name: CUSTOM_LLM_HEADERS
@@ -120,12 +122,14 @@ spec:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.customLlm.keyName | default "custom-llm-api-key" }}
               optional: true
+{{- if not .Values.localEmbeddings.enabled }}
         - name: CUSTOM_EMBEDDINGS_API_KEY
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.customEmbeddings.keyName | default "custom-embeddings-api-key" }}
               optional: true
+{{- end }}
         # PRD #359: QDRANT_URL moved to agentic-tools plugin (all vector ops go through plugin)
         # Bearer token authentication (required)
         - name: DOT_AI_AUTH_TOKEN
