@@ -60,6 +60,8 @@ npm run test:integration version     # Run specific test by pattern
 
 **Git Commits**: CI runs automatically on PRs targeting `main`. Use `workflow_dispatch` in GitHub Actions to manually trigger CI on any branch.
 
+**Changelog Fragments**: Place in `changelog.d/` using towncrier naming: `<description>.<type>.md` where type must match `pyproject.toml` types: `feature`, `bugfix`, `breaking`, `doc`, `misc`. Example: `465-fix-duplicate-env.bugfix.md`. Do NOT use shorthand like `.fix.md` — towncrier won't recognize it.
+
 **Running Integration Tests via CI**: When the local cluster is unavailable (e.g., in use by parallel work), use `workflow_dispatch` in GitHub Actions to trigger the CI pipeline on your branch.
 
 ## Git Worktrees for Feature Work

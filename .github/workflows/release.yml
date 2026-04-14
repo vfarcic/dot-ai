@@ -431,17 +431,17 @@ jobs:
         VERSION=${{ needs.prepare.outputs.version }}
 
         # Build release notes content
-        cat > release_body.md << 'HEADER'
-        ## Coordinated Release Artifacts
-        HEADER
+        cat > release_body.md <<'HEADER'
+## Coordinated Release Artifacts
+HEADER
 
-        cat >> release_body.md << ARTIFACTS
-        - **npm package**: \`@vfarcic/dot-ai@$VERSION\`
-        - **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\` (also available as \`latest\`)
-        - **Docker image**: \`ghcr.io/vfarcic/dot-ai-agentic-tools:$VERSION\` (plugin)
-        - **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\`
+        cat >> release_body.md <<ARTIFACTS
+- **npm package**: \`@vfarcic/dot-ai@$VERSION\`
+- **Docker image**: \`ghcr.io/vfarcic/dot-ai:$VERSION\` (also available as \`latest\`)
+- **Docker image**: \`ghcr.io/vfarcic/dot-ai-agentic-tools:$VERSION\` (plugin)
+- **Helm chart**: \`oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$VERSION\`
 
-        ARTIFACTS
+ARTIFACTS
 
         # Append towncrier-generated notes if available
         if [ -f "release_notes_content.md" ]; then
@@ -524,9 +524,9 @@ jobs:
         VERSION=${{ needs.prepare.outputs.version }}
 
         # Build release notes content
-        cat > release_body.md << 'HEADER'
-        ## Coordinated Release Artifacts
-        HEADER
+        cat > release_body.md <<'HEADER'
+## Coordinated Release Artifacts
+HEADER
 
         echo "*Release notes update only - artifacts were published previously*" >> release_body.md
         echo "" >> release_body.md
