@@ -32,6 +32,8 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   kimi: 'MOONSHOT_API_KEY', // PRD #353: Moonshot AI Kimi K2.5
   alibaba: 'ALIBABA_API_KEY', // PRD #382: Alibaba Qwen 3.5 Plus
   xai: 'XAI_API_KEY',
+  custom: 'CUSTOM_LLM_API_KEY', // PRD #194: OpenAI-compatible custom endpoints (Ollama, vLLM, LiteLLM)
+  openrouter: 'OPENROUTER_API_KEY', // PRD #194: OpenRouter aggregator
 };
 
 /**
