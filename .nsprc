@@ -1,2 +1,6 @@
 {
+  "1116970": {
+    "active": true,
+    "notes": "GHSA-w5hq-g745-h8pq (uuid v3/v5/v6 buffer bounds). Direct dep upgraded to uuid@14. Remaining path is transitive via mermaid (latest 11.14.0 still pins uuid ^11.1.0); awaiting upstream fix. Our only uuid usage is uuidv5(name, namespace) without a buf argument, so the vulnerable code path is not reachable."
+  }
 }
