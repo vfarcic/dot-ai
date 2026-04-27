@@ -12,6 +12,7 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger } from '../co
 import { createAIProvider } from '../core/ai-provider-factory';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
 import { RESOURCE_TOOLS, executeResourceTools, type SearchResourcesInput, type QueryResourcesInput } from '../core/resource-tools';
+import { KNOWLEDGE_TOOLS, executeKnowledgeTools, type SearchKnowledgeInput } from '../core/knowledge-tools';
 import { PluginManager } from '../core/plugin-manager';
 import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
 import { GenericSessionManager } from '../core/generic-session-manager';
@@ -190,6 +191,9 @@ export async function handleQueryTool(
       if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
         return executeResourceTools(toolName, input as SearchResourcesInput | QueryResourcesInput);
       }
+      if (toolName === 'search_knowledge') {
+        return executeKnowledgeTools(toolName, input as SearchKnowledgeInput);
+      }
       if (toolName === 'validate_mermaid') {
         return executeMermaidTools(toolName, input as MermaidToolInput);
       }
@@ -233,8 +237,8 @@ export async function handleQueryTool(
     // kubectl tools only available when plugin is configured
     // MCP tools added when MCP servers are configured
     const tools = visualizationMode
-      ? [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...mcpTools, ...MERMAID_TOOLS]
-      : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...mcpTools];
+      ? [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KNOWLEDGE_TOOLS, ...pluginKubectlTools, ...mcpTools, ...MERMAID_TOOLS]
+      : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...KNOWLEDGE_TOOLS, ...pluginKubectlTools, ...mcpTools];
 
     // Execute tool loop with capability, resource, kubectl, and MCP tools
     const result = await aiProvider.toolLoop({
