@@ -43,8 +43,13 @@ spec:
         - name: SESSION_MODE
           value: "stateful"
         # AI Provider configuration
+        # Issue #474: Only emit AI_PROVIDER when explicitly set so that leaving
+        # ai.provider empty enables the auto-detect 'custom' branch in
+        # ai-provider-factory.ts when customEndpoint is configured.
+{{- if .Values.ai.provider }}
         - name: AI_PROVIDER
-          value: {{ .Values.ai.provider | default "anthropic" | quote }}
+          value: {{ .Values.ai.provider | quote }}
+{{- end }}
 {{- if .Values.ai.model }}
         - name: AI_MODEL
           value: {{ .Values.ai.model | quote }}

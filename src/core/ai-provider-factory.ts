@@ -8,10 +8,7 @@
  * Architecture supports future expansion to 19+ Vercel AI SDK providers
  */
 
-import {
-  AIProvider,
-  AIProviderConfig
-} from './ai-provider.interface';
+import { AIProvider, AIProviderConfig } from './ai-provider.interface';
 import { VercelProvider } from './providers/vercel-provider';
 import { HostProvider } from './providers/host-provider';
 import { NoOpAIProvider } from './providers/noop-provider';
@@ -32,6 +29,7 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   kimi: 'MOONSHOT_API_KEY', // PRD #353: Moonshot AI Kimi K2.5
   alibaba: 'ALIBABA_API_KEY', // PRD #382: Alibaba Qwen 3.5 Plus
   xai: 'XAI_API_KEY',
+  custom: 'CUSTOM_LLM_API_KEY', // PRD #194 / Issue #474: Explicit opt-in to custom OpenAI-compatible endpoint
 };
 
 /**
@@ -39,7 +37,9 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
  * Single source of truth maintained in model-config.ts
  */
 type ImplementedProvider = keyof typeof CURRENT_MODELS;
-const IMPLEMENTED_PROVIDERS = Object.keys(CURRENT_MODELS) as ImplementedProvider[];
+const IMPLEMENTED_PROVIDERS = Object.keys(
+  CURRENT_MODELS
+) as ImplementedProvider[];
 
 /**
  * Factory for creating AI provider instances
@@ -71,7 +71,9 @@ export class AIProviderFactory {
 
     // Validate configuration
     if (!config.apiKey) {
-      throw new Error(AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(config.provider));
+      throw new Error(
+        AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(config.provider)
+      );
     }
 
     if (!config.provider) {
@@ -79,11 +81,13 @@ export class AIProviderFactory {
     }
 
     // Check if provider is implemented in Phase 1
-    if (!IMPLEMENTED_PROVIDERS.includes(config.provider as ImplementedProvider)) {
+    if (
+      !IMPLEMENTED_PROVIDERS.includes(config.provider as ImplementedProvider)
+    ) {
       throw new Error(
         `Provider '${config.provider}' is not yet implemented. ` +
-        `Phase 1 providers: ${IMPLEMENTED_PROVIDERS.join(', ')}. ` +
-        `Future phases will add support for additional Vercel AI SDK providers.`
+          `Phase 1 providers: ${IMPLEMENTED_PROVIDERS.join(', ')}. ` +
+          `Future phases will add support for additional Vercel AI SDK providers.`
       );
     }
 
@@ -110,8 +114,8 @@ export class AIProviderFactory {
       // Write to stderr for logging
       process.stderr.write(
         `WARNING: Invalid AI_PROVIDER: ${providerType}. ` +
-        `Must be one of: ${IMPLEMENTED_PROVIDERS.join(', ')}. ` +
-        `Falling back to NoOpProvider.\n`
+          `Must be one of: ${IMPLEMENTED_PROVIDERS.join(', ')}. ` +
+          `Falling back to NoOpProvider.\n`
       );
       return new NoOpAIProvider();
     }
@@ -134,21 +138,22 @@ export class AIProviderFactory {
       if (!apiKeyEnvVar) {
         process.stderr.write(
           `WARNING: No API key environment variable defined for provider: ${providerType}. ` +
-          `Falling back to NoOpProvider.\n`
+            `Falling back to NoOpProvider.\n`
         );
         return new NoOpAIProvider();
       }
 
       // Check primary env var, with fallback for Google providers (GOOGLE_API_KEY for backward compatibility)
-      let resolvedApiKey = process.env.CUSTOM_LLM_API_KEY || process.env[apiKeyEnvVar];
+      let resolvedApiKey =
+        process.env.CUSTOM_LLM_API_KEY || process.env[apiKeyEnvVar];
       if (!resolvedApiKey && providerType.startsWith('google')) {
         resolvedApiKey = process.env.GOOGLE_API_KEY; // Fallback for backward compatibility
       }
       if (!resolvedApiKey) {
         process.stderr.write(
           `INFO: ${apiKeyEnvVar} not configured. ` +
-          `AI features will be unavailable. ` +
-          `Tools that don't require AI (prompts, project-setup) will still work.\n`
+            `AI features will be unavailable. ` +
+            `Tools that don't require AI (prompts, project-setup) will still work.\n`
         );
         return new NoOpAIProvider();
       }

@@ -115,11 +115,25 @@ export const ANSWERQUESTION_TOOL_INPUT_SCHEMA = {
 /**
  * Validate answer against question schema
  */
-function validateAnswer(answer: unknown, question: Question): string | null {
-  // Check required validation
+export function validateAnswer(
+  answer: unknown,
+  question: Question
+): string | null {
+  // Check required validation.
+  // Issue #474: For 'select' questions, empty string is a valid answer when it
+  // is explicitly listed in `options` (e.g., options=["", "soft", "hard"] where
+  // "" represents the "none/disabled" choice). Skip the empty-string rejection
+  // in that case so the question's own option list is the source of truth.
+  const emptyAnswer = answer === undefined || answer === null || answer === '';
+  const isExplicitEmptySelectOption =
+    question.type === 'select' &&
+    answer === '' &&
+    Array.isArray(question.options) &&
+    question.options.includes('');
   if (
     question.validation?.required &&
-    (answer === undefined || answer === null || answer === '')
+    emptyAnswer &&
+    !isExplicitEmptySelectOption
   ) {
     return question.validation.message || `${question.question} is required`;
   }
