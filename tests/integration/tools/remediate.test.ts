@@ -22,7 +22,7 @@ function openSSE(path: string): {
 } {
   const chunks: string[] = [];
   let resolveResponse: (res: http.IncomingMessage) => void;
-  const response = new Promise<http.IncomingMessage>((resolve) => {
+  const response = new Promise<http.IncomingMessage>(resolve => {
     resolveResponse = resolve;
   });
 
@@ -33,7 +33,7 @@ function openSSE(path: string): {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
-  const req = http.get(url, { headers }, (res) => {
+  const req = http.get(url, { headers }, res => {
     resolveResponse(res);
     res.setEncoding('utf8');
     res.on('data', (chunk: string) => {
@@ -307,9 +307,8 @@ EOF`);
       expect(sessionResponse).toMatchObject(expectedSessionResponse);
 
       // SESSION LIST: Test GET /api/v1/sessions (PRD #425)
-      const listResponse = await integrationTest.httpClient.get(
-        '/api/v1/sessions'
-      );
+      const listResponse =
+        await integrationTest.httpClient.get('/api/v1/sessions');
 
       expect(listResponse).toMatchObject({
         success: true,
@@ -327,8 +326,10 @@ EOF`);
       });
 
       // Verify our session appears in the list
-      const sessions = listResponse.data.sessions as Array<Record<string, unknown>>;
-      const ourSession = sessions.find((s) => s.sessionId === sessionId);
+      const sessions = listResponse.data.sessions as Array<
+        Record<string, unknown>
+      >;
+      const ourSession = sessions.find(s => s.sessionId === sessionId);
       expect(ourSession).toBeDefined();
       expect(ourSession).toMatchObject({
         sessionId: sessionId,
@@ -349,11 +350,13 @@ EOF`);
         '/api/v1/sessions?status=analysis_complete'
       );
       expect(filteredResponse.success).toBe(true);
-      const filteredSessions = filteredResponse.data.sessions as Array<Record<string, unknown>>;
+      const filteredSessions = filteredResponse.data.sessions as Array<
+        Record<string, unknown>
+      >;
       for (const s of filteredSessions) {
         expect(s.status).toBe('analysis_complete');
       }
-      expect(filteredSessions.some((s) => s.sessionId === sessionId)).toBe(true);
+      expect(filteredSessions.some(s => s.sessionId === sessionId)).toBe(true);
 
       // Verify pagination works
       const paginatedResponse = await integrationTest.httpClient.get(
@@ -503,7 +506,7 @@ EOF`);
       // Verify all SSE data lines are valid JSON with expected shape
       const dataLines = allSSEData
         .split('\n')
-        .filter((line) => line.startsWith('data: '));
+        .filter(line => line.startsWith('data: '));
       expect(dataLines.length).toBeGreaterThanOrEqual(2); // At least created + updated
 
       for (const line of dataLines) {
@@ -518,7 +521,8 @@ EOF`);
       }
 
       // Verify server is still healthy after SSE disconnect
-      const healthResponse = await integrationTest.httpClient.get('/api/v1/sessions');
+      const healthResponse =
+        await integrationTest.httpClient.get('/api/v1/sessions');
       expect(healthResponse.success).toBe(true);
     }, 1200000); // 20 minute timeout for AI investigation + execution + validation (accommodates slower AI models like Gemini)
   });
@@ -1352,9 +1356,13 @@ EOF`);
             title: string;
             body: string;
             state: string;
+            draft: boolean;
             head: { ref: string };
           };
           expect(prData.state).toBe('open');
+          // Integration tests set DOT_AI_GIT_CREATE_DRAFT_PRS=true so PRs
+          // created during testing don't trigger CodeRabbit reviews.
+          expect(prData.draft).toBe(true);
           expect(prData.title).toContain('fix:');
           expect(prData.body).toContain('Remediation');
           expect(prData.head.ref).toBe(prBranch);
