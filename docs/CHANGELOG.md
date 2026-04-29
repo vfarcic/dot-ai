@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.16.3] - 2026-04-29
+
+### Bug Fixes
+
+- ### Answer validator now accepts empty string when it's an explicit `select` option
+
+  When the recommend tool generated a required `select` question whose `options` list explicitly included `""` (e.g., `["", "soft", "hard"]` to mean "no anti-affinity"), the answer validator rejected the empty string with a "required" error even though the question itself listed it as a valid choice. The validator now treats `""` as a valid answer for required `select` questions whenever it appears in the question's `options` array. ([#474-answer-validator-empty-select](https://github.com/vfarcic/dot-ai/issues/474-answer-validator-empty-select))
+- ### Custom AI provider base URL now works through the Helm chart (#474)
+
+  Two fixes so a custom OpenAI-compatible LLM endpoint can be configured end-to-end via Helm:
+
+  - `AI_PROVIDER=custom` is now a first-class provider — `PROVIDER_ENV_KEYS` maps it to `CUSTOM_LLM_API_KEY`, so the MCP server no longer falls back to `NoOpProvider` when `ai.provider: custom` is set.
+  - The Helm chart now omits the `AI_PROVIDER` env var when `ai.provider` is empty, restoring the auto-detect path that selects the `custom` provider whenever `customEndpoint.enabled: true` is configured.
+
+  The default (`ai.provider: anthropic`) is unchanged. Users with a custom endpoint can pick whichever style they prefer: explicit (`ai.provider: custom`) or auto-detect (`ai.provider: ""`).
+
+  ([#474-custom-provider-helm](https://github.com/vfarcic/dot-ai/issues/474-custom-provider-helm))
+
+### Other Changes
+
+- ### Integration tests now create draft PRs to skip automated reviews
+
+  The remediate tool's GitOps test path creates real PRs against `vfarcic/dot-ai` to verify the end-to-end flow. These transient PRs were briefly triggering CodeRabbit reviews. The PR creation in `handleGitCreatePr` now honors a `DOT_AI_GIT_CREATE_DRAFT_PRS=true` env var (set only on the integration test pod) to create those PRs as drafts, which CodeRabbit skips by configuration. Production behavior is unchanged. ([#474-integration-draft-prs](https://github.com/vfarcic/dot-ai/issues/474-integration-draft-prs))
+
+
 ## [1.16.2] - 2026-04-26
 
 ### Bug Fixes
