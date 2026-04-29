@@ -305,6 +305,50 @@ describe('PRD #443: Custom Headers and Base URL Support', () => {
     });
   });
 
+  describe("Issue #474: Explicit AI_PROVIDER='custom'", () => {
+    it('should create VercelProvider (not NoOp) when AI_PROVIDER=custom + CUSTOM_LLM_API_KEY + CUSTOM_LLM_BASE_URL are set', () => {
+      process.env.AI_PROVIDER = 'custom';
+      process.env.CUSTOM_LLM_API_KEY = 'test-key';
+      process.env.CUSTOM_LLM_BASE_URL = 'https://my.custom.llm/v1';
+
+      AIProviderFactory.createFromEnv();
+
+      expect(mockCreateOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: 'test-key',
+          baseURL: 'https://my.custom.llm/v1',
+        })
+      );
+    });
+
+    it('should resolve API key from CUSTOM_LLM_API_KEY for AI_PROVIDER=custom', () => {
+      process.env.AI_PROVIDER = 'custom';
+      process.env.CUSTOM_LLM_API_KEY = 'custom-only-key';
+      process.env.CUSTOM_LLM_BASE_URL = 'https://my.custom.llm/v1';
+      delete process.env.OPENAI_API_KEY;
+
+      AIProviderFactory.createFromEnv();
+
+      const callArgs = mockCreateOpenAI.mock.calls[0]?.[0];
+      expect(callArgs.apiKey).toBe('custom-only-key');
+    });
+
+    it('should pass custom headers when AI_PROVIDER=custom', () => {
+      process.env.AI_PROVIDER = 'custom';
+      process.env.CUSTOM_LLM_API_KEY = 'test-key';
+      process.env.CUSTOM_LLM_BASE_URL = 'https://my.custom.llm/v1';
+      process.env.CUSTOM_LLM_HEADERS = '{"x-custom": "value"}';
+
+      AIProviderFactory.createFromEnv();
+
+      expect(mockCreateOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          headers: { 'x-custom': 'value' },
+        })
+      );
+    });
+  });
+
   describe('Anthropic Bearer auth (authToken) for corporate proxies', () => {
     it('should use authToken when Authorization header is in custom headers', () => {
       process.env.ANTHROPIC_API_KEY = 'test-key';

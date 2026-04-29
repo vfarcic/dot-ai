@@ -61,9 +61,7 @@ export function validatePathWithinClones(inputPath: string): string {
 function repoUrlToDirectoryName(repoUrl: string): string {
   try {
     const url = new URL(repoUrl);
-    const repoPath = url.pathname
-      .replace(/^\//, '')
-      .replace(/\.git$/, '');
+    const repoPath = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
     return sanitizeIntentForLabel(repoPath);
   } catch {
     return sanitizeIntentForLabel(repoUrl.slice(0, 63));
@@ -184,7 +182,7 @@ function handleFsList(args: Record<string, unknown>): unknown {
   }
 
   const entries = fs.readdirSync(resolved, { withFileTypes: true });
-  return entries.map((entry) => ({
+  return entries.map(entry => ({
     name: entry.name,
     type: entry.isDirectory() ? 'directory' : 'file',
   }));
@@ -249,8 +247,21 @@ export interface GitCreatePrInput {
 }
 
 export type GitCreatePrResult =
-  | { success: true; prUrl: string; prNumber: number; branch: string; baseBranch: string; filesChanged: string[] }
-  | { success: true; branch: string; baseBranch: string; filesChanged: string[]; error: string }
+  | {
+      success: true;
+      prUrl: string;
+      prNumber: number;
+      branch: string;
+      baseBranch: string;
+      filesChanged: string[];
+    }
+  | {
+      success: true;
+      branch: string;
+      baseBranch: string;
+      filesChanged: string[];
+      error: string;
+    }
   | { success: false; error: string };
 
 async function handleGitCreatePr(
@@ -267,7 +278,10 @@ async function handleGitCreatePr(
     return { success: false, error: 'repoPath is required' };
   }
   if (!files || !Array.isArray(files) || files.length === 0) {
-    return { success: false, error: 'files array is required and must not be empty' };
+    return {
+      success: false,
+      error: 'files array is required and must not be empty',
+    };
   }
   if (!title) {
     return { success: false, error: 'title is required' };
@@ -300,7 +314,7 @@ async function handleGitCreatePr(
 
   try {
     const git = simpleGit(resolvedRepoPath);
-    
+
     await git.checkout(baseBranch);
 
     const pushResult = await pushRepo(resolvedRepoPath, files, title, {
@@ -317,14 +331,17 @@ async function handleGitCreatePr(
     }
     const remoteUrl = scrubCredentials(origin.refs.fetch);
 
-    const repoMatch = remoteUrl.match(/github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/);
+    const repoMatch = remoteUrl.match(
+      /github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/
+    );
     if (!repoMatch) {
       return {
         success: true,
         branch: branchName,
         baseBranch,
         filesChanged: pushResult.filesAdded,
-        error: 'Automatic PR creation is only supported for GitHub repositories. Changes were pushed to the branch — create a PR/MR manually.',
+        error:
+          'Automatic PR creation is only supported for GitHub repositories. Changes were pushed to the branch — create a PR/MR manually.',
       };
     }
     const ownerRepo = repoMatch[1];
@@ -345,6 +362,12 @@ async function handleGitCreatePr(
           body,
           head: branchName,
           base: baseBranch,
+          // Test-only switch: integration tests set this so PRs they create
+          // don't trigger CodeRabbit (which has drafts: false in .coderabbit.yaml).
+          // Production never sets this env var.
+          ...(process.env.DOT_AI_GIT_CREATE_DRAFT_PRS === 'true' && {
+            draft: true,
+          }),
         }),
         signal: AbortSignal.timeout(30000),
       }
@@ -388,7 +411,7 @@ export function createInternalToolExecutor(sessionId: string): ToolExecutor {
     string,
     (args: Record<string, unknown>) => unknown | Promise<unknown>
   > = {
-    git_clone: (args) => handleGitClone(args, sessionId),
+    git_clone: args => handleGitClone(args, sessionId),
     fs_list: handleFsList,
     fs_read: handleFsRead,
     git_create_pr: handleGitCreatePr,
@@ -416,21 +439,24 @@ export function createInternalToolExecutor(sessionId: string): ToolExecutor {
 export function cleanupOldClones(maxAgeMs: number = DEFAULT_TTL_MS): void {
   const clonesDir = getClonesDir();
 
-  fs.promises.access(clonesDir).then(async () => {
-    const now = Date.now();
-    const entries = await fs.promises.readdir(clonesDir);
-    for (const entry of entries) {
-      const entryPath = path.join(clonesDir, entry);
-      try {
-        const stat = await fs.promises.stat(entryPath);
-        if (stat.isDirectory() && now - stat.mtimeMs > maxAgeMs) {
-          await fs.promises.rm(entryPath, { recursive: true, force: true });
+  fs.promises
+    .access(clonesDir)
+    .then(async () => {
+      const now = Date.now();
+      const entries = await fs.promises.readdir(clonesDir);
+      for (const entry of entries) {
+        const entryPath = path.join(clonesDir, entry);
+        try {
+          const stat = await fs.promises.stat(entryPath);
+          if (stat.isDirectory() && now - stat.mtimeMs > maxAgeMs) {
+            await fs.promises.rm(entryPath, { recursive: true, force: true });
+          }
+        } catch {
+          // Ignore errors during cleanup (e.g., concurrent deletion)
         }
-      } catch {
-        // Ignore errors during cleanup (e.g., concurrent deletion)
       }
-    }
-  }).catch(() => {
-    // Directory doesn't exist yet, nothing to clean
-  });
+    })
+    .catch(() => {
+      // Directory doesn't exist yet, nothing to clean
+    });
 }
