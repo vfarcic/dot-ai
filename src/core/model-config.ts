@@ -7,7 +7,7 @@
 
 export const CURRENT_MODELS = {
   anthropic: 'claude-sonnet-4-6',
-  anthropic_opus: 'claude-opus-4-6',
+  anthropic_opus: 'claude-opus-4-7',
   anthropic_haiku: 'claude-haiku-4-5-20251001',
   openai: 'gpt-5.4',
   google: 'gemini-3.1-pro-preview',

@@ -112,7 +112,7 @@ export const CURRENT_MODELS = {
 Per-provider validation: each upgrade below requires `npm run test:integration` (provider-relevant suite) to pass before moving to the next milestone. If a provider's tests fail, fix or revert that pin before proceeding.
 
 - [x] **Milestone 1**: Resolve open decisions D1 (Grok), D2 (Gemini Pro ID), D3 (Flash variant); record resolutions in this PRD
-- [ ] **Milestone 2**: Upgrade `anthropic_opus` → `claude-opus-4-7` → integration tests pass
+- [x] **Milestone 2**: Upgrade `anthropic_opus` → `claude-opus-4-7` → integration tests pass
 - [ ] **Milestone 3**: Upgrade `openai` and `custom` → `gpt-5.5` → integration tests pass
 - [ ] **Milestone 4**: Upgrade `kimi` → `kimi-k2.6` → integration tests pass
 - [ ] **Milestone 5**: Upgrade `alibaba` → `qwen3.6-plus` → integration tests pass
