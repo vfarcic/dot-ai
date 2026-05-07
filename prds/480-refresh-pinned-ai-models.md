@@ -60,6 +60,12 @@ Update each behind-the-curve pin to its provider's latest stable version. The ch
 ### D4. Eval-set scope — **Resolved: in scope**
 - `src/evaluation/model-metadata.json` already references a `/update-model-metadata` slash command and is meant to be refreshed alongside production pins. Milestone 8 covers this.
 
+### D5. OpenAI / custom upgrade strategy — **Resolved: hold at `gpt-5.4`**
+- GPT-5.5 reproducibly fails `tests/integration/tools/recommend.test.ts > Helm Chart Discovery > should complete Helm workflow` (3 of 3 attempts) by selecting `combination`-type solutions instead of taking the documented Helm-fallback path when no matching CRDs exist in-cluster. The intent under test is "Install Prometheus for monitoring" with no Prometheus CRDs installed.
+- Baseline rerun of the same test under `gpt-5.4` passes cleanly: 105s vs 228–256s on `gpt-5.5` — also a ~2× per-test latency hit on this workflow.
+- Diagnosis: behavioral drift in solution-type selection, not a wire-format change. Fix likely requires tightening the recommend-tool prompt's Helm-trigger criteria, which is out of scope for a version-refresh PRD.
+- Action: no pin change for `openai` or `custom`. Open a follow-up PRD to either harden the recommend prompt for GPT-5.5 behavior or revisit when a later GPT-5.x ships.
+
 ## Success Criteria
 
 1. All current-with-provider pins in `src/core/model-config.ts` reflect the latest stable version (per decisions above).
@@ -67,7 +73,7 @@ Update each behind-the-curve pin to its provider's latest stable version. The ch
 3. `src/evaluation/model-metadata.json` reflects the updated production set plus any newly relevant comparison models.
 4. Stale doc/JSDoc examples updated to current model names.
 5. `version` tool reports the upgraded model name when running with each upgraded provider.
-6. Three open decisions (D1–D3) explicitly resolved and recorded in this PRD before close-out.
+6. All open decisions (D1–D5) explicitly resolved and recorded in this PRD before close-out.
 
 ## Technical Details
 
@@ -86,7 +92,7 @@ Update each behind-the-curve pin to its provider's latest stable version. The ch
 - `ai-provider-factory.ts`, `vercel-provider.ts` — same env vars, same SDK
 - API endpoints unchanged for any provider
 
-### Pin Changes (Final, post D1–D3 resolution)
+### Pin Changes (Final, post D1–D5 resolution)
 
 ```typescript
 // src/core/model-config.ts
@@ -94,7 +100,7 @@ export const CURRENT_MODELS = {
   anthropic: 'claude-sonnet-4-6',                              // unchanged
   anthropic_opus: 'claude-opus-4-7',                           // ← was 4-6
   anthropic_haiku: 'claude-haiku-4-5-20251001',                // unchanged
-  openai: 'gpt-5.5',                                           // ← was 5.4
+  openai: 'gpt-5.4',                                           // unchanged (D5: hold)
   google: 'gemini-3.1-pro-preview',                            // unchanged (D2 verified)
   google_flash: 'gemini-3.1-flash-preview',                    // ← was gemini-3-flash-preview
   kimi: 'kimi-k2.6',                                           // ← was k2.5
@@ -102,7 +108,7 @@ export const CURRENT_MODELS = {
   xai: 'grok-4',                                               // unchanged (D1: hold)
   host: 'host',                                                // unchanged
   openrouter: 'anthropic/claude-haiku-4.5',                    // unchanged
-  custom: 'gpt-5.5',                                           // ← was 5.4
+  custom: 'gpt-5.4',                                           // unchanged (D5: hold)
   amazon_bedrock: 'global.anthropic.claude-sonnet-4-6',        // unchanged
 } as const;
 ```
@@ -113,7 +119,7 @@ Per-provider validation: each upgrade below requires `npm run test:integration` 
 
 - [x] **Milestone 1**: Resolve open decisions D1 (Grok), D2 (Gemini Pro ID), D3 (Flash variant); record resolutions in this PRD
 - [x] **Milestone 2**: Upgrade `anthropic_opus` → `claude-opus-4-7` → integration tests pass
-- [ ] **Milestone 3**: Upgrade `openai` and `custom` → `gpt-5.5` → integration tests pass
+- [x] **Milestone 3**: Apply OpenAI/custom decision (D5) — hold at `gpt-5.4` (GPT-5.5 fails Helm-fallback test; behavioral regression deferred to follow-up PRD)
 - [ ] **Milestone 4**: Upgrade `kimi` → `kimi-k2.6` → integration tests pass
 - [ ] **Milestone 5**: Upgrade `alibaba` → `qwen3.6-plus` → integration tests pass
 - [ ] **Milestone 6**: Upgrade `google_flash` (and `google` per D2 if applicable) → integration tests pass
