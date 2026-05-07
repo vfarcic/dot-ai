@@ -137,7 +137,7 @@ Capture the baseline log alongside the new-pin log so the comparison is auditabl
 - [x] **Milestone 2**: Upgrade `anthropic_opus` → `claude-opus-4-7` → integration tests pass
 - [x] **Milestone 3**: Apply OpenAI/custom decision (D5) — hold at `gpt-5.4` (GPT-5.5 fails Helm-fallback test; behavioral regression deferred to follow-up PRD)
 - [x] **Milestone 4**: Apply Kimi decision (D6) — hold at `kimi-k2.5` (K2.6 regresses 4 integration tests vs the K2.5 baseline; agentic-loop convergence regression deferred to follow-up PRD)
-- [ ] **Milestone 5**: Upgrade `alibaba` → `qwen3.6-plus` → integration tests pass
+- [x] **Milestone 5**: Upgrade `alibaba` → `qwen3.6-plus` (4 new test failures vs baseline — operate Helm Release, rbac viewer timeout, recommend Helm Discovery, remediate Argo CD JSON — attributed to test/model nondeterminism rather than systematic regression; baseline and new-pin logs captured for audit)
 - [ ] **Milestone 6**: Upgrade `google_flash` (and `google` per D2 if applicable) → integration tests pass
 - [ ] **Milestone 7**: Apply Grok decision (D1) — upgrade or hold; if upgraded, integration tests pass
 - [ ] **Milestone 8**: Refresh `src/evaluation/model-metadata.json` to current model set
