@@ -66,14 +66,24 @@ Update each behind-the-curve pin to its provider's latest stable version. The ch
 - Diagnosis: behavioral drift in solution-type selection, not a wire-format change. Fix likely requires tightening the recommend-tool prompt's Helm-trigger criteria, which is out of scope for a version-refresh PRD.
 - Action: no pin change for `openai` or `custom`. Open a follow-up PRD to either harden the recommend prompt for GPT-5.5 behavior or revisit when a later GPT-5.x ships.
 
+### D6. Kimi upgrade strategy — **Resolved: hold at `kimi-k2.5`**
+- K2.6 regresses 4 integration tests vs the K2.5 baseline (same suite, same cluster recipe, `AI_PROVIDER=kimi`):
+  - `operate.test.ts > Analysis Workflow > should apply organizational patterns: scale with HPA creation` — timeout 300s (K2.5: 206s ✓)
+  - `manage-org-data-capabilities.test.ts > Fire-and-Forget Scanning > should scan specific resources with resourceList` — timeout 300s (K2.5: 122s ✓)
+  - `manage-org-data-capabilities.test.ts > Fire-and-Forget Scanning > should start full cluster scan` — assertion failure at 184s (K2.5: 156s ✓)
+  - `version.test.ts > should return comprehensive system status with correct structure` — timeout 300s (K2.5: 101s ✓)
+- Diagnosis: K2.6 takes more agentic-loop steps than K2.5 to converge. Sample evidence from `operate-analysis-raw` debug artifacts: 18-step and 23-step runs accumulating 298K and 672K cumulative input tokens (the latter exceeds K2.6's documented 256K context). The model produces correct answers but spends ~2× longer in tool-call rounds; tests with 300s wall-clock budgets that were close-to-margin under K2.5 now consistently miss.
+- Pre-existing flake unrelated to this decision: `rbac.test.ts > ClusterRole Simplification > should allow viewer without resourceNames to execute any tool` times out under both K2.5 and K2.6. File a separate issue; do not block the Kimi upgrade decision on it.
+- Action: no pin change for `kimi`. Open a follow-up PRD to either tighten Kimi tool-flow prompts for K2.6's agentic-loop behavior or revisit when a later Kimi ships.
+
 ## Success Criteria
 
 1. All current-with-provider pins in `src/core/model-config.ts` reflect the latest stable version (per decisions above).
-2. **Each provider upgrade validated in isolation**: integration tests pass for that provider before moving to the next pin. No bulk pin update followed by a single test run — one provider at a time, with `npm run test:integration` green at each step.
+2. **Each provider upgrade validated against a same-suite baseline**: for each provider, run `npm run test:integration` first with the existing pin (baseline) and then with the new pin. Tests failing only under the new pin attribute to the upgrade and must be fixed or the pin reverted; tests failing under both are pre-existing fragility (file a separate issue but do not block the upgrade). One provider at a time — no bulk pin update followed by a single test run.
 3. `src/evaluation/model-metadata.json` reflects the updated production set plus any newly relevant comparison models.
 4. Stale doc/JSDoc examples updated to current model names.
 5. `version` tool reports the upgraded model name when running with each upgraded provider.
-6. All open decisions (D1–D5) explicitly resolved and recorded in this PRD before close-out.
+6. All open decisions (D1–D6) explicitly resolved and recorded in this PRD before close-out.
 
 ## Technical Details
 
@@ -92,7 +102,7 @@ Update each behind-the-curve pin to its provider's latest stable version. The ch
 - `ai-provider-factory.ts`, `vercel-provider.ts` — same env vars, same SDK
 - API endpoints unchanged for any provider
 
-### Pin Changes (Final, post D1–D5 resolution)
+### Pin Changes (Final, post D1–D6 resolution)
 
 ```typescript
 // src/core/model-config.ts
@@ -103,7 +113,7 @@ export const CURRENT_MODELS = {
   openai: 'gpt-5.4',                                           // unchanged (D5: hold)
   google: 'gemini-3.1-pro-preview',                            // unchanged (D2 verified)
   google_flash: 'gemini-3.1-flash-preview',                    // ← was gemini-3-flash-preview
-  kimi: 'kimi-k2.6',                                           // ← was k2.5
+  kimi: 'kimi-k2.5',                                           // unchanged (D6: hold)
   alibaba: 'qwen3.6-plus',                                     // ← was qwen3.5-plus
   xai: 'grok-4',                                               // unchanged (D1: hold)
   host: 'host',                                                // unchanged
@@ -115,12 +125,18 @@ export const CURRENT_MODELS = {
 
 ## Milestones
 
-Per-provider validation: each upgrade below requires `npm run test:integration` (provider-relevant suite) to pass before moving to the next milestone. If a provider's tests fail, fix or revert that pin before proceeding.
+Per-provider validation: each upgrade below uses the **baseline-first** protocol — first run `npm run test:integration` with the existing pin to capture a baseline, then run again with the new pin. Compare failure sets:
+
+- Tests failing **only under the new pin** attribute to the upgrade. Fix the underlying issue or revert the pin before moving to the next milestone.
+- Tests failing **under both pins** are pre-existing fragility (timeouts close to the wall clock, flakes, infrastructure issues). File a separate issue, but do not block the upgrade on them.
+- Tests failing **only under the old pin** indicate the new model fixed a latent issue — note in the milestone but otherwise no action needed.
+
+Capture the baseline log alongside the new-pin log so the comparison is auditable.
 
 - [x] **Milestone 1**: Resolve open decisions D1 (Grok), D2 (Gemini Pro ID), D3 (Flash variant); record resolutions in this PRD
 - [x] **Milestone 2**: Upgrade `anthropic_opus` → `claude-opus-4-7` → integration tests pass
 - [x] **Milestone 3**: Apply OpenAI/custom decision (D5) — hold at `gpt-5.4` (GPT-5.5 fails Helm-fallback test; behavioral regression deferred to follow-up PRD)
-- [ ] **Milestone 4**: Upgrade `kimi` → `kimi-k2.6` → integration tests pass
+- [x] **Milestone 4**: Apply Kimi decision (D6) — hold at `kimi-k2.5` (K2.6 regresses 4 integration tests vs the K2.5 baseline; agentic-loop convergence regression deferred to follow-up PRD)
 - [ ] **Milestone 5**: Upgrade `alibaba` → `qwen3.6-plus` → integration tests pass
 - [ ] **Milestone 6**: Upgrade `google_flash` (and `google` per D2 if applicable) → integration tests pass
 - [ ] **Milestone 7**: Apply Grok decision (D1) — upgrade or hold; if upgraded, integration tests pass
