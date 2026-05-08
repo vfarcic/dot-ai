@@ -91,7 +91,10 @@ export interface AITool {
  * Tool executor function type
  * Called by the provider when AI requests a tool execution
  */
-export type ToolExecutor = (toolName: string, input: unknown) => Promise<unknown>;
+export type ToolExecutor = (
+  toolName: string,
+  input: unknown
+) => Promise<unknown>;
 
 /**
  * Record of a tool call execution
@@ -160,8 +163,15 @@ export interface AgenticResult {
   /** Execution status (PRD #143 Decision 5) */
   status?: 'success' | 'failed' | 'timeout' | 'parse_error';
 
+  // `parse_error` (above) and `parse_failure` (below) are intentionally distinct per PRD #143:
+  // `status` describes the outcome class, `completionReason` describes the loop-exit cause.
   /** Reason for loop completion (PRD #143 Decision 5) */
-  completionReason?: 'investigation_complete' | 'max_iterations' | 'parse_failure' | 'model_stopped' | 'error';
+  completionReason?:
+    | 'investigation_complete'
+    | 'max_iterations'
+    | 'parse_failure'
+    | 'model_stopped'
+    | 'error';
 
   /** Specific model version used (PRD #143 Decision 5) */
   modelVersion?: string;
@@ -193,7 +203,7 @@ export interface AIProvider {
    * @returns AI response with content and usage statistics
    */
   sendMessage(
-    message: string, 
+    message: string,
     operation?: string,
     evaluationContext?: {
       user_intent?: string;
@@ -216,7 +226,7 @@ export interface AIProvider {
    * NEW: Required to replace hardcoded model at claude.ts:181
    * Each provider has different model naming conventions.
    *
-   * @returns Model identifier (e.g., 'claude-sonnet-4-5', 'gpt-4o', 'gemini-1.5-pro')
+   * @returns Model identifier (e.g., 'claude-sonnet-4-6', 'gpt-5.4', 'gemini-3.1-pro-preview')
    */
   getDefaultModel(): string;
 
@@ -232,7 +242,7 @@ export interface AIProvider {
   /**
    * Get the current model name being used
    *
-   * @returns Model name (e.g., 'grok-4', 'claude-sonnet-4-5-20250929')
+   * @returns Model name (e.g., 'grok-4', 'claude-sonnet-4-6')
    */
   getModelName(): string;
 
@@ -247,5 +257,4 @@ export interface AIProvider {
    * @returns Agentic result with final message, iterations, tool calls, and token usage
    */
   toolLoop(config: ToolLoopConfig): Promise<AgenticResult>;
-
 }

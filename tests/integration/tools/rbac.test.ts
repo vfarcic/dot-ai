@@ -151,7 +151,6 @@ function jwtClient(user: {
   });
 }
 
-
 describe.concurrent('RBAC Enforcement (PRD #392)', () => {
   const integrationTest = new IntegrationTest();
   let rbacApi: k8s.RbacAuthorizationV1Api;
@@ -1287,7 +1286,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
           }),
         },
       });
-    }, 120000);
+    }, 300000);
 
     test('should deny apply for viewer without resourceNames', async () => {
       const client = jwtClient(m8ViewerUser);

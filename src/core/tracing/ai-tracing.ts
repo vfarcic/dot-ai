@@ -21,7 +21,7 @@ export interface AITracingOptions {
   /** AI provider name (e.g., 'anthropic', 'openai', 'google') */
   provider: string;
 
-  /** Model identifier (e.g., 'claude-3-5-sonnet', 'gpt-4o', 'text-embedding-3-small') */
+  /** Model identifier (e.g., 'claude-sonnet-4-6', 'gpt-5.4', 'text-embedding-3-small') */
   model: string;
 
   /** Operation type: 'chat', 'tool_loop', 'embeddings' */
@@ -70,14 +70,14 @@ export interface AITracingResult {
  *
  * @example Chat operation
  * const response = await withAITracing(
- *   { provider: 'anthropic', model: 'claude-3-5-sonnet', operation: 'chat' },
+ *   { provider: 'anthropic', model: 'claude-sonnet-4-6', operation: 'chat' },
  *   async () => await client.messages.create(...),
  *   (result) => ({ inputTokens: result.usage.input_tokens, outputTokens: result.usage.output_tokens })
  * );
  *
  * @example Tool loop operation
  * const result = await withAITracing(
- *   { provider: 'anthropic', model: 'claude-3-5-sonnet', operation: 'tool_loop' },
+ *   { provider: 'anthropic', model: 'claude-sonnet-4-6', operation: 'tool_loop' },
  *   async () => await provider.toolLoop(...),
  *   (result) => ({ inputTokens: result.totalTokens.input, outputTokens: result.totalTokens.output })
  * );
@@ -98,7 +98,7 @@ export async function withAITracing<T>(
   const tracer = trace.getTracer('dot-ai-mcp');
 
   // Span name format: "{operation} {model}"
-  // Examples: "chat claude-3-5-sonnet", "tool_loop claude-3-5-sonnet", "embeddings text-embedding-3-small"
+  // Examples: "chat claude-sonnet-4-6", "tool_loop claude-sonnet-4-6", "embeddings text-embedding-3-small"
   const spanName = `${options.operation} ${options.model}`;
 
   return await tracer.startActiveSpan(
@@ -117,7 +117,7 @@ export async function withAITracing<T>(
         }),
       },
     },
-    async (span) => {
+    async span => {
       const startTime = Date.now();
 
       try {
@@ -142,23 +142,44 @@ export async function withAITracing<T>(
             span.setAttribute('gen_ai.usage.input_tokens', metrics.inputTokens);
           }
           if (metrics.outputTokens !== undefined) {
-            span.setAttribute('gen_ai.usage.output_tokens', metrics.outputTokens);
+            span.setAttribute(
+              'gen_ai.usage.output_tokens',
+              metrics.outputTokens
+            );
           }
 
           // Cache metrics (Anthropic-specific for chat operations)
-          if (metrics.cacheReadTokens !== undefined && metrics.cacheReadTokens > 0) {
-            span.setAttribute('gen_ai.usage.cache_read_tokens', metrics.cacheReadTokens);
+          if (
+            metrics.cacheReadTokens !== undefined &&
+            metrics.cacheReadTokens > 0
+          ) {
+            span.setAttribute(
+              'gen_ai.usage.cache_read_tokens',
+              metrics.cacheReadTokens
+            );
           }
-          if (metrics.cacheCreationTokens !== undefined && metrics.cacheCreationTokens > 0) {
-            span.setAttribute('gen_ai.usage.cache_creation_tokens', metrics.cacheCreationTokens);
+          if (
+            metrics.cacheCreationTokens !== undefined &&
+            metrics.cacheCreationTokens > 0
+          ) {
+            span.setAttribute(
+              'gen_ai.usage.cache_creation_tokens',
+              metrics.cacheCreationTokens
+            );
           }
         } else if (options.operation === 'embeddings') {
           // Embedding-specific metrics
           if (metrics.embeddingCount !== undefined) {
-            span.setAttribute('gen_ai.embeddings.count', metrics.embeddingCount);
+            span.setAttribute(
+              'gen_ai.embeddings.count',
+              metrics.embeddingCount
+            );
           }
           if (metrics.embeddingDimensions !== undefined) {
-            span.setAttribute('gen_ai.embeddings.dimensions', metrics.embeddingDimensions);
+            span.setAttribute(
+              'gen_ai.embeddings.dimensions',
+              metrics.embeddingDimensions
+            );
           }
         }
 
