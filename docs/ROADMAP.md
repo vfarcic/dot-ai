@@ -30,7 +30,6 @@ This roadmap is a living document and may change based on community feedback and
 - Use generateObject for type-safe structured AI responses (PRD #454)
 - Evaluate streamText for real-time progress in long-running operations (PRD #455)
 - Use SDK built-in telemetry for AI operation tracing (PRD #458)
-- Refresh pinned AI model versions across providers - bump Opus, OpenAI, Kimi, Qwen, Gemini Flash to latest stable (PRD #480)
 
 ## Long-term (6-12 Months)
 

@@ -1,6 +1,7 @@
 # PRD #480: Refresh Pinned AI Model Versions Across Providers
 
-**Status: In Progress**
+**Status: Complete**
+**Completion Date**: 2026-05-08
 **GitHub Issue**: [#480](https://github.com/vfarcic/dot-ai/issues/480)
 **Priority**: Medium
 
