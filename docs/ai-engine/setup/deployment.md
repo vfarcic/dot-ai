@@ -393,7 +393,7 @@ OpenRouter provides access to 100+ LLM models from multiple providers:
 ```yaml
 ai:
   provider: openai
-  model: "anthropic/claude-sonnet-4.6"
+  model: "anthropic/claude-haiku-4.5"
   customEndpoint:
     enabled: true
     baseURL: "https://openrouter.ai/api/v1"

@@ -163,6 +163,8 @@ export interface AgenticResult {
   /** Execution status (PRD #143 Decision 5) */
   status?: 'success' | 'failed' | 'timeout' | 'parse_error';
 
+  // `parse_error` (above) and `parse_failure` (below) are intentionally distinct per PRD #143:
+  // `status` describes the outcome class, `completionReason` describes the loop-exit cause.
   /** Reason for loop completion (PRD #143 Decision 5) */
   completionReason?:
     | 'investigation_complete'
