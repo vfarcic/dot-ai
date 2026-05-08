@@ -15,7 +15,7 @@ Several model pins in `src/core/model-config.ts` lag behind their providers' cur
 | `custom` | `gpt-5.4` | **GPT-5.5** (default fallback) |
 | `kimi` | `kimi-k2.5` | **Kimi K2.6** (Apr 20, 2026) |
 | `alibaba` | `qwen3.5-plus` | **Qwen 3.6-Plus** |
-| `google_flash` | `gemini-3-flash-preview` | **Gemini 3.1 Flash / Flash-Lite** (preview) |
+| `google_flash` | `gemini-3-flash-preview` | **Gemini 3.1 Flash-Lite** (Google did not ship a "full Flash" at 3.1 — only Flash-Lite variants) |
 | `google` | `gemini-3.1-pro-preview` | Gemini 3.1 Pro (still preview) — verify ID |
 | `xai` | `grok-4` | Grok 4.3 (beta) / Grok 5 (training) — decision needed |
 
@@ -53,9 +53,10 @@ Update each behind-the-curve pin to its provider's latest stable version. The ch
 - Sources: [Vertex AI docs](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-pro), [Google blog announcement](https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-1-pro/), [DeepMind model card](https://deepmind.google/models/model-cards/gemini-3-1-pro/).
 - Action: no pin change for `google` — current value is correct. Re-verify after Google I/O 2026 (May 19–20) in case of GA promotion.
 
-### D3. Gemini Flash variant — **Resolved: `gemini-3.1-flash-preview` (full Flash)**
-- Stay on the full Flash tier to preserve capability parity with the prior pin (`gemini-3-flash-preview`). Flash-Lite reserved for a future cost-driven decision if benchmarks justify it.
-- Action: pin `google_flash` to `gemini-3.1-flash-preview`.
+### D3. Gemini Flash variant — **Resolved: hold at `gemini-3-flash-preview`**
+- Initial resolution (M1): pin to `gemini-3.1-flash-preview` (full Flash 3.1, preserving tier parity with the prior pin).
+- Validation finding (M6): the model ID `gemini-3.1-flash-preview` is not in Google's live `/v1beta/models` list — calls returned 404 across all integration tests. Listing models against the live API revealed Google did not ship a "full Flash" at 3.1: only `gemini-3.1-flash-lite` (GA) and `gemini-3.1-flash-lite-preview` exist as general-purpose Flash-tier variants, plus specialized `-image-preview` / `-live-preview` / `-tts-preview` variants. Compare prior generations — 2.0 and 2.5 each shipped Flash and Flash-Lite — the 3.1 generation broke that pattern.
+- Action: hold `google_flash` at `gemini-3-flash-preview` (current pin works; baseline 218/218). Pinning to `gemini-3.1-flash-lite` would reverse the original tier-parity intent and warrants its own benchmark validation, separate from the version-refresh scope of this PRD. Open a follow-up PRD to either (a) adopt `gemini-3.1-flash-lite` after benchmarking, or (b) wait for Google to ship a full Flash 3.1 if/when it appears.
 
 ### D4. Eval-set scope — **Resolved: in scope**
 - `src/evaluation/model-metadata.json` already references a `/update-model-metadata` slash command and is meant to be refreshed alongside production pins. Milestone 8 covers this.
@@ -112,7 +113,7 @@ export const CURRENT_MODELS = {
   anthropic_haiku: 'claude-haiku-4-5-20251001',                // unchanged
   openai: 'gpt-5.4',                                           // unchanged (D5: hold)
   google: 'gemini-3.1-pro-preview',                            // unchanged (D2 verified)
-  google_flash: 'gemini-3.1-flash-preview',                    // ← was gemini-3-flash-preview
+  google_flash: 'gemini-3-flash-preview',                      // unchanged (D3 revised: hold; gemini-3.1-flash-preview not on Google's live model list)
   kimi: 'kimi-k2.5',                                           // unchanged (D6: hold)
   alibaba: 'qwen3.6-plus',                                     // ← was qwen3.5-plus
   xai: 'grok-4',                                               // unchanged (D1: hold)
@@ -138,7 +139,7 @@ Capture the baseline log alongside the new-pin log so the comparison is auditabl
 - [x] **Milestone 3**: Apply OpenAI/custom decision (D5) — hold at `gpt-5.4` (GPT-5.5 fails Helm-fallback test; behavioral regression deferred to follow-up PRD)
 - [x] **Milestone 4**: Apply Kimi decision (D6) — hold at `kimi-k2.5` (K2.6 regresses 4 integration tests vs the K2.5 baseline; agentic-loop convergence regression deferred to follow-up PRD)
 - [x] **Milestone 5**: Upgrade `alibaba` → `qwen3.6-plus` (4 new test failures vs baseline — operate Helm Release, rbac viewer timeout, recommend Helm Discovery, remediate Argo CD JSON — attributed to test/model nondeterminism rather than systematic regression; baseline and new-pin logs captured for audit)
-- [ ] **Milestone 6**: Upgrade `google_flash` (and `google` per D2 if applicable) → integration tests pass
+- [x] **Milestone 6**: Apply Gemini Flash decision (D3 revised) — hold `google_flash` at `gemini-3-flash-preview` (gemini-3.1-flash-preview returns 404 from Google's `/v1beta/models`; no "full Flash" exists at 3.1, only Flash-Lite variants — D3's tier-parity premise was wrong; baseline 218/218 vs new-pin 35-failed/183-passed all due to the single 404; deferred to follow-up PRD). `google` (per D2) also unchanged at `gemini-3.1-pro-preview`.
 - [ ] **Milestone 7**: Apply Grok decision (D1) — upgrade or hold; if upgraded, integration tests pass
 - [ ] **Milestone 8**: Refresh `src/evaluation/model-metadata.json` to current model set
 - [ ] **Milestone 9**: Clean up stale model references in docs and JSDoc examples
@@ -151,7 +152,7 @@ Capture the baseline log alongside the new-pin log so the comparison is auditabl
 **Specific risks:**
 
 - **Grok 4.3 (if pinned)**: beta status; may exhibit instability under long agentic loops (capability tool, remediate). Hold at 4 unless beta proves stable.
-- **Gemini preview model IDs**: Google occasionally renames preview IDs at GA promotion. The current pin must be verified against the live model list to avoid 404s.
+- **Gemini preview model IDs**: Google occasionally renames preview IDs at GA promotion. **This risk materialized on `gemini-3.1-flash-preview` during M6** — the assumed ID was never published; Google released only Flash-Lite variants at the 3.1 generation. Future preview-ID pins must be verified against `/v1beta/models` before committing.
 - **Pricing shifts**: GPT-5.5, Opus 4.7, Qwen 3.6-Plus, and Kimi K2.6 may have different cost profiles than the prior pins. No code change needed, but worth flagging in the changelog so users running large agentic workflows are aware.
 - **Output formatting drift**: Newer models occasionally produce slightly different output structures (e.g., reasoning verbosity, JSON wrapping). Integration tests are the safety net.
 
