@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.18.1] - 2026-05-10
+
+### Bug Fixes
+
+- Override transitive `fast-uri` to `>= 3.1.2` to close two high-severity security advisories surfaced by the dependency audit step in CI: `GHSA-q3j6-qgpj-74h6` (path traversal via percent-encoded dot segments, fixed in `>= 3.1.1`) and `GHSA-v39h-62p7-jpjc` (host confusion via percent-encoded authority delimiters, fixed in `>= 3.1.2`). The vulnerable version was pulled in via `@modelcontextprotocol/sdk@1.27.1 -> ajv@8.18.0 -> fast-uri@3.1.0`. ([#495-fast-uri-security-advisory](https://github.com/vfarcic/dot-ai/issues/495-fast-uri-security-advisory))
+
+### Other Changes
+
+- **Mock-model unit tests for the Vercel AI provider**
+
+  Adds a `MockLanguageModelV3`-based test helper and the first happy-path
+  unit tests for `VercelProvider.sendMessage`. Provider response mapping and
+  prompt forwarding can now be exercised without API keys, network calls,
+  or live integration fixtures, complementing the existing per-provider
+  integration suite. ([#464-mock-language-model-unit-tests](https://github.com/vfarcic/dot-ai/issues/464-mock-language-model-unit-tests))
+- Replace manual `Promise.all + embed()` fan-out in `VercelEmbeddingProvider.generateEmbeddings` with a single `embedMany` call from the Vercel AI SDK. The SDK now handles batching, parallelism, and chunking internally; existing OpenTelemetry tracing, circuit breaker, and Google `providerOptions` (outputDimensionality, taskType) are preserved. Adds `MockEmbeddingModelV3`-based unit tests covering the batching path. (#453) ([#453-use-embedmany-batch-embeddings](https://github.com/vfarcic/dot-ai/issues/453-use-embedmany-batch-embeddings))
+
+
 ## [1.18.0] - 2026-05-08
 
 ### Features
