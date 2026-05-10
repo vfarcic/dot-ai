@@ -8,7 +8,7 @@
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { google } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
-import { embed, EmbeddingModel } from 'ai';
+import { embed, embedMany, EmbeddingModel } from 'ai';
 import {
   CircuitBreaker,
   CircuitBreakerStats,
@@ -251,28 +251,24 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
         try {
           // Execute through circuit breaker to prevent cascading failures
           return await embeddingCircuitBreaker.execute(async () => {
-            const results = await Promise.all(
-              validTexts.map(text => {
-                const embedOptions: EmbedOptions = {
-                  model: this.modelInstance!,
-                  value: text,
-                };
+            // Single batch request via SDK; handles chunking internally.
+            const embedManyOptions: Parameters<typeof embedMany>[0] = {
+              model: this.modelInstance!,
+              values: validTexts,
+            };
 
-                // Add Google-specific options
-                if (this.providerType === 'google') {
-                  embedOptions.providerOptions = {
-                    google: {
-                      outputDimensionality: this.dimensions,
-                      taskType: 'SEMANTIC_SIMILARITY',
-                    },
-                  };
-                }
+            // Apply Google-specific options once for the whole batch.
+            if (this.providerType === 'google') {
+              embedManyOptions.providerOptions = {
+                google: {
+                  outputDimensionality: this.dimensions,
+                  taskType: 'SEMANTIC_SIMILARITY',
+                },
+              };
+            }
 
-                return embed(embedOptions);
-              })
-            );
-
-            return results.map(result => result.embedding);
+            const result = await embedMany(embedManyOptions);
+            return result.embeddings;
           });
         } catch (error) {
           // Convert CircuitOpenError to descriptive message
