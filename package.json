@@ -136,7 +136,8 @@
     "yaml": "^2.8.0"
   },
   "overrides": {
-    "express-rate-limit": "^8.2.2"
+    "express-rate-limit": "^8.2.2",
+    "fast-uri": ">=3.1.2"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.52.5"
