@@ -188,6 +188,27 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 **AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys (unless using the `host` provider) and will show helpful error messages when accessed without configuration.
 
+### Retry Tuning (Optional)
+
+The Vercel AI SDK retries transient failures (HTTP 429/5xx and network errors) with exponential backoff. The dot-ai server configures `maxRetries` per operation so you can trade resilience against responsiveness:
+
+| Operation | Default `maxRetries` | Env var override |
+|-----------|----------------------|------------------|
+| `embeddings` (single + batch) | `4` | `DOT_AI_AI_MAX_RETRIES_EMBEDDINGS` |
+| `chat` (single-turn `generateText`) | `2` | `DOT_AI_AI_MAX_RETRIES_CHAT` |
+| `tool_loop` (agentic multi-step) | `2` | `DOT_AI_AI_MAX_RETRIES_TOOL_LOOP` |
+| `wrap_up` (final summary after a tool loop) | `1` | `DOT_AI_AI_MAX_RETRIES_WRAP_UP` |
+
+Set `DOT_AI_AI_MAX_RETRIES` to override every operation with the same value. A per-operation env var always wins over the global one. Values must be non-negative integers; invalid or unset values fall back to the next level (per-op env, then global env, then the default above). Set a value to `0` to disable retries for an operation.
+
+```yaml
+extraEnv:
+  - name: DOT_AI_AI_MAX_RETRIES_CHAT
+    value: "1"            # fail interactive chat fast
+  - name: DOT_AI_AI_MAX_RETRIES_EMBEDDINGS
+    value: "6"            # tolerate flaky embedding endpoints
+```
+
 ## Embedding Provider Configuration
 
 The DevOps AI Toolkit supports multiple embedding providers for semantic search in pattern management, capability discovery, and policy matching.

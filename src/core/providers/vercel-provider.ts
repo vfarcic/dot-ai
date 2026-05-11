@@ -34,6 +34,7 @@ import {
 import { CURRENT_MODELS } from '../model-config';
 import { INVESTIGATION_MESSAGES } from '../constants/investigation';
 import { withAITracing } from '../tracing/ai-tracing';
+import { getMaxRetries } from '../ai-retry-config';
 import type { LanguageModel } from 'ai';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
@@ -341,6 +342,8 @@ export class VercelProvider implements AIProvider {
           const result = await generateText({
             model: this.modelInstance,
             prompt: message,
+            // Configurable retry budget; chat defaults to the SDK's value.
+            maxRetries: getMaxRetries('chat'),
           });
 
           const response: AIResponse = {
@@ -608,12 +611,15 @@ export class VercelProvider implements AIProvider {
             messages: VercelMessage[];
             tools: Record<string, unknown>;
             stopWhen: ReturnType<typeof stepCountIs>;
+            maxRetries: number;
             system?: string;
           } = {
             model: this.modelInstance,
             messages,
             tools,
             stopWhen: stepCountIs(maxIterations),
+            // Configurable retry budget; tool-loop steps use the SDK default.
+            maxRetries: getMaxRetries('tool_loop'),
           };
 
           // Add system parameter for non-Anthropic providers
@@ -826,11 +832,14 @@ export class VercelProvider implements AIProvider {
               const wrapUpConfig: {
                 model: LanguageModel;
                 messages: VercelMessage[];
+                maxRetries: number;
                 system?: string;
               } = {
                 model: this.modelInstance,
                 messages: wrapUpMessages,
                 // NO tools - forces text response
+                // Configurable retry budget; wrap-up fails fast by default.
+                maxRetries: getMaxRetries('wrap_up'),
               };
 
               // Add system parameter for non-Anthropic providers
