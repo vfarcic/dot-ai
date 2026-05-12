@@ -24,7 +24,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy kubectl and helm binaries from official images (Renovate auto-updates these)
-COPY --from=rancher/kubectl:v1.34.2 /bin/kubectl /usr/local/bin/kubectl
+COPY --from=rancher/kubectl:v1.36.0 /bin/kubectl /usr/local/bin/kubectl
 COPY --from=alpine/helm:4.1.4 /usr/bin/helm /usr/local/bin/helm
 
 # Copy entire npm global installation from builder
