@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.19.0] - 2026-05-12
+
+### Features
+
+- Configurable retry budget for AI SDK calls. `embed`, `embedMany`, and `generateText` now pass an explicit `maxRetries` value resolved per operation type (`embeddings`, `chat`, `tool_loop`, `wrap_up`). Defaults match production needs (embeddings 4 for resilience, chat 2, tool-loop 2, wrap-up 1) and can be tuned via typed Helm values under `ai.retries.{default,embeddings,chat,toolLoop,wrapUp}`, which the chart templates into the underlying env vars (`DOT_AI_AI_MAX_RETRIES`, `DOT_AI_AI_MAX_RETRIES_EMBEDDINGS`, `DOT_AI_AI_MAX_RETRIES_CHAT`, `DOT_AI_AI_MAX_RETRIES_TOOL_LOOP`, `DOT_AI_AI_MAX_RETRIES_WRAP_UP`). Per-operation values take precedence over the global override; setting a value to `0` disables retries. ([#459-configure-retry-behavior](https://github.com/vfarcic/dot-ai/issues/459-configure-retry-behavior))
+
+### Bug Fixes
+
+- Upgrade `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` from `^0.207.0` to `^0.217.0` to close GHSA-q7rr-3cgh-j5r3 (high severity, Prometheus exporter process crash via malformed HTTP request). Upgrade `mermaid` from `^10.9.5` to `^11.15.0` to close GHSA-87f9-hvmw-gh4p, GHSA-6m6c-36f7-fhxh, GHSA-ghcm-xqfw-q4vr, and GHSA-xcj9-5m2h-648r (4 moderate severity, CSS/HTML injection and infinite-loop DoS in Mermaid diagrams). All transitively-bumped `@opentelemetry/*` packages move in lockstep to `0.217.0` / `2.7.1`. The codebase only consumes `mermaid.parse()` and `mermaid.initialize()`, whose APIs are unchanged between v10 and v11. Unblocks `npm run audit` and the CI `Run dependency security audit` gate. ([#otel-prometheus-security-advisory](https://github.com/vfarcic/dot-ai/issues/otel-prometheus-security-advisory))
+- Upgrade base images and `@types/node` from Node.js 22 to 24 (`Dockerfile`, `mock-server/Dockerfile`, `packages/agentic-tools/Dockerfile`, plus `node-version: '24.x'` in all GitHub Actions workflows so CI and prod images stay in lockstep). Upgrade `vitest` and `@vitest/ui` from `^3.2.4` to `^4.0.0`. Add a `protobufjs: ^8.2.0` override to close 7 transitive security advisories pulled in via `@opentelemetry/otlp-transformer` and `@grpc/proto-loader`: GHSA-q6x5-8v7m-xcrf (moderate, overlong UTF-8 decoding), GHSA-2pr8-phx7-x9h3 (moderate, DoS from crafted field names), GHSA-66ff-xgx4-vchm (high, code injection through bytes field defaults), GHSA-fx83-v9x8-x52w (moderate, prototype injection in generated constructors), GHSA-75px-5xx7-5xc7 (high, code generation gadget after prototype pollution), GHSA-jvwf-75h9-cwgg (high, process-wide DoS through unsafe option paths), GHSA-685m-2w69-288q (high, DoS through unbounded protobuf recursion). Removes pre-existing SHA digest pins from `mock-server/Dockerfile` and `packages/agentic-tools/Dockerfile`, consistent with the multi-arch policy enforced in `renovate.json`. Unblocks the CI `Run dependency security audit` gate on `main`. ([#565-node24-vitest4-protobufjs](https://github.com/vfarcic/dot-ai/issues/565-node24-vitest4-protobufjs))
+
+
 ## [1.18.1] - 2026-05-10
 
 ### Bug Fixes
