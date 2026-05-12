@@ -140,6 +140,6 @@
     "fast-uri": ">=3.1.2"
   },
   "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "4.52.5"
+    "@rollup/rollup-linux-x64-gnu": "4.60.3"
   }
 }
