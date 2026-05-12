@@ -1,115 +1,115 @@
 {
   "lockfile_version": "1",
   "packages": {
-    "awscli2@2.31.11": {
-      "last_modified": "2025-11-15T07:28:48Z",
-      "resolved": "github:NixOS/nixpkgs/1d4c88323ac36805d09657d13a5273aea1b34f0c#awscli2",
+    "awscli2@2.31.39": {
+      "last_modified": "2025-12-13T16:46:16Z",
+      "resolved": "github:NixOS/nixpkgs/23735a82a828372c4ef92c660864e82fbe2f5fbe#awscli2",
       "source": "devbox-search",
-      "version": "2.31.11",
+      "version": "2.31.39",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/f3jmjpa034fp6qiyfs7i6002alpbp0dh-awscli2-2.31.11",
+              "path": "/nix/store/9a6c5gs43xdkf84m0j1zxc3h9fa5rfld-awscli2-2.31.39",
               "default": true
             },
             {
               "name": "dist",
-              "path": "/nix/store/cdcnadjkd1pgy5qdhpvyjcwpgr4fcvaa-awscli2-2.31.11-dist"
+              "path": "/nix/store/j7shvajh3lbspy11j0hvdwb637mylcqh-awscli2-2.31.39-dist"
             }
           ],
-          "store_path": "/nix/store/f3jmjpa034fp6qiyfs7i6002alpbp0dh-awscli2-2.31.11"
+          "store_path": "/nix/store/9a6c5gs43xdkf84m0j1zxc3h9fa5rfld-awscli2-2.31.39"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/l3s2qnvnyqbdhwd5l28rs2k5gd4j6pff-awscli2-2.31.11",
+              "path": "/nix/store/nqrzvydvfxgxs8yv14bzpfvn8b958axg-awscli2-2.31.39",
               "default": true
             },
             {
               "name": "dist",
-              "path": "/nix/store/fpkjyqm8r0v0vp56c4qdnkjymiw8g8gp-awscli2-2.31.11-dist"
+              "path": "/nix/store/0ca8qn35wzdmnqgyq5pr9572qfh7yry9-awscli2-2.31.39-dist"
             }
           ],
-          "store_path": "/nix/store/l3s2qnvnyqbdhwd5l28rs2k5gd4j6pff-awscli2-2.31.11"
+          "store_path": "/nix/store/nqrzvydvfxgxs8yv14bzpfvn8b958axg-awscli2-2.31.39"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/v16pbf9jb5s40xpxy2m6yscrpzslxi69-awscli2-2.31.11",
+              "path": "/nix/store/n6gpn4c5paca09bknfsyz1icylrwwz3j-awscli2-2.31.39",
               "default": true
             },
             {
               "name": "dist",
-              "path": "/nix/store/417pmfkml66rvmi4qm7x4ljjrajcvjym-awscli2-2.31.11-dist"
+              "path": "/nix/store/63jkqvxr734km74lgpinhclk5wm9i9gq-awscli2-2.31.39-dist"
             }
           ],
-          "store_path": "/nix/store/v16pbf9jb5s40xpxy2m6yscrpzslxi69-awscli2-2.31.11"
+          "store_path": "/nix/store/n6gpn4c5paca09bknfsyz1icylrwwz3j-awscli2-2.31.39"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/ms55vwm2d7j07r6q471d2q9lwx0n3yya-awscli2-2.31.11",
+              "path": "/nix/store/604fdsj723s59p4gvmsk4k81arp6qwm8-awscli2-2.31.39",
               "default": true
             },
             {
               "name": "dist",
-              "path": "/nix/store/j1za0aghqhlidq74hib5qk7y9m43z4i1-awscli2-2.31.11-dist"
+              "path": "/nix/store/v2h0h8hhhksx1zyppi4p1lg9lyfil9xg-awscli2-2.31.39-dist"
             }
           ],
-          "store_path": "/nix/store/ms55vwm2d7j07r6q471d2q9lwx0n3yya-awscli2-2.31.11"
+          "store_path": "/nix/store/604fdsj723s59p4gvmsk4k81arp6qwm8-awscli2-2.31.39"
         }
       }
     },
-    "gh@2.83.1": {
-      "last_modified": "2025-11-23T21:50:36Z",
-      "resolved": "github:NixOS/nixpkgs/ee09932cedcef15aaf476f9343d1dea2cb77e261#gh",
+    "gh@2.83.2": {
+      "last_modified": "2025-12-31T03:27:36Z",
+      "resolved": "github:NixOS/nixpkgs/f665af0cdb70ed27e1bd8f9fdfecaf451260fc55#gh",
       "source": "devbox-search",
-      "version": "2.83.1",
+      "version": "2.83.2",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/jcfc6p66x7qnrwf2dn83gaar13swpfka-gh-2.83.1",
+              "path": "/nix/store/628v229i04rb1dflknh615bpydpcd3q1-gh-2.83.2",
               "default": true
             }
           ],
-          "store_path": "/nix/store/jcfc6p66x7qnrwf2dn83gaar13swpfka-gh-2.83.1"
+          "store_path": "/nix/store/628v229i04rb1dflknh615bpydpcd3q1-gh-2.83.2"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/vr17vpprzabs961dj075z5wl6nw6b4w4-gh-2.83.1",
+              "path": "/nix/store/ricbdm2m9538a3hbkavwrfdrvg021kb6-gh-2.83.2",
               "default": true
             }
           ],
-          "store_path": "/nix/store/vr17vpprzabs961dj075z5wl6nw6b4w4-gh-2.83.1"
+          "store_path": "/nix/store/ricbdm2m9538a3hbkavwrfdrvg021kb6-gh-2.83.2"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/v1xrng4rrjshc9ini30l07rsc2dbi7fh-gh-2.83.1",
+              "path": "/nix/store/5xf0w0i8sq5ym2yb4a4gjjpakffwf24r-gh-2.83.2",
               "default": true
             }
           ],
-          "store_path": "/nix/store/v1xrng4rrjshc9ini30l07rsc2dbi7fh-gh-2.83.1"
+          "store_path": "/nix/store/5xf0w0i8sq5ym2yb4a4gjjpakffwf24r-gh-2.83.2"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/y12yx7z4g4a3jbzh28h6yrpvcf6px5kl-gh-2.83.1",
+              "path": "/nix/store/6yfpl0bpgivl0xzr1fvzdwzwv3q5r08k-gh-2.83.2",
               "default": true
             }
           ],
-          "store_path": "/nix/store/y12yx7z4g4a3jbzh28h6yrpvcf6px5kl-gh-2.83.1"
+          "store_path": "/nix/store/6yfpl0bpgivl0xzr1fvzdwzwv3q5r08k-gh-2.83.2"
         }
       }
     },

@@ -9,9 +9,9 @@
     "kubectl-tree@0.4.6",
     "kind@0.31.0",
     "kubectl@1.33.4",
-    "awscli2@2.31.11",
+    "awscli2@2.31.39",
     "hadolint@2.14.0",
-    "gh@2.83.1",
+    "gh@2.83.2",
     "jq@1.8.1"
   ],
   "shell": {
