@@ -87,12 +87,16 @@ describe.concurrent('Prompts Integration', () => {
     test('should return 11 built-in prompts + 4 user prompts with correct metadata', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/prompts');
 
+      // expectedFiles and testArgs are test-only fields and must not be passed
+      // to the API-shape matcher.
       const expectedListResponse = {
         success: true,
         data: {
           prompts: expect.arrayContaining(
-            expectedPrompts.map(({ expectedFiles: _, ...rest }) => expect.objectContaining(rest))
-          )
+            expectedPrompts.map(({ expectedFiles: _e, testArgs: _t, ...rest }) =>
+              expect.objectContaining(rest)
+            )
+          ),
         },
         meta: {
           timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
@@ -102,8 +106,7 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedListResponse);
-      // 11 built-in + 4 user prompts (3 flat .md + 1 skill folder) from git repository
-      expect(response.data.prompts.length).toBe(15);
+      expect(response.data.prompts).toMatchObject({ length: 15 });
     });
   });
 
