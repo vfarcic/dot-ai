@@ -461,7 +461,7 @@ jobs:
         GH_TOKEN: ${{ secrets.DOT_AI_GIT_TOKEN }}
 
     - name: Trigger CLI Release
-      uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
+      uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
       with:
         token: ${{ secrets.CLI_DISPATCH_TOKEN }}
         repository: vfarcic/dot-ai-cli
@@ -487,7 +487,7 @@ jobs:
 
     - name: Trigger Website Rebuild
       if: steps.docs-check.outputs.docs-changed == 'true'
-      uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
+      uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
       with:
         token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
         repository: vfarcic/dot-ai-website
