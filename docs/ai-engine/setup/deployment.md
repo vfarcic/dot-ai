@@ -192,21 +192,39 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 The Vercel AI SDK retries transient failures (HTTP 429/5xx and network errors) with exponential backoff. The dot-ai server configures `maxRetries` per operation so you can trade resilience against responsiveness:
 
-| Operation | Default `maxRetries` | Env var override |
-|-----------|----------------------|------------------|
-| `embeddings` (single + batch) | `4` | `DOT_AI_AI_MAX_RETRIES_EMBEDDINGS` |
-| `chat` (single-turn `generateText`) | `2` | `DOT_AI_AI_MAX_RETRIES_CHAT` |
-| `tool_loop` (agentic multi-step) | `2` | `DOT_AI_AI_MAX_RETRIES_TOOL_LOOP` |
-| `wrap_up` (final summary after a tool loop) | `1` | `DOT_AI_AI_MAX_RETRIES_WRAP_UP` |
+| Operation | Default `maxRetries` | Helm value | Env var (runtime) |
+|-----------|----------------------|------------|-------------------|
+| `embeddings` (single + batch) | `4` | `ai.retries.embeddings` | `DOT_AI_AI_MAX_RETRIES_EMBEDDINGS` |
+| `chat` (single-turn `generateText`) | `2` | `ai.retries.chat` | `DOT_AI_AI_MAX_RETRIES_CHAT` |
+| `tool_loop` (agentic multi-step) | `2` | `ai.retries.toolLoop` | `DOT_AI_AI_MAX_RETRIES_TOOL_LOOP` |
+| `wrap_up` (final summary after a tool loop) | `1` | `ai.retries.wrapUp` | `DOT_AI_AI_MAX_RETRIES_WRAP_UP` |
 
-Set `DOT_AI_AI_MAX_RETRIES` to override every operation with the same value. A per-operation env var always wins over the global one. Values must be non-negative integers; invalid or unset values fall back to the next level (per-op env, then global env, then the default above). Set a value to `0` to disable retries for an operation.
+Set `ai.retries.default` (env var `DOT_AI_AI_MAX_RETRIES`) to override every operation with the same value. A per-operation value always wins over the global one. Values must be non-negative integers; empty or invalid values fall back to the next level (per-op, then global, then the built-in default above). Set a value to `0` to disable retries for an operation.
+
+Configure via typed Helm values (preferred):
+
+```yaml
+ai:
+  retries:
+    chat: "1"            # fail interactive chat fast
+    embeddings: "6"      # tolerate flaky embedding endpoints
+```
+
+Or via `--set`:
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set ai.retries.chat="1" \
+  --set ai.retries.embeddings="6" \
+  # ... other settings
+```
+
+The chart templates these into the env vars consumed by `src/core/ai-retry-config.ts`. As a fallback, you can still set the env vars directly via `extraEnv` (useful for testing without re-rendering the chart):
 
 ```yaml
 extraEnv:
   - name: DOT_AI_AI_MAX_RETRIES_CHAT
-    value: "1"            # fail interactive chat fast
-  - name: DOT_AI_AI_MAX_RETRIES_EMBEDDINGS
-    value: "6"            # tolerate flaky embedding endpoints
+    value: "1"
 ```
 
 ## Embedding Provider Configuration
