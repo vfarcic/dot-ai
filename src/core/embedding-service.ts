@@ -9,6 +9,7 @@ import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { google } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { embed, embedMany, EmbeddingModel } from 'ai';
+import { getMaxRetries } from './ai-retry-config';
 import {
   CircuitBreaker,
   CircuitBreakerStats,
@@ -58,6 +59,7 @@ export interface EmbeddingProvider {
 interface EmbedOptions {
   model: EmbeddingModel;
   value: string;
+  maxRetries?: number;
   providerOptions?: {
     google?: {
       outputDimensionality: number;
@@ -184,6 +186,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
             const embedOptions: EmbedOptions = {
               model: this.modelInstance!,
               value: text.trim(),
+              // Configurable retry budget; embeddings default to higher resilience.
+              maxRetries: getMaxRetries('embeddings'),
             };
 
             // Add Google-specific options
@@ -255,6 +259,8 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
             const embedManyOptions: Parameters<typeof embedMany>[0] = {
               model: this.modelInstance!,
               values: validTexts,
+              // Configurable retry budget; embeddings default to higher resilience.
+              maxRetries: getMaxRetries('embeddings'),
             };
 
             // Apply Google-specific options once for the whole batch.

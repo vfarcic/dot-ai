@@ -162,6 +162,19 @@ ai:
     embeddingsDimensions: ""        # Optional: custom embeddings dimensions (e.g., "768" for nomic-embed-text, defaults to "1536" for OpenAI)
     headers: ""                     # Optional: custom HTTP headers as JSON string (PRD #443) (e.g., '{"version": "2026-02-20", "x-custom-auth": "token123"}')
 
+  # Retry tuning for AI SDK calls (PRD #459)
+  # Vercel AI SDK retries transient failures (HTTP 429/5xx, network errors) with
+  # exponential backoff. dot-ai sets a different maxRetries per operation so you
+  # can trade resilience against responsiveness. Leave a value empty to use the
+  # built-in default for that operation; set to "0" to disable retries.
+  # Per-operation values take precedence over the global default.
+  retries:
+    default: ""                     # Global override (DOT_AI_AI_MAX_RETRIES). Empty = use per-operation defaults below.
+    embeddings: ""                  # Embeddings, single + batch (DOT_AI_AI_MAX_RETRIES_EMBEDDINGS). Built-in default: 4
+    chat: ""                        # Single-turn generateText (DOT_AI_AI_MAX_RETRIES_CHAT). Built-in default: 2
+    toolLoop: ""                    # Agentic multi-step tool loop (DOT_AI_AI_MAX_RETRIES_TOOL_LOOP). Built-in default: 2
+    wrapUp: ""                      # Final summary after a tool loop (DOT_AI_AI_MAX_RETRIES_WRAP_UP). Built-in default: 1
+
   # Examples (commented out):
   # Example 1: Ollama (self-hosted) - IMPORTANT: Include /v1 suffix
   # ai:

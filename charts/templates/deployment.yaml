@@ -54,6 +54,28 @@ spec:
         - name: AI_MODEL
           value: {{ .Values.ai.model | quote }}
 {{- end }}
+        # AI SDK retry tuning (PRD #459)
+        # Empty values fall through to per-operation defaults in src/core/ai-retry-config.ts.
+{{- if .Values.ai.retries.default }}
+        - name: DOT_AI_AI_MAX_RETRIES
+          value: {{ .Values.ai.retries.default | quote }}
+{{- end }}
+{{- if .Values.ai.retries.embeddings }}
+        - name: DOT_AI_AI_MAX_RETRIES_EMBEDDINGS
+          value: {{ .Values.ai.retries.embeddings | quote }}
+{{- end }}
+{{- if .Values.ai.retries.chat }}
+        - name: DOT_AI_AI_MAX_RETRIES_CHAT
+          value: {{ .Values.ai.retries.chat | quote }}
+{{- end }}
+{{- if .Values.ai.retries.toolLoop }}
+        - name: DOT_AI_AI_MAX_RETRIES_TOOL_LOOP
+          value: {{ .Values.ai.retries.toolLoop | quote }}
+{{- end }}
+{{- if .Values.ai.retries.wrapUp }}
+        - name: DOT_AI_AI_MAX_RETRIES_WRAP_UP
+          value: {{ .Values.ai.retries.wrapUp | quote }}
+{{- end }}
 {{- if .Values.ai.customEndpoint.enabled }}
         - name: CUSTOM_LLM_BASE_URL
           value: {{ .Values.ai.customEndpoint.baseURL | quote }}

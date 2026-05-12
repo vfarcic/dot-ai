@@ -188,6 +188,69 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 **AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys (unless using the `host` provider) and will show helpful error messages when accessed without configuration.
 
+### Retry Tuning (Optional)
+
+The Vercel AI SDK retries transient failures (HTTP 429/5xx and network errors) with exponential backoff. The dot-ai server configures `maxRetries` per operation so you can trade resilience against responsiveness:
+
+| Operation | Default `maxRetries` | Helm value | Env var (runtime) |
+|-----------|----------------------|------------|-------------------|
+| `embeddings` (single + batch) | `4` | `ai.retries.embeddings` | `DOT_AI_AI_MAX_RETRIES_EMBEDDINGS` |
+| `chat` (single-turn `generateText`) | `2` | `ai.retries.chat` | `DOT_AI_AI_MAX_RETRIES_CHAT` |
+| `tool_loop` (agentic multi-step) | `2` | `ai.retries.toolLoop` | `DOT_AI_AI_MAX_RETRIES_TOOL_LOOP` |
+| `wrap_up` (final summary after a tool loop) | `1` | `ai.retries.wrapUp` | `DOT_AI_AI_MAX_RETRIES_WRAP_UP` |
+
+Set `ai.retries.default` (env var `DOT_AI_AI_MAX_RETRIES`) to override every operation with the same value. A per-operation value always wins over the global one. Values must be non-negative integers; empty or invalid values fall back to the next level (per-op, then global, then the built-in default above). Set a value to `0` to disable retries for an operation.
+
+Configure via typed Helm values (preferred):
+
+```yaml
+ai:
+  retries:
+    chat: "1"            # fail interactive chat fast
+    embeddings: "6"      # tolerate flaky embedding endpoints
+```
+
+Or via `--set`:
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set ai.retries.chat="1" \
+  --set ai.retries.embeddings="6" \
+  # ... other settings
+```
+
+The chart templates these into the env vars consumed by `src/core/ai-retry-config.ts`. As a fallback, you can still set the env vars directly via `extraEnv` (useful for testing without re-rendering the chart):
+
+```yaml
+extraEnv:
+  - name: DOT_AI_AI_MAX_RETRIES_CHAT
+    value: "1"
+```
+
+#### Verifying the rendered env vars
+
+You can preview exactly which env vars the chart will inject before installing. With the defaults (empty values), no `DOT_AI_AI_MAX_RETRIES*` env vars are rendered and the per-operation defaults in `src/core/ai-retry-config.ts` take effect:
+
+```bash
+$ helm template dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+    --set secrets.auth.token=t --set secrets.anthropic.apiKey=k \
+  | grep DOT_AI_AI_MAX_RETRIES
+# (no output — no retry env vars rendered, defaults from code apply)
+```
+
+With overrides, only the env vars you set are emitted:
+
+```bash
+$ helm template dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+    --set secrets.auth.token=t --set secrets.anthropic.apiKey=k \
+    --set ai.retries.chat=1 --set ai.retries.embeddings=6 \
+  | grep -A1 DOT_AI_AI_MAX_RETRIES
+        - name: DOT_AI_AI_MAX_RETRIES_EMBEDDINGS
+          value: "6"
+        - name: DOT_AI_AI_MAX_RETRIES_CHAT
+          value: "1"
+```
+
 ## Embedding Provider Configuration
 
 The DevOps AI Toolkit supports multiple embedding providers for semantic search in pattern management, capability discovery, and policy matching.
