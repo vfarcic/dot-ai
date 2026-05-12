@@ -227,6 +227,30 @@ extraEnv:
     value: "1"
 ```
 
+#### Verifying the rendered env vars
+
+You can preview exactly which env vars the chart will inject before installing. With the defaults (empty values), no `DOT_AI_AI_MAX_RETRIES*` env vars are rendered and the per-operation defaults in `src/core/ai-retry-config.ts` take effect:
+
+```bash
+$ helm template dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+    --set secrets.auth.token=t --set secrets.anthropic.apiKey=k \
+  | grep DOT_AI_AI_MAX_RETRIES
+# (no output — no retry env vars rendered, defaults from code apply)
+```
+
+With overrides, only the env vars you set are emitted:
+
+```bash
+$ helm template dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+    --set secrets.auth.token=t --set secrets.anthropic.apiKey=k \
+    --set ai.retries.chat=1 --set ai.retries.embeddings=6 \
+  | grep -A1 DOT_AI_AI_MAX_RETRIES
+        - name: DOT_AI_AI_MAX_RETRIES_EMBEDDINGS
+          value: "6"
+        - name: DOT_AI_AI_MAX_RETRIES_CHAT
+          value: "1"
+```
+
 ## Embedding Provider Configuration
 
 The DevOps AI Toolkit supports multiple embedding providers for semantic search in pattern management, capability discovery, and policy matching.
