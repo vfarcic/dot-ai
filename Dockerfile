@@ -3,7 +3,7 @@
 # Using SHA256 digests would pin to a single architecture and cause "exec format error" on other platforms.
 
 # Stage 1: Builder - install npm package
-FROM node:22-slim AS builder
+FROM node:24-slim AS builder
 
 # Copy and install pre-built dot-ai package
 # Package is built outside Docker (npm run build + npm pack)
@@ -13,7 +13,7 @@ COPY vfarcic-dot-ai-*.tgz /tmp/
 RUN npm install -g /tmp/vfarcic-dot-ai-*.tgz
 
 # Stage 2: Runtime - copy installed binaries and packages
-FROM node:22-slim
+FROM node:24-slim
 
 # Install required packages:
 # - ca-certificates: TLS verification (required for helm repo operations)

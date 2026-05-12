@@ -151,7 +151,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
       with:
-        node-version: '22.x'
+        node-version: '24.x'
         registry-url: 'https://registry.npmjs.org'
         cache: 'npm'
 
@@ -242,7 +242,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
       with:
-        node-version: '22.x'
+        node-version: '24.x'
         cache: 'npm'
         cache-dependency-path: packages/agentic-tools/package-lock.json
 
@@ -299,7 +299,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
       with:
-        node-version: '22.x'
+        node-version: '24.x'
         cache: 'npm'
 
     - name: Install dependencies
