@@ -8,7 +8,7 @@ FROM node:20-alpine@sha256:09e2b3d9726018aecf269bd35325f46bf75046a643a66d28360ec
 WORKDIR /app
 
 # Copy kubectl and helm binaries from official images (Renovate auto-updates these)
-COPY --from=rancher/kubectl:v1.34.2@sha256:9151f97db412884ac7e7fa2a7e0869f9f74db91f940903bde6254f4c748396d7 /bin/kubectl /usr/local/bin/kubectl
+COPY --from=rancher/kubectl:v1.34.7@sha256:b7a56344adcc3434223b568598a765e25e0becdbaea94d677c61f56c21ca2c6e /bin/kubectl /usr/local/bin/kubectl
 COPY --from=alpine/helm:4.1.4@sha256:4b0bdd2cf18ff6bca12aba0b2c5671384dab5035c19c57f0c58b854a0baf65be /usr/bin/helm /usr/local/bin/helm
 
 # Create non-root user for security
