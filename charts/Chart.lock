@@ -1,9 +1,9 @@
 dependencies:
 - name: qdrant
   repository: https://qdrant.github.io/qdrant-helm
-  version: 1.15.5
+  version: 1.18.0
 - name: dex
   repository: https://charts.dexidp.io
   version: 0.24.0
-digest: sha256:5e70a00728a97f1b2f129e41bb1a274280ac3c4bf1fcd5e98f18277ecb66048e
-generated: "2026-03-01T21:15:39.594662+01:00"
+digest: sha256:751fc2a3656e8bc2c2c48f886a2031bab326fd58f01b97f49aae3fac80cfb832
+generated: "2026-05-12T16:39:00.299120586Z"
