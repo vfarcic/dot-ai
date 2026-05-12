@@ -34,7 +34,10 @@ describe.concurrent('Prompts Integration', () => {
       arguments: [
         { name: 'prdNumber', description: 'PRD number to implement (e.g., 306). Required — no auto-detection.', required: true },
         { name: 'mode', description: 'Isolation strategy for this PRD\'s work. Must be `branch` or `worktree`. Pre-answers the branch-vs-worktree decision in `/prd-start`.', required: true }
-      ]
+      ],
+      // prd-full has required arguments — the Prompts Get test must supply
+      // them or the server returns success: false.
+      testArgs: { prdNumber: '306', mode: 'branch' }
     },
     { name: 'prd-next', description: 'Analyze existing PRD to identify and recommend the single highest-priority task to work on next' },
     {
@@ -106,8 +109,8 @@ describe.concurrent('Prompts Integration', () => {
 
   describe('Prompts Get', () => {
     // Test each prompt individually (including folder-based skills with files)
-    test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description, expectedFiles }) => {
-      const response = await integrationTest.httpClient.post(`/api/v1/prompts/${name}`, {});
+    test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description, expectedFiles, testArgs }) => {
+      const response = await integrationTest.httpClient.post(`/api/v1/prompts/${name}`, testArgs ?? {});
 
       const expectedGetResponse = {
         success: true,
