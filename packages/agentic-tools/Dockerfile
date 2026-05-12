@@ -3,7 +3,7 @@
 # on native amd64, avoiding QEMU arm64 emulation issues with npm ci.
 # All dependencies are pure JavaScript, so pre-built artifacts work on both architectures.
 
-FROM node:20-alpine@sha256:09e2b3d9726018aecf269bd35325f46bf75046a643a66d28360ec71132750ec8
+FROM node:24-alpine
 
 WORKDIR /app
 

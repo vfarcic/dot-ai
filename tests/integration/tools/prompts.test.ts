@@ -28,6 +28,17 @@ describe.concurrent('Prompts Integration', () => {
     { name: 'prd-close', description: 'Close a PRD that is already implemented or no longer needed' },
     { name: 'prd-create', description: 'Create documentation-first PRDs that guide development through user-facing content' },
     { name: 'prd-done', description: 'Complete PRD implementation workflow - create branch, push changes, create PR, merge, and close issue' },
+    {
+      name: 'prd-full',
+      description: 'Run a PRD end-to-end autonomously — start, iterate until done, then create a PR. Stops after PR creation for manual review.',
+      arguments: [
+        { name: 'prdNumber', description: 'PRD number to implement (e.g., 306). Required — no auto-detection.', required: true },
+        { name: 'mode', description: 'Isolation strategy for this PRD\'s work. Must be `branch` or `worktree`. Pre-answers the branch-vs-worktree decision in `/prd-start`.', required: true }
+      ],
+      // prd-full has required arguments — the Prompts Get test must supply
+      // them or the server returns success: false.
+      testArgs: { prdNumber: '306', mode: 'branch' }
+    },
     { name: 'prd-next', description: 'Analyze existing PRD to identify and recommend the single highest-priority task to work on next' },
     {
       name: 'prd-start',
@@ -73,15 +84,19 @@ describe.concurrent('Prompts Integration', () => {
   });
 
   describe('Prompts List', () => {
-    test('should return 10 built-in prompts + 4 user prompts with correct metadata', async () => {
+    test('should return 11 built-in prompts + 4 user prompts with correct metadata', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/prompts');
 
+      // expectedFiles and testArgs are test-only fields and must not be passed
+      // to the API-shape matcher.
       const expectedListResponse = {
         success: true,
         data: {
           prompts: expect.arrayContaining(
-            expectedPrompts.map(({ expectedFiles: _, ...rest }) => expect.objectContaining(rest))
-          )
+            expectedPrompts.map(({ expectedFiles: _e, testArgs: _t, ...rest }) =>
+              expect.objectContaining(rest)
+            )
+          ),
         },
         meta: {
           timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
@@ -91,15 +106,17 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedListResponse);
-      // 10 built-in + 4 user prompts (3 flat .md + 1 skill folder) from git repository
-      expect(response.data.prompts.length).toBe(14);
+      expect(response.data.prompts).toMatchObject({ length: 15 });
     });
   });
 
   describe('Prompts Get', () => {
     // Test each prompt individually (including folder-based skills with files)
-    test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description, expectedFiles }) => {
-      const response = await integrationTest.httpClient.post(`/api/v1/prompts/${name}`, {});
+    test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description, expectedFiles, testArgs }) => {
+      const response = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${name}`,
+        testArgs ? { arguments: testArgs } : {}
+      );
 
       const expectedGetResponse = {
         success: true,
