@@ -86,7 +86,7 @@
   ],
   "devDependencies": {
     "@eslint/js": "^10.0.0",
-    "@types/bcryptjs": "^2.4.6",
+    "@types/bcryptjs": "^3.0.0",
     "@types/express": "^5.0.6",
     "@types/glob": "^9.0.0",
     "@types/handlebars": "^4.0.40",
