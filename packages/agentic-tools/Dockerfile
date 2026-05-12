@@ -9,7 +9,7 @@ WORKDIR /app
 
 # Copy kubectl and helm binaries from official images (Renovate auto-updates these)
 COPY --from=rancher/kubectl:v1.34.2@sha256:9151f97db412884ac7e7fa2a7e0869f9f74db91f940903bde6254f4c748396d7 /bin/kubectl /usr/local/bin/kubectl
-COPY --from=alpine/helm:4.0.4@sha256:adb87b125214fd356ecc1a24a1e86e4afed0ee03de5d4391de4925777de7fd42 /usr/bin/helm /usr/local/bin/helm
+COPY --from=alpine/helm:4.1.4@sha256:4b0bdd2cf18ff6bca12aba0b2c5671384dab5035c19c57f0c58b854a0baf65be /usr/bin/helm /usr/local/bin/helm
 
 # Create non-root user for security
 RUN addgroup -g 10001 -S appgroup && \
