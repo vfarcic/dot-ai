@@ -110,7 +110,10 @@ describe.concurrent('Prompts Integration', () => {
   describe('Prompts Get', () => {
     // Test each prompt individually (including folder-based skills with files)
     test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description, expectedFiles, testArgs }) => {
-      const response = await integrationTest.httpClient.post(`/api/v1/prompts/${name}`, testArgs ?? {});
+      const response = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${name}`,
+        testArgs ? { arguments: testArgs } : {}
+      );
 
       const expectedGetResponse = {
         success: true,
