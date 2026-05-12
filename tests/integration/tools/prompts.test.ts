@@ -28,6 +28,14 @@ describe.concurrent('Prompts Integration', () => {
     { name: 'prd-close', description: 'Close a PRD that is already implemented or no longer needed' },
     { name: 'prd-create', description: 'Create documentation-first PRDs that guide development through user-facing content' },
     { name: 'prd-done', description: 'Complete PRD implementation workflow - create branch, push changes, create PR, merge, and close issue' },
+    {
+      name: 'prd-full',
+      description: 'Run a PRD end-to-end autonomously — start, iterate until done, then create a PR. Stops after PR creation for manual review.',
+      arguments: [
+        { name: 'prdNumber', description: 'PRD number to implement (e.g., 306). Required — no auto-detection.', required: true },
+        { name: 'mode', description: 'Isolation strategy for this PRD\'s work. Must be `branch` or `worktree`. Pre-answers the branch-vs-worktree decision in `/prd-start`.', required: true }
+      ]
+    },
     { name: 'prd-next', description: 'Analyze existing PRD to identify and recommend the single highest-priority task to work on next' },
     {
       name: 'prd-start',
@@ -73,7 +81,7 @@ describe.concurrent('Prompts Integration', () => {
   });
 
   describe('Prompts List', () => {
-    test('should return 10 built-in prompts + 4 user prompts with correct metadata', async () => {
+    test('should return 11 built-in prompts + 4 user prompts with correct metadata', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/prompts');
 
       const expectedListResponse = {
@@ -91,8 +99,8 @@ describe.concurrent('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedListResponse);
-      // 10 built-in + 4 user prompts (3 flat .md + 1 skill folder) from git repository
-      expect(response.data.prompts.length).toBe(14);
+      // 11 built-in + 4 user prompts (3 flat .md + 1 skill folder) from git repository
+      expect(response.data.prompts.length).toBe(15);
     });
   });
 
