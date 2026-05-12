@@ -21,7 +21,7 @@ annotations:
   category: Developer Tools
 dependencies:
   - name: qdrant
-    version: "1.15.5"
+    version: "1.18.0"
     repository: "https://qdrant.github.io/qdrant-helm"
     condition: qdrant.enabled
   - name: dex
