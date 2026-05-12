@@ -1,17 +1,17 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
   "packages": [
-    "nushell@0.108.0",
-    "kubernetes-helm@3.19.1",
-    "git@2.51.2",
-    "vals@0.42.6",
-    "yq-go@4.50.1",
-    "kubectl-tree@0.4.6",
+    "nushell@0.112.2",
+    "kubernetes-helm@3.20.2",
+    "git@2.53.0",
+    "vals@0.44.0",
+    "yq-go@4.53.2",
+    "kubectl-tree@0.6.0",
     "kind@0.31.0",
-    "kubectl@1.33.4",
-    "awscli2@2.31.11",
+    "kubectl@1.36.0",
+    "awscli2@2.34.24",
     "hadolint@2.14.0",
-    "gh@2.83.1",
+    "gh@2.92.0",
     "jq@1.8.1"
   ],
   "shell": {
