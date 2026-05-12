@@ -1,7 +1,7 @@
 # Note: We use tag-only references (not SHA256 digests) to support multi-architecture builds.
 # Docker Buildx automatically selects the correct architecture-specific image for each platform.
 # Using SHA256 digests would pin to a single architecture and cause "exec format error" on other platforms.
-FROM qdrant/qdrant:v1.15.5
+FROM qdrant/qdrant:v1.18.0
 
 # Copy pre-loaded qdrant data to the container
 COPY qdrant_storage/ /qdrant/storage/
