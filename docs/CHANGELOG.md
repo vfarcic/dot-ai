@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.19.1] - 2026-05-13
+
+### Other Changes
+
+- Followup to PR #493 (issue #464): add `MockLanguageModelV3`-based unit tests covering `VercelProvider.sendMessage` error paths. Verifies that rate-limit (429), auth (401), and generic network failures from the Vercel AI SDK are wrapped into a single `<provider> API error:` `Error` with the original error preserved on `cause`, so upstream telemetry, retry classification, and debug logs can still inspect the underlying failure. No production code changes. ([#464-vercel-provider-error-paths](https://github.com/vfarcic/dot-ai/issues/464-vercel-provider-error-paths))
+
+
 ## [1.19.0] - 2026-05-12
 
 ### Features
