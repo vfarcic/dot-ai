@@ -17,6 +17,7 @@ This roadmap is a living document and may change based on community feedback and
 - Consolidate duplicated constants and messages to eliminate code duplication (PRD #323)
 - Unified knowledge base - consolidate policies, patterns, and knowledge into single collection with AI classification (PRD #375)
 - Use embedMany for batch embeddings - replace manual Promise.all with SDK built-in batching (PRD #453)
+- Per-request user prompts repository override - compose skills from multiple repos via CLI flags (PRD #581)
 
 ## Medium-term (3-6 Months)
 
