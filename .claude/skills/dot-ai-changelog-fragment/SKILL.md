@@ -88,6 +88,8 @@ Show the user:
 2. The content written
 3. Reminder to commit and push with the PR
 
+> ⚠️ **Do not include `[skip ci]` (or any equivalent like `[ci skip]`, `***NO_CI***`, `[skip actions]`) in the commit message for this fragment.** Changelog fragments are committed on the feature branch as part of the PR, and GitHub Actions honors `[skip ci]` on the tip commit of any push — a single such commit silently disables CI for the entire PR.
+
 ## Guidelines
 
 - **User-focused**: Describe what users gain, not implementation details

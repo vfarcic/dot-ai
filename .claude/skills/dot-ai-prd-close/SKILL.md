@@ -179,6 +179,8 @@ EOF
 
 **Commit changes directly to main with skip CI:**
 
+> ⚠️ **CI skip safety rule**: The `[skip ci]` flag below is safe **only because this commit goes directly to the default branch (`main`)**. GitHub Actions honors `[skip ci]` on the tip commit of any push and suppresses workflows for the entire push — including PRs. **Never** include `[skip ci]` on a commit that will land on a branch with an open or planned PR; it will silently disable CI for the whole PR. If `/prd-close` is being run from a feature branch instead of `main`, stop and switch to `main` before proceeding (or omit the flag).
+
 ```bash
 # Stage all changes
 git add .
@@ -186,7 +188,7 @@ git add .
 # Verify what will be committed
 git status
 
-# Commit with skip CI flag
+# Commit with [skip ci] — safe here because the commit goes directly to main
 git commit -m "docs(prd-[number]): close PRD #[number] - [brief reason] [skip ci]
 
 - Moved PRD to prds/done/ directory
@@ -201,7 +203,7 @@ git pull --rebase origin main && git push origin main
 ```
 
 **Important**:
-- Always use `[skip ci]` flag to avoid unnecessary CI runs for documentation changes
+- Use `[skip ci]` **only when committing directly to the default branch (`main`)** — see safety rule above. Never on feature-branch commits.
 - Include issue reference (`Closes #[number]`) to link commit to issue
 
 ## Example Scenarios
@@ -277,7 +279,7 @@ Requirements have evolved and this PRD is out of scope.
 ## Notes
 
 - **No PR required**: This workflow commits directly to main for documentation-only changes
-- **Skip CI**: Always include `[skip ci]` to avoid unnecessary CI runs
+- **Skip CI**: Include `[skip ci]` **only because this workflow commits directly to `main`**. Never apply this pattern to feature-branch commits — `[skip ci]` on a push's tip commit suppresses CI for the entire PR.
 - **Comprehensive documentation**: Ensure issue comment clearly explains closure reason
 - **Implementation references**: Link to external projects, repos, or PRs where functionality exists
 - **Gap acknowledgment**: Be honest about what's implemented vs. what's missing
