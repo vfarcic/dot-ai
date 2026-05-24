@@ -16,15 +16,22 @@ Current workarounds all fail:
 
 Accept an optional `repo` parameter on the existing prompts endpoint. When supplied, the server fetches from that repository for the single request, overriding `DOT_AI_USER_PROMPTS_REPO`. When omitted, behavior is identical to today.
 
-The CLI (companion PRD in `vfarcic/dot-ai-cli`) orchestrates composition by calling the endpoint once with no override (env-var-configured repo) and once per `--repo` flag, then accumulating results and writing them with a single wipe.
+Each request serves exactly one repo. Composition across multiple repos is the CLI's job and is done across multiple invocations — typically via multiple agent hooks, each invoking `dot-ai skills generate --repo <url>` once. The CLI is responsible for tagging written skills with their source so that subsequent invocations can wipe only their own slice. See the companion PRD in `vfarcic/dot-ai-cli` for the CLI-side design.
 
 **Example flow:**
 ```
-CLI:  dot-ai skills generate --repo https://github.com/orgA/skills --repo https://github.com/orgB/skills
-   ├── GET  prompts  (server uses DOT_AI_USER_PROMPTS_REPO)
-   ├── GET  prompts?repo=https://github.com/orgA/skills
-   └── GET  prompts?repo=https://github.com/orgB/skills
-       → accumulated, deduped, written to disk
+Hook A:  dot-ai skills generate --repo https://github.com/orgA/skills
+            └── GET prompts?repo=https://github.com/orgA/skills
+                → CLI writes orgA's skills, tagged with source=orgA
+
+Hook B:  dot-ai skills generate --repo https://github.com/orgB/skills
+            └── GET prompts?repo=https://github.com/orgB/skills
+                → CLI writes orgB's skills, tagged with source=orgB
+
+No --repo: dot-ai skills generate
+            └── GET prompts
+                → server uses DOT_AI_USER_PROMPTS_REPO
+                → CLI writes skills, tagged with source=<env-var repo>
 ```
 
 ## Scope
@@ -81,7 +88,9 @@ Token reuses `process.env.DOT_AI_GIT_TOKEN` (MVP scope above). Cache TTL reuses 
 
 ### Cache behavior (MVP — single slot)
 
-The existing module-level `cacheState` (`user-prompts-loader.ts:42`) caches one repo. When `override` is supplied with a different `repoUrl` than the currently cached one, the loader treats the cache as invalid and clones fresh. This produces cache thrashing if the CLI alternates between repos within the TTL window, but is correct.
+The existing module-level `cacheState` (`user-prompts-loader.ts:42`) caches one repo. When `override` is supplied with a different `repoUrl` than the currently cached one, the loader treats the cache as invalid and clones fresh. This produces cache thrashing if hooks alternate between repos within the TTL window, but is correct.
+
+Note: under the hook-per-source model, each agent session typically fires multiple `dot-ai skills generate --repo <url>` invocations in sequence (one per source). With a single-slot cache, every invocation that hits a different repo than the previously cached one will re-clone. For N hooks across N distinct repos, that's N clones per session — acceptable for MVP given clones are `--depth 1`, but a per-repo cache map is the obvious next optimization.
 
 Documented as a known performance wart, fixable later by promoting `cacheState` to `Map<repoUrl, CacheState>` and giving `getCacheDirectory()` a per-repo subdirectory (hash of URL).
 
@@ -104,7 +113,7 @@ Content-Type: application/json
 { "repo": "https://github.com/orgA/skills" }
 ```
 
-Response includes a `source` field identifying which repo the result came from (for observability and CLI-side dedup tracking):
+Response includes a `source` field identifying which repo the result came from. The CLI uses this value verbatim to tag the skill files it writes (as `source:` frontmatter), so subsequent invocations can identify and wipe only their own skills. The value must therefore be stable across requests for the same repo:
 
 ```json
 {
@@ -117,12 +126,13 @@ Response includes a `source` field identifying which repo the result came from (
 }
 ```
 
-For requests with no override, `source` retains today's `"built-in"` or `"built-in+repository"` strings for backwards compatibility.
+For requests with no override, `source` reflects the env-var-configured repo URL (or `"built-in"` if no env-var repo is configured) — same value the CLI will write into the skill frontmatter.
 
 ## Success Criteria
 
 - Existing requests with no `repo` parameter behave byte-identically to today (no behavioral drift, no new log lines).
 - Requests with `repo=<url>` fetch prompts from the specified repository using the existing token, ignoring `DOT_AI_USER_PROMPTS_REPO` for that call.
+- The response `source` field is stable across requests for the same repo (the CLI relies on it as a tagging key).
 - Invalid or unreachable `repo` returns an error scoped to the request; the env-var cache is not corrupted.
 - User-supplied URLs are scrubbed from logs and error messages (no token leakage).
 - Documentation describes the new parameter and its scope clearly.
