@@ -19,7 +19,7 @@ export const CURRENT_MODELS = {
   openrouter: 'anthropic/claude-haiku-4.5', // PRD #194: OpenRouter default model (overridden by AI_MODEL env var)
   custom: 'gpt-5.4', // PRD #194: Custom endpoint default model (overridden by AI_MODEL env var)
   amazon_bedrock: 'global.anthropic.claude-sonnet-4-6', // PRD #175: Amazon Bedrock default model (overridden by AI_MODEL env var)
-  copilot: 'gpt-4o', // PRD #587: GitHub Copilot provider - default model; Claude model IDs fail at Copilot gateway (overridden by AI_MODEL env var)
+  copilot: 'claude-sonnet-4.6', // PRD #587: GitHub Copilot provider - use dot notation (catalog ID); Copilot supports both /chat/completions and /v1/messages for Claude
 } as const;
 
 /**

@@ -1,19 +1,22 @@
 /**
- * Unit tests for the VercelProvider copilot branch — createOpenAI wiring.
+ * Unit tests for the VercelProvider copilot branch — SDK routing wiring.
  *
- * Verifies that when provider='copilot' is requested:
- *   - createOpenAI is called with baseURL 'https://api.githubcopilot.com'
- *   - provider.chat(model) is invoked to set modelInstance (not provider(model))
- *   - the custom fetch wrapper injects the required Copilot headers
- *   - a 401 from the upstream causes a retry with a re-resolved token
- *   - resolver failure propagates as a constructor error
+ * Routing logic (mirrors Hermes Agent):
+ *   - claude-* model IDs → createAnthropic with baseURL 'https://api.githubcopilot.com'
+ *   - All other model IDs → createOpenAI with baseURL 'https://api.githubcopilot.com'
+ *     using provider.chat(model) (not provider(model))
+ *
+ * Both paths share the same copilotFetch wrapper which:
+ *   - Injects Authorization: Bearer <token>, Copilot-Integration-Id,
+ *     Editor-Version, Openai-Intent, and x-initiator headers
+ *   - On 401: drains the response body, re-resolves the token, and retries once
  *
  * Stale findings skipped:
  *   - makeCopilotTokenExchanger / exchange.invalidate(): the actual export is
  *     makeCopilotCredentialResolver; there is no invalidate() method — on 401
  *     the resolver simply re-reads the env chain on the next resolve() call.
- *   - "token refresh before expiry": no expiry concept exists; the credential
- *     is resolved fresh on every resolve() call (direct-token model).
+ *   - "token refresh before expiry": no expiry concept; the credential is
+ *     resolved fresh on every resolve() call (direct-token model).
  *   - "end-to-end inference through copilot provider satisfying test:integration":
  *     integration tests require a Kind cluster; the e2e test below uses
  *     it.skipIf so it only runs when a real token is present in the environment.
@@ -24,20 +27,28 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ---------------------------------------------------------------------------
 // Hoisted mocks — must be declared before any module imports
 // ---------------------------------------------------------------------------
-const { mockCreateOpenAI, mockChatFn } = vi.hoisted(() => {
-  const mockChatFn = vi.fn();
-  const mockProvider = vi.fn();
-  // provider.chat() is used by the copilot branch instead of provider(model)
-  mockProvider.chat = mockChatFn;
+const { mockCreateOpenAI, mockChatFn, mockCreateAnthropic, mockAnthropicModelFn } =
+  vi.hoisted(() => {
+    // OpenAI path: provider.chat(model)
+    const mockChatFn = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mockOpenAIProvider: any = vi.fn();
+    mockOpenAIProvider.chat = mockChatFn;
+    const mockCreateOpenAI = vi.fn(() => mockOpenAIProvider);
 
-  const mockCreateOpenAI = vi.fn(() => mockProvider);
-  return { mockCreateOpenAI, mockChatFn };
-});
+    // Anthropic path: provider(model) — callable factory
+    const mockAnthropicModelFn = vi.fn(() => ({ modelId: 'claude-sonnet-4.6' }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mockAnthropicProvider: any = vi.fn((...args: unknown[]) => mockAnthropicModelFn(...args));
+    const mockCreateAnthropic = vi.fn(() => mockAnthropicProvider);
+
+    return { mockCreateOpenAI, mockChatFn, mockCreateAnthropic, mockAnthropicModelFn };
+  });
 
 vi.mock('@ai-sdk/openai', () => ({ createOpenAI: mockCreateOpenAI }));
+vi.mock('@ai-sdk/anthropic', () => ({ createAnthropic: mockCreateAnthropic }));
 
 // Stub every other SDK factory so importing vercel-provider does not fail
-vi.mock('@ai-sdk/anthropic', () => ({ createAnthropic: vi.fn(() => vi.fn()) }));
 vi.mock('@ai-sdk/google', () => ({
   createGoogleGenerativeAI: vi.fn(() => vi.fn()),
 }));
@@ -83,32 +94,71 @@ import { VercelProvider } from '../../../../src/core/providers/vercel-provider';
 
 const VALID_TOKEN = 'gho_testtoken1234';
 
-/** Build a minimal VercelProvider configured for the copilot branch. */
-function makeCopilotProvider(token = VALID_TOKEN) {
+const EXPECTED_COPILOT_HEADERS: Record<string, string> = {
+  'copilot-integration-id': 'vscode-chat',
+  'editor-version': 'vscode/1.104.1',
+  'openai-intent': 'conversation-edits',
+};
+
+function makeCopilotProvider(model: string, token = VALID_TOKEN) {
   return new VercelProvider({
     provider: 'copilot',
     apiKey: token,
-    model: 'gpt-4o',
+    model,
     debugMode: false,
   });
 }
 
+type CopilotFetch = (
+  url: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1]
+) => Promise<Response>;
+
+/** Extract the copilotFetch closure from the most recent createAnthropic call. */
+function extractAnthropicFetch(): CopilotFetch | undefined {
+  const calls = mockCreateAnthropic.mock.calls as unknown as Array<[Record<string, unknown>]>;
+  return calls[0]?.[0]?.fetch as CopilotFetch | undefined;
+}
+
+/** Extract the copilotFetch closure from the most recent createOpenAI call. */
+function extractOpenAIFetch(): CopilotFetch | undefined {
+  const calls = mockCreateOpenAI.mock.calls as unknown as Array<[Record<string, unknown>]>;
+  return calls[0]?.[0]?.fetch as CopilotFetch | undefined;
+}
+
+/** Run copilotFetch with a fake global fetch and return captured headers. */
+async function captureHeaders(
+  copilotFetch: NonNullable<ReturnType<typeof extractAnthropicFetch>>
+): Promise<Record<string, string>> {
+  const captured: Record<string, string> = {};
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const h = new Headers(init?.headers);
+    for (const [k, v] of h.entries()) captured[k.toLowerCase()] = v;
+    return new Response('{}', { status: 200 });
+  };
+  try {
+    await copilotFetch('https://api.githubcopilot.com/v1/messages');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  return captured;
+}
+
 // ---------------------------------------------------------------------------
-// Tests
+// Suite 1: Claude model IDs → createAnthropic path
 // ---------------------------------------------------------------------------
 
-describe('VercelProvider copilot branch — createOpenAI wiring', () => {
+describe('VercelProvider copilot branch — Claude model routing (createAnthropic)', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    // Keep Copilot env vars clean so each test controls them explicitly
     delete process.env.GITHUB_COPILOT_TOKEN;
     delete process.env.GH_TOKEN;
     delete process.env.GITHUB_TOKEN;
     vi.clearAllMocks();
-
-    // Default: chat() returns a sentinel model instance
+    mockAnthropicModelFn.mockReturnValue({ modelId: 'claude-sonnet-4.6' });
     mockChatFn.mockReturnValue({ modelId: 'gpt-4o' });
   });
 
@@ -117,132 +167,191 @@ describe('VercelProvider copilot branch — createOpenAI wiring', () => {
     vi.restoreAllMocks();
   });
 
-  it('calls createOpenAI with baseURL https://api.githubcopilot.com', () => {
-    makeCopilotProvider();
+  it('calls createAnthropic (not createOpenAI) for claude-* model IDs', () => {
+    makeCopilotProvider('claude-sonnet-4.6');
 
-    expect(mockCreateOpenAI).toHaveBeenCalledOnce();
-    expect(mockCreateOpenAI).toHaveBeenCalledWith(
+    expect(mockCreateAnthropic).toHaveBeenCalledOnce();
+    expect(mockCreateOpenAI).not.toHaveBeenCalled();
+  });
+
+  it('calls createAnthropic with baseURL https://api.githubcopilot.com/v1', () => {
+    makeCopilotProvider('claude-sonnet-4.6');
+
+    expect(mockCreateAnthropic).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseURL: 'https://api.githubcopilot.com',
+        baseURL: 'https://api.githubcopilot.com/v1',
       })
     );
   });
 
-  it('calls createOpenAI with a custom fetch (not undefined)', () => {
-    makeCopilotProvider();
-
-    const callArg = mockCreateOpenAI.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(typeof callArg.fetch).toBe('function');
+  it('calls createAnthropic with a custom fetch (not undefined)', () => {
+    makeCopilotProvider('claude-sonnet-4.6');
+    const callArg = mockCreateAnthropic.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(typeof callArg?.fetch).toBe('function');
   });
 
-  it('calls provider.chat(model) to set modelInstance — not provider(model)', () => {
-    makeCopilotProvider();
-
-    // .chat() must have been invoked with the model id
-    expect(mockChatFn).toHaveBeenCalledOnce();
-    expect(mockChatFn).toHaveBeenCalledWith('gpt-4o');
+  it('invokes anthropicProvider(model) — callable factory — to set modelInstance', () => {
+    makeCopilotProvider('claude-sonnet-4.6');
+    // The mocked anthropicProvider is itself callable; verify it was called with the model ID
+    expect(mockAnthropicModelFn).toHaveBeenCalledWith('claude-sonnet-4.6');
   });
 
-  it('copilotFetch injects Authorization: Bearer <token> header', async () => {
-    makeCopilotProvider();
+  it('copilotFetch injects all required Copilot headers for Anthropic path', async () => {
+    makeCopilotProvider('claude-sonnet-4.6');
+    const copilotFetch = extractAnthropicFetch();
+    expect(copilotFetch).toBeDefined();
 
-    const callArg = mockCreateOpenAI.mock.calls[0]?.[0] as Record<string, unknown>;
-    const copilotFetch = callArg.fetch as (
-      url: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1]
-    ) => Promise<Response>;
+    const headers = await captureHeaders(copilotFetch!);
 
-    const captured: Record<string, string> = {};
-    const fakeFetch = async (
-      _url: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1]
-    ): Promise<Response> => {
-      const h = new Headers(init?.headers);
-      for (const [k, v] of h.entries()) captured[k.toLowerCase()] = v;
-      return new Response('{}', { status: 200 });
-    };
-
-    // Temporarily replace global fetch so the closure calls our spy
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = fakeFetch as typeof fetch;
-    try {
-      await copilotFetch('https://api.githubcopilot.com/chat/completions');
-    } finally {
-      globalThis.fetch = originalFetch;
+    expect(headers['authorization']).toBe(`Bearer ${VALID_TOKEN}`);
+    for (const [k, v] of Object.entries(EXPECTED_COPILOT_HEADERS)) {
+      expect(headers[k]).toBe(v);
     }
-
-    expect(captured['authorization']).toBe(`Bearer ${VALID_TOKEN}`);
-    expect(captured['copilot-integration-id']).toBe('vscode-chat');
-    expect(captured['editor-version']).toBe('vscode/1.104.1');
-    expect(captured['openai-intent']).toBe('conversation-edits');
   });
 
-  it('copilotFetch retries with re-resolved token on 401 — drains body and uses fresh headers', async () => {
-    // Provider reads apiKey at construction time; 401 re-resolves from env
-    process.env.GH_TOKEN = VALID_TOKEN;
-    makeCopilotProvider(VALID_TOKEN);
-
-    const callArg = mockCreateOpenAI.mock.calls[0]?.[0] as Record<string, unknown>;
-    const copilotFetch = callArg.fetch as (
-      url: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1]
-    ) => Promise<Response>;
+  it('copilotFetch retries once on 401 with all Copilot headers re-injected (Anthropic path)', async () => {
+    makeCopilotProvider('claude-sonnet-4.6');
+    const copilotFetch = extractAnthropicFetch();
+    expect(copilotFetch).toBeDefined();
 
     let callCount = 0;
     const retryHeaders: Record<string, string> = {};
-    const fakeFetch = async (
-      _url: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1]
-    ): Promise<Response> => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
       callCount++;
-      // Simulate env token change between calls so we can tell which token is used
-      if (callCount === 1) process.env.GH_TOKEN = 'gho_refreshedtoken';
       if (callCount === 2) {
         const h = new Headers(init?.headers);
         for (const [k, v] of h.entries()) retryHeaders[k.toLowerCase()] = v;
       }
       return new Response('{}', { status: callCount === 1 ? 401 : 200 });
     };
-
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = fakeFetch as typeof fetch;
     try {
-      const res = await copilotFetch('https://api.githubcopilot.com/chat/completions');
+      const res = await copilotFetch!('https://api.githubcopilot.com/v1/messages');
       expect(callCount).toBe(2);
       expect(res.status).toBe(200);
-      // All 4 required Copilot headers must be present on the retry request
-      expect(retryHeaders['authorization']).toMatch(/^Bearer gho_/);
-      expect(retryHeaders['copilot-integration-id']).toBe('vscode-chat');
-      expect(retryHeaders['editor-version']).toBe('vscode/1.104.1');
-      expect(retryHeaders['openai-intent']).toBe('conversation-edits');
+      // All Copilot headers must be present on the retry request
+      expect(retryHeaders['authorization']).toMatch(/^Bearer /);
+      for (const [k, v] of Object.entries(EXPECTED_COPILOT_HEADERS)) {
+        expect(retryHeaders[k]).toBe(v);
+      }
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  it('copilotFetch throws when resolver finds no supported token', async () => {
-    // resolve() is called lazily inside copilotFetch, not at construction.
-    // Pass an unsupported classic PAT as the override and ensure the env
-    // chain is empty so the resolver has no valid credential to fall back to.
+  it('copilotFetch throws when resolver finds no supported token (Anthropic path)', async () => {
     const provider = new VercelProvider({
       provider: 'copilot',
-      // ghp_* classic PATs are unsupported by the Copilot API
       apiKey: 'ghp_classicpat_notsupported',
-      model: 'gpt-4o',
+      model: 'claude-sonnet-4.6',
       debugMode: false,
     });
-    // Construction succeeds; the error surfaces when fetch is invoked
     expect(provider).toBeDefined();
 
-    const callArg = mockCreateOpenAI.mock.calls[0]?.[0] as Record<string, unknown>;
-    const copilotFetch = callArg.fetch as (
-      url: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1]
-    ) => Promise<Response>;
+    const copilotFetch = extractAnthropicFetch();
+    expect(copilotFetch).toBeDefined();
 
     await expect(
-      copilotFetch('https://api.githubcopilot.com/chat/completions')
+      copilotFetch!('https://api.githubcopilot.com/v1/messages')
     ).rejects.toThrow(/No supported GitHub token/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Suite 2: Non-Claude model IDs → createOpenAI path
+// ---------------------------------------------------------------------------
+
+describe('VercelProvider copilot branch — non-Claude model routing (createOpenAI)', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.GITHUB_COPILOT_TOKEN;
+    delete process.env.GH_TOKEN;
+    delete process.env.GITHUB_TOKEN;
+    vi.clearAllMocks();
+    mockChatFn.mockReturnValue({ modelId: 'gpt-4o' });
+    mockAnthropicModelFn.mockReturnValue({ modelId: 'stub' });
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.restoreAllMocks();
+  });
+
+  it('calls createOpenAI (not createAnthropic) for non-claude model IDs', () => {
+    makeCopilotProvider('gpt-4o');
+
+    expect(mockCreateOpenAI).toHaveBeenCalledOnce();
+    expect(mockCreateAnthropic).not.toHaveBeenCalled();
+  });
+
+  it('calls createOpenAI with baseURL https://api.githubcopilot.com', () => {
+    makeCopilotProvider('gpt-4o');
+
+    expect(mockCreateOpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: 'https://api.githubcopilot.com' })
+    );
+  });
+
+  it('calls provider.chat(model) to set modelInstance — not provider(model)', () => {
+    makeCopilotProvider('gpt-4o');
+    expect(mockChatFn).toHaveBeenCalledOnce();
+    expect(mockChatFn).toHaveBeenCalledWith('gpt-4o');
+  });
+
+  it('copilotFetch injects all required Copilot headers for OpenAI path', async () => {
+    makeCopilotProvider('gpt-4o');
+    const copilotFetch = extractOpenAIFetch();
+    expect(copilotFetch).toBeDefined();
+
+    const captured: Record<string, string> = {};
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const h = new Headers(init?.headers);
+      for (const [k, v] of h.entries()) captured[k.toLowerCase()] = v;
+      return new Response('{}', { status: 200 });
+    };
+    try {
+      await copilotFetch!('https://api.githubcopilot.com/chat/completions');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(captured['authorization']).toBe(`Bearer ${VALID_TOKEN}`);
+    for (const [k, v] of Object.entries(EXPECTED_COPILOT_HEADERS)) {
+      expect(captured[k]).toBe(v);
+    }
+  });
+
+  it('copilotFetch retries once on 401 with all Copilot headers re-injected (OpenAI path)', async () => {
+    makeCopilotProvider('gpt-4o');
+    const copilotFetch = extractOpenAIFetch();
+    expect(copilotFetch).toBeDefined();
+
+    let callCount = 0;
+    const retryHeaders: Record<string, string> = {};
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      callCount++;
+      if (callCount === 2) {
+        const h = new Headers(init?.headers);
+        for (const [k, v] of h.entries()) retryHeaders[k.toLowerCase()] = v;
+      }
+      return new Response('{}', { status: callCount === 1 ? 401 : 200 });
+    };
+    try {
+      const res = await copilotFetch!('https://api.githubcopilot.com/chat/completions');
+      expect(callCount).toBe(2);
+      expect(res.status).toBe(200);
+      // All Copilot headers must be present on the retry request
+      expect(retryHeaders['authorization']).toMatch(/^Bearer /);
+      for (const [k, v] of Object.entries(EXPECTED_COPILOT_HEADERS)) {
+        expect(retryHeaders[k]).toBe(v);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 
@@ -259,12 +368,27 @@ describe('VercelProvider copilot branch — live token smoke test', () => {
   );
 
   it.skipIf(!hasToken)(
-    'e2e: provider initialises without throwing when a valid env token exists',
+    'e2e: provider initialises without throwing for claude-sonnet-4.6',
     () => {
+      // This is the actual default model — dot notation, Anthropic SDK path
       expect(() =>
         new VercelProvider({
           provider: 'copilot',
           apiKey: '',          // resolver will read env chain
+          model: 'claude-sonnet-4.6',
+          debugMode: false,
+        })
+      ).not.toThrow();
+    }
+  );
+
+  it.skipIf(!hasToken)(
+    'e2e: provider initialises without throwing for gpt-4o (OpenAI path)',
+    () => {
+      expect(() =>
+        new VercelProvider({
+          provider: 'copilot',
+          apiKey: '',
           model: 'gpt-4o',
           debugMode: false,
         })

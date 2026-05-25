@@ -262,26 +262,35 @@ export class VercelProvider implements AIProvider {
           return; // Early return - model instance already set
         case 'copilot': {
           // PRD #587: GitHub Copilot provider
-          // Uses the raw GitHub token (gho_*, github_pat_*, ghu_*) directly as the
+          // Uses the raw GitHub token (gho_*, github_pat_*, ghu_*) directly as a
           // Bearer credential against api.githubcopilot.com — no token-exchange step.
-          // The exchange endpoint (copilot_internal/v2/token) can return 404 for some
-          // account types; direct-token auth is the correct primary path (see Hermes docs).
+          //
+          // Routing (mirrors Hermes Agent):
+          //   - Claude model IDs (claude-*) → createAnthropic at githubcopilot.com
+          //     because the Copilot OpenAI-compat non-streaming response for Claude omits
+          //     the "index" field that @ai-sdk/openai requires, causing parse failures.
+          //   - All other models → createOpenAI at githubcopilot.com (OpenAI-compat path)
+          //
+          // Model IDs must use dot notation matching the Copilot catalog
+          //   (e.g. claude-sonnet-4.6, NOT claude-sonnet-4-6).
           // On 401: re-resolve credentials from the env chain and retry once.
           const resolver = makeCopilotCredentialResolver(this.apiKey);
+          const copilotHeaders = {
+            'Copilot-Integration-Id': 'vscode-chat',
+            'Editor-Version': 'vscode/1.104.1',
+            'Openai-Intent': 'conversation-edits',
+            'x-initiator': 'user',
+          };
           const copilotFetch = async (
             url: Parameters<typeof fetch>[0],
             init?: Parameters<typeof fetch>[1]
           ): Promise<Response> => {
             const token = resolver.resolve();
             const headers = new Headers(init?.headers);
-            // Strip Anthropic-specific headers the Copilot gateway rejects
-            headers.delete('anthropic-beta');
-            headers.delete('anthropic-version');
             headers.set('Authorization', `Bearer ${token}`);
-            headers.set('Copilot-Integration-Id', 'vscode-chat');
-            headers.set('Editor-Version', 'vscode/1.104.1');
-            headers.set('Openai-Intent', 'conversation-edits');
-            headers.set('x-initiator', 'user');
+            for (const [k, v] of Object.entries(copilotHeaders)) {
+              headers.set(k, v);
+            }
             const response = await fetch(url, { ...init, headers });
             if (response.status === 401) {
               // Drain body to allow connection reuse before retrying
@@ -290,24 +299,33 @@ export class VercelProvider implements AIProvider {
               const freshToken = resolver.resolve();
               // Build fresh headers for retry — do not mutate the first-attempt object
               const retryHeaders = new Headers(init?.headers);
-              // Strip Anthropic-specific headers the Copilot gateway rejects
-              retryHeaders.delete('anthropic-beta');
-              retryHeaders.delete('anthropic-version');
               retryHeaders.set('Authorization', `Bearer ${freshToken}`);
-              retryHeaders.set('Copilot-Integration-Id', 'vscode-chat');
-              retryHeaders.set('Editor-Version', 'vscode/1.104.1');
-              retryHeaders.set('Openai-Intent', 'conversation-edits');
-              retryHeaders.set('x-initiator', 'user');
+              for (const [k, v] of Object.entries(copilotHeaders)) {
+                retryHeaders.set(k, v);
+              }
               return fetch(url, { ...init, headers: retryHeaders });
             }
             return response;
           };
-          provider = createOpenAI({
-            apiKey: 'unused',
-            baseURL: 'https://api.githubcopilot.com',
-            fetch: copilotFetch,
-          });
-          this.modelInstance = provider.chat(this.model);
+          const isClaudeModel = this.model.startsWith('claude-');
+          if (isClaudeModel) {
+            // Use Anthropic SDK routed through the Copilot endpoint.
+            // baseURL must include /v1 — the SDK appends /messages, so the
+            // final URL is https://api.githubcopilot.com/v1/messages.
+            const anthropicProvider = createAnthropic({
+              baseURL: 'https://api.githubcopilot.com/v1',
+              apiKey: 'unused',    // required by SDK but overridden by copilotFetch
+              fetch: copilotFetch,
+            });
+            this.modelInstance = anthropicProvider(this.model);
+          } else {
+            provider = createOpenAI({
+              apiKey: 'unused',
+              baseURL: 'https://api.githubcopilot.com',
+              fetch: copilotFetch,
+            });
+            this.modelInstance = provider.chat(this.model);
+          }
           return; // Early return - model instance already set
         }
         default:
