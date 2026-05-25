@@ -44,6 +44,9 @@ secrets:
   alibaba:
     keyName: alibaba-api-key        # Key name within the secret (PRD #382: Alibaba Qwen 3.5 Plus)
     apiKey: ""                      # API key value (only needed if chart should create the secret)
+  copilot:
+    keyName: copilot-token          # Key name within the secret (PRD #587: GitHub Copilot)
+    token: ""                       # GitHub OAuth token (gho_*, github_pat_*, or ghu_*) — from `gh auth token`
   customLlm:
     keyName: custom-llm-api-key     # Key name within the secret for custom LLM endpoint
     apiKey: ""                      # API key value (only needed if chart should create the secret)
@@ -150,7 +153,7 @@ gateway:
 
 # AI Provider configuration
 ai:
-  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, google_flash, host, kimi, xai, amazon_bedrock, custom). Set to "" to auto-detect 'custom' from customEndpoint.
+  provider: anthropic               # AI provider type (anthropic, anthropic_opus, anthropic_haiku, openai, google, google_flash, host, kimi, xai, amazon_bedrock, alibaba, copilot, custom). Set to "" to auto-detect 'custom' from customEndpoint.
   model: ""                         # Optional: model override (e.g., "llama3.1:70b", "gpt-4o")
 
   # Custom endpoint configuration for self-hosted or alternative SaaS providers (PRD #194)

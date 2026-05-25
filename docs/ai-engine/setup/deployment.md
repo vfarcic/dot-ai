@@ -148,6 +148,7 @@ All AI models must meet these minimum requirements:
 | **Host** | Host Environment LLM | `host` | None (uses host's AI) | Yes (if supported) |
 | **Moonshot AI** | Kimi K2.5 | `kimi` | `MOONSHOT_API_KEY` | Yes |
 | **Alibaba** | Qwen 3.5 Plus | `alibaba` | `ALIBABA_API_KEY` | Yes |
+| **GitHub Copilot** | Claude Sonnet 4.6 (via Copilot) | `copilot` | `GITHUB_COPILOT_TOKEN` | Yes |
 | **OpenAI** | GPT-5.4 | `openai` | `OPENAI_API_KEY` | No * |
 | **xAI** | Grok-4 | `xai` | `XAI_API_KEY` | No * |
 
@@ -185,6 +186,27 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   # ... other settings
 ```
+
+#### GitHub Copilot (no per-token billing)
+
+Use your existing GitHub Copilot subscription instead of a pay-per-token API:
+
+```bash
+# Get your GitHub OAuth token (requires gh CLI authenticated with a Copilot-enabled account)
+export GITHUB_COPILOT_TOKEN=$(gh auth token)
+
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set ai.provider=copilot \
+  --set secrets.copilot.token="$GITHUB_COPILOT_TOKEN" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=true \
+  --set ingress.className="$INGRESS_CLASS_NAME" \
+  --set ingress.host="dot-ai.127.0.0.1.nip.io" \
+  --namespace dot-ai \
+  --wait
+```
+
+Supported token formats: `gho_*` (OAuth), `github_pat_*` (fine-grained PAT), `ghu_*` (device flow). Classic PATs (`ghp_*`) are not supported. The token is long-lived — no rotation needed. The resolver also checks `GH_TOKEN` and `GITHUB_TOKEN` env vars, and falls back to `gh auth token` CLI output, in that priority order.
 
 **AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys (unless using the `host` provider) and will show helpful error messages when accessed without configuration.
 

@@ -143,6 +143,12 @@ spec:
               name: {{ .Values.secrets.name }}
               key: {{ .Values.secrets.alibaba.keyName }}
               optional: true
+        - name: GITHUB_COPILOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: {{ .Values.secrets.copilot.keyName }}
+              optional: true
         - name: CUSTOM_LLM_API_KEY
           valueFrom:
             secretKeyRef:
