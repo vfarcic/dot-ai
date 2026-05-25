@@ -8,7 +8,7 @@ Draft
 
 dot-ai supports several AI providers but none that work with a GitHub Copilot subscription. Developers running homelab clusters who already pay for Copilot cannot use dot-ai without also paying for a separate per-token API (Anthropic, OpenAI, etc.).
 
-The `host` provider (delegating to the MCP client) was previously the only "no API key" path and has since been removed.
+The `host` provider (delegating generation to the MCP client via MCP Sampling) exists but requires a compatible MCP client. `copilot` is the first provider that works with a standalone subscription token, no client cooperation needed.
 
 ## Corrected Understanding
 
