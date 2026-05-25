@@ -36,7 +36,7 @@ import { INVESTIGATION_MESSAGES } from '../constants/investigation';
 import { withAITracing } from '../tracing/ai-tracing';
 import { getMaxRetries } from '../ai-retry-config';
 import type { LanguageModel } from 'ai';
-import { makeCopilotTokenExchanger } from './copilot-token-exchanger';
+import { makeCopilotCredentialResolver } from './copilot-token-exchanger';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
 
@@ -262,24 +262,28 @@ export class VercelProvider implements AIProvider {
           return; // Early return - model instance already set
         case 'copilot': {
           // PRD #587: GitHub Copilot provider
-          // Uses short-lived token exchange (gho_* → Copilot API token) with in-memory cache.
-          // On 401: invalidate cache and retry once.
-          const exchange = makeCopilotTokenExchanger(this.apiKey);
+          // Uses the raw GitHub token (gho_*, github_pat_*, ghu_*) directly as the
+          // Bearer credential against api.githubcopilot.com — no token-exchange step.
+          // The exchange endpoint (copilot_internal/v2/token) can return 404 for some
+          // account types; direct-token auth is the correct primary path (see Hermes docs).
+          // On 401: re-resolve credentials from the env chain and retry once.
+          const resolver = makeCopilotCredentialResolver(this.apiKey);
           const copilotFetch = async (
             url: Parameters<typeof fetch>[0],
             init?: Parameters<typeof fetch>[1]
           ): Promise<Response> => {
-            const apiToken = await exchange.getToken();
+            const token = resolver.resolve();
             const headers = new Headers(init?.headers);
-            headers.set('Authorization', `Bearer ${apiToken}`);
+            headers.set('Authorization', `Bearer ${token}`);
             headers.set('Copilot-Integration-Id', 'vscode-chat');
             headers.set('Editor-Version', 'vscode/1.104.1');
             headers.set('Openai-Intent', 'conversation-edits');
+            headers.set('x-initiator', 'user');
             const response = await fetch(url, { ...init, headers });
             if (response.status === 401) {
-              exchange.invalidate();
-              const retryToken = await exchange.getToken();
-              headers.set('Authorization', `Bearer ${retryToken}`);
+              // Re-resolve from env chain (credentials may have been refreshed externally)
+              const freshToken = resolver.resolve();
+              headers.set('Authorization', `Bearer ${freshToken}`);
               return fetch(url, { ...init, headers });
             }
             return response;

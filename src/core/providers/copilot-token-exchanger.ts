@@ -1,67 +1,95 @@
 /**
- * GitHub Copilot Token Exchanger
+ * GitHub Copilot Credential Resolver
  *
- * Exchanges a long-lived GitHub OAuth token (gho_* / github_pat_*) for
- * short-lived Copilot API tokens.  Tokens are cached in-memory and
- * refreshed 2 minutes before expiry.  On 401 responses from the Copilot
- * API the caller should call invalidate() then retry once.
+ * Resolves a GitHub token suitable for direct use against api.githubcopilot.com.
+ * Hermes/dot-ai uses the raw token directly as the Bearer credential — no
+ * token-exchange step is required and the exchange endpoint
+ * (api.github.com/copilot_internal/v2/token) can return 404 for some account
+ * types, so it is intentionally NOT used here.
+ *
+ * Supported token types (classic PATs / ghp_* are NOT accepted):
+ *   gho_*          OAuth token (recommended — via `gh auth login`)
+ *   github_pat_*   Fine-grained PAT (needs Copilot Requests permission)
+ *   ghu_*          GitHub App installation token
+ *
+ * Token resolution priority:
+ *   1. GITHUB_COPILOT_TOKEN env var
+ *   2. GH_TOKEN env var
+ *   3. GITHUB_TOKEN env var
+ *   4. `gh auth token` CLI fallback
+ *
+ * On HTTP 401, callers should invoke resolve() again to re-read the chain
+ * (credentials may have been refreshed externally) and retry once.
  *
  * PRD #587: GitHub Copilot Provider
  */
 
-const EXCHANGE_URL = 'https://api.github.com/copilot_internal/v2/token';
-const REFRESH_MARGIN_MS = 120_000; // 2 minutes
+import { execSync } from 'node:child_process';
 
-interface ExchangedToken {
-  token: string;
-  expiresAt: number; // Unix ms
-}
+const SUPPORTED_PREFIXES = ['gho_', 'github_pat_', 'ghu_'];
 
-export interface CopilotTokenExchanger {
-  getToken(): Promise<string>;
-  invalidate(): void;
+function isSupported(token: string): boolean {
+  return SUPPORTED_PREFIXES.some((p) => token.startsWith(p));
 }
 
 /**
- * Create a Copilot token exchanger for the given long-lived OAuth token.
- *
- * @param rawToken  Long-lived gho_* or github_pat_* token from GITHUB_COPILOT_TOKEN
- * @returns         Object with getToken() and invalidate() methods
+ * Attempt to obtain a token via `gh auth token`.
+ * Returns null if the CLI is unavailable or returns a non-supported token.
  */
-export function makeCopilotTokenExchanger(
-  rawToken: string
-): CopilotTokenExchanger {
-  let cache: ExchangedToken | null = null;
-
-  async function exchange(): Promise<ExchangedToken> {
-    const res = await fetch(EXCHANGE_URL, {
-      headers: {
-        Authorization: `token ${rawToken}`,
-        'User-Agent': 'dot-ai/1.0',
-        Accept: 'application/json',
-        'Editor-Version': 'vscode/1.104.1',
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(`Copilot token exchange failed: ${res.status}`);
-    }
-
-    const data = (await res.json()) as { token: string; expires_at: number };
-    return { token: data.token, expiresAt: data.expires_at * 1000 };
+function ghCliToken(): string | null {
+  try {
+    const out = execSync('gh auth token', { encoding: 'utf8', timeout: 5000 }).trim();
+    return isSupported(out) ? out : null;
+  } catch {
+    return null;
   }
+}
 
+export interface CopilotCredentialResolver {
+  /**
+   * Resolve a GitHub token from the environment chain / CLI.
+   * Throws if no supported token is found.
+   */
+  resolve(): string;
+}
+
+/**
+ * Create a CopilotCredentialResolver.
+ *
+ * @param overrideToken  Optional explicit token (e.g. from env at factory time).
+ *                       If provided and supported it is returned immediately without
+ *                       inspecting the env chain.
+ */
+export function makeCopilotCredentialResolver(
+  overrideToken?: string
+): CopilotCredentialResolver {
   return {
-    async getToken(): Promise<string> {
-      if (cache && Date.now() < cache.expiresAt - REFRESH_MARGIN_MS) {
-        return cache.token;
+    resolve(): string {
+      // 1. Explicit override (e.g. GITHUB_COPILOT_TOKEN passed by factory)
+      if (overrideToken && isSupported(overrideToken)) {
+        return overrideToken;
       }
-      cache = await exchange();
-      return cache.token;
-    },
 
-    invalidate(): void {
-      cache = null;
+      // 2. Env chain
+      for (const envVar of ['GITHUB_COPILOT_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']) {
+        const val = process.env[envVar];
+        if (val && isSupported(val)) {
+          return val;
+        }
+      }
+
+      // 3. gh CLI fallback
+      const cli = ghCliToken();
+      if (cli) return cli;
+
+      throw new Error(
+        'No supported GitHub token found for Copilot. ' +
+          'Set GITHUB_COPILOT_TOKEN (gho_*, github_pat_*, or ghu_*) or run `gh auth login`.'
+      );
     },
   };
 }
+
+// Re-export the interface under the old name so existing callers (tests) can
+// continue to import CopilotTokenExchanger without breaking.
+export type CopilotTokenExchanger = CopilotCredentialResolver;
