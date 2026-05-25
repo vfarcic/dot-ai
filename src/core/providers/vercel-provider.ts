@@ -36,6 +36,7 @@ import { INVESTIGATION_MESSAGES } from '../constants/investigation';
 import { withAITracing } from '../tracing/ai-tracing';
 import { getMaxRetries } from '../ai-retry-config';
 import type { LanguageModel } from 'ai';
+import { makeCopilotTokenExchanger } from './copilot-token-exchanger';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
 
@@ -259,6 +260,38 @@ export class VercelProvider implements AIProvider {
           // Use .chat() explicitly for custom endpoints to use /chat/completions instead of /responses
           this.modelInstance = provider.chat(this.model);
           return; // Early return - model instance already set
+        case 'copilot': {
+          // PRD #587: GitHub Copilot provider
+          // Uses short-lived token exchange (gho_* → Copilot API token) with in-memory cache.
+          // On 401: invalidate cache and retry once.
+          const exchange = makeCopilotTokenExchanger(this.apiKey);
+          const copilotFetch = async (
+            url: Parameters<typeof fetch>[0],
+            init?: Parameters<typeof fetch>[1]
+          ): Promise<Response> => {
+            const apiToken = await exchange.getToken();
+            const headers = new Headers(init?.headers);
+            headers.set('Authorization', `Bearer ${apiToken}`);
+            headers.set('Copilot-Integration-Id', 'vscode-chat');
+            headers.set('Editor-Version', 'vscode/1.104.1');
+            headers.set('Openai-Intent', 'conversation-edits');
+            const response = await fetch(url, { ...init, headers });
+            if (response.status === 401) {
+              exchange.invalidate();
+              const retryToken = await exchange.getToken();
+              headers.set('Authorization', `Bearer ${retryToken}`);
+              return fetch(url, { ...init, headers });
+            }
+            return response;
+          };
+          provider = createOpenAI({
+            apiKey: 'unused',
+            baseURL: 'https://api.githubcopilot.com',
+            fetch: copilotFetch,
+          });
+          this.modelInstance = provider.chat(this.model);
+          return; // Early return - model instance already set
+        }
         default:
           throw new Error(
             `Cannot initialize model for provider: ${this.providerType}`

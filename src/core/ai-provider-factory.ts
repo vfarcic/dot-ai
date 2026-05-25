@@ -30,6 +30,7 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   alibaba: 'ALIBABA_API_KEY', // PRD #382: Alibaba Qwen 3.5 Plus
   xai: 'XAI_API_KEY',
   custom: 'CUSTOM_LLM_API_KEY', // PRD #194 / Issue #474: Explicit opt-in to custom OpenAI-compatible endpoint
+  copilot: 'GITHUB_COPILOT_TOKEN', // PRD #587: GitHub Copilot provider
 };
 
 /**
