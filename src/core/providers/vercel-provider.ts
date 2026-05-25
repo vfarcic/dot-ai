@@ -281,10 +281,18 @@ export class VercelProvider implements AIProvider {
             headers.set('x-initiator', 'user');
             const response = await fetch(url, { ...init, headers });
             if (response.status === 401) {
+              // Drain body to allow connection reuse before retrying
+              await response.text().catch(() => {});
               // Re-resolve from env chain (credentials may have been refreshed externally)
               const freshToken = resolver.resolve();
-              headers.set('Authorization', `Bearer ${freshToken}`);
-              return fetch(url, { ...init, headers });
+              // Build fresh headers for retry — do not mutate the first-attempt object
+              const retryHeaders = new Headers(init?.headers);
+              retryHeaders.set('Authorization', `Bearer ${freshToken}`);
+              retryHeaders.set('Copilot-Integration-Id', 'vscode-chat');
+              retryHeaders.set('Editor-Version', 'vscode/1.104.1');
+              retryHeaders.set('Openai-Intent', 'conversation-edits');
+              retryHeaders.set('x-initiator', 'user');
+              return fetch(url, { ...init, headers: retryHeaders });
             }
             return response;
           };
