@@ -274,6 +274,9 @@ export class VercelProvider implements AIProvider {
           ): Promise<Response> => {
             const token = resolver.resolve();
             const headers = new Headers(init?.headers);
+            // Strip Anthropic-specific headers the Copilot gateway rejects
+            headers.delete('anthropic-beta');
+            headers.delete('anthropic-version');
             headers.set('Authorization', `Bearer ${token}`);
             headers.set('Copilot-Integration-Id', 'vscode-chat');
             headers.set('Editor-Version', 'vscode/1.104.1');
@@ -287,6 +290,9 @@ export class VercelProvider implements AIProvider {
               const freshToken = resolver.resolve();
               // Build fresh headers for retry — do not mutate the first-attempt object
               const retryHeaders = new Headers(init?.headers);
+              // Strip Anthropic-specific headers the Copilot gateway rejects
+              retryHeaders.delete('anthropic-beta');
+              retryHeaders.delete('anthropic-version');
               retryHeaders.set('Authorization', `Bearer ${freshToken}`);
               retryHeaders.set('Copilot-Integration-Id', 'vscode-chat');
               retryHeaders.set('Editor-Version', 'vscode/1.104.1');
