@@ -134,7 +134,7 @@ describe('copilot vercel-provider integration', () => {
   });
 
   // Live e2e — only runs when a real token is available
-  it.skipIf(!process.env.GITHUB_COPILOT_TOKEN && !process.env.GH_TOKEN)(
+  it.skipIf(!process.env.GITHUB_COPILOT_TOKEN && !process.env.GH_TOKEN && !process.env.GITHUB_TOKEN)(
     'e2e: resolver returns a usable token from env',
     () => {
       const resolver = makeCopilotCredentialResolver();

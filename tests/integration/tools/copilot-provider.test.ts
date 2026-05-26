@@ -91,13 +91,10 @@ describe.concurrent('GitHub Copilot Provider Integration', () => {
           tool: 'query',
           result: {
             success: true,
-            summary: expect.any(String),
+            summary: expect.stringMatching(/.+/),
           },
         },
       });
-
-      // Summary must be non-empty — proves the AI actually responded via Copilot
-      expect(response.data.result.summary.length).toBeGreaterThan(0);
     },
     300000
   );

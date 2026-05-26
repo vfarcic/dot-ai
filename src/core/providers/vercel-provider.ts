@@ -106,7 +106,8 @@ export class VercelProvider implements AIProvider {
   }
 
   private validateConfiguration(): void {
-    if (!this.apiKey) {
+    // Copilot resolves its credential from the env chain at fetch time — no apiKey required.
+    if (!this.apiKey && this.providerType !== 'copilot') {
       throw new Error(
         AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(this.providerType)
       );

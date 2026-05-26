@@ -200,17 +200,18 @@ Use your existing GitHub Copilot subscription instead of a pay-per-token API:
 >
 > Operators should be aware of the following before deploying:
 >
-> - **May break without notice.** GitHub may change the Copilot API, required headers,
+> - ❌ **May break without notice.** GitHub may change the Copilot API, required headers,
 >   or authentication model at any time.
-> - **Terms of service.** Review the GitHub Copilot terms for your subscription tier
+> - 🎯 **Terms of service.** Review the GitHub Copilot terms for your subscription tier
 >   (Individual, Business, or Enterprise). Third-party clients using VS Code-style headers
 >   may not be permitted under all tiers.
-> - **No official support from GitHub.** Issues caused by API changes cannot be resolved
+> - 🔧 **No official support from GitHub.** Issues caused by API changes cannot be resolved
 >   through GitHub support.
 
 ```bash
 # Set your GitHub OAuth token (gho_* prefix, from a Copilot-enabled account)
-# You can obtain one with: gh auth token  (requires gh CLI — not available in Helm/Kubernetes)
+# Obtain one with: gh auth token  (requires gh CLI)
+# Or generate a fine-grained PAT at https://github.com/settings/tokens with Copilot Requests permission
 export GITHUB_COPILOT_TOKEN="gho_..."
 
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
