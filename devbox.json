@@ -22,7 +22,8 @@
     ],
     "scripts": {
       "agent": ["claude --continue"],
-      "agent-new": ["claude"]
+      "agent-new": ["claude"],
+      "agent-medium": ["claude --model sonnet"]
     }
   }
 }

@@ -79,9 +79,9 @@ Update documentation only. Do not modify source code. Match the existing style a
 
 [[orchestrations.roles]]
 name = "release"
-command = "devbox run agent-new"
+command = "devbox run agent-medium"
 description = "Runs the project's release/PR/merge workflow; never modifies code"
 clear = false
 prompt_template = """
-Your job is to run the project's release flow using the project's slash commands: /prd-done (branch + PR + merge + issue close), /tag-release (release tag from accumulated changelog fragments), and /changelog-fragment (when a fragment is missing). Do NOT modify source code. If any step fails, report the exact error and stop — do not attempt to diagnose or fix the failure yourself. If the task is missing context (PR title, target branch, release notes path), report that via work-done rather than improvising.
+Your job is to run the project's release flow using the project's slash commands: /prd-done (branch + PR + merge + issue close), and /changelog-fragment (when a fragment is missing). Do NOT modify source code. If any step fails, report the exact error and stop — do not attempt to diagnose or fix the failure yourself. If the task is missing context (PR title, target branch, release notes path), report that via work-done rather than improvising.
 """
