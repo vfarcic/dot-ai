@@ -8,11 +8,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { makeCopilotCredentialResolver } from '../../../../src/core/providers/copilot-token-exchanger';
 
-// Prevent real gh CLI from leaking credentials into tests
-vi.mock('node:child_process', () => ({
-  execSync: vi.fn(() => { throw new Error('gh: mocked'); }),
-}));
-
 const VALID_GHO = 'gho_validtoken123';
 const VALID_PAT = 'github_pat_validtoken123';
 const VALID_GHU = 'ghu_validtoken123';

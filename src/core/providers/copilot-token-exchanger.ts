@@ -16,7 +16,6 @@
  *   1. GITHUB_COPILOT_TOKEN env var
  *   2. GH_TOKEN env var
  *   3. GITHUB_TOKEN env var
- *   4. `gh auth token` CLI fallback
  *
  * On HTTP 401, callers should invoke resolve() again to re-read the chain
  * (credentials may have been refreshed externally) and retry once.
@@ -24,27 +23,11 @@
  * PRD #587: GitHub Copilot Provider
  */
 
-import { execSync } from 'node:child_process';
-
 const SUPPORTED_PREFIXES = ['gho_', 'github_pat_', 'ghu_'];
 
 function isSupported(token: string): boolean {
   return SUPPORTED_PREFIXES.some((p) => token.startsWith(p));
 }
-
-/**
- * Attempt to obtain a token via `gh auth token`.
- * Returns null if the CLI is unavailable or returns a non-supported token.
- */
-function ghCliToken(): string | null {
-  try {
-    const out = execSync('gh auth token', { encoding: 'utf8', timeout: 5000 }).trim();
-    return isSupported(out) ? out : null;
-  } catch {
-    return null;
-  }
-}
-
 export interface CopilotCredentialResolver {
   /**
    * Resolve a GitHub token from the environment chain / CLI.
@@ -78,13 +61,10 @@ export function makeCopilotCredentialResolver(
         }
       }
 
-      // 3. gh CLI fallback
-      const cli = ghCliToken();
-      if (cli) return cli;
-
       throw new Error(
         'No supported GitHub token found for Copilot. ' +
-          'Set GITHUB_COPILOT_TOKEN (gho_*, github_pat_*, or ghu_*) or run `gh auth login`.'
+          'Set GITHUB_COPILOT_TOKEN (gho_*, github_pat_*, or ghu_*). ' +
+          'GH_TOKEN and GITHUB_TOKEN are also checked in that order.'
       );
     },
   };

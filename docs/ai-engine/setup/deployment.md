@@ -191,9 +191,27 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 
 Use your existing GitHub Copilot subscription instead of a pay-per-token API:
 
+> **Important — unofficial integration notice**
+>
+> This provider sends requests directly to `api.githubcopilot.com` using VS Code-style
+> headers (`Copilot-Integration-Id: vscode-chat`, `Editor-Version: vscode/1.104.1`).
+> This mirrors the approach used by other third-party tools (e.g. `opencode`) — it is
+> **not** an officially documented or supported GitHub API path.
+>
+> Operators should be aware of the following before deploying:
+>
+> - **May break without notice.** GitHub may change the Copilot API, required headers,
+>   or authentication model at any time.
+> - **Terms of service.** Review the GitHub Copilot terms for your subscription tier
+>   (Individual, Business, or Enterprise). Third-party clients using VS Code-style headers
+>   may not be permitted under all tiers.
+> - **No official support from GitHub.** Issues caused by API changes cannot be resolved
+>   through GitHub support.
+
 ```bash
-# Get your GitHub OAuth token (requires gh CLI authenticated with a Copilot-enabled account)
-export GITHUB_COPILOT_TOKEN=$(gh auth token)
+# Set your GitHub OAuth token (gho_* prefix, from a Copilot-enabled account)
+# You can obtain one with: gh auth token  (requires gh CLI — not available in Helm/Kubernetes)
+export GITHUB_COPILOT_TOKEN="gho_..."
 
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
   --set ai.provider=copilot \
@@ -206,7 +224,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --wait
 ```
 
-Supported token formats: `gho_*` (OAuth), `github_pat_*` (fine-grained PAT), `ghu_*` (device flow). Classic PATs (`ghp_*`) are not supported. The token is long-lived — no rotation needed. The resolver also checks `GH_TOKEN` and `GITHUB_TOKEN` env vars, and falls back to `gh auth token` CLI output, in that priority order.
+Supported token formats: `gho_*` (OAuth, recommended), `github_pat_*` (fine-grained PAT with Copilot Requests permission), `ghu_*` (device flow). Classic PATs (`ghp_*`) are not supported. The resolver checks `GITHUB_COPILOT_TOKEN`, `GH_TOKEN`, and `GITHUB_TOKEN` env vars in that priority order. Note: the `gh auth token` CLI fallback is not available in Kubernetes deployments where `gh` is not installed — supply the token explicitly via the env var.
 
 **AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys (unless using the `host` provider) and will show helpful error messages when accessed without configuration.
 

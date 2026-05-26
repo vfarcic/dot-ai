@@ -275,12 +275,17 @@ export class VercelProvider implements AIProvider {
           //   (e.g. claude-sonnet-4.6, NOT claude-sonnet-4-6).
           // On 401: re-resolve credentials from the env chain and retry once.
           const resolver = makeCopilotCredentialResolver(this.apiKey);
+          // These headers were captured from VS Code Copilot Chat network traffic.
+          // They are required by api.githubcopilot.com to accept the request —
+          // the endpoint validates the Integration-Id and Editor-Version before routing.
+          // Future maintainers: if GitHub changes the required headers, update here.
           const copilotHeaders = {
             'Copilot-Integration-Id': 'vscode-chat',
             'Editor-Version': 'vscode/1.104.1',
             'Openai-Intent': 'conversation-edits',
             'x-initiator': 'user',
           };
+          const COPILOT_FETCH_TIMEOUT_MS = 30000; // 30s — matches git-utils.ts fetchWithTimeout
           const copilotFetch = async (
             url: Parameters<typeof fetch>[0],
             init?: Parameters<typeof fetch>[1]
@@ -291,7 +296,14 @@ export class VercelProvider implements AIProvider {
             for (const [k, v] of Object.entries(copilotHeaders)) {
               headers.set(k, v);
             }
-            const response = await fetch(url, { ...init, headers });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), COPILOT_FETCH_TIMEOUT_MS);
+            let response: Response;
+            try {
+              response = await fetch(url, { ...init, headers, signal: controller.signal });
+            } finally {
+              clearTimeout(timeoutId);
+            }
             if (response.status === 401) {
               // Drain body to allow connection reuse before retrying
               await response.text().catch(() => {});
@@ -303,7 +315,13 @@ export class VercelProvider implements AIProvider {
               for (const [k, v] of Object.entries(copilotHeaders)) {
                 retryHeaders.set(k, v);
               }
-              return fetch(url, { ...init, headers: retryHeaders });
+              const retryController = new AbortController();
+              const retryTimeoutId = setTimeout(() => retryController.abort(), COPILOT_FETCH_TIMEOUT_MS);
+              try {
+                return await fetch(url, { ...init, headers: retryHeaders, signal: retryController.signal });
+              } finally {
+                clearTimeout(retryTimeoutId);
+              }
             }
             return response;
           };
