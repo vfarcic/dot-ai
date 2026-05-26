@@ -12,6 +12,11 @@ import { readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
 import { matchRoute, getAllRoutes } from './routes.js';
+import {
+  applyPromptsRepoOverride,
+  isPromptsRoutePath,
+} from './prompts-override.js';
+import { BodyTooLargeError, readJsonBody } from './read-json-body.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -26,7 +31,10 @@ const FIXTURES_DIR = join(__dirname, '..', 'fixtures');
  */
 function setCorsHeaders(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS'
+  );
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
@@ -50,7 +58,10 @@ async function loadFixture(fixturePath: string): Promise<unknown> {
 /**
  * Handle incoming HTTP requests
  */
-async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleRequest(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
   setCorsHeaders(res);
 
   // Handle CORS preflight
@@ -76,7 +87,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // List all available routes (for debugging)
   if (path === '/routes' && method === 'GET') {
-    const routes = getAllRoutes().map((r) => ({
+    const routes = getAllRoutes().map(r => ({
       method: r.method,
       path: r.path,
       description: r.description,
@@ -104,7 +115,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // Handle redirect routes (e.g., /authorize)
   if (route.redirect) {
-    const redirectUri = url.searchParams.get('redirect_uri') || 'http://localhost:3000/callback';
+    const redirectUri =
+      url.searchParams.get('redirect_uri') || 'http://localhost:3000/callback';
     const state = url.searchParams.get('state') || '';
     const redirectUrl = new URL(redirectUri);
     redirectUrl.searchParams.set('code', 'mock-authorization-code-12345');
@@ -133,12 +145,43 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  // Load and return fixture
+  // Load and return fixture. For prompts routes, apply the optional `repo`
+  // override (PRD #581) so the response's `source` field echoes the supplied
+  // URL — matching the real server's contract that the CLI relies on for
+  // skill tagging.
   try {
     const fixture = await loadFixture(route.fixture);
-    sendJson(res, 200, fixture);
+    let payload: unknown = fixture;
+    if (isPromptsRoutePath(route.path)) {
+      let repo: string | undefined = url.searchParams.get('repo') || undefined;
+      if (
+        !repo &&
+        method === 'POST' &&
+        route.path === '/api/v1/prompts/refresh'
+      ) {
+        const body = await readJsonBody(req);
+        const bodyRepo = body?.['repo'];
+        if (typeof bodyRepo === 'string' && bodyRepo.trim()) {
+          repo = bodyRepo.trim();
+        }
+      }
+      payload = applyPromptsRepoOverride(fixture, repo);
+    }
+    sendJson(res, 200, payload);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // F4: oversized body → 413, not 500.
+    if (error instanceof BodyTooLargeError) {
+      sendJson(res, 413, {
+        success: false,
+        error: {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: error.message,
+        },
+      });
+      return;
+    }
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     sendJson(res, 500, {
       success: false,
       error: {
@@ -154,7 +197,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
  * Start the server
  */
 const server = createServer((req, res) => {
-  handleRequest(req, res).catch((error) => {
+  handleRequest(req, res).catch(error => {
     console.error('Unhandled error:', error);
     sendJson(res, 500, {
       success: false,

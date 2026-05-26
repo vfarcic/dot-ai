@@ -9,6 +9,10 @@ import { describe, test, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { matchRoute } from '../../../mock-server/routes';
+import {
+  applyPromptsRepoOverride,
+  isPromptsRoutePath,
+} from '../../../mock-server/prompts-override';
 
 const MOCK_SERVER_DIR = join(
   import.meta.dirname,
@@ -91,6 +95,8 @@ describe('Mock Server Fixtures', () => {
               arguments: expect.any(Array),
             }),
           ]),
+          // PRD #581: source field present on the no-override fixture.
+          source: 'built-in',
         },
         meta: {
           timestamp: expect.any(String),
@@ -231,6 +237,8 @@ describe('Mock Server Fixtures', () => {
               }),
             }),
           ]),
+          // PRD #581: source field present on the no-override fixture.
+          source: 'built-in',
         },
         meta: {
           timestamp: expect.any(String),
@@ -315,6 +323,74 @@ describe('Mock Server Fixtures', () => {
         token_type: 'bearer',
         expires_in: expect.any(Number),
       });
+    });
+  });
+
+  // PRD #581 M2b: mock-server parity for the per-request `repo` override.
+  describe('Per-request override helpers (PRD #581)', () => {
+    test('isPromptsRoutePath matches list, refresh, and get-by-name paths', () => {
+      expect(isPromptsRoutePath('/api/v1/prompts')).toBe(true);
+      expect(isPromptsRoutePath('/api/v1/prompts/refresh')).toBe(true);
+      expect(isPromptsRoutePath('/api/v1/prompts/troubleshoot-pod')).toBe(true);
+      expect(isPromptsRoutePath('/api/v1/prompts/prd-create')).toBe(true);
+    });
+
+    test('isPromptsRoutePath does not match unrelated paths', () => {
+      expect(isPromptsRoutePath('/api/v1/promptsX')).toBe(false);
+      expect(isPromptsRoutePath('/api/v1/tools')).toBe(false);
+      expect(isPromptsRoutePath('/api/v1/prompts/refresh/extra')).toBe(false);
+      expect(isPromptsRoutePath('/')).toBe(false);
+    });
+
+    test('applyPromptsRepoOverride leaves fixture untouched when repo is undefined', () => {
+      const fixture = { success: true, data: { source: 'built-in', x: 1 } };
+      expect(applyPromptsRepoOverride(fixture, undefined)).toEqual(fixture);
+      expect(applyPromptsRepoOverride(fixture, '')).toEqual(fixture);
+    });
+
+    test('applyPromptsRepoOverride echoes repo into data.source', () => {
+      const fixture = {
+        success: true,
+        data: {
+          prompts: [{ name: 'foo', description: 'bar', arguments: [] }],
+          source: 'built-in',
+        },
+        meta: { timestamp: 't', version: '1.0.0' },
+      };
+      const repo = 'https://github.com/example-org/skills';
+      const result = applyPromptsRepoOverride(fixture, repo) as typeof fixture;
+
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          source: repo,
+          prompts: fixture.data.prompts,
+        },
+        meta: fixture.meta,
+      });
+      // Original fixture must not be mutated.
+      expect(fixture.data.source).toBe('built-in');
+    });
+
+    test('applyPromptsRepoOverride passes through fixtures without a data object', () => {
+      expect(applyPromptsRepoOverride(null, 'https://x.test')).toBe(null);
+      expect(applyPromptsRepoOverride('plain-string', 'https://x.test')).toBe(
+        'plain-string'
+      );
+      expect(
+        applyPromptsRepoOverride({ success: true }, 'https://x.test')
+      ).toEqual({
+        success: true,
+      });
+    });
+
+    test('refresh fixture has the no-override source value', async () => {
+      const fixture = (await loadFixture(
+        'prompts/refresh-success.json'
+      )) as any;
+      // Was 'built-in+repository' pre-M2; PRD #581 wire contract now requires
+      // the env-var URL (or 'built-in' when none is configured).
+      expect(fixture.data.source).toBe('built-in');
     });
   });
 });

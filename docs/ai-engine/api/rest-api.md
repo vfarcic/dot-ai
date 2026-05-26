@@ -243,6 +243,240 @@ For detailed parameter schemas and usage instructions:
 curl http://your-ingress-url/api/v1/openapi | jq '.paths'
 ```
 
+## Prompts Endpoints
+
+Three REST endpoints expose the shared prompt library. Each one accepts an optional `repo` parameter that, when supplied, fetches prompts from that repository instead of the one configured via `DOT_AI_USER_PROMPTS_REPO`. When `repo` is omitted, behavior is identical to the env-var-configured setup.
+
+See the [Shared Prompt Library](../tools/prompts.md) for the user-facing tool guide.
+
+### Endpoint Summary
+
+| Endpoint | `repo` parameter |
+|----------|------------------|
+| `POST /api/v1/prompts/refresh` | JSON body: `{ "repo": "<url>" }` |
+| `GET /api/v1/prompts` | Query string: `?repo=<url>` |
+| `POST /api/v1/prompts/:promptName` | Query string: `?repo=<url>` |
+
+### The `source` field
+
+Every response from these endpoints includes a `source` field identifying which repository the prompts came from.
+
+`source` values:
+
+| Request | `source` value |
+|---------|----------------|
+| `repo` parameter supplied | The supplied URL (credentials scrubbed) |
+| `repo` omitted, `DOT_AI_USER_PROMPTS_REPO` set | The env-var URL (credentials scrubbed) |
+| `repo` omitted, no env-var repo | `"built-in"` |
+
+**Credential scrubbing**: URLs with embedded credentials are scrubbed before being echoed back. `https://user:tok@host/repo` becomes `https://***:***@host/repo`. The transform is deterministic, so the same credentialed URL always produces the same `source` value across requests.
+
+### `POST /api/v1/prompts/refresh`
+
+Force-refreshes the prompts cache. Use this when you've pushed new prompts to the repository and don't want to wait for `DOT_AI_USER_PROMPTS_CACHE_TTL` to expire.
+
+**Request body** (all fields optional):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `repo` | string | Override repository URL (HTTPS). When supplied, bypasses `DOT_AI_USER_PROMPTS_REPO` for this request. |
+
+**Built-in case** (no env-var repo, no override):
+
+```bash
+curl -s -X POST http://localhost:3456/api/v1/prompts/refresh \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```json
+{
+    "success": true,
+    "data": {
+        "refreshed": true,
+        "promptsLoaded": 11,
+        "source": "built-in"
+    },
+    "meta": {
+        "timestamp": "2026-05-26T19:51:50.367Z",
+        "requestId": "rest_1779825110366_3",
+        "version": "v1"
+    }
+}
+```
+
+**Per-request override case**:
+
+```bash
+curl -s -X POST http://localhost:3456/api/v1/prompts/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"repo":"https://github.com/vfarcic/dot-ai-user-prompts"}'
+```
+
+```json
+{
+    "success": true,
+    "data": {
+        "refreshed": true,
+        "promptsLoaded": 11,
+        "source": "https://github.com/vfarcic/dot-ai-user-prompts"
+    },
+    "meta": {
+        "timestamp": "2026-05-26T19:52:06.738Z",
+        "requestId": "rest_1779825126117_6",
+        "version": "v1"
+    }
+}
+```
+
+**Credential-scrubbing case**: a credentialed URL is echoed back scrubbed.
+
+```bash
+curl -s -X POST http://localhost:3456/api/v1/prompts/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"repo":"https://user:secrettoken@example.com/repo"}'
+```
+
+```json
+{
+    "success": true,
+    "data": {
+        "refreshed": true,
+        "promptsLoaded": 11,
+        "source": "https://***:***@example.com/repo"
+    }
+}
+```
+
+### `GET /api/v1/prompts`
+
+Lists all available prompts (built-in plus user-defined). Returns the prompt names, descriptions, and any declared arguments.
+
+**Query parameters** (all optional):
+
+| Parameter | Description |
+|-----------|-------------|
+| `repo` | Override repository URL (HTTPS). When supplied, bypasses `DOT_AI_USER_PROMPTS_REPO` for this request. |
+
+**Built-in case**:
+
+```bash
+curl -s http://localhost:3456/api/v1/prompts
+```
+
+Response (abbreviated — the full response carries every prompt's metadata):
+
+```json
+{
+    "success": true,
+    "data": {
+        "prompts": [
+            { "name": "generate-cicd", "description": "Generate intelligent CI/CD workflows..." },
+            { "name": "generate-dockerfile", "description": "Generate production-ready..." },
+            { "name": "prd-create", "description": "Create documentation-first PRDs..." }
+        ],
+        "source": "built-in"
+    }
+}
+```
+
+**Per-request override case**:
+
+```bash
+curl -s "http://localhost:3456/api/v1/prompts?repo=https://github.com/vfarcic/dot-ai-user-prompts"
+```
+
+The `source` field echoes the override URL (credentials scrubbed):
+
+```json
+{
+    "success": true,
+    "data": {
+        "prompts": [ /* … */ ],
+        "source": "https://github.com/vfarcic/dot-ai-user-prompts"
+    }
+}
+```
+
+### `POST /api/v1/prompts/:promptName`
+
+Returns the rendered content (`messages`, optional `files`) of a single prompt by name.
+
+**Query parameters** (all optional):
+
+| Parameter | Description |
+|-----------|-------------|
+| `repo` | Override repository URL (HTTPS). When supplied, bypasses `DOT_AI_USER_PROMPTS_REPO` for this request. |
+
+**Request body** (all fields optional):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `arguments` | object | Argument values for prompts that declare `arguments` in their frontmatter (substituted via `{{argumentName}}` placeholders). |
+
+**Per-request override example**:
+
+```bash
+curl -s -X POST "http://localhost:3456/api/v1/prompts/prd-create?repo=https://github.com/vfarcic/dot-ai-user-prompts" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```json
+{
+    "success": true,
+    "data": {
+        "messages": [ /* prompt content */ ],
+        "source": "https://github.com/vfarcic/dot-ai-user-prompts"
+    }
+}
+```
+
+### Validation Rules for `repo`
+
+The server validates the `repo` parameter before performing any clone or pull. Invalid values return HTTP 400 with the standard error envelope.
+
+| Rule | Behavior |
+|------|----------|
+| Scheme must be `http` or `https` | Other schemes (`file://`, `ssh://`, `git://`) are rejected. |
+| `subPath` must be a safe relative path | `..` segments, absolute paths, and null bytes are rejected. (subPath is not exposed via REST in this release — the env-var defaults apply.) |
+| `branch` must match the git-safe character set | Validated when supplied programmatically. (Not exposed via REST in this release.) |
+| Credentials in the URL | Never echoed in error messages — scrubbed via `sanitizeUrlForLogging`. |
+
+**Validation-error envelope** (`HTTP 400`):
+
+```bash
+curl -s "http://localhost:3456/api/v1/prompts?repo=ssh://bad" \
+  -w "\nHTTP: %{http_code}\n"
+```
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid override repoUrl scheme: ssh: (only http and https are allowed) for ssh://bad"
+  },
+  "meta": {
+    "timestamp": "2026-05-26T19:52:37.389Z",
+    "requestId": "rest_1779825157389_10",
+    "version": "v1"
+  }
+}
+HTTP: 400
+```
+
+A request that fails validation never touches the loader, so the env-var-configured cache cannot be corrupted by a malformed override.
+
+### Server-side caveats for this release
+
+The `repo` parameter is the server's contract surface for composing prompts from multiple repositories. Each request still serves exactly one repo; how (and whether) callers compose responses from multiple requests is the caller's concern — see the [DevOps AI Toolkit CLI docs](https://devopstoolkit.ai/docs/cli) for the CLI-side composition flow.
+
+- **Single shared token**: All overrides authenticate with the same `DOT_AI_GIT_TOKEN`. Repos that live on different providers (e.g., GitHub + private GitLab) can't both be authenticated. Per-repo tokens are deferred.
+- **Single-slot cache**: The loader caches one repo at a time. Sequential requests against different repos re-clone each time (acceptable cost with `--depth 1` clones, but observable when alternating between repos within the TTL window).
+- **No URL allowlist / SSRF gate**: The endpoint assumes the caller is trusted. Don't expose the override surface to untrusted clients without an upstream gate.
+
+For the user-facing summary, see [Shared Prompt Library § Multi-source skills](../tools/prompts.md#multi-source-skills-via-the-per-request-repo-override).
 
 ## Workflows and Use Cases
 

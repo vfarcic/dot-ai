@@ -23,33 +23,84 @@ describe.concurrent('Prompts Integration', () => {
 
   // Exact list of all built-in prompts with their metadata
   const expectedBuiltInPrompts = [
-    { name: 'generate-cicd', description: 'Generate intelligent CI/CD workflows through interactive conversation by analyzing repository structure and user preferences' },
-    { name: 'generate-dockerfile', description: 'Generate production-ready, secure, multi-stage Dockerfile and .dockerignore for any project' },
-    { name: 'prd-close', description: 'Close a PRD that is already implemented or no longer needed' },
-    { name: 'prd-create', description: 'Create documentation-first PRDs that guide development through user-facing content' },
-    { name: 'prd-done', description: 'Complete PRD implementation workflow - create branch, push changes, create PR, merge, and close issue' },
+    {
+      name: 'generate-cicd',
+      description:
+        'Generate intelligent CI/CD workflows through interactive conversation by analyzing repository structure and user preferences',
+    },
+    {
+      name: 'generate-dockerfile',
+      description:
+        'Generate production-ready, secure, multi-stage Dockerfile and .dockerignore for any project',
+    },
+    {
+      name: 'prd-close',
+      description:
+        'Close a PRD that is already implemented or no longer needed',
+    },
+    {
+      name: 'prd-create',
+      description:
+        'Create documentation-first PRDs that guide development through user-facing content',
+    },
+    {
+      name: 'prd-done',
+      description:
+        'Complete PRD implementation workflow - create branch, push changes, create PR, merge, and close issue',
+    },
     {
       name: 'prd-full',
-      description: 'Run a PRD end-to-end autonomously — start, iterate until done, then create a PR. Stops after PR creation for manual review.',
+      description:
+        'Run a PRD end-to-end autonomously — start, iterate until done, then create a PR. Stops after PR creation for manual review.',
       arguments: [
-        { name: 'prdNumber', description: 'PRD number to implement (e.g., 306). Required — no auto-detection.', required: true },
-        { name: 'mode', description: 'Isolation strategy for this PRD\'s work. Must be `branch` or `worktree`. Pre-answers the branch-vs-worktree decision in `/prd-start`.', required: true }
+        {
+          name: 'prdNumber',
+          description:
+            'PRD number to implement (e.g., 306). Required — no auto-detection.',
+          required: true,
+        },
+        {
+          name: 'mode',
+          description:
+            "Isolation strategy for this PRD's work. Must be `branch` or `worktree`. Pre-answers the branch-vs-worktree decision in `/prd-start`.",
+          required: true,
+        },
       ],
       // prd-full has required arguments — the Prompts Get test must supply
       // them or the server returns success: false.
-      testArgs: { prdNumber: '306', mode: 'branch' }
+      testArgs: { prdNumber: '306', mode: 'branch' },
     },
-    { name: 'prd-next', description: 'Analyze existing PRD to identify and recommend the single highest-priority task to work on next' },
+    {
+      name: 'prd-next',
+      description:
+        'Analyze existing PRD to identify and recommend the single highest-priority task to work on next',
+    },
     {
       name: 'prd-start',
       description: 'Start working on a PRD implementation',
       arguments: [
-        { name: 'prdNumber', description: 'PRD number to start working on (e.g., 306)', required: false }
-      ]
+        {
+          name: 'prdNumber',
+          description: 'PRD number to start working on (e.g., 306)',
+          required: false,
+        },
+      ],
     },
-    { name: 'prd-update-decisions', description: 'Update PRD based on design decisions and strategic changes made during conversations' },
-    { name: 'prd-update-progress', description: 'Update PRD progress based on git commits and code changes, enhanced by conversation context' },
-    { name: 'prds-get', description: 'Fetch all open GitHub issues from this project that have the \'PRD\' label' },
+    {
+      name: 'prd-update-decisions',
+      description:
+        'Update PRD based on design decisions and strategic changes made during conversations',
+    },
+    {
+      name: 'prd-update-progress',
+      description:
+        'Update PRD progress based on git commits and code changes, enhanced by conversation context',
+    },
+    {
+      name: 'prds-get',
+      description:
+        "Fetch all open GitHub issues from this project that have the 'PRD' label",
+    },
   ];
 
   // User prompts loaded from git repository (user-prompts/ directory)
@@ -59,12 +110,29 @@ describe.concurrent('Prompts Integration', () => {
       name: 'eval-run',
       description: 'Run AI Model Evaluations',
       arguments: [
-        { name: 'toolType', description: 'Evaluation type (capabilities, policies, patterns, remediation, recommendation)', required: false },
-        { name: 'models', description: 'Comma-separated list of models (sonnet, gpt, gemini, gemini-flash, grok)', required: false }
-      ]
+        {
+          name: 'toolType',
+          description:
+            'Evaluation type (capabilities, policies, patterns, remediation, recommendation)',
+          required: false,
+        },
+        {
+          name: 'models',
+          description:
+            'Comma-separated list of models (sonnet, gpt, gemini, gemini-flash, grok)',
+          required: false,
+        },
+      ],
     },
-    { name: 'eval-update-model-metadata', description: 'Update Model Metadata Command' },
-    { name: 'test-skill', description: 'Test skill for folder-based skills integration tests', expectedFiles: ['helper.sh'] },
+    {
+      name: 'eval-update-model-metadata',
+      description: 'Update Model Metadata Command',
+    },
+    {
+      name: 'test-skill',
+      description: 'Test skill for folder-based skills integration tests',
+      expectedFiles: ['helper.sh'],
+    },
   ];
 
   // Combined list of all prompts (built-in + user)
@@ -93,16 +161,19 @@ describe.concurrent('Prompts Integration', () => {
         success: true,
         data: {
           prompts: expect.arrayContaining(
-            expectedPrompts.map(({ expectedFiles: _e, testArgs: _t, ...rest }) =>
-              expect.objectContaining(rest)
+            expectedPrompts.map(
+              ({ expectedFiles: _e, testArgs: _t, ...rest }) =>
+                expect.objectContaining(rest)
             )
           ),
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
       expect(response).toMatchObject(expectedListResponse);
@@ -112,71 +183,85 @@ describe.concurrent('Prompts Integration', () => {
 
   describe('Prompts Get', () => {
     // Test each prompt individually (including folder-based skills with files)
-    test.each(expectedPrompts)('should return prompt content for $name', async ({ name, description, expectedFiles, testArgs }) => {
-      const response = await integrationTest.httpClient.post(
-        `/api/v1/prompts/${name}`,
-        testArgs ? { arguments: testArgs } : {}
-      );
-
-      const expectedGetResponse = {
-        success: true,
-        data: {
-          description: description,
-          messages: [
-            {
-              role: 'user',
-              content: {
-                type: 'text',
-                text: expect.any(String)
-              }
-            }
-          ]
-        },
-        meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-          requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
-      };
-
-      expect(response).toMatchObject(expectedGetResponse);
-      // Verify content is non-empty
-      expect(response.data.messages[0].content.text.length).toBeGreaterThan(100);
-
-      // Verify files field for folder-based skills vs flat prompts
-      if (expectedFiles) {
-        expect(response.data).toMatchObject({
-          files: expectedFiles.map((filePath: string) => ({
-            path: filePath,
-            content: expect.any(String),
-          })),
-        });
-        // Verify base64 content decodes to non-empty string
-        for (const file of response.data.files) {
-          const decoded = Buffer.from(file.content, 'base64').toString('utf-8');
-          expect(decoded.length).toBeGreaterThan(0);
-        }
-      } else {
-        expect(response.data).toMatchObject(
-          expect.not.objectContaining({ files: expect.anything() })
+    test.each(expectedPrompts)(
+      'should return prompt content for $name',
+      async ({ name, description, expectedFiles, testArgs }) => {
+        const response = await integrationTest.httpClient.post(
+          `/api/v1/prompts/${name}`,
+          testArgs ? { arguments: testArgs } : {}
         );
+
+        const expectedGetResponse = {
+          success: true,
+          data: {
+            description: description,
+            messages: [
+              {
+                role: 'user',
+                content: {
+                  type: 'text',
+                  text: expect.any(String),
+                },
+              },
+            ],
+          },
+          meta: {
+            timestamp: expect.stringMatching(
+              /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+            ),
+            requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+            version: 'v1',
+          },
+        };
+
+        expect(response).toMatchObject(expectedGetResponse);
+        // Verify content is non-empty
+        expect(response.data.messages[0].content.text.length).toBeGreaterThan(
+          100
+        );
+
+        // Verify files field for folder-based skills vs flat prompts
+        if (expectedFiles) {
+          expect(response.data).toMatchObject({
+            files: expectedFiles.map((filePath: string) => ({
+              path: filePath,
+              content: expect.any(String),
+            })),
+          });
+          // Verify base64 content decodes to non-empty string
+          for (const file of response.data.files) {
+            const decoded = Buffer.from(file.content, 'base64').toString(
+              'utf-8'
+            );
+            expect(decoded.length).toBeGreaterThan(0);
+          }
+        } else {
+          expect(response.data).toMatchObject(
+            expect.not.objectContaining({ files: expect.anything() })
+          );
+        }
       }
-    });
+    );
 
     test('should return error for non-existent prompt', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/prompts/non-existent-prompt', {});
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/prompts/non-existent-prompt',
+        {}
+      );
 
       const expectedErrorResponse = {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Prompt not found: non-existent-prompt'
+          message: 'Prompt not found: non-existent-prompt',
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
       expect(response).toMatchObject(expectedErrorResponse);
@@ -187,15 +272,24 @@ describe.concurrent('Prompts Integration', () => {
     test('should return prd-start with arguments metadata in list', async () => {
       const response = await integrationTest.httpClient.get('/api/v1/prompts');
 
-      const prdStartPrompt = response.data.prompts.find((p: { name: string }) => p.name === 'prd-start');
+      const prdStartPrompt = response.data.prompts.find(
+        (p: { name: string }) => p.name === 'prd-start'
+      );
       expect(prdStartPrompt).toBeDefined();
       expect(prdStartPrompt.arguments).toEqual([
-        { name: 'prdNumber', description: 'PRD number to start working on (e.g., 306)', required: false }
+        {
+          name: 'prdNumber',
+          description: 'PRD number to start working on (e.g., 306)',
+          required: false,
+        },
       ]);
     });
 
     test('should return prd-start content without argument (placeholder remains)', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/prompts/prd-start', {});
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/prompts/prd-start',
+        {}
+      );
 
       expect(response.success).toBe(true);
       // Without argument, the placeholder should remain in the content
@@ -203,13 +297,18 @@ describe.concurrent('Prompts Integration', () => {
     });
 
     test('should substitute argument when provided to prd-start', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/prompts/prd-start', {
-        arguments: { prdNumber: '306' }
-      });
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/prompts/prd-start',
+        {
+          arguments: { prdNumber: '306' },
+        }
+      );
 
       expect(response.success).toBe(true);
       // With argument, the placeholder should be substituted
-      expect(response.data.messages[0].content.text).not.toContain('{{prdNumber}}');
+      expect(response.data.messages[0].content.text).not.toContain(
+        '{{prdNumber}}'
+      );
       expect(response.data.messages[0].content.text).toContain('306');
     });
   });
@@ -279,7 +378,8 @@ describe.concurrent('Prompts Integration', () => {
 
       try {
         // Step 1: Record initial prompt count
-        const initialList = await integrationTest.httpClient.get('/api/v1/prompts');
+        const initialList =
+          await integrationTest.httpClient.get('/api/v1/prompts');
         expect(initialList).toMatchObject({ success: true });
         const initialCount = initialList.data.prompts.length;
 
@@ -287,27 +387,37 @@ describe.concurrent('Prompts Integration', () => {
         fileSha = await createFileInRepo();
 
         // Step 3: Verify list still returns cached (old) count
-        const cachedList = await integrationTest.httpClient.get('/api/v1/prompts');
+        const cachedList =
+          await integrationTest.httpClient.get('/api/v1/prompts');
         expect(cachedList.data.prompts.length).toBe(initialCount);
 
         // Step 4: Call refresh
-        const refreshResponse = await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+        const refreshResponse = await integrationTest.httpClient.post(
+          '/api/v1/prompts/refresh',
+          {}
+        );
         expect(refreshResponse).toMatchObject({
           success: true,
           data: {
             refreshed: true,
             promptsLoaded: expect.any(Number),
-            source: expect.stringMatching(/^built-in(\+repository)?$/),
+            // PRD #581: source is now the env-var URL when configured, or
+            // "built-in" when no env-var repo is set. The integration test
+            // env always sets DOT_AI_USER_PROMPTS_REPO, so we expect a URL.
+            source: expect.stringMatching(/^https?:\/\/|^built-in$/),
           },
           meta: {
-            timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+            timestamp: expect.stringMatching(
+              /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+            ),
             requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-            version: 'v1'
-          }
+            version: 'v1',
+          },
         });
 
         // Step 5: Verify list now includes the new prompt
-        const refreshedList = await integrationTest.httpClient.get('/api/v1/prompts');
+        const refreshedList =
+          await integrationTest.httpClient.get('/api/v1/prompts');
         expect(refreshedList.data.prompts.length).toBe(initialCount + 1);
         const newPrompt = refreshedList.data.prompts.find(
           (p: { name: string }) => p.name === testPromptName
@@ -327,7 +437,9 @@ describe.concurrent('Prompts Integration', () => {
     }, 300000);
 
     test('should reject GET method for refresh endpoint', async () => {
-      const response = await integrationTest.httpClient.get('/api/v1/prompts/refresh');
+      const response = await integrationTest.httpClient.get(
+        '/api/v1/prompts/refresh'
+      );
 
       expect(response).toMatchObject({
         success: false,
@@ -336,17 +448,22 @@ describe.concurrent('Prompts Integration', () => {
           message: expect.stringContaining('Only POST method allowed'),
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       });
     });
   });
 
   describe('HTTP Method Validation', () => {
     test('should reject POST for prompts list endpoint', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/prompts', {});
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/prompts',
+        {}
+      );
 
       const expectedErrorResponse = {
         success: false,
@@ -355,17 +472,21 @@ describe.concurrent('Prompts Integration', () => {
           message: expect.stringContaining('Only GET method allowed'),
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
       expect(response).toMatchObject(expectedErrorResponse);
     });
 
     test('should reject GET for prompt get endpoint', async () => {
-      const response = await integrationTest.httpClient.get('/api/v1/prompts/generate-dockerfile');
+      const response = await integrationTest.httpClient.get(
+        '/api/v1/prompts/generate-dockerfile'
+      );
 
       const expectedErrorResponse = {
         success: false,
@@ -374,13 +495,148 @@ describe.concurrent('Prompts Integration', () => {
           message: expect.stringContaining('Only POST method allowed'),
         },
         meta: {
-          timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
           requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
 
       expect(response).toMatchObject(expectedErrorResponse);
+    });
+  });
+
+  describe('Per-request override (PRD #581)', () => {
+    // The integration test infra sets DOT_AI_USER_PROMPTS_REPO and
+    // DOT_AI_USER_PROMPTS_PATH=user-prompts. A REST override only carries
+    // repoUrl (the wire contract for M2 — branch/subPath stay at defaults),
+    // so any happy-path override invalidates the loader cache via the
+    // (repoUrl, branch, subPath) cache key. That re-clone races against the
+    // 'Prompts Cache Refresh' test in this file AND against any other
+    // integration file that touches /api/v1/prompts — vitest's fork pool
+    // runs files in parallel against the same deployed server, so even a
+    // separate non-concurrent file (PRD #581 F5) races. The happy-path
+    // override response shape (source echo, override threading) is
+    // therefore covered by:
+    //   - the unit-level loader tests in tests/unit/core/user-prompts-loader.test.ts
+    //     (which exercise the full override flow with the git boundary
+    //     mocked, so cache state is process-local and isolated)
+    //   - the unit-level computePromptsSource tests in
+    //     tests/unit/core/user-prompts-source.test.ts (which pin the wire
+    //     contract for the `source` field — including credential scrubbing)
+    //   - the mock-server unit tests in tests/unit/mock-server/fixtures.test.ts
+    //     (which prove the wire contract end-to-end against the fixture
+    //     server the CLI tests against)
+    //
+    // What we CAN test at the REST integration level without touching the
+    // user-prompts cache are the validation paths (rejected before any clone)
+    // and the no-override source value. Those are exercised below.
+
+    test('GET /api/v1/prompts without ?repo returns source from env-var config', async () => {
+      const response = await integrationTest.httpClient.get('/api/v1/prompts');
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          prompts: expect.any(Array),
+          // Real server sets DOT_AI_USER_PROMPTS_REPO so source is a URL.
+          source: expect.stringMatching(/^https?:\/\//),
+        },
+      });
+    });
+
+    test('GET /api/v1/prompts?repo=ssh://... returns 400 with credential-safe message', async () => {
+      const response = await integrationTest.httpClient.get(
+        `/api/v1/prompts?repo=${encodeURIComponent('ssh://git@github.com/example/repo.git')}`
+      );
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: expect.stringContaining('scheme'),
+        },
+      });
+    });
+
+    test('GET /api/v1/prompts?repo=<url-with-token-and-bad-scheme> scrubs token from validation error', async () => {
+      const secret = 'rest_test_secret_token_xyz';
+      // Bad scheme so we hit the 400 path; the response must not echo the
+      // secret embedded in the URL.
+      const credUrl = `ssh://user:${secret}@github.com/example/repo.git`;
+      const response = await integrationTest.httpClient.get(
+        `/api/v1/prompts?repo=${encodeURIComponent(credUrl)}`
+      );
+      expect(response).toMatchObject({ success: false });
+      expect(JSON.stringify(response)).not.toContain(secret);
+    });
+
+    test('POST /api/v1/prompts/refresh with body.repo=ssh://... returns 400', async () => {
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/prompts/refresh',
+        { repo: 'ssh://git@github.com/example/repo.git' }
+      );
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: expect.stringContaining('scheme'),
+        },
+      });
+    });
+
+    // F2: type-checking guards against the server crashing to 500 on a
+    // malformed body. `repo` MUST be a string per the wire contract.
+    test('POST /api/v1/prompts/refresh with body.repo as array returns 400 (not 500)', async () => {
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/prompts/refresh',
+        { repo: ['https://github.com/a/b.git', 'https://github.com/c/d.git'] }
+      );
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: expect.stringContaining('repo must be a string'),
+        },
+      });
+    });
+
+    test('POST /api/v1/prompts/refresh with body.repo as number returns 400 (not 500)', async () => {
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/prompts/refresh',
+        { repo: 42 }
+      );
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: expect.stringContaining('repo must be a string'),
+        },
+      });
+    });
+
+    test('POST /api/v1/prompts/:name?repo=ssh://... returns 400', async () => {
+      const response = await integrationTest.httpClient.post(
+        `/api/v1/prompts/prd-create?repo=${encodeURIComponent('ssh://git@github.com/example/repo.git')}`,
+        {}
+      );
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: expect.stringContaining('scheme'),
+        },
+      });
+    });
+
+    test('POST /api/v1/prompts/:name?repo=<url-with-token-and-bad-scheme> scrubs token from response', async () => {
+      const secret = 'name_test_secret_xyz';
+      const credUrl = `ssh://user:${secret}@github.com/example/repo.git`;
+      const response = await integrationTest.httpClient.post(
+        `/api/v1/prompts/prd-create?repo=${encodeURIComponent(credUrl)}`,
+        {}
+      );
+      expect(response).toMatchObject({ success: false });
+      expect(JSON.stringify(response)).not.toContain(secret);
     });
   });
 });

@@ -26,8 +26,8 @@ export interface PromptMetadata {
 }
 
 export interface PromptFile {
-  path: string;       // Relative path within skill folder (e.g., "create-worktree.sh")
-  content: string;    // Base64-encoded file content
+  path: string; // Relative path within skill folder (e.g., "create-worktree.sh")
+  content: string; // Base64-encoded file content
 }
 
 export interface Prompt {
@@ -242,16 +242,19 @@ export function mergePrompts(
 export async function loadAllPrompts(
   logger: Logger,
   baseDir?: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  override?: import('../core/user-prompts-loader.js').UserPromptsOverride
 ): Promise<Prompt[]> {
   // Load built-in prompts (synchronous)
   const builtInPrompts = loadBuiltInPrompts(logger, baseDir);
 
-  // Load user prompts from git repository (async, graceful failure)
+  // Load user prompts from git repository (async, graceful failure). When a
+  // per-request override is supplied (PRD #581), it replaces the env-var
+  // configured repo for this single call.
   let userPrompts: Prompt[] = [];
   try {
     const { loadUserPrompts } = await import('../core/user-prompts-loader.js');
-    userPrompts = await loadUserPrompts(logger, forceRefresh);
+    userPrompts = await loadUserPrompts(logger, forceRefresh, override);
   } catch (error) {
     logger.debug('User prompts loader not available or failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -282,22 +285,30 @@ interface PromptsListResponse {
     description: string;
     arguments?: PromptArgument[];
   }>;
+  source: string;
 }
 
 /**
- * Handle prompts/list MCP request
+ * Handle prompts/list MCP request.
+ *
+ * The optional `override` parameter (PRD #581) is REST-only; MCP callers always
+ * pass undefined since there's no natural way for MCP to express a per-request
+ * repo override.
  */
 export async function handlePromptsListRequest(
   args: PromptsListArgs | undefined,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  override?: import('../core/user-prompts-loader.js').UserPromptsOverride
 ): Promise<PromptsListResponse> {
   try {
     logger.info('Processing prompts/list request', { requestId });
 
     const allPrompts = await loadAllPrompts(
       logger,
-      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
+      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined,
+      false,
+      override
     );
 
     // Filter out file-dependent skills when requested (MCP clients can't deliver files)
@@ -326,8 +337,12 @@ export async function handlePromptsListRequest(
       promptCount: promptList.length,
     });
 
+    const { computePromptsSource } =
+      await import('../core/user-prompts-loader.js');
+
     return {
       prompts: promptList,
+      source: computePromptsSource(override),
     };
   } catch (error) {
     logger.error('Prompts list request failed', error as Error);
@@ -356,15 +371,21 @@ interface PromptsGetResponse {
   description?: string;
   messages: Array<{ role: string; content: { type: string; text: string } }>;
   files?: PromptFile[];
+  source: string;
 }
 
 /**
- * Handle prompts/get MCP request
+ * Handle prompts/get MCP request.
+ *
+ * The optional `override` parameter (PRD #581) is REST-only; MCP callers always
+ * pass undefined since there's no natural way for MCP to express a per-request
+ * repo override.
  */
 export async function handlePromptsGetRequest(
   args: PromptsGetArgs,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  override?: import('../core/user-prompts-loader.js').UserPromptsOverride
 ): Promise<PromptsGetResponse> {
   try {
     logger.info('Processing prompts/get request', {
@@ -378,7 +399,9 @@ export async function handlePromptsGetRequest(
 
     const prompts = await loadAllPrompts(
       logger,
-      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
+      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined,
+      false,
+      override
     );
     const prompt = prompts.find(p => p.name === args.name);
 
@@ -435,6 +458,9 @@ export async function handlePromptsGetRequest(
       argumentsProvided: Object.keys(providedArgs).length,
     });
 
+    const { computePromptsSource } =
+      await import('../core/user-prompts-loader.js');
+
     // Convert to MCP prompts/get response format
     const response: PromptsGetResponse = {
       description: prompt.description,
@@ -447,6 +473,7 @@ export async function handlePromptsGetRequest(
           },
         },
       ],
+      source: computePromptsSource(override),
     };
 
     if (prompt.files && prompt.files.length > 0) {
