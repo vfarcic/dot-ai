@@ -28,7 +28,16 @@ Otherwise let the script look it up from `prds/`:
 bash .claude/skills/dot-ai-worktree-prd/create.sh [number]
 ```
 
-### Step 3: Handle Result
+### Step 3: Copy Local Settings
+
+Copy `.claude/settings.local.json` from the main repo to the new worktree so local settings (which are not tracked in git) are available:
+```bash
+cp .claude/settings.local.json [worktree_path]/.claude/settings.local.json
+```
+
+If the source file doesn't exist, skip this step silently.
+
+### Step 4: Handle Result
 
 - If `SUCCESS=true`: report the branch name, worktree path, and suggest `cd [worktree_path]`
 - If `ERROR=true`: show the errors to the user and ask how to proceed

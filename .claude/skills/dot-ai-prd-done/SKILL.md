@@ -41,21 +41,16 @@ Complete the PRD implementation workflow including branch management, pull reque
 
 ### 2. Branch and Commit Management
 
-> ⚠️ **CI skip safety rule (read before committing)**: GitHub Actions honors `[skip ci]` (and equivalents like `[ci skip]`, `***NO_CI***`, `[skip actions]`) on the **tip commit of any push** and suppresses workflows for that entire push — including PR head updates. This means a single `[skip ci]` commit on a feature branch silently disables CI for the whole PR.
->
-> Use `[skip ci]` **only on commits that go directly to the default branch (`main`)**. **Never** include it on any commit that will land on a feature branch with an open or planned PR — even if the commit only touches PRD files, the changelog fragment, or docs. Those commits must run CI like any other PR commit.
-
-**For Documentation-Only Completions** (commits go directly to `main`, no PR):
-- [ ] **Commit directly to main**: `git add [prd-files]` and commit with the skip-CI flag — safe **only because** the commit is going straight to `main`
+**For Documentation-Only Completions:**
+- [ ] **Commit directly to main**: `git add [prd-files]` and commit with skip CI flag
 - [ ] **Use skip CI commit message**: Include CI skip pattern in commit message to avoid unnecessary CI runs
   - Common patterns: `[skip ci]`, `[ci skip]`, `***NO_CI***`, `[skip actions]`
   - Check project's CI configuration for the correct pattern
 - [ ] **Push to remote**: `git pull --rebase origin main && git push origin main` to sync changes
 
-**For Code Implementation Completions** (commits go on a feature branch and are merged via PR):
-- [ ] **Create feature branch**: `git checkout -b feature/prd-[issue-id]-[feature-name]` (or work in a worktree per the project's convention)
-- [ ] **Commit all changes**: Ensure all implementation work is committed. This includes any PRD-archive moves (`git mv prds/X.md prds/done/`), `ROADMAP.md` updates, and changelog fragments from step 1 — **all of these belong on the feature branch as regular commits**.
-- [ ] **🚫 NEVER use `[skip ci]` (or any equivalent) on feature-branch commits.** Even routine "archive PRD" or "add changelog fragment" commits must run CI. If the tip commit of your push has `[skip ci]`, GitHub will skip every workflow for your PR until another commit lands. This has caused real PRs to merge with zero verification — do not do it.
+**For Code Implementation Completions:**
+- [ ] **Create feature branch**: `git checkout -b feature/prd-[issue-id]-[feature-name]`
+- [ ] **Commit all changes**: Ensure all implementation work is committed
 - [ ] **Clean commit history**: Squash or organize commits for clear history
 - [ ] **Push to remote**: `git push -u origin feature/prd-[issue-id]-[feature-name]`
 

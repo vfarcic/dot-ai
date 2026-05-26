@@ -27,7 +27,7 @@ fi
 
 # --- Get current version ---
 
-current_version=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname 2>/dev/null | head -1)
+current_version=$(git tag --list 'v*' --sort=-v:refname 2>/dev/null | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
 if [ -z "$current_version" ]; then
   current_version="v0.0.0"
 fi
@@ -41,7 +41,7 @@ if [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
 else
   echo "ERROR=true"
   echo "MESSAGE=Current tag '${current_version}' is not valid semver. Cannot determine version."
-  exit 0
+  exit 1
 fi
 
 # --- Analyze fragment types ---
@@ -49,14 +49,23 @@ fi
 has_breaking=false
 has_feature=false
 has_bugfix=false
+unknown_fragments=()
 
 for frag in "${fragments[@]}"; do
   case "$frag" in
     *.breaking.md) has_breaking=true ;;
     *.feature.md)  has_feature=true ;;
     *.bugfix.md)   has_bugfix=true ;;
+    *.doc.md|*.misc.md) ;; # known types that don't affect bump
+    *) unknown_fragments+=("$frag") ;;
   esac
 done
+
+if [ ${#unknown_fragments[@]} -gt 0 ]; then
+  echo "ERROR=true"
+  echo "MESSAGE=Unknown fragment type(s): ${unknown_fragments[*]}"
+  exit 1
+fi
 
 # --- Calculate next version ---
 
@@ -76,7 +85,7 @@ fi
 
 # --- Check HEAD for skip-ci ---
 
-head_message=$(git log -1 --format="%s" HEAD 2>/dev/null || echo "")
+head_message=$(git log -1 --format="%B" HEAD 2>/dev/null || echo "")
 skip_ci=false
 if echo "$head_message" | grep -qiE '\[(skip ci|ci skip|no ci)\]'; then
   skip_ci=true

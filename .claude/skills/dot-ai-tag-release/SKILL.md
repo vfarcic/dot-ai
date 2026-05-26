@@ -24,6 +24,8 @@ Run the analysis script bundled with this skill:
 bash .claude/skills/dot-ai-tag-release/analyze.sh
 ```
 
+If the script fails (non-zero exit) or the output contains `ERROR=true`, show the `MESSAGE` to the user and stop.
+
 If the output contains `NO_FRAGMENTS=true`, inform the user there's nothing to release and stop.
 
 ### Step 2: Propose Version

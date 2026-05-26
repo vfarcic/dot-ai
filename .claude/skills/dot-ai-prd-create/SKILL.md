@@ -153,7 +153,7 @@ What would you like to do next?
    Begin implementation immediately (recommended if you're ready to start)
 
 **2. Commit and push PRD for later**
-   Save the PRD and work on it later (commits directly to the default branch with [skip ci])
+   Save the PRD and work on it later (will use [skip ci] flag)
 
 Please enter 1 or 2:
 ```
@@ -174,15 +174,13 @@ To start working on this PRD, run `/prd-start [issue-id]`
 
 If user chooses option 2:
 
-> ⚠️ **CI skip safety rule**: The `[skip ci]` flag below is safe **only because this commit goes directly to the default branch (`main`)**. GitHub Actions honors `[skip ci]` on the tip commit of any push and suppresses workflows for the entire push — including PRs. **Never** include `[skip ci]` on a commit that will land on a branch with an open or planned PR; it will silently disable CI for the whole PR. If you are unsure whether this commit is going directly to the default branch, omit the flag.
-
 ```bash
 # Stage the PRD file (and ROADMAP.md if it was updated)
 git add prds/[issue-id]-[feature-name].md
 # If docs/ROADMAP.md exists and was updated, include it:
 # git add docs/ROADMAP.md
 
-# Commit with [skip ci] — safe here because the commit goes directly to main
+# Commit with skip CI flag to avoid unnecessary CI runs
 git commit -m "docs(prd-[issue-id]): create PRD #[issue-id] - [feature-name] [skip ci]
 
 - Created PRD for [brief feature description]
@@ -207,6 +205,6 @@ prd-start [issue-id]
 
 - **Option 1**: Best when you have time to begin implementation immediately
 - **Option 2**: Best when creating multiple PRDs or planning future work
-- **Skip CI flag**: Use `[skip ci]` **only on commits going directly to the default branch (`main`)**. Never include `[skip ci]` on commits that will land on a feature branch with an open or planned PR — GitHub honors the flag on the push's tip commit and suppresses CI for the entire PR.
+- **Skip CI flag**: Always use `[skip ci]` when committing PRD-only changes
 - **Issue reference**: Include issue number in commit message for traceability
 

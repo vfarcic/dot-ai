@@ -28,7 +28,7 @@ if [ -z "$prd_title" ]; then
   # Extract title from first heading line.
   # Handles: "# PRD #123: Title", "## PRD #123 - Title", "# Title"
   first_line=$(head -1 "$prd_file")
-  prd_title=$(echo "$first_line" | sed -E 's/^#+ *(PRD *#?[0-9]+ *[:\-] *)?//')
+  prd_title=$(echo "$first_line" | sed -E 's/^#+ *(PRD *#?[0-9]* *[:\-] *)?//')
 fi
 
 # --- Generate branch name ---
