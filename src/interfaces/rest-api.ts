@@ -76,12 +76,25 @@ import {
 } from '../core/rbac';
 
 /**
+ * Constant placeholder used when the request URL fails to parse and the
+ * caller would otherwise have to choose between logging a potentially
+ * credential-bearing query string or dropping the request log entirely. A
+ * stable string keeps log-grepping useful.
+ */
+export const UNPARSEABLE_QUERY_PLACEHOLDER = '?<redacted-unparseable>';
+
+/**
  * F3: req.url is logged on every request; with PRD #581 the query string may
  * carry `?repo=<user-supplied-url>` whose value can include credentials. This
  * helper rewrites the `repo` value to its credential-scrubbed form so the
- * raw token doesn't reach the log. Everything else is preserved verbatim. On
- * any parse failure the original string is returned (defensive — better to
- * log a slightly noisy URL than to drop the entire request log).
+ * raw token doesn't reach the log. Everything else is preserved verbatim.
+ *
+ * CodeRabbit Major B: on parse failure, we no longer return the input
+ * verbatim — an unparseable URL is more likely than a parseable one to hide
+ * a credential (a stray character may have broken the parse). Instead, keep
+ * the pathname (so the log still tells you which endpoint was hit) but
+ * REDACT the entire query string with a fixed placeholder. URLs without a
+ * '?' are pass-through (no risk).
  */
 export function sanitizeRequestUrlForLogging(
   url: string | undefined
@@ -98,7 +111,12 @@ export function sanitizeRequestUrlForLogging(
     // Return path + search only (drop the dummy base).
     return parsed.pathname + parsed.search + parsed.hash;
   } catch {
-    return url;
+    // F3/Major B: don't echo a potentially credential-bearing query string
+    // we couldn't parse. Keep the path (useful for log triage) and replace
+    // the rest with a constant marker.
+    const qIdx = url.indexOf('?');
+    if (qIdx === -1) return url;
+    return url.slice(0, qIdx) + UNPARSEABLE_QUERY_PLACEHOLDER;
   }
 }
 

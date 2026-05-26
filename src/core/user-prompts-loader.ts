@@ -98,21 +98,23 @@ export function getUserPromptsConfig(): UserPromptsConfig | null {
  *   - no override, env-var configured → DOT_AI_USER_PROMPTS_REPO
  *   - no override, no env-var         → "built-in"
  *
- * URLs are passed through sanitizeUrlForLogging before returning, so a
- * credential-bearing input (e.g. https://user:token@host/repo) does not leak
- * into the response body, the server logs, or the on-disk skill frontmatter
- * the CLI writes. Stability is preserved: sanitizeUrlForLogging is
- * deterministic, so two identical credential-bearing inputs produce the same
+ * URLs flow through scrubSourceUrl before returning, which scrubs BOTH:
+ *   - userinfo credentials (https://user:token@host/repo)
+ *   - credential-bearing query params (?access_token=... etc — CodeRabbit
+ *     Major A)
+ *
+ * Stability is preserved: scrubSourceUrl is deterministic (fixed `***`
+ * placeholder), so two identical credential-bearing inputs produce the same
  * scrubbed source — keeping the CLI's "wipe only my own slice" invariant
  * intact.
  */
 export function computePromptsSource(override?: UserPromptsOverride): string {
   if (override?.repoUrl) {
-    return sanitizeUrlForLogging(override.repoUrl);
+    return scrubSourceUrl(override.repoUrl);
   }
   const envRepo = process.env.DOT_AI_USER_PROMPTS_REPO;
   if (envRepo) {
-    return sanitizeUrlForLogging(envRepo);
+    return scrubSourceUrl(envRepo);
   }
   return 'built-in';
 }
@@ -223,6 +225,48 @@ export function sanitizeUrlForLogging(url: string): string {
   } catch {
     // If URL parsing fails, do basic sanitization
     return url.replace(/\/\/[^@]+@/, '//***@');
+  }
+}
+
+/**
+ * Query-param names whose values look credential-bearing. Conservative
+ * allowlist-on-redaction — case-insensitive substring match.
+ */
+const CREDENTIAL_PARAM_RE = /token|key|secret|password|auth|credential/i;
+
+/**
+ * Source-only deep scrub for URLs that flow into the response body and the
+ * on-disk skill frontmatter the CLI writes (PRD #581 / CodeRabbit Major A).
+ *
+ * In addition to the userinfo scrub from sanitizeUrlForLogging, redacts the
+ * VALUES of query parameters whose names look credential-bearing (token, key,
+ * secret, password, auth, credential — case-insensitive). The placeholder is
+ * a fixed string so the output is deterministic — same input always produces
+ * the same source, preserving the CLI's "tag-and-wipe-by-source" invariant.
+ *
+ * Scope: ONLY called from computePromptsSource. NOT a general-purpose
+ * replacement for sanitizeUrlForLogging — the broader hygiene of the shared
+ * helper was deferred per the M2 follow-up scope.
+ */
+export function scrubSourceUrl(url: string): string {
+  // Userinfo scrub first; this also handles "//user:pass@" via the regex
+  // fallback when URL parsing fails.
+  const userinfoScrubbed = sanitizeUrlForLogging(url);
+  try {
+    const parsed = new URL(userinfoScrubbed);
+    let mutated = false;
+    for (const name of [...parsed.searchParams.keys()]) {
+      if (CREDENTIAL_PARAM_RE.test(name)) {
+        parsed.searchParams.set(name, '***');
+        mutated = true;
+      }
+    }
+    return mutated ? parsed.toString() : userinfoScrubbed;
+  } catch {
+    // Unparseable; return the userinfo-scrubbed form unchanged. Query-param
+    // scrubbing on unparseable URLs is meaningless — there's no reliable
+    // boundary to walk.
+    return userinfoScrubbed;
   }
 }
 
