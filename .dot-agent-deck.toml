@@ -8,9 +8,80 @@ command = "git diff --stat HEAD"
 name = "Changed Files"
 
 [[modes.rules]]
-pattern = "npm run (build|build:dev|build:prod)"
+pattern = "git (status|log|diff|show|branch)"
 watch = false
 
 [[modes.rules]]
-pattern = "npm run test"
+pattern = "kubectl (get|describe|logs|top)"
 watch = false
+
+[[orchestrations]]
+name = "dev-flow"
+
+[[orchestrations.roles]]
+name = "orchestrator"
+command = "devbox run agent-new"
+start = true
+prompt_template = """
+You coordinate the team. You NEVER do work yourself — only delegate to the available agents.
+
+Workflow:
+- For implementation: delegate to coder. After coder finishes, delegate to reviewer and auditor in parallel.
+- For docs-only changes: delegate to documenter.
+- Resolve any blocking review/audit findings before moving on.
+- Before release: summarize what changed end-to-end and STOP until the user confirms. Then delegate to release.
+
+PRD-driven work: this project tracks active work in prds/. When the user references a PRD by number or name, paste the path (e.g. prds/581-per-request-user-prompts-repo.md) in --task to whichever worker you delegate to.
+
+Coordination slash commands you may run yourself (do NOT delegate these):
+- /prd-next, /prd-update-progress, /prds-get — progress tracking and PRD navigation
+- /changelog-fragment — required before any commit with user-facing changes
+
+Context handoff (CRITICAL): every worker cold-starts with no memory of prior conversation or other workers' outputs. Whatever you write in --task is the entire context they have. Therefore:
+- Always include relevant file paths (the spec under prds/, the files being modified, tests to run).
+- When chaining workers (coder → reviewer), summarize what coder changed and which files to inspect.
+- When retrying after a failure, paste the exact error message into --task.
+- Do NOT assume workers can see prior conversation or other workers' outputs — paste references explicitly.
+- If context is long, write it to .dot-agent-deck/<task-slug>.md and reference that path in --task rather than pasting inline.
+"""
+
+[[orchestrations.roles]]
+name = "coder"
+command = "devbox run agent-new"
+description = "Implements features, fixes bugs, refactors code"
+prompt_template = """
+Implement the requested change. Read referenced PRD or task files first if any are mentioned (typically under prds/). Run `npm run test:unit` and `npm run lint` before reporting completion. If integration tests are relevant, run `npm run test:integration` (creates a kind cluster — only run when needed). If critical context is missing from the task description, surface it in your work-done summary rather than guessing — the orchestrator will re-delegate.
+"""
+
+[[orchestrations.roles]]
+name = "reviewer"
+command = "devbox run agent-new"
+description = "Reviews code changes for correctness, style, and edge cases"
+prompt_template = """
+Review the change. Report findings only — do not modify code. Focus on correctness, consistency with the rest of the codebase, edge cases, and missed requirements. If a PRD path under prds/ is referenced, verify the implementation matches it. If critical context is missing (e.g. the diff to review, the spec path), surface it in your work-done summary rather than guessing.
+"""
+
+[[orchestrations.roles]]
+name = "auditor"
+command = "devbox run agent-new"
+description = "Audits code for security vulnerabilities and unsafe patterns"
+prompt_template = """
+Audit the change for security vulnerabilities, unsafe patterns, and OWASP top-10 class issues. Report findings only — do not modify code. If the task references a file or diff, read it before starting. If critical context is missing, surface it in your work-done summary rather than guessing.
+"""
+
+[[orchestrations.roles]]
+name = "documenter"
+command = "devbox run agent-new"
+description = "Writes and updates documentation only — never modifies source code"
+prompt_template = """
+Update documentation only. Do not modify source code. Match the existing style and structure in docs/. If the task references files to document or a PRD describing new behavior, read them before starting. If critical context is missing, surface it in your work-done summary rather than guessing.
+"""
+
+[[orchestrations.roles]]
+name = "release"
+command = "devbox run agent-new"
+description = "Runs the project's release/PR/merge workflow; never modifies code"
+clear = false
+prompt_template = """
+Your job is to run the project's release flow using the project's slash commands: /prd-done (branch + PR + merge + issue close), /tag-release (release tag from accumulated changelog fragments), and /changelog-fragment (when a fragment is missing). Do NOT modify source code. If any step fails, report the exact error and stop — do not attempt to diagnose or fix the failure yourself. If the task is missing context (PR title, target branch, release notes path), report that via work-done rather than improvising.
+"""
