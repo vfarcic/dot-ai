@@ -36,6 +36,7 @@ import { INVESTIGATION_MESSAGES } from '../constants/investigation';
 import { withAITracing } from '../tracing/ai-tracing';
 import { getMaxRetries } from '../ai-retry-config';
 import type { LanguageModel } from 'ai';
+import { makeCopilotCredentialResolver } from './copilot-token-exchanger';
 
 type SupportedProvider = keyof typeof CURRENT_MODELS;
 
@@ -105,7 +106,8 @@ export class VercelProvider implements AIProvider {
   }
 
   private validateConfiguration(): void {
-    if (!this.apiKey) {
+    // Copilot resolves its credential from the env chain at fetch time — no apiKey required.
+    if (!this.apiKey && this.providerType !== 'copilot') {
       throw new Error(
         AI_SERVICE_ERROR_TEMPLATES.API_KEY_REQUIRED(this.providerType)
       );
@@ -259,6 +261,92 @@ export class VercelProvider implements AIProvider {
           // Use .chat() explicitly for custom endpoints to use /chat/completions instead of /responses
           this.modelInstance = provider.chat(this.model);
           return; // Early return - model instance already set
+        case 'copilot': {
+          // PRD #587: GitHub Copilot provider
+          // Uses the raw GitHub token (gho_*, github_pat_*, ghu_*) directly as a
+          // Bearer credential against api.githubcopilot.com — no token-exchange step.
+          //
+          // Routing (mirrors Hermes Agent):
+          //   - Claude model IDs (claude-*) → createAnthropic at githubcopilot.com
+          //     because the Copilot OpenAI-compat non-streaming response for Claude omits
+          //     the "index" field that @ai-sdk/openai requires, causing parse failures.
+          //   - All other models → createOpenAI at githubcopilot.com (OpenAI-compat path)
+          //
+          // Model IDs must use dot notation matching the Copilot catalog
+          //   (e.g. claude-sonnet-4.6, NOT claude-sonnet-4-6).
+          // On 401: re-resolve credentials from the env chain and retry once.
+          const resolver = makeCopilotCredentialResolver(this.apiKey);
+          // These headers were captured from VS Code Copilot Chat network traffic.
+          // They are required by api.githubcopilot.com to accept the request —
+          // the endpoint validates the Integration-Id and Editor-Version before routing.
+          // Future maintainers: if GitHub changes the required headers, update here.
+          const copilotHeaders = {
+            'Copilot-Integration-Id': 'vscode-chat',
+            'Editor-Version': 'vscode/1.104.1',
+            'Openai-Intent': 'conversation-edits',
+            'x-initiator': 'user',
+          };
+          const COPILOT_FETCH_TIMEOUT_MS = 30000; // 30s — matches git-utils.ts fetchWithTimeout
+          const copilotFetch = async (
+            url: Parameters<typeof fetch>[0],
+            init?: Parameters<typeof fetch>[1]
+          ): Promise<Response> => {
+            const token = resolver.resolve();
+            const headers = new Headers(init?.headers);
+            headers.set('Authorization', `Bearer ${token}`);
+            for (const [k, v] of Object.entries(copilotHeaders)) {
+              headers.set(k, v);
+            }
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), COPILOT_FETCH_TIMEOUT_MS);
+            let response: Response;
+            try {
+              response = await fetch(url, { ...init, headers, signal: controller.signal });
+            } finally {
+              clearTimeout(timeoutId);
+            }
+            if (response.status === 401) {
+              // Drain body to allow connection reuse before retrying
+              await response.text().catch(() => {});
+              // Re-resolve from env chain (credentials may have been refreshed externally)
+              const freshToken = resolver.resolve();
+              // Build fresh headers for retry — do not mutate the first-attempt object
+              const retryHeaders = new Headers(init?.headers);
+              retryHeaders.set('Authorization', `Bearer ${freshToken}`);
+              for (const [k, v] of Object.entries(copilotHeaders)) {
+                retryHeaders.set(k, v);
+              }
+              const retryController = new AbortController();
+              const retryTimeoutId = setTimeout(() => retryController.abort(), COPILOT_FETCH_TIMEOUT_MS);
+              try {
+                return await fetch(url, { ...init, headers: retryHeaders, signal: retryController.signal });
+              } finally {
+                clearTimeout(retryTimeoutId);
+              }
+            }
+            return response;
+          };
+          const isClaudeModel = this.model.startsWith('claude-');
+          if (isClaudeModel) {
+            // Use Anthropic SDK routed through the Copilot endpoint.
+            // baseURL must include /v1 — the SDK appends /messages, so the
+            // final URL is https://api.githubcopilot.com/v1/messages.
+            const anthropicProvider = createAnthropic({
+              baseURL: 'https://api.githubcopilot.com/v1',
+              apiKey: 'unused',    // required by SDK but overridden by copilotFetch
+              fetch: copilotFetch,
+            });
+            this.modelInstance = anthropicProvider(this.model);
+          } else {
+            provider = createOpenAI({
+              apiKey: 'unused',
+              baseURL: 'https://api.githubcopilot.com',
+              fetch: copilotFetch,
+            });
+            this.modelInstance = provider.chat(this.model);
+          }
+          return; // Early return - model instance already set
+        }
         default:
           throw new Error(
             `Cannot initialize model for provider: ${this.providerType}`
