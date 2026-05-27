@@ -10,16 +10,10 @@
 
 import { z } from 'zod';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
-import { AI_SERVICE_ERROR_TEMPLATES } from '../core/constants';
 import { DotAI } from '../core/index';
 import { Logger } from '../core/error-handling';
-// Import only what we need - other imports removed as they're no longer used with Vector DB
-import { PatternVectorService, CapabilityVectorService } from '../core/index';
-import { PolicyVectorService } from '../core/policy-vector-service';
+import { CapabilityVectorService } from '../core/index';
 import { getAndValidateSessionDirectory } from '../core/session-utils';
-import { EmbeddingService } from '../core/embedding-service';
-import { handlePolicyOperation as handlePolicyOperationCore } from '../core/policy-operations';
-import { handlePatternOperation as handlePatternOperationCore } from '../core/pattern-operations';
 import { handleCapabilityProgress, handleCapabilityCRUD } from '../core/capability-operations';
 import { handleResourceSelection as handleResourceSelectionCore, handleResourceSpecification as handleResourceSpecificationCore, handleScanning as handleScanningCore } from '../core/capability-scan-workflow';
 import { randomUUID } from 'crypto';
@@ -29,32 +23,35 @@ import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
 
 // Tool metadata for MCP registration
+// PRD #375: Unified Knowledge Base — pattern and policy operations removed.
+// Organizational knowledge is now managed via manageKnowledge (ingest/search/deleteByUri).
+// This tool is now capabilities-only.
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
-export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Unified tool for managing cluster data: organizational patterns, policy intents, and resource capabilities. For patterns and policies: supports create, list, get, delete, deleteAll, and search operations (patterns also support step-by-step creation workflow). For capabilities: supports scan, list, get, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType parameter to specify what to manage: "pattern" for organizational patterns, "policy" for policy intents, "capabilities" for resource capabilities.';
+export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Tool for managing cluster resource capabilities. Supports scan, list, get, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType="capabilities" to manage cluster capabilities. NOTE: Organizational patterns and policies are now managed via manageKnowledge tool (ingest documents, search, deleteByUri) with automatic AI classification.';
 
-// Extensible schema - supports patterns, policies, and capabilities
+// Schema - capabilities only (PRD #375: pattern/policy removed from this tool)
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
-  dataType: z.enum(['pattern', 'policy', 'capabilities']).describe('Type of cluster data to manage: "pattern" for organizational patterns, "policy" for policy intents, "capabilities" for resource capabilities'),
-  operation: z.enum(['create', 'list', 'get', 'delete', 'deleteAll', 'scan', 'analyze', 'progress', 'search']).describe('Operation to perform on the cluster data'),
-  
-  // Workflow fields for step-by-step pattern creation
+  dataType: z.enum(['capabilities']).describe('Type of cluster data to manage: "capabilities" for resource capabilities. (Note: organizational knowledge/patterns/policies are managed via manageKnowledge tool)'),
+  operation: z.enum(['list', 'get', 'delete', 'deleteAll', 'scan', 'analyze', 'progress', 'search']).describe('Operation to perform on the cluster data'),
+
+  // Workflow fields for step-by-step capability scanning
   sessionId: z.string().optional().describe('Session ID (required for continuing workflow steps, optional for progress - uses latest session if omitted)'),
   step: z.string().optional().describe('Current workflow step (required when sessionId is provided)'),
   response: z.string().optional().describe('User response to previous workflow step question'),
-  
+
   // Generic fields for get/delete/search operations
-  id: z.string().optional().describe('Data item ID (required for get/delete operations) or search query (required for search operations)'),
-  
+  id: z.string().optional().describe('Capability ID (required for get/delete operations) or search query (required for search operations)'),
+
   // Generic fields for list operations
   limit: z.number().optional().describe('Maximum number of items to return (default: 10)'),
-  
+
   // Resource-specific fields (for capabilities operations)
   resource: z.object({
     kind: z.string(),
     group: z.string(),
     apiVersion: z.string()
   }).optional().describe('Kubernetes resource reference (for capabilities operations)'),
-  
+
   // Resource list for specific resource scanning (fire-and-forget when no sessionId)
   resourceList: z.string().optional().describe('Comma-separated list of resources to scan (format: Kind.group or Kind for core resources). When provided without sessionId, triggers a fire-and-forget targeted scan.'),
 
@@ -67,11 +64,12 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
 };
 
 /**
- * Input type for organizational data tool
+ * Input type for organizational data tool.
+ * PRD #375: dataType is now capabilities-only (pattern/policy moved to manageKnowledge).
  */
 export interface OrganizationalDataInput {
-  dataType: 'pattern' | 'policy' | 'capabilities';
-  operation: 'create' | 'list' | 'get' | 'delete' | 'deleteAll' | 'scan' | 'analyze' | 'progress' | 'search';
+  dataType: 'capabilities';
+  operation: 'list' | 'get' | 'delete' | 'deleteAll' | 'scan' | 'analyze' | 'progress' | 'search';
   sessionId?: string;
   step?: string;
   response?: string;
@@ -88,48 +86,9 @@ export interface OrganizationalDataInput {
   interaction_id?: string;
 }
 
-/**
- * Validate Vector DB connection and return helpful error if unavailable
- */
-async function validateVectorDBConnection(
-  vectorService: PatternVectorService | PolicyVectorService,
-  logger: Logger,
-  requestId: string
-): Promise<{ success: boolean; error?: Record<string, unknown> }> {
-  const isHealthy = await vectorService.healthCheck();
-  
-  if (!isHealthy) {
-    logger.warn('Vector DB connection not available', { requestId });
-    
-    return {
-      success: false,
-      error: {
-        message: 'Vector DB connection required for pattern management',
-        details: 'Pattern management requires a Qdrant Vector Database connection to store and search organizational patterns.',
-        setup: {
-          selfHosted: {
-            docker: 'docker run -d -p 6333:6333 --name qdrant qdrant/qdrant',
-            environment: 'export QDRANT_URL=http://localhost:6333'
-          },
-          saas: {
-            signup: 'Sign up at https://cloud.qdrant.io',
-            environment: [
-              'export QDRANT_URL=https://your-cluster.aws.cloud.qdrant.io:6333',
-              'export QDRANT_API_KEY=your-api-key-from-dashboard'
-            ]
-          },
-          docs: 'See documentation for detailed setup instructions'
-        },
-        currentConfig: {
-          QDRANT_URL: process.env.QDRANT_URL || 'not set (defaults to http://localhost:6333)',
-          QDRANT_API_KEY: process.env.QDRANT_API_KEY ? 'set' : 'not set (optional)'
-        }
-      }
-    };
-  }
-  
-  return { success: true };
-}
+// PRD #375: validateVectorDBConnection and pattern/policy operations removed.
+// Pattern/policy operations moved to manageKnowledge tool.
+// Capabilities operations still use validateEmbeddingService below.
 
 /**
  * Validate embedding service configuration and fail if unavailable
@@ -138,45 +97,30 @@ async function validateEmbeddingService(
   logger: Logger,
   requestId: string
 ): Promise<{ success: boolean; error?: Record<string, unknown> }> {
+  const { EmbeddingService } = await import('../core/index');
   const embeddingService = new EmbeddingService();
   const status = embeddingService.getStatus();
-  
+
   if (!status.available) {
-    logger.warn('Embedding service required but not available', { 
-      requestId, 
-      reason: status.reason 
+    logger.warn('Embedding service required but not available', {
+      requestId,
+      reason: status.reason
     });
-    
+
     return {
       success: false,
       error: {
-        message: AI_SERVICE_ERROR_TEMPLATES.OPENAI_KEY_REQUIRED('pattern management'),
-        details: 'Pattern management requires OpenAI embeddings for semantic search and storage. The system cannot proceed without proper configuration.',
+        message: 'OpenAI API required for capability management',
+        details: 'Capability scanning requires OpenAI embeddings for semantic search and storage.',
         reason: status.reason,
-        setup: {
-          required: 'export OPENAI_API_KEY=your-openai-api-key',
-          optional: [
-            'export OPENAI_MODEL=text-embedding-3-small (default)',
-            'export OPENAI_DIMENSIONS=1536 (default)'
-          ],
-          docs: 'Get API key from https://platform.openai.com/api-keys'
-        },
         currentConfig: {
           OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'set' : 'not set',
           QDRANT_URL: process.env.QDRANT_URL || 'http://localhost:6333',
-          status: AI_SERVICE_ERROR_TEMPLATES.EMBEDDING_SERVICE_UNAVAILABLE
         }
       }
     };
   }
-  
-  logger.info('Embedding service available', { 
-    requestId, 
-    provider: status.provider,
-    model: status.model,
-    dimensions: status.dimensions
-  });
-  
+
   return { success: true };
 }
 
@@ -885,32 +829,23 @@ export async function handleOrganizationalDataTool(
     }
 
     // Route to appropriate handler based on data type
+    // PRD #375: capabilities only — pattern/policy moved to manageKnowledge
     let result;
     switch (args.dataType) {
-      case 'pattern':
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Args and validation function type compatibility between modules
-        result = await handlePatternOperationCore(args.operation, args as any, logger, requestId, validateVectorDBConnection as any, validateEmbeddingService as any);
-        break;
-
-      case 'policy':
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Args and validation function type compatibility between modules
-        result = await handlePolicyOperationCore(args.operation, args as any, logger, requestId, validateVectorDBConnection as any, validateEmbeddingService as any);
-        break;
-
       case 'capabilities':
         result = await handleCapabilitiesOperation(args.operation, args, logger, requestId);
         break;
-      
+
       default:
         throw ErrorHandler.createError(
           ErrorCategory.VALIDATION,
           ErrorSeverity.HIGH,
-          `Unsupported data type: ${args.dataType}. Currently supported: pattern, policy, capabilities`,
+          `Unsupported data type: ${args.dataType}. Supported: capabilities. NOTE: Organizational knowledge (patterns, policies) is managed via manageKnowledge tool.`,
           {
             operation: 'data_type_validation',
             component: 'OrganizationalDataTool',
             requestId,
-            input: { dataType: args.dataType, supportedTypes: ['pattern', 'policy', 'capabilities'] }
+            input: { dataType: args.dataType, supportedTypes: ['capabilities'] }
           }
         );
     }
