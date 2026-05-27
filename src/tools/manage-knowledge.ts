@@ -260,6 +260,7 @@ async function handleIngestOperation(
         ingestedAt,
         chunkIndex: chunk.chunkIndex,
         totalChunks: chunk.totalChunks,
+        tags: [],  // PRD #375: Will be set by AI classification in Milestone 2; default []
         extractedPolicyIds: [],
       };
 
@@ -463,6 +464,7 @@ export async function searchKnowledgeBase(params: {
     metadata: (result.payload.metadata as Record<string, unknown>) || {},
     chunkIndex: result.payload.chunkIndex as number,
     totalChunks: result.payload.totalChunks as number,
+    tags: (result.payload.tags as string[]) || [],  // PRD #375: AI classification tags
     extractedPolicies: undefined, // Populated by PRD #357
   }));
 

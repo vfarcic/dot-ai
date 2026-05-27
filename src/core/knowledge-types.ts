@@ -38,6 +38,14 @@ export interface KnowledgeChunk {
   /** Total number of chunks from the source document */
   totalChunks: number;
 
+  /**
+   * Classification tags applied to all chunks from the same document.
+   * Possible values: "policy", "pattern"
+   * Empty array means general content (no specific classification).
+   * PRD #375: Unified Knowledge Base
+   */
+  tags: string[];
+
   /** IDs of policies extracted from this chunk (populated by PRD #357) */
   extractedPolicyIds?: string[];
 }
@@ -91,6 +99,13 @@ export interface KnowledgeSearchResultItem {
   metadata: Record<string, unknown>;
   chunkIndex: number;
   totalChunks: number;
+  /**
+   * Classification tags for this chunk's source document.
+   * Possible values: "policy", "pattern"
+   * Empty array means general content.
+   * PRD #375: Unified Knowledge Base
+   */
+  tags: string[];
   /** Policies extracted from this chunk (populated by PRD #357) */
   extractedPolicies?: Array<{
     id: string;
