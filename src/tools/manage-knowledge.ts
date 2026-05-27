@@ -21,11 +21,79 @@ import {
 } from '../core/knowledge-types';
 import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
+import { createAIProvider } from '../core/ai-provider-factory';
+import { loadPrompt } from '../core/shared-prompt-loader';
 
 /**
  * Collection name for knowledge base chunks in Qdrant
  */
 const KNOWLEDGE_COLLECTION = 'knowledge-base';
+
+/**
+ * Valid classification tags for document content
+ * PRD #375: Unified Knowledge Base
+ */
+const VALID_CLASSIFICATION_TAGS = ['policy', 'pattern'] as const;
+type ClassificationTag = (typeof VALID_CLASSIFICATION_TAGS)[number];
+
+/**
+ * Classify a document using AI to determine its content type.
+ * Returns a list of applicable tags (["policy"], ["pattern"], ["policy","pattern"], or []).
+ *
+ * Classification is done on the full document before chunking for better context.
+ * The same tags are applied to all chunks from the same document.
+ *
+ * Fails gracefully: if AI is unavailable or returns unexpected format, returns [].
+ *
+ * PRD #375: Milestone 2 - AI Classification During Ingestion
+ */
+async function classifyDocument(content: string): Promise<string[]> {
+  // Skip classification for empty content
+  if (!content || content.trim().length === 0) {
+    return [];
+  }
+
+  try {
+    const aiProvider = createAIProvider();
+    if (!aiProvider.isInitialized()) {
+      // AI not configured - gracefully skip classification
+      return [];
+    }
+
+    const prompt = loadPrompt('knowledge-classification', {
+      documentContent: content,
+    });
+
+    const response = await aiProvider.sendMessage(prompt, 'knowledge-classification');
+
+    // Parse the JSON array from AI response
+    // AI should return only a JSON array like [] or ["policy"] or ["policy","pattern"]
+    const rawContent = response.content.trim();
+
+    // Extract JSON array (handle potential extra text)
+    const jsonMatch = rawContent.match(/\[.*?\]/s);
+    if (!jsonMatch) {
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    // Filter to only valid classification tags
+    const validTags: string[] = parsed.filter(
+      (tag: unknown): tag is ClassificationTag =>
+        typeof tag === 'string' && VALID_CLASSIFICATION_TAGS.includes(tag as ClassificationTag)
+    );
+
+    return validTags;
+  } catch {
+    // Classification failure is non-blocking — return empty tags
+    return [];
+  }
+}
 
 // Tool metadata for MCP registration
 export const MANAGE_KNOWLEDGE_TOOL_NAME = 'manageKnowledge';
@@ -164,6 +232,13 @@ async function handleIngestOperation(
       });
     }
 
+    // Step 1b: AI Classification — classify the full document before chunking
+    // Same tags are applied to all chunks from this document (document-level classification)
+    // PRD #375: Milestone 2 - AI Classification During Ingestion
+    logger.debug('Classifying document with AI', { requestId, uri });
+    const documentTags = await classifyDocument(content);
+    logger.info('Document classified', { requestId, uri, tags: documentTags });
+
     // Step 2: Chunk the document
     logger.debug('Calling knowledge_chunk plugin tool', { requestId, uri });
 
@@ -260,7 +335,7 @@ async function handleIngestOperation(
         ingestedAt,
         chunkIndex: chunk.chunkIndex,
         totalChunks: chunk.totalChunks,
-        tags: [],  // PRD #375: Will be set by AI classification in Milestone 2; default []
+        tags: documentTags,  // PRD #375: Document-level AI classification tags (same for all chunks)
         extractedPolicyIds: [],
       };
 
