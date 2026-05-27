@@ -8,15 +8,13 @@
 import { ResourceExplanation } from './discovery';
 import { AIProvider } from './ai-provider.interface';
 import { invokePluginTool, isPluginInitialized } from './plugin-registry';
-import { PatternVectorService } from './pattern-vector-service';
-import { OrganizationalPattern } from './pattern-types';
 import { CapabilityVectorService } from './capability-vector-service';
-import { PolicyVectorService } from './policy-vector-service';
-import { PolicyIntent } from './organizational-types';
 import { loadPrompt } from './shared-prompt-loader';
 import { extractJsonFromAIResponse, execAsync } from './platform-utils';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { HelmChartInfo } from './helm-types';
+import { KnowledgeSearchResultItem } from './knowledge-types';
+import { searchKnowledgeBase } from '../tools/manage-knowledge';
 
 // PRD #343: Inline sanitization (helm-utils.ts removed)
 function sanitizeShellArg(arg: string, fieldName: string = 'argument'): string {
@@ -680,12 +678,11 @@ export class ManifestValidator {
 /**
  * ResourceRecommender determines which resources best meet user needs using AI
  * PRD #359: Uses unified plugin registry for kubectl operations
+ * PRD #375: Uses unified knowledge-base collection instead of separate pattern/policy collections
  */
 export class ResourceRecommender {
   private aiProvider: AIProvider;
-  private patternService?: PatternVectorService;
   private capabilityService?: CapabilityVectorService;
-  private policyService?: PolicyVectorService;
 
   constructor(aiProvider?: AIProvider) {
     // Use provided AI provider or create from environment
@@ -715,29 +712,8 @@ export class ResourceRecommender {
       this.capabilityService = undefined;
     }
 
-    // Initialize pattern service
-    try {
-      this.patternService = new PatternVectorService('patterns');
-      console.log('✅ Pattern service initialized');
-    } catch (error) {
-      console.warn(
-        '⚠️ Vector service initialization failed, patterns disabled:',
-        error
-      );
-      this.patternService = undefined;
-    }
-
-    // Initialize policy service
-    try {
-      this.policyService = new PolicyVectorService();
-      console.log('✅ Policy service initialized');
-    } catch (error) {
-      console.warn(
-        '⚠️ Vector service initialization failed, policies disabled:',
-        error
-      );
-      this.policyService = undefined;
-    }
+    // PRD #375: Pattern and policy services removed — use unified knowledge-base collection
+    // searchKnowledgeBase() is called directly when needed
   }
 
   /**
@@ -800,8 +776,9 @@ export class ResourceRecommender {
     }
 
     try {
-      // Phase 0: Search for relevant organizational patterns
-      const relevantPatterns = await this.searchRelevantPatterns(intent);
+      // Phase 0: Search unified knowledge base for relevant organizational knowledge
+      // PRD #375: Single search replaces separate pattern + policy searches
+      const relevantKnowledge = await this.searchRelevantKnowledge(intent);
 
       // Phase 1a: Replace mass resource discovery with capability-based pre-filtering
       if (!this.capabilityService) {
@@ -860,17 +837,12 @@ export class ResourceRecommender {
         capabilities: cap.data, // Include capability data for AI decision-making (includes namespaced, etc.)
       }));
 
-      // Phase 1: Add missing pattern-suggested resources to available resources list
-      const enhancedResources = await this.addMissingPatternResources(
-        capabilityFilteredResources,
-        relevantPatterns
-      );
-
-      // Phase 2: AI assembles and ranks complete solutions (replaces separate selection + ranking phases)
+      // Phase 2: AI assembles and ranks complete solutions
+      // PRD #375: Pass unified knowledge chunks (includes policy+pattern+general) to AI context
       const solutionResult = await this.assembleAndRankSolutions(
         intent,
-        enhancedResources,
-        relevantPatterns,
+        capabilityFilteredResources,
+        relevantKnowledge,
         interaction_id
       );
 
@@ -903,17 +875,18 @@ export class ResourceRecommender {
 
   /**
    * Phase 2: AI assembles and ranks complete solutions (replaces separate selection + ranking)
+   * PRD #375: Uses unified knowledge chunks (policy + pattern + general) instead of structured patterns.
    */
   private async assembleAndRankSolutions(
     intent: string,
     availableResources: ResourceWithCapabilities[],
-    patterns: OrganizationalPattern[],
+    knowledgeChunks: KnowledgeSearchResultItem[],
     interaction_id?: string
   ): Promise<SolutionResult> {
     const prompt = await this.loadSolutionAssemblyPrompt(
       intent,
       availableResources,
-      patterns
+      knowledgeChunks
     );
     const response = await this.aiProvider.sendMessage(
       prompt,
@@ -1008,12 +981,13 @@ export class ResourceRecommender {
   }
 
   /**
-   * Load and format solution assembly prompt from file
+   * Load and format solution assembly prompt from file.
+   * PRD #375: Uses unified knowledge chunks instead of structured OrganizationalPattern objects.
    */
   private async loadSolutionAssemblyPrompt(
     intent: string,
     resources: ResourceWithCapabilities[],
-    patterns: OrganizationalPattern[]
+    knowledgeChunks: KnowledgeSearchResultItem[]
   ): Promise<string> {
     // Format resources for the prompt with capability information
     const resourcesText = resources
@@ -1031,106 +1005,36 @@ export class ResourceRecommender {
       })
       .join('\n\n');
 
-    // Format organizational patterns for AI context
+    // Format unified knowledge context for AI (replaces structured patterns)
+    // Tags indicate content type: "policy" = enforcement rule, "pattern" = reusable architecture
     const patternsContext =
-      patterns.length > 0
-        ? patterns
+      knowledgeChunks.length > 0
+        ? knowledgeChunks
             .map(
-              pattern =>
-                `- ID: ${pattern.id}
-            Description: ${pattern.description}
-            Suggested Resources: ${pattern.suggestedResources?.join(', ') || 'Not specified'}
-            Rationale: ${pattern.rationale}
-            Triggers: ${pattern.triggers?.join(', ') || 'None'}`
+              chunk => {
+                const typeLabel = chunk.tags.length > 0
+                  ? `[${chunk.tags.join(', ')}]`
+                  : '[general]';
+                return `- ${typeLabel} ${chunk.content.substring(0, 300)}${chunk.content.length > 300 ? '...' : ''}
+            Source: ${chunk.uri}`;
+              }
             )
-            .join('\n')
-        : 'No organizational patterns found for this request.';
+            .join('\n\n')
+        : 'No organizational knowledge found for this request.';
 
     return loadPrompt('resource-selection', {
       intent,
       resources: resourcesText,
-      patterns: patternsContext,
+      patterns: patternsContext,  // Template variable name kept for backward compat
     });
   }
 
-  /**
-   * Add pattern-suggested resources that are missing from capability search results
-   */
-  private async addMissingPatternResources(
-    capabilityResources: ResourceWithCapabilities[],
-    patterns: OrganizationalPattern[]
-  ): Promise<ResourceWithCapabilities[]> {
-    if (!patterns.length) {
-      return capabilityResources;
-    }
-
-    // Extract all resource names already in capability results
-    const existingResourceNames = new Set(
-      capabilityResources.map(r => r.resourceName)
-    );
-
-    // Collect missing pattern resources
-    const missingPatternResources: ResourceWithCapabilities[] = [];
-
-    for (const pattern of patterns) {
-      if (pattern.suggestedResources) {
-        for (const suggestedResource of pattern.suggestedResources) {
-          // Skip null/undefined resources
-          if (!suggestedResource || typeof suggestedResource !== 'string') {
-            continue;
-          }
-
-          // Convert pattern resource format to resource name (e.g., "resourcegroups.azure.upbound.io" -> resourceName)
-          const resourceName = suggestedResource.includes('.')
-            ? suggestedResource
-            : `${suggestedResource}.core`;
-
-          // Only add if not already present in capability results
-          if (!existingResourceNames.has(resourceName)) {
-            try {
-              // Parse resource components
-              const parts = suggestedResource.split('.');
-              const kind = parts[0]; // Use resource name as-is: resourcegroups, servicemonitors, etc.
-              const group = parts.length > 1 ? parts.slice(1).join('.') : '';
-
-              missingPatternResources.push({
-                kind,
-                group,
-                resourceName,
-                capabilities: {
-                  resourceName,
-                  description: `Resource suggested by organizational pattern: ${pattern.description}`,
-                  capabilities: [
-                    `organizational pattern`,
-                    pattern.description.toLowerCase(),
-                  ],
-                  providers:
-                    this.inferProvidersFromResourceName(suggestedResource),
-                  complexity: 'medium',
-                  useCase: `Pattern-suggested resource for: ${pattern.rationale}`,
-                  confidence: 1.0, // High confidence since it's from organizational pattern
-                  source: 'organizational-pattern',
-                  patternId: pattern.id,
-                },
-              });
-
-              existingResourceNames.add(resourceName);
-            } catch (error) {
-              console.warn(
-                `Failed to parse pattern resource ${suggestedResource}:`,
-                error
-              );
-            }
-          }
-        }
-      }
-    }
-
-    return [...capabilityResources, ...missingPatternResources];
-  }
+  // PRD #375: addMissingPatternResources() removed — structured OrganizationalPattern.suggestedResources
+  // no longer exist. Knowledge is stored as text chunks with tags in the unified knowledge-base.
+  // The AI reasoning layer interprets knowledge chunk content directly.
 
   /**
-   * Infer cloud providers from resource name
+   * PRD #375: Infer cloud providers from resource name (kept for use in capability processing)
    */
   private inferProvidersFromResourceName(resourceName: string): string[] {
     if (resourceName.includes('azure')) return ['azure'];
@@ -1172,30 +1076,31 @@ export class ResourceRecommender {
   // API versions are extracted from kubectl explain schema content during manifest generation
 
   /**
-   * Phase 0: Search for relevant organizational patterns using multi-concept approach
-   * Returns empty array if Vector DB is not available - this is completely optional
+   * Phase 0: Search unified knowledge base for relevant organizational knowledge.
+   * Returns empty array if knowledge base is empty or unavailable (non-blocking).
+   *
+   * PRD #375: Replaces separate searchRelevantPatterns() + policy search.
+   * Results include tags so AI can distinguish policy vs pattern vs general content.
    */
-  private async searchRelevantPatterns(
+  private async searchRelevantKnowledge(
     intent: string
-  ): Promise<OrganizationalPattern[]> {
-    // If pattern service is not available, skip pattern search entirely
-    if (!this.patternService) {
+  ): Promise<KnowledgeSearchResultItem[]> {
+    try {
+      const result = await searchKnowledgeBase({ query: intent, limit: 10 });
+      if (result.success && result.chunks.length > 0) {
+        console.log(
+          `📋 Found ${result.chunks.length} relevant knowledge chunks for recommend (unified KB)`
+        );
+        return result.chunks;
+      }
       console.log(
-        '📋 Pattern service unavailable, skipping pattern search - using pure AI recommendations'
+        '📋 No relevant knowledge found in knowledge base - using pure AI recommendations'
       );
       return [];
-    }
-
-    try {
-      // Search patterns directly with user intent (vector search handles semantic concepts)
-      const patternResults = await this.patternService.searchPatterns(intent, {
-        limit: 5,
-      });
-      return patternResults.map(result => result.data);
     } catch (error) {
-      // Pattern search is non-blocking - if it fails, continue without patterns
+      // Knowledge search is non-blocking - if it fails, continue without context
       console.warn(
-        '❌ Pattern search failed, continuing without patterns:',
+        '❌ Knowledge base search failed, continuing without organizational context:',
         error
       );
       return [];
@@ -1403,7 +1308,8 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
   }
 
   /**
-   * Generate contextual questions using AI based on user intent and solution resources
+   * Generate contextual questions using AI based on user intent and solution resources.
+   * PRD #375: Uses unified knowledge base instead of separate policy service.
    */
   private async generateQuestionsWithAI(
     intent: string,
@@ -1415,38 +1321,27 @@ Available Node Labels: ${clusterOptions.nodeLabels.length > 0 ? clusterOptions.n
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
 
-      // Search for relevant policy intents based on the selected resources
-      let relevantPolicyResults: Array<{
-        policy: PolicyIntent;
-        score: number;
-        matchType: string;
-      }> = [];
-      if (this.policyService) {
-        try {
-          const resourceContext = solution.resources
-            .map(r => `${r.kind} ${r.description}`)
-            .join(' ');
-          const policyResults = await this.policyService.searchPolicyIntents(
-            `${intent} ${resourceContext}`,
-            { limit: 50 }
-          );
-          relevantPolicyResults = policyResults.map(result => ({
-            policy: result.data,
-            score: result.score,
-            matchType: result.matchType,
-          }));
+      // Search unified knowledge base for relevant policy/pattern guidance
+      // PRD #375: Replaces separate policyService.searchPolicyIntents() call
+      let knowledgeChunks: KnowledgeSearchResultItem[] = [];
+      try {
+        const resourceContext = solution.resources
+          .map(r => `${r.kind} ${r.description}`)
+          .join(' ');
+        const knowledgeResult = await searchKnowledgeBase({
+          query: `${intent} ${resourceContext}`,
+          limit: 10,
+        });
+        if (knowledgeResult.success) {
+          knowledgeChunks = knowledgeResult.chunks;
           console.log(
-            `🛡️ Found ${relevantPolicyResults.length} relevant policy intents for question generation`
-          );
-        } catch (error) {
-          console.warn(
-            '⚠️ Policy search failed during question generation, proceeding without policies:',
-            error
+            `🛡️ Found ${knowledgeChunks.length} relevant knowledge chunks for question generation (unified KB)`
           );
         }
-      } else {
-        console.log(
-          '🛡️ Policy service unavailable, skipping policy search - proceeding without policy guidance'
+      } catch (error) {
+        console.warn(
+          '⚠️ Knowledge base search failed during question generation, proceeding without context:',
+          error
         );
       }
 
@@ -1516,20 +1411,22 @@ ${properties}`;
       // Format cluster options for the prompt
       const clusterOptionsText = this.formatClusterOptionsText(clusterOptions);
 
-      // Format organizational policies for AI context with relevance scores
+      // Format unified knowledge context for AI (replaces separate policy formatting)
+      // PRD #375: Tags distinguish policy, pattern, and general content
       const policyContextText =
-        relevantPolicyResults.length > 0
-          ? relevantPolicyResults
+        knowledgeChunks.length > 0
+          ? knowledgeChunks
               .map(
-                result =>
-                  `- ID: ${result.policy.id}
-  Description: ${result.policy.description}
-  Rationale: ${result.policy.rationale}
-  Triggers: ${result.policy.triggers?.join(', ') || 'None'}
-  Score: ${result.score.toFixed(3)} (${result.matchType})`
+                chunk => {
+                  const typeLabel = chunk.tags.length > 0
+                    ? `[${chunk.tags.join(', ')}]`
+                    : '[general]';
+                  return `- ${typeLabel} ${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}
+  Source: ${chunk.uri}`;
+                }
               )
               .join('\n')
-          : 'No organizational policies found for this request.';
+          : 'No organizational knowledge found for this request.';
 
       // Build source_material for capabilities (Kubernetes resource-based solutions)
       const sourceMaterial = `## Source Material
@@ -1660,32 +1557,25 @@ ${resourceDetails}`;
       // Discover cluster options for dynamic questions
       const clusterOptions = await this.discoverClusterOptions();
 
-      // Search for relevant policy intents
-      let relevantPolicyResults: Array<{
-        policy: PolicyIntent;
-        score: number;
-        matchType: string;
-      }> = [];
-      if (this.policyService) {
-        try {
-          const policyResults = await this.policyService.searchPolicyIntents(
-            `${intent} ${chart.chartName} helm chart installation`,
-            { limit: 50 }
-          );
-          relevantPolicyResults = policyResults.map(result => ({
-            policy: result.data,
-            score: result.score,
-            matchType: result.matchType,
-          }));
+      // Search unified knowledge base for relevant policy/pattern guidance
+      // PRD #375: Replaces separate policyService.searchPolicyIntents() call
+      let helmKnowledgeChunks: KnowledgeSearchResultItem[] = [];
+      try {
+        const helmKnowledgeResult = await searchKnowledgeBase({
+          query: `${intent} ${chart.chartName} helm chart installation`,
+          limit: 10,
+        });
+        if (helmKnowledgeResult.success) {
+          helmKnowledgeChunks = helmKnowledgeResult.chunks;
           console.log(
-            `🛡️ Found ${relevantPolicyResults.length} relevant policy intents for Helm question generation`
-          );
-        } catch (error) {
-          console.warn(
-            '⚠️ Policy search failed during Helm question generation:',
-            error
+            `🛡️ Found ${helmKnowledgeChunks.length} relevant knowledge chunks for Helm question generation (unified KB)`
           );
         }
+      } catch (error) {
+        console.warn(
+          '⚠️ Knowledge base search failed during Helm question generation:',
+          error
+        );
       }
 
       // Build source_material for Helm chart
@@ -1705,20 +1595,22 @@ ${valuesYaml || '# No values.yaml available'}
 ## README
 ${readme || 'No README available'}`;
 
-      // Format organizational policies
+      // Format unified knowledge context (replaces policy formatting)
+      // PRD #375: Tags distinguish policy, pattern, and general content
       const policyContextText =
-        relevantPolicyResults.length > 0
-          ? relevantPolicyResults
+        helmKnowledgeChunks.length > 0
+          ? helmKnowledgeChunks
               .map(
-                result =>
-                  `- ID: ${result.policy.id}
-  Description: ${result.policy.description}
-  Rationale: ${result.policy.rationale}
-  Triggers: ${result.policy.triggers?.join(', ') || 'None'}
-  Score: ${result.score.toFixed(3)} (${result.matchType})`
+                chunk => {
+                  const typeLabel = chunk.tags.length > 0
+                    ? `[${chunk.tags.join(', ')}]`
+                    : '[general]';
+                  return `- ${typeLabel} ${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}
+  Source: ${chunk.uri}`;
+                }
               )
               .join('\n')
-          : 'No organizational policies found for this request.';
+          : 'No organizational knowledge found for this request.';
 
       // Format cluster options for the prompt
       const clusterOptionsText = this.formatClusterOptionsText(clusterOptions);
