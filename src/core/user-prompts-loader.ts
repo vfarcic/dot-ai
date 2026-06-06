@@ -16,7 +16,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { Logger } from './error-handling';
-import { cloneRepo, pullRepo, scrubCredentials } from './git-utils';
+import {
+  cloneRepo,
+  pullRepo,
+  sanitizeRelativePath,
+  scrubCredentials,
+} from './git-utils';
 import { Prompt, PromptFile, loadPromptFile } from '../tools/prompts';
 
 /**
@@ -31,11 +36,27 @@ export interface UserPromptsConfig {
 }
 
 /**
- * Cache state for tracking repository freshness
+ * Per-request override for user prompts repository.
+ * When supplied to loadUserPrompts(), bypasses DOT_AI_USER_PROMPTS_REPO env vars
+ * for that call while reusing DOT_AI_GIT_TOKEN and the cache TTL.
+ */
+export interface UserPromptsOverride {
+  repoUrl: string;
+  branch?: string;
+  subPath?: string;
+}
+
+/**
+ * Cache state for tracking repository freshness.
+ * Cache is invalidated when any of repoUrl, branch, or subPath changes,
+ * so we record all three on every clone.
  */
 interface CacheState {
   lastPullTime: number;
   localPath: string;
+  repoUrl: string;
+  branch: string;
+  subPath: string;
 }
 
 // In-memory cache state (persists across requests within same process)
@@ -64,6 +85,102 @@ export function getUserPromptsConfig(): UserPromptsConfig | null {
     repoUrl,
     branch: process.env.DOT_AI_USER_PROMPTS_BRANCH || 'main',
     subPath: process.env.DOT_AI_USER_PROMPTS_PATH || '',
+    gitToken: process.env.DOT_AI_GIT_TOKEN,
+    cacheTtlSeconds,
+  };
+}
+
+/**
+ * Compute the `source` value the REST endpoints expose in their responses.
+ * The CLI (vfarcic/dot-ai-cli) uses this string verbatim to tag the skill
+ * files it writes, so:
+ *   - per-request override supplied  → override.repoUrl
+ *   - no override, env-var configured → DOT_AI_USER_PROMPTS_REPO
+ *   - no override, no env-var         → "built-in"
+ *
+ * URLs flow through scrubSourceUrl before returning, which scrubs BOTH:
+ *   - userinfo credentials (https://user:token@host/repo)
+ *   - credential-bearing query params (?access_token=... etc — CodeRabbit
+ *     Major A)
+ *
+ * Stability is preserved: scrubSourceUrl is deterministic (fixed `***`
+ * placeholder), so two identical credential-bearing inputs produce the same
+ * scrubbed source — keeping the CLI's "wipe only my own slice" invariant
+ * intact.
+ */
+export function computePromptsSource(override?: UserPromptsOverride): string {
+  if (override?.repoUrl) {
+    return scrubSourceUrl(override.repoUrl);
+  }
+  const envRepo = process.env.DOT_AI_USER_PROMPTS_REPO;
+  if (envRepo) {
+    return scrubSourceUrl(envRepo);
+  }
+  return 'built-in';
+}
+
+/**
+ * Build a UserPromptsConfig from a per-request override.
+ * Reuses DOT_AI_GIT_TOKEN and DOT_AI_USER_PROMPTS_CACHE_TTL from the environment;
+ * branch and subPath fall back to the same defaults as the env-var path.
+ *
+ * Validates the override inputs before returning:
+ *   - repoUrl scheme must be http or https (prevents file://, ssh://, etc.)
+ *   - subPath must be a relative path inside the cache directory (no '..',
+ *     no absolute, no null bytes)
+ *   - branch must match the git-safe character set used elsewhere
+ *
+ * Throws Error with a credential-scrubbed message on any validation failure.
+ */
+export function getUserPromptsConfigFromOverride(
+  override: UserPromptsOverride
+): UserPromptsConfig {
+  // F1: repoUrl scheme must be http/https
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(override.repoUrl);
+  } catch {
+    throw new Error(
+      `Invalid override repoUrl: ${sanitizeUrlForLogging(override.repoUrl)} (failed to parse)`
+    );
+  }
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    throw new Error(
+      `Invalid override repoUrl scheme: ${parsedUrl.protocol} (only http and https are allowed) for ${sanitizeUrlForLogging(override.repoUrl)}`
+    );
+  }
+
+  // F2: subPath must be a safe relative path
+  let normalizedSubPath = '';
+  if (override.subPath) {
+    if (override.subPath.includes('\0')) {
+      throw new Error('Invalid override subPath: contains null byte');
+    }
+    try {
+      normalizedSubPath = sanitizeRelativePath(override.subPath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Invalid override subPath: ${message}`, { cause: error });
+    }
+  }
+
+  // F3: branch (if supplied) must match the git-safe character set
+  const branch = override.branch || 'main';
+  if (override.branch !== undefined && !isValidGitBranch(override.branch)) {
+    throw new Error(`Invalid override branch name: ${override.branch}`);
+  }
+
+  const parsedTtl = parseInt(
+    process.env.DOT_AI_USER_PROMPTS_CACHE_TTL || '86400',
+    10
+  );
+  const cacheTtlSeconds =
+    Number.isNaN(parsedTtl) || parsedTtl < 0 ? 86400 : parsedTtl;
+
+  return {
+    repoUrl: override.repoUrl,
+    branch,
+    subPath: normalizedSubPath,
     gitToken: process.env.DOT_AI_GIT_TOKEN,
     cacheTtlSeconds,
   };
@@ -108,6 +225,48 @@ export function sanitizeUrlForLogging(url: string): string {
   } catch {
     // If URL parsing fails, do basic sanitization
     return url.replace(/\/\/[^@]+@/, '//***@');
+  }
+}
+
+/**
+ * Query-param names whose values look credential-bearing. Conservative
+ * allowlist-on-redaction — case-insensitive substring match.
+ */
+const CREDENTIAL_PARAM_RE = /token|key|secret|password|auth|credential/i;
+
+/**
+ * Source-only deep scrub for URLs that flow into the response body and the
+ * on-disk skill frontmatter the CLI writes (PRD #581 / CodeRabbit Major A).
+ *
+ * In addition to the userinfo scrub from sanitizeUrlForLogging, redacts the
+ * VALUES of query parameters whose names look credential-bearing (token, key,
+ * secret, password, auth, credential — case-insensitive). The placeholder is
+ * a fixed string so the output is deterministic — same input always produces
+ * the same source, preserving the CLI's "tag-and-wipe-by-source" invariant.
+ *
+ * Scope: ONLY called from computePromptsSource. NOT a general-purpose
+ * replacement for sanitizeUrlForLogging — the broader hygiene of the shared
+ * helper was deferred per the M2 follow-up scope.
+ */
+export function scrubSourceUrl(url: string): string {
+  // Userinfo scrub first; this also handles "//user:pass@" via the regex
+  // fallback when URL parsing fails.
+  const userinfoScrubbed = sanitizeUrlForLogging(url);
+  try {
+    const parsed = new URL(userinfoScrubbed);
+    let mutated = false;
+    for (const name of [...parsed.searchParams.keys()]) {
+      if (CREDENTIAL_PARAM_RE.test(name)) {
+        parsed.searchParams.set(name, '***');
+        mutated = true;
+      }
+    }
+    return mutated ? parsed.toString() : userinfoScrubbed;
+  } catch {
+    // Unparseable; return the userinfo-scrubbed form unchanged. Query-param
+    // scrubbing on unparseable URLs is meaningless — there's no reliable
+    // boundary to walk.
+    return userinfoScrubbed;
   }
 }
 
@@ -239,11 +398,38 @@ async function ensureRepository(
   const now = Date.now();
   const ttlMs = config.cacheTtlSeconds * 1000;
 
-  // Check if we need to clone or pull
-  if (!cacheState || !fs.existsSync(cacheState.localPath)) {
-    // First time or cache directory was deleted - clone
+  // Check if we need to clone or pull. The cache is invalidated when any of
+  // (repoUrl, branch, subPath) differs from the cached entry so that, for
+  // example, a future override with a different branch but the same repoUrl
+  // won't serve stale content from the previous clone.
+  const cacheMisses =
+    cacheState !== null &&
+    (cacheState.repoUrl !== config.repoUrl ||
+      cacheState.branch !== config.branch ||
+      cacheState.subPath !== config.subPath);
+  if (!cacheState || !fs.existsSync(cacheState.localPath) || cacheMisses) {
+    // First time, cache directory deleted, or cached coordinates differ - clone fresh
+    if (cacheMisses) {
+      logger.debug(
+        'Cached repo coordinates differ from requested, re-cloning',
+        {
+          cachedUrl: sanitizeUrlForLogging(cacheState!.repoUrl),
+          cachedBranch: cacheState!.branch,
+          cachedSubPath: cacheState!.subPath,
+          requestedUrl: sanitizeUrlForLogging(config.repoUrl),
+          requestedBranch: config.branch,
+          requestedSubPath: config.subPath,
+        }
+      );
+    }
     await cloneRepository(config, localPath, logger);
-    cacheState = { lastPullTime: now, localPath };
+    cacheState = {
+      lastPullTime: now,
+      localPath,
+      repoUrl: config.repoUrl,
+      branch: config.branch,
+      subPath: config.subPath,
+    };
   } else if (forceRefresh || now - cacheState.lastPullTime >= ttlMs) {
     // Cache expired or force refresh - pull
     await pullRepository(config, localPath, logger);
@@ -334,14 +520,34 @@ function loadSkillFolder(
 }
 
 /**
- * Load user prompts from the configured git repository
- * Returns empty array if not configured or on error
+ * Load user prompts from a git repository.
+ *
+ * When `override` is supplied, fetches from that repository for this call only,
+ * ignoring DOT_AI_USER_PROMPTS_REPO env vars. Otherwise, uses env-var configuration.
+ * Returns empty array if not configured or on error.
  */
 export async function loadUserPrompts(
   logger: Logger,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  override?: UserPromptsOverride
 ): Promise<Prompt[]> {
-  const config = getUserPromptsConfig();
+  let config: UserPromptsConfig | null;
+  try {
+    // Override validation can throw on bad scheme / traversal / branch — keep
+    // the call inside the catch so a malformed per-request override returns
+    // [] rather than propagating an exception to the caller.
+    config = override
+      ? getUserPromptsConfigFromOverride(override)
+      : getUserPromptsConfig();
+  } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : 'Unknown error';
+    const safeMessage = scrubCredentials(rawMessage);
+    logger.error(
+      'Failed to load user prompts, falling back to built-in only',
+      new Error(safeMessage)
+    );
+    return [];
+  }
 
   if (!config) {
     logger.debug(
@@ -374,7 +580,10 @@ export async function loadUserPrompts(
         const prompt = loadPromptFile(filePath, 'user');
         prompts.push(prompt);
         loadedNames.add(prompt.name);
-        logger.debug('Loaded user prompt', { name: prompt.name, file: entry.name });
+        logger.debug('Loaded user prompt', {
+          name: prompt.name,
+          file: entry.name,
+        });
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error';
@@ -386,17 +595,22 @@ export async function loadUserPrompts(
     }
 
     // 2. Load skill folders (directories containing SKILL.md)
-    const directories = entries.filter(e => e.isDirectory() && !e.name.startsWith('.'));
+    const directories = entries.filter(
+      e => e.isDirectory() && !e.name.startsWith('.')
+    );
     for (const dir of directories) {
       try {
         const dirPath = path.join(promptsDir, dir.name);
         const prompt = loadSkillFolder(dirPath, dir.name, logger);
         if (prompt) {
           if (loadedNames.has(prompt.name)) {
-            logger.warn('Skill folder name collision with existing prompt, skipping', {
-              name: prompt.name,
-              dir: dir.name,
-            });
+            logger.warn(
+              'Skill folder name collision with existing prompt, skipping',
+              {
+                name: prompt.name,
+                dir: dir.name,
+              }
+            );
             continue;
           }
           prompts.push(prompt);
@@ -424,11 +638,17 @@ export async function loadUserPrompts(
 
     return prompts;
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
+    // F5: scrub credentials before they reach loggers/callers. Underlying git
+    // errors can echo the authenticated URL (with embedded token) verbatim.
+    const rawMessage = error instanceof Error ? error.message : 'Unknown error';
+    const safeMessage = scrubCredentials(
+      config.gitToken
+        ? rawMessage.replaceAll(config.gitToken, '***')
+        : rawMessage
+    );
     logger.error(
       'Failed to load user prompts, falling back to built-in only',
-      new Error(errorMessage)
+      new Error(safeMessage)
     );
     return [];
   }

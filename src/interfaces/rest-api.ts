@@ -20,6 +20,13 @@ import {
   handlePromptsGetRequest,
   loadAllPrompts,
 } from '../tools/prompts';
+import {
+  computePromptsSource,
+  getUserPromptsConfigFromOverride,
+  sanitizeUrlForLogging,
+  UserPromptsOverride,
+} from '../core/user-prompts-loader';
+import { scrubCredentials } from '../core/git-utils';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import {
   getSessionEventBus,
@@ -67,6 +74,51 @@ import {
   filterAuthorizedTools,
   logUserManagementOperation,
 } from '../core/rbac';
+
+/**
+ * Constant placeholder used when the request URL fails to parse and the
+ * caller would otherwise have to choose between logging a potentially
+ * credential-bearing query string or dropping the request log entirely. A
+ * stable string keeps log-grepping useful.
+ */
+export const UNPARSEABLE_QUERY_PLACEHOLDER = '?<redacted-unparseable>';
+
+/**
+ * F3: req.url is logged on every request; with PRD #581 the query string may
+ * carry `?repo=<user-supplied-url>` whose value can include credentials. This
+ * helper rewrites the `repo` value to its credential-scrubbed form so the
+ * raw token doesn't reach the log. Everything else is preserved verbatim.
+ *
+ * CodeRabbit Major B: on parse failure, we no longer return the input
+ * verbatim — an unparseable URL is more likely than a parseable one to hide
+ * a credential (a stray character may have broken the parse). Instead, keep
+ * the pathname (so the log still tells you which endpoint was hit) but
+ * REDACT the entire query string with a fixed placeholder. URLs without a
+ * '?' are pass-through (no risk).
+ */
+export function sanitizeRequestUrlForLogging(
+  url: string | undefined
+): string | undefined {
+  if (!url) return url;
+  if (!url.includes('repo=')) return url;
+  try {
+    // req.url is path-relative; provide a dummy base for URL parsing.
+    const parsed = new URL(url, 'http://internal.invalid');
+    const repo = parsed.searchParams.get('repo');
+    if (repo) {
+      parsed.searchParams.set('repo', sanitizeUrlForLogging(repo));
+    }
+    // Return path + search only (drop the dummy base).
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch {
+    // F3/Major B: don't echo a potentially credential-bearing query string
+    // we couldn't parse. Keep the path (useful for log triage) and replace
+    // the rest with a constant marker.
+    const qIdx = url.indexOf('?');
+    if (qIdx === -1) return url;
+    return url.slice(0, qIdx) + UNPARSEABLE_QUERY_PLACEHOLDER;
+  }
+}
 
 /**
  * HTTP status codes for REST responses
@@ -273,7 +325,10 @@ export class RestApiRouter {
       this.logger.debug('REST API request received', {
         requestId,
         method: req.method,
-        url: req.url,
+        // F3: req.url may carry a `?repo=<user-supplied-url>` whose query
+        // value includes credentials (PRD #581). Sanitize that single
+        // value before logging.
+        url: sanitizeRequestUrlForLogging(req.url),
         hasBody: !!body,
       });
 
@@ -411,16 +466,17 @@ export class RestApiRouter {
       'GET:/api/v1/logs': () =>
         this.handleGetLogs(req, res, requestId, searchParams),
       'GET:/api/v1/prompts': () =>
-        this.handlePromptsListRequest(req, res, requestId),
+        this.handlePromptsListRequest(req, res, requestId, searchParams),
       'POST:/api/v1/prompts/refresh': () =>
-        this.handlePromptsCacheRefresh(req, res, requestId),
+        this.handlePromptsCacheRefresh(req, res, requestId, body),
       'POST:/api/v1/prompts/:promptName': () =>
         this.handlePromptsGetRequest(
           req,
           res,
           requestId,
           params.promptName,
-          body
+          body,
+          searchParams
         ),
       'GET:/api/v1/visualize/:sessionId': () =>
         this.handleVisualize(
@@ -1805,17 +1861,85 @@ export class RestApiRouter {
   }
 
   /**
+   * Extract and validate the per-request `repo` override (PRD #581).
+   *
+   * Returns:
+   *   - { ok: true, override }    when no repo param is supplied, override is undefined.
+   *   - { ok: true, override }    when a syntactically valid override URL is supplied.
+   *   - { ok: false, message }    when the override fails validation (HTTP 400).
+   *
+   * The validation message is run through scrubCredentials so embedded tokens
+   * never reach the wire response.
+   */
+  private extractPromptsOverride(repoParam: unknown):
+    | {
+        ok: true;
+        override?: UserPromptsOverride;
+      }
+    | {
+        ok: false;
+        message: string;
+      } {
+    // Treat absent (null/undefined) as no override.
+    if (repoParam === undefined || repoParam === null) {
+      return { ok: true, override: undefined };
+    }
+    // The wire contract says `repo` is a string. Anything else (array,
+    // number, object, boolean) is a 400 — otherwise downstream code
+    // would crash to a 500.
+    if (typeof repoParam !== 'string') {
+      return {
+        ok: false,
+        message: `repo must be a string (got ${Array.isArray(repoParam) ? 'array' : typeof repoParam})`,
+      };
+    }
+    const trimmed = repoParam.trim();
+    if (!trimmed) {
+      return { ok: true, override: undefined };
+    }
+    const candidate: UserPromptsOverride = { repoUrl: trimmed };
+    try {
+      // Throws on invalid scheme / subPath / branch.
+      getUserPromptsConfigFromOverride(candidate);
+      return { ok: true, override: candidate };
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : 'Invalid override';
+      return { ok: false, message: scrubCredentials(raw) };
+    }
+  }
+
+  /**
    * Handle prompts list requests
    */
   private async handlePromptsListRequest(
     req: IncomingMessage,
     res: ServerResponse,
-    requestId: string
+    requestId: string,
+    searchParams: URLSearchParams
   ): Promise<void> {
     try {
       this.logger.info('Processing prompts list request', { requestId });
 
-      const result = await handlePromptsListRequest({}, this.logger, requestId);
+      const overrideResult = this.extractPromptsOverride(
+        searchParams.get('repo')
+      );
+      if (!overrideResult.ok) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          overrideResult.message
+        );
+        return;
+      }
+
+      const result = await handlePromptsListRequest(
+        {},
+        this.logger,
+        requestId,
+        overrideResult.override
+      );
 
       const response: RestApiResponse = {
         success: true,
@@ -1860,7 +1984,8 @@ export class RestApiRouter {
     res: ServerResponse,
     requestId: string,
     promptName: string,
-    body: unknown
+    body: unknown,
+    searchParams: URLSearchParams
   ): Promise<void> {
     try {
       this.logger.info('Processing prompt get request', {
@@ -1868,13 +1993,28 @@ export class RestApiRouter {
         promptName,
       });
 
+      const overrideResult = this.extractPromptsOverride(
+        searchParams.get('repo')
+      );
+      if (!overrideResult.ok) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          overrideResult.message
+        );
+        return;
+      }
+
       const bodyObj = body as
         | { arguments?: Record<string, string> }
         | undefined;
       const result = await handlePromptsGetRequest(
         { name: promptName, arguments: bodyObj?.arguments },
         this.logger,
-        requestId
+        requestId,
+        overrideResult.override
       );
 
       const response: RestApiResponse = {
@@ -1923,22 +2063,42 @@ export class RestApiRouter {
   }
 
   /**
-   * Handle prompts cache refresh requests (PRD #386)
+   * Handle prompts cache refresh requests (PRD #386, extended PRD #581)
    */
   private async handlePromptsCacheRefresh(
     req: IncomingMessage,
     res: ServerResponse,
-    requestId: string
+    requestId: string,
+    body: unknown
   ): Promise<void> {
     try {
       this.logger.info('Processing prompts cache refresh request', {
         requestId,
       });
 
-      const prompts = await loadAllPrompts(this.logger, undefined, true);
+      // body.repo type is checked inside extractPromptsOverride (it accepts
+      // unknown and rejects non-string values with 400 — see F2).
+      const bodyObj = body as { repo?: unknown } | undefined;
+      const overrideResult = this.extractPromptsOverride(bodyObj?.repo);
+      if (!overrideResult.ok) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          overrideResult.message
+        );
+        return;
+      }
 
-      const hasUserPromptsRepo = !!process.env.DOT_AI_USER_PROMPTS_REPO;
-      const source = hasUserPromptsRepo ? 'built-in+repository' : 'built-in';
+      const prompts = await loadAllPrompts(
+        this.logger,
+        undefined,
+        true,
+        overrideResult.override
+      );
+
+      const source = computePromptsSource(overrideResult.override);
 
       const response: RestApiResponse = {
         success: true,
@@ -2224,7 +2384,9 @@ export class RestApiRouter {
       let isFallbackResponse = false;
       try {
         if (result.status && result.status !== 'success') {
-          throw new Error(`AI visualization generation ${result.status}: ${result.finalMessage}`);
+          throw new Error(
+            `AI visualization generation ${result.status}: ${result.finalMessage}`
+          );
         }
         const toolsUsed = [
           ...new Set(result.toolCallsExecuted.map(tc => tc.tool)),
@@ -2363,7 +2525,12 @@ export class RestApiRouter {
         0
       );
 
-      this.logger.info('Listing sessions', { requestId, status, limit, offset });
+      this.logger.info('Listing sessions', {
+        requestId,
+        status,
+        limit,
+        offset,
+      });
 
       const sessionManager = new GenericSessionManager<Record<string, unknown>>(
         'rem'
@@ -2467,7 +2634,7 @@ export class RestApiRouter {
     const headers: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
     };
 
     if (this.config.enableCors) {
