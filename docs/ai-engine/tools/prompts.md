@@ -419,27 +419,27 @@ The feature is designed for graceful degradation:
 
 ### Multi-source skills via the per-request repo override
 
-For setups that want to pull prompts from **more than one** repository — for example, org-wide public skills on GitHub plus per-team private skills on a self-hosted GitLab — the server's three prompts REST endpoints (`POST /api/v1/prompts/refresh`, `GET /api/v1/prompts`, `POST /api/v1/prompts/:promptName`) accept an optional `repo` parameter that overrides `DOT_AI_USER_PROMPTS_REPO` for a single request. Each request still serves exactly one repository.
+When a single `DOT_AI_USER_PROMPTS_REPO` isn't enough — for example, you want org-wide public skills from one repository plus per-team private skills from another — run `dot-ai skills generate --repo <url>` (see the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical reference) to fetch prompts from a specified repository for that invocation only, overriding the env-var default. Run the command multiple times — typically wired up as separate agent hooks, one per source — and the CLI tags each set of generated skills with its source so subsequent runs only wipe their own slice.
 
-Consumers (typically the [DevOps AI Toolkit CLI](https://devopstoolkit.ai/docs/cli)) drive multi-source composition by making multiple requests, one per source. See the CLI docs for the recommended composition flow (flag names, file tagging, per-source clean-up).
+Under the hood, each invocation talks to the server once and the server still serves exactly one repository per request; composition lives in the CLI, not the server.
 
-When the override is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO` (or to the built-in prompts when no env-var repo is configured).
+When the override is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO`, or to the built-in prompts when no env-var repo is configured.
 
 **Server-side caveats** for this release (the contract is additive, so these can be lifted later without breaking changes):
 
 | Caveat | Impact |
 |--------|--------|
 | Single shared `DOT_AI_GIT_TOKEN` | All overrides authenticate with the same token. Repos that live on different providers (e.g., GitHub + private GitLab) can't both be authenticated. |
-| Single-slot loader cache | Sequential requests against different repos re-clone each time. Clones are `--depth 1`, so the cost is small per call, but it's noticeable when alternating between repos within the TTL window. |
+| Single-slot loader cache | Sequential invocations against different repos re-clone each time. Clones are `--depth 1`, so the cost is small per call, but it's noticeable when alternating between repos within the TTL window. |
 | No URL allowlist | The server trusts the override URL. Don't expose this surface to untrusted callers without an upstream gate. |
 
 **When NOT to use the override**:
 
-- Inside a long-running query loop that alternates between repos (every alternation causes a re-clone — pin to one repo for the loop and switch outside it).
+- Inside a long-running agent loop that alternates between repos (every alternation causes a re-clone — pin to one repo for the loop and switch outside it).
 - As a substitute for `DOT_AI_USER_PROMPTS_REPO` when you only have a single source. The env var is simpler and benefits from the cache TTL.
 - From untrusted clients (no SSRF guard in this release).
 
-See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full wire contract, the `source` field semantics, the validation rules, and the response envelopes returned by each endpoint.
+See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full wire contract, the `source` field semantics, validation rules, and response envelopes returned by each endpoint — useful if you're building a custom MCP/HTTP client rather than using the CLI.
 
 ## Troubleshooting
 
