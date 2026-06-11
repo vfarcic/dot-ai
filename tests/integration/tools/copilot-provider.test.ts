@@ -14,6 +14,7 @@
 
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
+import { makeCopilotCredentialResolver } from '../../../src/core/providers/copilot-token-exchanger.js';
 
 const COPILOT_TOKEN =
   process.env.GITHUB_COPILOT_TOKEN ||
@@ -43,6 +44,16 @@ describe.concurrent('GitHub Copilot Provider Integration', () => {
 
   beforeAll(async () => {
     if (!shouldRun) return;
+  });
+
+  test('should reject fine-grained PATs before calling the Copilot API', () => {
+    const resolver = makeCopilotCredentialResolver(
+      'github_pat_unsupportedForCopilotInference'
+    );
+
+    expect(() => resolver.resolve()).toThrow(
+      /Personal access tokens \(github_pat_\* and ghp_\*\) are not supported/
+    );
   });
 
   test.skipIf(!shouldRun)(

@@ -139,7 +139,7 @@ describe('copilot vercel-provider integration', () => {
     () => {
       const resolver = makeCopilotCredentialResolver();
       const token = resolver.resolve();
-      expect(token).toMatch(/^(gho_|github_pat_|ghu_)/);
+      expect(token).toMatch(/^(gho_|ghu_)/);
     }
   );
 });
