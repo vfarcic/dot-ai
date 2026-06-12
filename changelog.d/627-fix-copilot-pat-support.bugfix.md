@@ -1,1 +1,0 @@
-GitHub Copilot provider configuration now rejects personal access tokens (`github_pat_*` and `ghp_*`) before making inference calls, because `api.githubcopilot.com` does not support PATs for this direct-token endpoint. Docs and Helm comments now list only `gho_*` and `ghu_*` tokens.

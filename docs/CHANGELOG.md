@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.21.1] - 2026-06-12
+
+### Bug Fixes
+
+- The operate tool now extracts JSON from AI responses using a more robust parser, fixing intermittent `Operation failed: Invalid AI response format` errors that occurred when the model included explanatory text alongside the JSON object. ([#operate-json-parse](https://github.com/vfarcic/dot-ai/issues/operate-json-parse))
+- GitHub Copilot provider configuration now rejects personal access tokens (`github_pat_*` and `ghp_*`) before making inference calls, because `api.githubcopilot.com` does not support PATs for this direct-token endpoint. Docs and Helm comments now list only `gho_*` and `ghu_*` tokens. ([#627-fix-copilot-pat-support](https://github.com/vfarcic/dot-ai/issues/627-fix-copilot-pat-support))
+
+
 ## [1.21.0] - 2026-06-06
 
 ### Features
