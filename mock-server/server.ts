@@ -16,6 +16,10 @@ import {
   applyPromptsRepoOverride,
   isPromptsRoutePath,
 } from './prompts-override.js';
+import {
+  isSingleResourceRoutePath,
+  lookupResource,
+} from './resource-lookup.js';
 import { BodyTooLargeError, readJsonBody } from './read-json-body.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -123,6 +127,34 @@ async function handleRequest(
     if (state) redirectUrl.searchParams.set('state', state);
     res.writeHead(302, { Location: redirectUrl.toString() });
     res.end();
+    return;
+  }
+
+  // Single-resource lookup: the fixture is a full-manifest collection; resolve
+  // the one object matching the kind/apiVersion/name/namespace query and return
+  // it under data.resource (404 when not found, 400 when kind/name missing).
+  if (isSingleResourceRoutePath(route.path) && route.fixture) {
+    try {
+      const collection = await loadFixture(route.fixture);
+      const result = lookupResource(collection, {
+        kind: url.searchParams.get('kind'),
+        apiVersion: url.searchParams.get('apiVersion'),
+        name: url.searchParams.get('name'),
+        namespace: url.searchParams.get('namespace'),
+      });
+      sendJson(res, result.status, result.body);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      sendJson(res, 500, {
+        success: false,
+        error: {
+          code: 'FIXTURE_LOAD_ERROR',
+          message: `Failed to load fixture: ${route.fixture}`,
+          details: errorMessage,
+        },
+      });
+    }
     return;
   }
 
