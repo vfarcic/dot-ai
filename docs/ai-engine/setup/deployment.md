@@ -211,7 +211,6 @@ Use your existing GitHub Copilot subscription instead of a pay-per-token API:
 ```bash
 # Set your GitHub OAuth token (gho_* prefix, from a Copilot-enabled account)
 # Obtain one with: gh auth token  (requires gh CLI)
-# Or generate a fine-grained PAT at https://github.com/settings/tokens with Copilot Requests permission
 export GITHUB_COPILOT_TOKEN="gho_..."
 
 helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
@@ -225,7 +224,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --wait
 ```
 
-Supported token formats: `gho_*` (OAuth, recommended), `github_pat_*` (fine-grained PAT with Copilot Requests permission), `ghu_*` (device flow). Classic PATs (`ghp_*`) are not supported. The resolver checks `GITHUB_COPILOT_TOKEN`, `GH_TOKEN`, and `GITHUB_TOKEN` env vars in that priority order. Note: the `gh auth token` CLI fallback is not available in Kubernetes deployments where `gh` is not installed — supply the token explicitly via the env var.
+Supported token formats: `gho_*` (OAuth, recommended) and `ghu_*` (GitHub App). Personal access tokens (`github_pat_*` fine-grained PATs and `ghp_*` classic PATs) are not supported by `api.githubcopilot.com`. The resolver checks `GITHUB_COPILOT_TOKEN`, `GH_TOKEN`, and `GITHUB_TOKEN` env vars in that priority order. Note: the `gh auth token` CLI fallback is not available in Kubernetes deployments where `gh` is not installed — supply the token explicitly via the env var.
 
 **AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys (unless using the `host` provider) and will show helpful error messages when accessed without configuration.
 

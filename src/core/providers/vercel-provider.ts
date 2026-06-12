@@ -263,7 +263,7 @@ export class VercelProvider implements AIProvider {
           return; // Early return - model instance already set
         case 'copilot': {
           // PRD #587: GitHub Copilot provider
-          // Uses the raw GitHub token (gho_*, github_pat_*, ghu_*) directly as a
+          // Uses the raw GitHub token (gho_* or ghu_*) directly as a
           // Bearer credential against api.githubcopilot.com — no token-exchange step.
           //
           // Routing (mirrors Hermes Agent):

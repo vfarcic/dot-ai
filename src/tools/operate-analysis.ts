@@ -5,6 +5,7 @@ import { createAIProvider } from '../core/ai-provider-factory';
 import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import { getVisualizationUrl } from '../core/visualization';
+import { extractJsonFromAIResponse } from '../core/platform-utils';
 import {
   EmbeddedContext,
   OperateSessionData,
@@ -290,32 +291,14 @@ function parseAIResponse(
 ): ParsedOperateResponse {
   logger.debug('Parsing AI response');
 
-  // Try to extract JSON from code block first (Claude format)
-  const jsonMatch = response.match(/```json\n([\s\S]+?)\n```/);
-
-  let jsonContent: string;
-  if (jsonMatch) {
-    jsonContent = jsonMatch[1];
-  } else {
-    // Fallback: try to parse raw JSON response (Gemini format)
-    // Look for JSON object starting with { and ending with }
-    const rawJsonMatch = response.match(/^\s*(\{[\s\S]*\})\s*$/);
-    if (rawJsonMatch) {
-      jsonContent = rawJsonMatch[1];
-      logger.debug('Parsing raw JSON response (no code block wrapper)');
-    } else {
-      const truncatedResponse = response.substring(0, 500);
-      logger.error(
-        `AI response not valid JSON. Response: ${truncatedResponse}`
-      );
-      throw new Error(
-        'AI did not return structured JSON response. Expected JSON object or ```json code block.'
-      );
-    }
-  }
-
   try {
-    const parsed = JSON.parse(jsonContent);
+    // Robustly extract the JSON object from the AI response. Reuses the shared
+    // extractor (platform-utils), also used by recommend/schema/evaluators: it
+    // handles ```json / ``` code fences AND tolerates prose before or after the
+    // JSON object. Previously a stray sentence the model appended inside the
+    // ```json block made JSON.parse fail with "Unexpected non-whitespace
+    // character after JSON" — an intermittent operate flake.
+    const parsed = extractJsonFromAIResponse(response) as ParsedOperateResponse;
 
     // Validate required fields
     if (!parsed.analysis || typeof parsed.analysis !== 'string') {

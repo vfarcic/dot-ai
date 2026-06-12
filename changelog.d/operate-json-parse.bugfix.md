@@ -1,0 +1,1 @@
+The operate tool now extracts JSON from AI responses using a more robust parser, fixing intermittent `Operation failed: Invalid AI response format` errors that occurred when the model included explanatory text alongside the JSON object.
