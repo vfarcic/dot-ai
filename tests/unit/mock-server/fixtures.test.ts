@@ -5,7 +5,7 @@
  * point to valid JSON files with the expected response structure.
  */
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { matchRoute } from '../../../mock-server/routes';
@@ -13,6 +13,10 @@ import {
   applyPromptsRepoOverride,
   isPromptsRoutePath,
 } from '../../../mock-server/prompts-override';
+import {
+  isSingleResourceRoutePath,
+  lookupResource,
+} from '../../../mock-server/resource-lookup';
 
 const MOCK_SERVER_DIR = join(
   import.meta.dirname,
@@ -391,6 +395,167 @@ describe('Mock Server Fixtures', () => {
       // Was 'built-in+repository' pre-M2; PRD #581 wire contract now requires
       // the env-var URL (or 'built-in' when none is configured).
       expect(fixture.data.source).toBe('built-in');
+    });
+  });
+
+  // dot-ai-ui request: single-resource endpoint (GET /api/v1/resource) for the
+  // resource-detail view (Overview/Metadata/Spec/Status/YAML tabs).
+  describe('GET /api/v1/resource - Single Resource', () => {
+    test('route resolves to the full-manifest collection fixture', () => {
+      const result = matchRoute('GET', '/api/v1/resource');
+
+      expect(result).not.toBeNull();
+      expect(result!.route.path).toBe('/api/v1/resource');
+      expect(result!.route.fixture).toBe('resources/single-resources.json');
+    });
+
+    test('collection fixture holds full k8s objects for listed resources', async () => {
+      const fixture = (await loadFixture(
+        'resources/single-resources.json'
+      )) as any;
+
+      expect(Array.isArray(fixture.resources)).toBe(true);
+      expect(fixture.resources.length).toBeGreaterThan(0);
+
+      for (const resource of fixture.resources) {
+        expect(resource).toMatchObject({
+          apiVersion: expect.any(String),
+          kind: expect.any(String),
+          metadata: expect.objectContaining({
+            name: expect.any(String),
+          }),
+          spec: expect.any(Object),
+          status: expect.any(Object),
+        });
+      }
+
+      // Every resource the list endpoints expose must be resolvable here so the
+      // UI can open any of them in the detail view.
+      const ids = fixture.resources.map(
+        (r: any) => `${r.kind}/${r.metadata.namespace}/${r.metadata.name}`
+      );
+      expect(ids).toContain('Pod/default/nginx-deployment-7d9c67b5f-abc12');
+      expect(ids).toContain('Pod/default/nginx-deployment-7d9c67b5f-def34');
+      expect(ids).toContain('Pod/database/postgres-0');
+      expect(ids).toContain('Deployment/default/nginx-deployment');
+      expect(ids).toContain('Deployment/default/redis-master');
+      expect(ids).toContain('Deployment/default/api-gateway');
+    });
+
+    describe('lookupResource', () => {
+      let collection: unknown;
+
+      beforeAll(async () => {
+        collection = await loadFixture('resources/single-resources.json');
+      });
+
+      test('isSingleResourceRoutePath matches only the single-resource path', () => {
+        expect(isSingleResourceRoutePath('/api/v1/resource')).toBe(true);
+        expect(isSingleResourceRoutePath('/api/v1/resources')).toBe(false);
+        expect(isSingleResourceRoutePath('/api/v1/resource/extra')).toBe(false);
+      });
+
+      test('returns 200 with the resource under data.resource on a match', () => {
+        const result = lookupResource(collection, {
+          kind: 'Deployment',
+          apiVersion: 'apps/v1',
+          name: 'nginx-deployment',
+          namespace: 'default',
+        });
+
+        expect(result.status).toBe(200);
+        expect(result.body).toMatchObject({
+          success: true,
+          data: {
+            resource: {
+              apiVersion: 'apps/v1',
+              kind: 'Deployment',
+              metadata: { name: 'nginx-deployment', namespace: 'default' },
+              spec: expect.any(Object),
+              status: expect.any(Object),
+            },
+          },
+          meta: { timestamp: expect.any(String), version: '1.0.0' },
+        });
+      });
+
+      test('matches a namespaced Pod in a non-default namespace', () => {
+        const result = lookupResource(collection, {
+          kind: 'Pod',
+          apiVersion: 'v1',
+          name: 'postgres-0',
+          namespace: 'database',
+        });
+
+        expect(result.status).toBe(200);
+        expect((result.body as any).data.resource.metadata).toMatchObject({
+          name: 'postgres-0',
+          namespace: 'database',
+        });
+      });
+
+      test('matches without namespace or apiVersion (lenient selectors)', () => {
+        const result = lookupResource(collection, {
+          kind: 'Deployment',
+          name: 'redis-master',
+        });
+
+        expect(result.status).toBe(200);
+        expect((result.body as any).data.resource.metadata.name).toBe(
+          'redis-master'
+        );
+      });
+
+      test('returns 404 when the resource is not in the collection', () => {
+        const result = lookupResource(collection, {
+          kind: 'Pod',
+          apiVersion: 'v1',
+          name: 'does-not-exist',
+          namespace: 'default',
+        });
+
+        expect(result.status).toBe(404);
+        expect(result.body).toMatchObject({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            details: {
+              kind: 'Pod',
+              name: 'does-not-exist',
+              namespace: 'default',
+            },
+          },
+        });
+      });
+
+      test('returns 404 when namespace does not match an existing name', () => {
+        const result = lookupResource(collection, {
+          kind: 'Pod',
+          apiVersion: 'v1',
+          name: 'postgres-0',
+          namespace: 'default',
+        });
+
+        expect(result.status).toBe(404);
+      });
+
+      test('returns 400 when required parameters are missing', () => {
+        const result = lookupResource(collection, {
+          apiVersion: 'v1',
+          namespace: 'default',
+        });
+
+        expect(result.status).toBe(400);
+        expect(result.body).toMatchObject({
+          success: false,
+          error: {
+            code: 'MISSING_PARAMETER',
+            details: {
+              missingParameters: expect.arrayContaining(['kind', 'name']),
+            },
+          },
+        });
+      });
     });
   });
 });

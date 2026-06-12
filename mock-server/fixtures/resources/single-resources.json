@@ -1,0 +1,485 @@
+{
+  "resources": [
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "nginx-deployment",
+        "namespace": "default",
+        "uid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "creationTimestamp": "2024-01-10T08:00:00Z",
+        "labels": {
+          "app": "nginx",
+          "environment": "production"
+        },
+        "annotations": {
+          "deployment.kubernetes.io/revision": "3"
+        }
+      },
+      "spec": {
+        "replicas": 3,
+        "selector": {
+          "matchLabels": {
+            "app": "nginx"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "nginx"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "nginx",
+                "image": "nginx:1.25.3",
+                "ports": [
+                  {
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                  }
+                ],
+                "resources": {
+                  "limits": {
+                    "cpu": "500m",
+                    "memory": "256Mi"
+                  },
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": {
+        "availableReplicas": 3,
+        "readyReplicas": 3,
+        "replicas": 3,
+        "updatedReplicas": 3,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True",
+            "lastUpdateTime": "2024-01-10T08:02:00Z",
+            "lastTransitionTime": "2024-01-10T08:02:00Z",
+            "reason": "MinimumReplicasAvailable",
+            "message": "Deployment has minimum availability."
+          },
+          {
+            "type": "Progressing",
+            "status": "True",
+            "lastUpdateTime": "2024-01-12T14:30:00Z",
+            "lastTransitionTime": "2024-01-10T08:00:00Z",
+            "reason": "NewReplicaSetAvailable",
+            "message": "ReplicaSet \"nginx-deployment-7d9c67b5f\" has successfully progressed."
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "redis-master",
+        "namespace": "default",
+        "uid": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+        "creationTimestamp": "2024-01-08T12:00:00Z",
+        "labels": {
+          "app": "redis",
+          "role": "master"
+        },
+        "annotations": {
+          "deployment.kubernetes.io/revision": "1"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "redis",
+            "role": "master"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "redis",
+              "role": "master"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "redis",
+                "image": "redis:7.2.4-alpine",
+                "ports": [
+                  {
+                    "containerPort": 6379,
+                    "protocol": "TCP"
+                  }
+                ],
+                "resources": {
+                  "limits": {
+                    "cpu": "250m",
+                    "memory": "128Mi"
+                  },
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": {
+        "availableReplicas": 1,
+        "readyReplicas": 1,
+        "replicas": 1,
+        "updatedReplicas": 1,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True",
+            "lastUpdateTime": "2024-01-08T12:01:30Z",
+            "lastTransitionTime": "2024-01-08T12:01:30Z",
+            "reason": "MinimumReplicasAvailable",
+            "message": "Deployment has minimum availability."
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "api-gateway",
+        "namespace": "default",
+        "uid": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+        "creationTimestamp": "2024-01-12T14:30:00Z",
+        "labels": {
+          "app": "api-gateway",
+          "version": "v2"
+        },
+        "annotations": {
+          "deployment.kubernetes.io/revision": "2"
+        }
+      },
+      "spec": {
+        "replicas": 2,
+        "selector": {
+          "matchLabels": {
+            "app": "api-gateway"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "api-gateway",
+              "version": "v2"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "gateway",
+                "image": "ghcr.io/example/api-gateway:v2.3.1",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "protocol": "TCP"
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "LOG_LEVEL",
+                    "value": "info"
+                  }
+                ],
+                "resources": {
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "512Mi"
+                  },
+                  "requests": {
+                    "cpu": "250m",
+                    "memory": "256Mi"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": {
+        "availableReplicas": 2,
+        "readyReplicas": 2,
+        "replicas": 2,
+        "updatedReplicas": 2,
+        "conditions": [
+          {
+            "type": "Available",
+            "status": "True",
+            "lastUpdateTime": "2024-01-12T14:31:45Z",
+            "lastTransitionTime": "2024-01-12T14:31:45Z",
+            "reason": "MinimumReplicasAvailable",
+            "message": "Deployment has minimum availability."
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "nginx-deployment-7d9c67b5f-abc12",
+        "namespace": "default",
+        "uid": "d4e5f6a7-b8c9-0123-def4-567890123456",
+        "creationTimestamp": "2024-01-15T08:00:00Z",
+        "labels": {
+          "app": "nginx",
+          "pod-template-hash": "7d9c67b5f"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "ReplicaSet",
+            "name": "nginx-deployment-7d9c67b5f",
+            "uid": "e5f6a7b8-c9d0-1234-ef56-789012345678",
+            "controller": true,
+            "blockOwnerDeletion": true
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "nginx",
+            "image": "nginx:1.25.3",
+            "ports": [
+              {
+                "containerPort": 80,
+                "protocol": "TCP"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "256Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            }
+          }
+        ],
+        "nodeName": "ip-10-0-1-23.ec2.internal",
+        "restartPolicy": "Always"
+      },
+      "status": {
+        "phase": "Running",
+        "hostIP": "10.0.1.23",
+        "podIP": "10.244.1.15",
+        "startTime": "2024-01-15T08:00:10Z",
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastTransitionTime": "2024-01-15T08:00:35Z"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "name": "nginx",
+            "ready": true,
+            "restartCount": 0,
+            "image": "nginx:1.25.3",
+            "state": {
+              "running": {
+                "startedAt": "2024-01-15T08:00:30Z"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "nginx-deployment-7d9c67b5f-def34",
+        "namespace": "default",
+        "uid": "f6a7b8c9-d0e1-2345-f678-901234567890",
+        "creationTimestamp": "2024-01-15T08:00:00Z",
+        "labels": {
+          "app": "nginx",
+          "pod-template-hash": "7d9c67b5f"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "ReplicaSet",
+            "name": "nginx-deployment-7d9c67b5f",
+            "uid": "e5f6a7b8-c9d0-1234-ef56-789012345678",
+            "controller": true,
+            "blockOwnerDeletion": true
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "nginx",
+            "image": "nginx:1.25.3",
+            "ports": [
+              {
+                "containerPort": 80,
+                "protocol": "TCP"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "256Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            }
+          }
+        ],
+        "nodeName": "ip-10-0-1-47.ec2.internal",
+        "restartPolicy": "Always"
+      },
+      "status": {
+        "phase": "Running",
+        "hostIP": "10.0.1.47",
+        "podIP": "10.244.2.31",
+        "startTime": "2024-01-15T08:00:10Z",
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastTransitionTime": "2024-01-15T08:00:50Z"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "name": "nginx",
+            "ready": true,
+            "restartCount": 0,
+            "image": "nginx:1.25.3",
+            "state": {
+              "running": {
+                "startedAt": "2024-01-15T08:00:45Z"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "postgres-0",
+        "namespace": "database",
+        "uid": "a7b8c9d0-e1f2-3456-7890-123456789abc",
+        "creationTimestamp": "2024-01-08T10:00:00Z",
+        "labels": {
+          "app": "postgres",
+          "statefulset.kubernetes.io/pod-name": "postgres-0"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "StatefulSet",
+            "name": "postgres",
+            "uid": "b8c9d0e1-f2a3-4567-8901-23456789abcd",
+            "controller": true,
+            "blockOwnerDeletion": true
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "postgres",
+            "image": "postgres:16.1",
+            "ports": [
+              {
+                "containerPort": 5432,
+                "protocol": "TCP"
+              }
+            ],
+            "env": [
+              {
+                "name": "POSTGRES_DB",
+                "value": "app"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "cpu": "1",
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "250m",
+                "memory": "512Mi"
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "data",
+                "mountPath": "/var/lib/postgresql/data"
+              }
+            ]
+          }
+        ],
+        "nodeName": "ip-10-0-2-88.ec2.internal",
+        "restartPolicy": "Always",
+        "volumes": [
+          {
+            "name": "data",
+            "persistentVolumeClaim": {
+              "claimName": "data-postgres-0"
+            }
+          }
+        ]
+      },
+      "status": {
+        "phase": "Running",
+        "hostIP": "10.0.2.88",
+        "podIP": "10.244.3.12",
+        "startTime": "2024-01-08T10:00:15Z",
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastTransitionTime": "2024-01-10T06:00:30Z"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "name": "postgres",
+            "ready": true,
+            "restartCount": 1,
+            "image": "postgres:16.1",
+            "state": {
+              "running": {
+                "startedAt": "2024-01-10T06:00:00Z"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
