@@ -42,7 +42,8 @@ export const routes: RouteDefinition[] = [
   {
     path: '/authorize',
     method: 'GET',
-    description: 'OAuth authorization endpoint (redirects to callback with mock code)',
+    description:
+      'OAuth authorization endpoint (redirects to callback with mock code)',
     redirect: true,
   },
   {
@@ -109,7 +110,9 @@ export const routes: RouteDefinition[] = [
     path: '/api/v1/resource',
     method: 'GET',
     description: 'Get a single resource',
-    // fixture: 'resources/single-deployment.json',
+    // Fixture is the full-manifest collection; the single-resource handler in
+    // server.ts looks up the matching object by kind/apiVersion/name/namespace.
+    fixture: 'resources/single-resources.json',
   },
   {
     path: '/api/v1/namespaces',

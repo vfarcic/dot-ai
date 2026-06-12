@@ -9,7 +9,7 @@ annotations: {}
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "1.21.0"                     # Container image tag - set by CI pipeline during release
+  tag: "1.21.1"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
@@ -46,7 +46,7 @@ secrets:
     apiKey: ""                      # API key value (only needed if chart should create the secret)
   copilot:
     keyName: copilot-token          # Key name within the secret (PRD #587: GitHub Copilot)
-    token: ""                       # GitHub OAuth token (gho_*, github_pat_*, or ghu_*) — from `gh auth token`
+    token: ""                       # GitHub OAuth/App token (gho_* or ghu_*) — from `gh auth token`
   customLlm:
     keyName: custom-llm-api-key     # Key name within the secret for custom LLM endpoint
     apiKey: ""                      # API key value (only needed if chart should create the secret)
@@ -371,7 +371,7 @@ plugins:
     enabled: true
     image:
       repository: ghcr.io/vfarcic/dot-ai-agentic-tools
-      tag: "1.21.0"
+      tag: "1.21.1"
     port: 8080
     # RBAC created automatically by chart (hardcoded for agentic-tools)
     env: []                         # Additional environment variables
@@ -389,7 +389,7 @@ plugins:
   #   enabled: true
   #   image:
   #     repository: myregistry/my-tools
-  #     tag: "1.21.0"
+  #     tag: "1.21.1"
   #   port: 8082
   #   serviceAccountName: "my-tools-sa"  # You create this SA with needed permissions
   #   env:

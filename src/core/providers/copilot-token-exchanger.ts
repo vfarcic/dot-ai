@@ -7,9 +7,8 @@
  * (api.github.com/copilot_internal/v2/token) can return 404 for some account
  * types, so it is intentionally NOT used here.
  *
- * Supported token types (classic PATs / ghp_* are NOT accepted):
+ * Supported token types (PATs / ghp_* and github_pat_* are NOT accepted):
  *   gho_*          OAuth token (recommended — via `gh auth login`)
- *   github_pat_*   Fine-grained PAT (needs Copilot Requests permission)
  *   ghu_*          GitHub App installation token
  *
  * Token resolution priority:
@@ -23,7 +22,7 @@
  * PRD #587: GitHub Copilot Provider
  */
 
-const SUPPORTED_PREFIXES = ['gho_', 'github_pat_', 'ghu_'];
+const SUPPORTED_PREFIXES = ['gho_', 'ghu_'];
 
 function isSupported(token: string): boolean {
   return SUPPORTED_PREFIXES.some((p) => token.startsWith(p));
@@ -63,7 +62,8 @@ export function makeCopilotCredentialResolver(
 
       throw new Error(
         'No supported GitHub token found for Copilot. ' +
-          'Set GITHUB_COPILOT_TOKEN (gho_*, github_pat_*, or ghu_*). ' +
+          'Set GITHUB_COPILOT_TOKEN (gho_* or ghu_*). ' +
+          'Personal access tokens (github_pat_* and ghp_*) are not supported by api.githubcopilot.com. ' +
           'GH_TOKEN and GITHUB_TOKEN are also checked in that order.'
       );
     },

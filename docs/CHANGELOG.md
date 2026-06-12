@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.21.1] - 2026-06-12
+
+### Bug Fixes
+
+- The operate tool now extracts JSON from AI responses using a more robust parser, fixing intermittent `Operation failed: Invalid AI response format` errors that occurred when the model included explanatory text alongside the JSON object. ([#operate-json-parse](https://github.com/vfarcic/dot-ai/issues/operate-json-parse))
+- GitHub Copilot provider configuration now rejects personal access tokens (`github_pat_*` and `ghp_*`) before making inference calls, because `api.githubcopilot.com` does not support PATs for this direct-token endpoint. Docs and Helm comments now list only `gho_*` and `ghu_*` tokens. ([#627-fix-copilot-pat-support](https://github.com/vfarcic/dot-ai/issues/627-fix-copilot-pat-support))
+
+
 ## [1.21.0] - 2026-06-06
 
 ### Features
@@ -30,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
   Use an existing GitHub Copilot subscription as the AI backend instead of paying for a separate per-token API (Anthropic, OpenAI, etc.). Previously, the only subscription-based option was the `host` provider, which required a compatible MCP client to delegate generation; the new `copilot` provider works standalone with just a token.
 
-  Set `AI_PROVIDER=copilot` and supply a long-lived GitHub token via `GITHUB_COPILOT_TOKEN`. Supported token prefixes are `gho_` (OAuth, from `gh auth token`), `github_pat_` (fine-grained PAT with the Copilot Requests permission), and `ghu_` (GitHub App). Classic `ghp_` PATs are not supported. The resolver also checks `GH_TOKEN` and `GITHUB_TOKEN` as fallbacks. The provider transparently exchanges the long-lived token for short-lived Copilot API tokens, caches them in-memory, refreshes them 2 minutes before expiry, and retries once on 401. Default model is `claude-sonnet-4-6`, overridable via `AI_MODEL`.
+  Set `AI_PROVIDER=copilot` and supply a long-lived GitHub token via `GITHUB_COPILOT_TOKEN`. Supported token prefixes are `gho_` (OAuth, from `gh auth token`) and `ghu_` (GitHub App). Personal access tokens (`github_pat_` fine-grained PATs and classic `ghp_` PATs) are not supported by `api.githubcopilot.com`. The resolver also checks `GH_TOKEN` and `GITHUB_TOKEN` as fallbacks. The provider sends the token directly to the Copilot API with VS Code-style headers and retries once on 401. Default model is `claude-sonnet-4-6`, overridable via `AI_MODEL`.
 
   Helm support is included: `--set ai.provider=copilot --set secrets.copilot.token=$GITHUB_COPILOT_TOKEN`. Note that this is an unofficial integration that sends requests to `api.githubcopilot.com` with VS Code-style headers, mirroring the approach used by other third-party tools. It may break without notice if GitHub changes the API, and operators should review Copilot terms for their subscription tier before deploying.
 
