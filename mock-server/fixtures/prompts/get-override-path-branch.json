@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "data": {
+    "description": "Skill that lives only under a non-default subdirectory on a non-default branch. Reachable only when BOTH ?path= and ?branch= are supplied with the repo override (PRD #621).",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "text": "This prompt resolves ONLY when both ?path= and ?branch= are threaded into the repo override (PRD #621). Its presence proves the path/branch parameters were honored by the clone."
+        }
+      }
+    ],
+    "source": "built-in"
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

@@ -247,15 +247,21 @@ curl http://your-ingress-url/api/v1/openapi | jq '.paths'
 
 Three REST endpoints expose the shared prompt library. Each one accepts an optional `repo` parameter that, when supplied, fetches prompts from that repository instead of the one configured via `DOT_AI_USER_PROMPTS_REPO`. When `repo` is omitted, behavior is identical to the env-var-configured setup.
 
+The override can additionally carry three **optional, additive** qualifiers — a subdirectory (`path`), a `branch`, and a per-request git credential (the `X-Dot-AI-Git-Token` header). They only apply to a request that already supplies `repo`, and each one defaults to today's behavior when omitted: `path` defaults to the repo root, `branch` defaults to `main`, and the credential defaults to the server's `DOT_AI_GIT_TOKEN`.
+
+> **Unchanged by default.** A request that supplies no `path`, no `branch`, and no `X-Dot-AI-Git-Token` header behaves byte-identically to v1.21.0 — same clone target (repo root on `main`), same credential (`DOT_AI_GIT_TOKEN`), same response — whether it uses `?repo=` or the env-var-configured repo (no `?repo=`). All three additions are opt-in per request; existing callers see zero change.
+
 See the [Shared Prompt Library](../tools/prompts.md) for the user-facing tool guide.
 
 ### Endpoint Summary
 
-| Endpoint | `repo` parameter |
-|----------|------------------|
-| `POST /api/v1/prompts/refresh` | JSON body: `{ "repo": "<url>" }` |
-| `GET /api/v1/prompts` | Query string: `?repo=<url>` |
-| `POST /api/v1/prompts/:promptName` | Query string: `?repo=<url>` |
+| Endpoint | `repo` / `path` / `branch` placement | Credential |
+|----------|--------------------------------------|------------|
+| `POST /api/v1/prompts/refresh` | JSON body: `{ "repo": "<url>", "path": "<subdir>", "branch": "<branch>" }` | `X-Dot-AI-Git-Token` header |
+| `GET /api/v1/prompts` | Query string: `?repo=<url>&path=<subdir>&branch=<branch>` | `X-Dot-AI-Git-Token` header |
+| `POST /api/v1/prompts/:promptName` | Query string: `?repo=<url>&path=<subdir>&branch=<branch>` | `X-Dot-AI-Git-Token` header |
+
+`path` and `branch` follow the same placement as `repo` on each endpoint (query string for `GET` and `POST /:promptName`, JSON body for `refresh`). The credential **always** travels as the `X-Dot-AI-Git-Token` request header — never in the query string or body. See [Per-request `path`, `branch`, and credential](#per-request-path-branch-and-credential) below.
 
 ### The `source` field
 
@@ -271,6 +277,24 @@ Every response from these endpoints includes a `source` field identifying which 
 
 **Credential scrubbing**: URLs with embedded credentials are scrubbed before being echoed back. `https://user:tok@host/repo` becomes `https://***:***@host/repo`. The transform is deterministic, so the same credentialed URL always produces the same `source` value across requests.
 
+> **`source` is keyed on the repo URL only.** Adding `path`, `branch`, or the `X-Dot-AI-Git-Token` header does **not** change the `source` value for a given repo — it still echoes the (scrubbed) override URL and stays stable per repo. This lets a caller use `source` as a stable skill-tagging key regardless of which subdirectory, branch, or credential it pulled with.
+
+### Per-request `path`, `branch`, and credential
+
+These three qualifiers extend a `repo` override so a secondary source can live under a `skills/`-style subdirectory, on a non-default branch, and in a different authentication realm than the server's env-var repo. All three are optional and additive.
+
+| Qualifier | Placement | Default when omitted |
+|-----------|-----------|----------------------|
+| `path` | `?path=<subdir>` (query) or `"path"` (JSON body) | Repo root |
+| `branch` | `?branch=<branch>` (query) or `"branch"` (JSON body) | `main` |
+| Credential | `X-Dot-AI-Git-Token` request header (never query/body) | Server's `DOT_AI_GIT_TOKEN` env credential |
+
+**Credential precedence.** When the `X-Dot-AI-Git-Token` header is present, the server clones the override repo with that token **for that request only**; it takes precedence over `DOT_AI_GIT_TOKEN`. When the header is absent, the override clone uses the server's `DOT_AI_GIT_TOKEN` exactly as before. The forwarded token is scoped to the host in `repo` (it is not forwarded across a cross-host redirect) and never appears in logs, error messages, the `source` field, or the cache key.
+
+> **The credential header is inert without `repo`.** A request that sends `X-Dot-AI-Git-Token` but no `?repo=` is unaffected by the header — it is read only to authenticate an override clone. The env-var-configured path never changes behavior based on the header.
+
+The `path` and `branch` values map onto the same layout an env-var repo uses via `DOT_AI_USER_PROMPTS_PATH` / `DOT_AI_USER_PROMPTS_BRANCH` — they are simply supplied per request instead of via deployment configuration.
+
 ### `POST /api/v1/prompts/refresh`
 
 Force-refreshes the prompts cache. Use this when you've pushed new prompts to the repository and don't want to wait for `DOT_AI_USER_PROMPTS_CACHE_TTL` to expire.
@@ -280,6 +304,10 @@ Force-refreshes the prompts cache. Use this when you've pushed new prompts to th
 | Field | Type | Description |
 |-------|------|-------------|
 | `repo` | string | Override repository URL (HTTPS). When supplied, bypasses `DOT_AI_USER_PROMPTS_REPO` for this request. |
+| `path` | string | Subdirectory within the override repo to load prompts from. Omit for the repo root. Only applies when `repo` is supplied. |
+| `branch` | string | Branch of the override repo to clone. Omit for `main`. Only applies when `repo` is supplied. |
+
+The override credential travels as the `X-Dot-AI-Git-Token` header (see [above](#per-request-path-branch-and-credential)), never as a body field.
 
 **Built-in case** (no env-var repo, no override):
 
@@ -348,6 +376,17 @@ curl -s -X POST http://localhost:3456/api/v1/prompts/refresh \
 }
 ```
 
+**Subdirectory + branch + per-request credential**: load prompts from a `skills/` subdirectory on a non-default branch of a private repo, authenticating with a request-supplied token:
+
+```bash
+curl -s -X POST http://localhost:3456/api/v1/prompts/refresh \
+  -H "Content-Type: application/json" \
+  -H "X-Dot-AI-Git-Token: <token for that repo>" \
+  -d '{"repo":"https://forgejo.example.com/team/skills","path":"skills","branch":"team-skills"}'
+```
+
+The response has the same shape as the per-request override case above. `source` still echoes the override repo URL (`"https://forgejo.example.com/team/skills"`, credentials scrubbed) — unchanged by `path`, `branch`, or the header — while `promptsLoaded` reflects the prompts found under `skills/` on the `team-skills` branch. The token is used only to clone that host and never appears in the response.
+
 ### `GET /api/v1/prompts`
 
 Lists all available prompts (built-in plus user-defined). Returns the prompt names, descriptions, and any declared arguments.
@@ -357,6 +396,10 @@ Lists all available prompts (built-in plus user-defined). Returns the prompt nam
 | Parameter | Description |
 |-----------|-------------|
 | `repo` | Override repository URL (HTTPS). When supplied, bypasses `DOT_AI_USER_PROMPTS_REPO` for this request. |
+| `path` | Subdirectory within the override repo to load prompts from. Omit for the repo root. Only applies when `repo` is supplied. |
+| `branch` | Branch of the override repo to clone. Omit for `main`. Only applies when `repo` is supplied. |
+
+The override credential travels as the `X-Dot-AI-Git-Token` header (see [above](#per-request-path-branch-and-credential)), never as a query parameter.
 
 **Built-in case**:
 
@@ -398,6 +441,15 @@ The `source` field echoes the override URL (credentials scrubbed):
 }
 ```
 
+**Subdirectory + branch + per-request credential**: list the prompts a private cross-realm source publishes under `skills/` on a non-default branch:
+
+```bash
+curl -s "http://localhost:3456/api/v1/prompts?repo=https://forgejo.example.com/team/skills&path=skills&branch=team-skills" \
+  -H "X-Dot-AI-Git-Token: <token for that repo>"
+```
+
+The response shape is identical to the per-request override case above — the `prompts` array carries whatever lives under `skills/` on the `team-skills` branch, and `source` still echoes `"https://forgejo.example.com/team/skills"` (unaffected by `path`, `branch`, or the header).
+
 ### `POST /api/v1/prompts/:promptName`
 
 Returns the rendered content (`messages`, optional `files`) of a single prompt by name.
@@ -407,6 +459,10 @@ Returns the rendered content (`messages`, optional `files`) of a single prompt b
 | Parameter | Description |
 |-----------|-------------|
 | `repo` | Override repository URL (HTTPS). When supplied, bypasses `DOT_AI_USER_PROMPTS_REPO` for this request. |
+| `path` | Subdirectory within the override repo to load prompts from. Omit for the repo root. Only applies when `repo` is supplied. |
+| `branch` | Branch of the override repo to clone. Omit for `main`. Only applies when `repo` is supplied. |
+
+The override credential travels as the `X-Dot-AI-Git-Token` header (see [above](#per-request-path-branch-and-credential)), never as a query parameter or body field.
 
 **Request body** (all fields optional):
 
@@ -432,16 +488,28 @@ curl -s -X POST "http://localhost:3456/api/v1/prompts/prd-create?repo=https://gi
 }
 ```
 
-### Validation Rules for `repo`
+**Subdirectory + branch + per-request credential**: render a prompt that lives under `skills/` on a non-default branch of a private cross-realm repo:
 
-The server validates the `repo` parameter before performing any clone or pull. Invalid values return HTTP 400 with the standard error envelope.
+```bash
+curl -s -X POST "http://localhost:3456/api/v1/prompts/deploy-app?repo=https://forgejo.example.com/team/skills&path=skills&branch=team-skills" \
+  -H "Content-Type: application/json" \
+  -H "X-Dot-AI-Git-Token: <token for that repo>" \
+  -d '{}'
+```
+
+The response carries the rendered `messages` for the prompt resolved under `skills/` on the `team-skills` branch; `source` still echoes `"https://forgejo.example.com/team/skills"`, unchanged by `path`, `branch`, or the header.
+
+### Validation Rules for `repo`, `path`, and `branch`
+
+The server validates the `repo`, `path`, and `branch` inputs before performing any clone or pull. Invalid values return HTTP 400 with the standard error envelope. Validation runs **before** the loader is touched, so a rejected override can never corrupt the env-var-configured cache.
 
 | Rule | Behavior |
 |------|----------|
-| Scheme must be `http` or `https` | Other schemes (`file://`, `ssh://`, `git://`) are rejected. |
-| `subPath` must be a safe relative path | `..` segments, absolute paths, and null bytes are rejected. (subPath is not exposed via REST in this release — the env-var defaults apply.) |
-| `branch` must match the git-safe character set | Validated when supplied programmatically. (Not exposed via REST in this release.) |
+| Scheme must be `http` or `https` | Other schemes (`file://`, `ssh://`, `git://`) are rejected: `Invalid override repoUrl scheme: ssh: (only http and https are allowed) for ssh://bad`. |
+| `path` must be a safe relative path | `..` segments, absolute paths, and null bytes are rejected (`Invalid override subPath: Relative path cannot escape target directory`, `Invalid override subPath: Relative path cannot be absolute`, `Invalid override subPath: contains null byte`). |
+| `branch` must match the git-safe character set | Only `[A-Za-z0-9_.\-/]` is allowed; other characters are rejected: `Invalid override branch name: <branch>`. |
 | Credentials in the URL | Never echoed in error messages — scrubbed via `sanitizeUrlForLogging`. |
+| `X-Dot-AI-Git-Token` | Never echoed in error messages, logs, the `source` field, or the cache key. A bad/unauthorized token surfaces as a request-scoped clone error, with the token scrubbed. |
 
 **Validation-error envelope** (`HTTP 400`):
 
@@ -466,14 +534,32 @@ curl -s "http://localhost:3456/api/v1/prompts?repo=ssh://bad" \
 HTTP: 400
 ```
 
+An invalid `path` (or `branch`) fails the same way — a request-scoped `HTTP 400` with the deterministic `VALIDATION_ERROR` message from the table above and the same `meta` envelope shape:
+
+```bash
+curl -s "http://localhost:3456/api/v1/prompts?repo=https://github.com/org/skills&path=../etc" \
+  -w "\nHTTP: %{http_code}\n"
+```
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid override subPath: Relative path cannot escape target directory"
+  }
+}
+HTTP: 400
+```
+
 A request that fails validation never touches the loader, so the env-var-configured cache cannot be corrupted by a malformed override.
 
 ### Server-side caveats for this release
 
 The `repo` parameter is the server's contract surface for composing prompts from multiple repositories. Each request still serves exactly one repo; how (and whether) callers compose responses from multiple requests is the caller's concern — see the [DevOps AI Toolkit CLI docs](https://devopstoolkit.ai/docs/cli) for the CLI-side composition flow.
 
-- **Single shared token**: All overrides authenticate with the same `DOT_AI_GIT_TOKEN`. Repos that live on different providers (e.g., GitHub + private GitLab) can't both be authenticated. Per-repo tokens are deferred.
-- **Single-slot cache**: The loader caches one repo at a time. Sequential requests against different repos re-clone each time (acceptable cost with `--depth 1` clones, but observable when alternating between repos within the TTL window).
+- **Per-request credentials**: Each request may carry its own `X-Dot-AI-Git-Token`, so repos on different providers (e.g., GitHub + private GitLab) can each authenticate with their own token. The header takes precedence over `DOT_AI_GIT_TOKEN` for that request only; absent the header, the server env credential is used as before. (This lifts the single-shared-token limitation from the previous release.)
+- **Single-slot cache**: The loader caches one repo at a time. Sequential requests against different repos re-clone each time (acceptable cost with `--depth 1` clones, but observable when alternating between repos within the TTL window). Token-bearing override requests are additionally isolated from the shared unauthenticated cache slot, so an authenticated private clone is never served to a different caller.
 - **No URL allowlist / SSRF gate**: The endpoint assumes the caller is trusted. Don't expose the override surface to untrusted clients without an upstream gate.
 
 For the user-facing summary, see [Shared Prompt Library § Multi-source skills](../tools/prompts.md#multi-source-skills-via-the-per-request-repo-override).

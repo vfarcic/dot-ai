@@ -421,16 +421,27 @@ The feature is designed for graceful degradation:
 
 When a single `DOT_AI_USER_PROMPTS_REPO` isn't enough — for example, you want org-wide public skills from one repository plus per-team private skills from another — run `dot-ai skills generate --repo <url>` (see the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical reference) to fetch prompts from a specified repository for that invocation only, overriding the env-var default. Run the command multiple times — typically wired up as separate agent hooks, one per source — and the CLI tags each set of generated skills with its source so subsequent runs only wipe their own slice.
 
-Under the hood, each invocation talks to the server once and the server still serves exactly one repository per request; composition lives in the CLI, not the server.
+The override carries more than just the repo URL. A secondary source can live wherever it actually is, via three **optional, additive** qualifiers:
 
-When the override is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO`, or to the built-in prompts when no env-var repo is configured.
+| Qualifier | What it does | Default when omitted |
+|-----------|--------------|----------------------|
+| `path` (subdirectory) | Load prompts from a `skills/`-style subdirectory instead of the repo root — the same layout an env-var repo selects with `DOT_AI_USER_PROMPTS_PATH`. | Repo root |
+| `branch` | Pull the source from a non-default branch. | `main` |
+| Per-request credential | Authenticate the override clone with a request-supplied git token (the `X-Dot-AI-Git-Token` header), so a second repo in a **different auth realm** (another Forgejo, a private GitHub or GitLab) can be reached without sharing one server-wide token. | Server's `DOT_AI_GIT_TOKEN` |
+
+**Token precedence**: when a request supplies the credential header, it authenticates that override clone and takes precedence over the server's `DOT_AI_GIT_TOKEN` — but only for that request. Absent the header, the override clone falls back to `DOT_AI_GIT_TOKEN` exactly as before. The token always travels as a request header — never in a URL or body — and never appears in logs, error messages, or the `source` tag.
+
+Put together, a second source like *"the platform team's private skills, kept under `skills/` on the `team-skills` branch of a self-hosted Forgejo"* is reachable as a single override — a subdirectory, on a non-default branch, in a separate auth realm — alongside your org-wide public source. The CLI tags each source by its repo URL (the `source` value), which is **not** affected by `path`, `branch`, or the credential, so the per-source skill slices stay stable across runs.
+
+Under the hood, each invocation talks to the server once and the server still serves exactly one repository per request; composition lives in the CLI, not the server. The exact wire placement of each qualifier — `path`/`branch` as query params or JSON body fields, the credential as the `X-Dot-AI-Git-Token` header — is in the [REST API reference](../api/rest-api.md#per-request-path-branch-and-credential).
+
+> **Unchanged by default.** The `path`, `branch`, and credential qualifiers are all opt-in per request. A request that supplies none of them behaves byte-identically to the previous release — same clone target (repo root on `main`), same `DOT_AI_GIT_TOKEN` credential, same response. And when the override itself is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO`, or to the built-in prompts when no env-var repo is configured.
 
 **Server-side caveats** for this release (the contract is additive, so these can be lifted later without breaking changes):
 
 | Caveat | Impact |
 |--------|--------|
-| Single shared `DOT_AI_GIT_TOKEN` | All overrides authenticate with the same token. Repos that live on different providers (e.g., GitHub + private GitLab) can't both be authenticated. |
-| Single-slot loader cache | Sequential invocations against different repos re-clone each time. Clones are `--depth 1`, so the cost is small per call, but it's noticeable when alternating between repos within the TTL window. |
+| Single-slot loader cache | Sequential invocations against different repos re-clone each time. Clones are `--depth 1`, so the cost is small per call, but it's noticeable when alternating between repos within the TTL window. Token-bearing override requests are additionally isolated from the shared cache slot, so a private authenticated clone is never served to another caller. |
 | No URL allowlist | The server trusts the override URL. Don't expose this surface to untrusted callers without an upstream gate. |
 
 **When NOT to use the override**:

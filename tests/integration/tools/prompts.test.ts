@@ -5,7 +5,7 @@
  * Validates prompts list and get functionality with exact data validation.
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('Prompts Integration', () => {
@@ -638,5 +638,506 @@ describe.concurrent('Prompts Integration', () => {
       expect(response).toMatchObject({ success: false });
       expect(JSON.stringify(response)).not.toContain(secret);
     });
+  });
+
+  // PRD #621 M1: the override must also carry a subdirectory (?path= / body
+  // `path`) and a branch (?branch= / body `branch`), threaded into
+  // candidate.subPath / candidate.branch inside extractPromptsOverride and
+  // HONORED by the clone. Today extractPromptsOverride builds `{ repoUrl }`
+  // only (rest-api.ts ~line 1900) and the handlers pass only `repo`, so the
+  // five tests below are RED until M1 lands.
+  //
+  // Cache/race note (extends the PRD #581 comment above): a happy-path override
+  // re-clones into the SINGLE shared cache directory (getCacheDirectory() is
+  // NOT keyed by coordinate) and overwrites the loader's
+  // (repoUrl, branch, subPath) cacheState. The integration server is shared
+  // across all test files, so a concurrent plain /api/v1/prompts request can
+  // re-clone the env-var coordinate into the same directory mid-read. To keep
+  // these deterministic we:
+  //   - observe each override within a SINGLE request (that request's response
+  //     reflects its own clone+read),
+  //   - retry the observation a few times (expectEventually) to absorb a
+  //     transient concurrent re-clone, and
+  //   - restore the env-var cache (refresh with no override) in finally/afterAll.
+  // The fixture — a uniquely-named prompt committed to a throwaway branch under
+  // a non-default subdirectory — is created via the GitHub API exactly like the
+  // 'Prompts Cache Refresh' test above, and only when DOT_AI_GIT_TOKEN is set.
+  describe('Per-request path + branch override (PRD #621 M1)', () => {
+    const gitToken = process.env.DOT_AI_GIT_TOKEN;
+    // Must match DOT_AI_USER_PROMPTS_REPO from the integration infra so the
+    // override changes only branch/subPath (not repoUrl) vs. the env config.
+    const promptsRepoUrl =
+      'https://github.com/vfarcic/dot-ai-test-prompts.git';
+    const ghRepoApi =
+      'https://api.github.com/repos/vfarcic/dot-ai-test-prompts';
+
+    const overrideRunId = Date.now();
+    const fixtureBranch = `prd621-fixture-${overrideRunId}`;
+    const fixtureSubdir = 'prd621-skills';
+    const fixturePromptName = `prd621-override-${overrideRunId}`;
+    const fixtureDescription =
+      'PRD 621 fixture prompt: subdir on a non-default branch';
+    const fixturePromptPath = `${fixtureSubdir}/${fixturePromptName}.md`;
+    const fixturePromptContent = [
+      '---',
+      `name: ${fixturePromptName}`,
+      `description: ${fixtureDescription}`,
+      '---',
+      '',
+      'This prompt lives ONLY on a non-default branch under a non-default',
+      'subdirectory. It is reachable only when BOTH ?path= and ?branch= are',
+      'threaded into the override and honored by the clone (PRD #621 M1).',
+    ].join('\n');
+
+    let fixtureReady = false;
+
+    async function ghApi(method: string, apiPath: string, body?: unknown) {
+      return fetch(`${ghRepoApi}${apiPath}`, {
+        method,
+        headers: {
+          Authorization: `token ${gitToken}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    }
+
+    // Refresh with NO override restores the loader cacheState to the env-var
+    // coordinate (repoUrl, main, user-prompts) without changing it, undoing any
+    // coordinate drift left by an override request.
+    async function restoreEnvCache(): Promise<void> {
+      await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+    }
+
+    // Retry an assertion block to absorb a transient concurrent re-clone of the
+    // shared cache directory (see cache/race note above). In RED the assertion
+    // never passes, so this just delays the (expected) final failure.
+    async function expectEventually(
+      fn: () => Promise<void>,
+      attempts = 5,
+      delayMs = 1500
+    ): Promise<void> {
+      let lastError: unknown;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          await fn();
+          return;
+        } catch (error) {
+          lastError = error;
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+      throw lastError;
+    }
+
+    beforeAll(async () => {
+      if (!gitToken) return;
+
+      // 1. Resolve main's commit SHA.
+      const refRes = await ghApi('GET', '/git/ref/heads/main');
+      expect(refRes.ok).toBe(true);
+      const refData = (await refRes.json()) as { object: { sha: string } };
+
+      // 2. Create the throwaway fixture branch off main.
+      const branchRes = await ghApi('POST', '/git/refs', {
+        ref: `refs/heads/${fixtureBranch}`,
+        sha: refData.object.sha,
+      });
+      expect(branchRes.ok).toBe(true);
+
+      // 3. Commit the fixture prompt under the non-default subdirectory on it.
+      const fileRes = await ghApi('PUT', `/contents/${fixturePromptPath}`, {
+        message: 'test: add PRD #621 path/branch override fixture',
+        content: Buffer.from(fixturePromptContent).toString('base64'),
+        branch: fixtureBranch,
+      });
+      expect(fileRes.ok).toBe(true);
+
+      fixtureReady = true;
+    });
+
+    afterAll(async () => {
+      if (!fixtureReady) return;
+      // Deleting the branch removes the fixture file with it.
+      await ghApi('DELETE', `/git/refs/heads/${fixtureBranch}`);
+      // Leave the server cache on the env-var coordinate for other test files.
+      await restoreEnvCache();
+    });
+
+    test('GET /api/v1/prompts?path=&branch= resolves a prompt from the subdir on the non-default branch (PRD #621)', async () => {
+      if (!gitToken) {
+        console.log(
+          'Skipping PRD #621 path/branch GET test: DOT_AI_GIT_TOKEN not set'
+        );
+        return;
+      }
+      try {
+        await expectEventually(async () => {
+          const response = await integrationTest.httpClient.get(
+            `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}` +
+              `&path=${encodeURIComponent(fixtureSubdir)}` +
+              `&branch=${encodeURIComponent(fixtureBranch)}`
+          );
+          expect(response).toMatchObject({ success: true });
+          const fixturePrompt = response.data.prompts.find(
+            (p: { name: string }) => p.name === fixturePromptName
+          );
+          // RED until M1: ?path=/?branch= are dropped, the clone reads repo
+          // ROOT on MAIN, and this prompt is absent (fixturePrompt undefined).
+          expect(fixturePrompt).toMatchObject({
+            name: fixturePromptName,
+            description: fixtureDescription,
+          });
+        });
+      } finally {
+        await restoreEnvCache();
+      }
+    }, 120000);
+
+    // End-to-end exercise of the real git clone-with-token path (PRD #621 M3).
+    // This is the ONLY e2e coverage of the credential clone: every other
+    // positive token test mocks simple-git. The token-vs-env auth distinction
+    // is deliberately NOT asserted (no private/second-realm repo is available in
+    // CI), so this does NOT prove "the token authenticated where env would not".
+    // Instead it sends the credential header alongside ?path=/?branch= so M2
+    // reads it and M3 threads it into an ISOLATED, per-request token-bearing
+    // clone (GIT_ASKPASS keeps the token off the URL/argv/.git/config;
+    // http.followRedirects is scoped to the source host) — then asserts the
+    // distinct subdir@branch prompt still resolves and the token never leaks.
+    // The point: prove the credential mechanism (GIT_ASKPASS / redirect config)
+    // does NOT break cloning the public fixture, end to end. It would catch a
+    // regression where, e.g., followRedirects=false blocks git's normal
+    // github.com -> codeload redirect and the clone silently yields no prompts.
+    test('GET /api/v1/prompts?path=&branch= with X-Dot-AI-Git-Token clones the subdir/branch prompt end-to-end without leaking the token (PRD #621 M3)', async () => {
+      if (!gitToken) {
+        console.log(
+          'Skipping PRD #621 M3 token-clone e2e test: DOT_AI_GIT_TOKEN not set'
+        );
+        return;
+      }
+      try {
+        await expectEventually(async () => {
+          const response = await integrationTest.httpClient.get(
+            `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}` +
+              `&path=${encodeURIComponent(fixtureSubdir)}` +
+              `&branch=${encodeURIComponent(fixtureBranch)}`,
+            // Real env token: guarantees the public clone succeeds (so a failure
+            // means the credential MECHANISM broke the clone, not bad auth).
+            { 'X-Dot-AI-Git-Token': gitToken }
+          );
+          expect(response).toMatchObject({ success: true });
+          // The distinct subdir@branch prompt resolves through the token-bearing
+          // isolated clone.
+          const fixturePrompt = response.data.prompts.find(
+            (p: { name: string }) => p.name === fixturePromptName
+          );
+          expect(fixturePrompt).toMatchObject({
+            name: fixturePromptName,
+            description: fixtureDescription,
+          });
+          // The forwarded credential must never appear in the response surface
+          // (source, error, or anywhere).
+          expect(JSON.stringify(response)).not.toContain(gitToken);
+        });
+      } finally {
+        await restoreEnvCache();
+      }
+    }, 120000);
+
+    test('POST /api/v1/prompts/:name?path=&branch= returns the subdir/branch prompt content (PRD #621)', async () => {
+      if (!gitToken) {
+        console.log(
+          'Skipping PRD #621 path/branch get-by-name test: DOT_AI_GIT_TOKEN not set'
+        );
+        return;
+      }
+      try {
+        await expectEventually(async () => {
+          const response = await integrationTest.httpClient.post(
+            `/api/v1/prompts/${fixturePromptName}` +
+              `?repo=${encodeURIComponent(promptsRepoUrl)}` +
+              `&path=${encodeURIComponent(fixtureSubdir)}` +
+              `&branch=${encodeURIComponent(fixtureBranch)}`,
+            {}
+          );
+          // RED until M1: path/branch dropped → prompt not found → 400.
+          expect(response).toMatchObject({
+            success: true,
+            data: {
+              description: fixtureDescription,
+              messages: [
+                {
+                  role: 'user',
+                  content: { type: 'text', text: expect.any(String) },
+                },
+              ],
+            },
+          });
+        });
+      } finally {
+        await restoreEnvCache();
+      }
+    }, 120000);
+
+    test('POST /api/v1/prompts/refresh honors path and branch body fields (PRD #621)', async () => {
+      if (!gitToken) {
+        console.log(
+          'Skipping PRD #621 refresh body path/branch test: DOT_AI_GIT_TOKEN not set'
+        );
+        return;
+      }
+      try {
+        await expectEventually(async () => {
+          // Control: same branch, a subdirectory that does NOT exist on it →
+          // built-in prompts only (no user prompts loaded).
+          const controlRes = await integrationTest.httpClient.post(
+            '/api/v1/prompts/refresh',
+            {
+              repo: promptsRepoUrl,
+              path: `${fixtureSubdir}-absent-${overrideRunId}`,
+              branch: fixtureBranch,
+            }
+          );
+          expect(controlRes).toMatchObject({
+            success: true,
+            data: { refreshed: true, promptsLoaded: expect.any(Number) },
+          });
+
+          // Fixture: the subdirectory that DOES exist on the branch →
+          // built-in prompts + exactly the one fixture prompt.
+          const fixtureRes = await integrationTest.httpClient.post(
+            '/api/v1/prompts/refresh',
+            {
+              repo: promptsRepoUrl,
+              path: fixtureSubdir,
+              branch: fixtureBranch,
+            }
+          );
+          expect(fixtureRes).toMatchObject({
+            success: true,
+            data: {
+              refreshed: true,
+              promptsLoaded: expect.any(Number),
+              source: expect.stringContaining('dot-ai-test-prompts'),
+            },
+          });
+
+          // RED until M1: body path/branch are dropped, so BOTH refreshes
+          // clone repo ROOT on MAIN and load the same count → the +1 from the
+          // fixture subdir never appears.
+          expect(fixtureRes.data.promptsLoaded).toBe(
+            controlRes.data.promptsLoaded + 1
+          );
+        });
+      } finally {
+        await restoreEnvCache();
+      }
+    }, 180000);
+
+    test('GET /api/v1/prompts?path=<traversal> returns 400 with scrubbed credentials and leaves the env cache intact (PRD #621)', async () => {
+      const secret = 'prd621_path_secret_xyz';
+      const credUrl = `https://user:${secret}@github.com/vfarcic/dot-ai-test-prompts.git`;
+
+      const before = await integrationTest.httpClient.get('/api/v1/prompts');
+      expect(before).toMatchObject({ success: true });
+
+      // RED until M1: ?path= is dropped, the override validates on repoUrl
+      // alone, and the traversal subPath is never rejected (no 400).
+      const response = await integrationTest.httpClient.get(
+        `/api/v1/prompts?repo=${encodeURIComponent(credUrl)}` +
+          `&path=${encodeURIComponent('../../etc/passwd')}`
+      );
+      expect(response).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      // The embedded credential must never reach the response.
+      expect(JSON.stringify(response)).not.toContain(secret);
+
+      // A request rejected BEFORE any clone must not corrupt the env-var cache:
+      // the env config still serves the same prompts and source afterwards.
+      const after = await integrationTest.httpClient.get('/api/v1/prompts');
+      expect(after).toMatchObject({
+        success: true,
+        data: { source: before.data.source },
+      });
+      expect(after.data.prompts.length).toBe(before.data.prompts.length);
+    }, 120000);
+
+    test('POST /api/v1/prompts/refresh with invalid branch returns 400 with scrubbed credentials (PRD #621)', async () => {
+      const secret = 'prd621_branch_secret_xyz';
+      const credUrl = `https://user:${secret}@github.com/vfarcic/dot-ai-test-prompts.git`;
+
+      // RED until M1: body `branch` is dropped, so the illegal branch name is
+      // never validated and no 400 is returned.
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/prompts/refresh',
+        { repo: credUrl, branch: 'bad branch name!!' }
+      );
+      expect(response).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      expect(JSON.stringify(response)).not.toContain(secret);
+    }, 120000);
+  });
+
+  // PRD #621 M2/M3/M4: the override gains an optional per-request git CREDENTIAL
+  // forwarded via the `X-Dot-AI-Git-Token` request header (M2 reads it + adds it
+  // to both CORS allowlists; M3 uses it for the clone, scoped to the source host,
+  // with cache isolation). M4 is the non-negotiable backward-compat parity guard.
+  //
+  // What IS robustly observable via black-box HTTP — and therefore lives here:
+  //   - M2 CORS allowlist: an OPTIONS preflight advertises the new header
+  //     (RED today — neither allowlist lists it yet).
+  //   - M4 parity: a request with NO path/branch/header behaves like v1.21.0,
+  //     for both the no-?repo= (env-var) path and the ?repo=-only path, and the
+  //     credential header is never echoed back. NOTE: the header is truly inert
+  //     ONLY on the no-?repo= path. When a ?repo= override IS present the token
+  //     is NOT inert — M2 reads it and M3 threads it into an isolated,
+  //     per-request token-bearing clone (GIT_ASKPASS) that bypasses the shared
+  //     cache. It does not change the observed prompt set/source in the
+  //     ?repo=-only test only because the asserted prompt is built-in and the
+  //     public test-repo root carries no user prompts.
+  //
+  // What is NOT robustly observable here (flagged for the coder as UNIT tests —
+  // see the report; the #581 happy-path override coverage was pushed to unit
+  // tests for the same shared-server/shared-cache reasons):
+  //   - Credential PRECEDENCE / AUTH (override.gitToken ?? env; clone auth
+  //     against the source host): needs a private or second-auth-realm repo —
+  //     a positive auth test is non-distinguishing because the env token can
+  //     already read the env realm, and the only RED-distinguishing signal
+  //     (auth failure => content ABSENT) is retry-unsafe and race-unsafe on the
+  //     shared deployed server + single non-coordinate-keyed cache directory.
+  //   - CACHE ISOLATION (token-bearing private clone not served to/from the
+  //     shared unauthenticated slot; token absent from the cache key): the
+  //     cross-serve window is unobservable/flaky black-box; unit tests can
+  //     control cache state precisely (git boundary mocked).
+  //   - CROSS-HOST REDIRECT non-forwarding (decision 3): needs a controllable
+  //     redirecting git host — not available; unit-test the auth/redirect path.
+  //   - LOG scrubbing (token absent from server logs): logs are not HTTP-observable.
+  describe('Per-request credential header + backward-compat parity (PRD #621 M2/M3/M4)', () => {
+    const promptsRepoUrl =
+      'https://github.com/vfarcic/dot-ai-test-prompts.git';
+
+    // Retry an equality/presence assertion to absorb a transient concurrent
+    // re-clone of the shared cache directory (see the M1 cache/race note). Used
+    // only for assertions whose GREEN state is the STABLE state, so retrying can
+    // absorb a race but cannot mask a genuine M2/M3 regression (which would fail
+    // every attempt).
+    async function expectEventually(
+      fn: () => Promise<void>,
+      attempts = 5,
+      delayMs = 1500
+    ): Promise<void> {
+      let lastError: unknown;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          await fn();
+          return;
+        } catch (error) {
+          lastError = error;
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+      throw lastError;
+    }
+
+    async function restoreEnvCache(): Promise<void> {
+      await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+    }
+
+    // ---- M2: CORS allowlist (the one genuinely RED-today test in this block) ----
+    test('OPTIONS /api/v1/prompts preflight advertises the X-Dot-AI-Git-Token header (PRD #621 M2)', async () => {
+      const baseUrl = process.env.MCP_BASE_URL || 'http://localhost:3456';
+      // OPTIONS is answered (204) before auth and carries the CORS allowlist.
+      const res = await fetch(`${baseUrl}/api/v1/prompts`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://localhost',
+          'Access-Control-Request-Method': 'GET',
+          'Access-Control-Request-Headers': 'x-dot-ai-git-token',
+        },
+      });
+      const allowHeaders = res.headers.get('access-control-allow-headers');
+      // Sanity: CORS is enabled and surfaced through the ingress.
+      expect(allowHeaders).toBeTruthy();
+      // RED until M2: the allowlist is "Content-Type, X-Session-Id,
+      // Authorization, X-Dot-AI-Authorization" (mcp.ts) / "Content-Type,
+      // Authorization" (rest-api.ts) — neither lists the new credential header.
+      expect((allowHeaders || '').toLowerCase()).toContain(
+        'x-dot-ai-git-token'
+      );
+    }, 60000);
+
+    // ---- M4 parity: no-?repo= (env-var) path is inert to the credential header ----
+    test('no-override request behaves like v1.21.0 with the credential header present and never echoes it (PRD #621 M4 parity)', async () => {
+      const secret = 'prd621_norepo_header_secret_zzz';
+      await expectEventually(async () => {
+        const withHeader = await integrationTest.httpClient.get(
+          '/api/v1/prompts',
+          { 'X-Dot-AI-Git-Token': secret }
+        );
+        expect(withHeader).toMatchObject({
+          success: true,
+          // Source is the env-var repo, unchanged by the header.
+          data: { source: expect.stringContaining('dot-ai-test-prompts') },
+        });
+        const names = withHeader.data.prompts.map(
+          (p: { name: string }) => p.name
+        );
+        // Built-in AND env user prompts (loaded from the user-prompts/ subdir)
+        // are present => the env-var path is fully unaffected by the header.
+        expect(names).toContain('prd-create');
+        expect(names).toContain('eval-run');
+        // The forwarded credential must never appear in the response surface.
+        expect(JSON.stringify(withHeader)).not.toContain(secret);
+      });
+    }, 120000);
+
+    // ---- M4 parity: ?repo=-only path matches PRD #581; the header is threaded
+    //      into an isolated token clone but the observed outcome is unchanged
+    //      here (built-in prompt + empty public repo root) ----
+    test('?repo=-only request matches PRD #581 (root clone) with and without the credential header (PRD #621 M4 parity)', async () => {
+      const secret = 'prd621_repoonly_header_secret_zzz';
+      try {
+        await expectEventually(async () => {
+          const res = await integrationTest.httpClient.get(
+            `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}`
+          );
+          const resH = await integrationTest.httpClient.get(
+            `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}`,
+            { 'X-Dot-AI-Git-Token': secret }
+          );
+          for (const r of [res, resH]) {
+            expect(r).toMatchObject({
+              success: true,
+              data: { source: expect.stringContaining('dot-ai-test-prompts') },
+            });
+            const names = r.data.prompts.map((p: { name: string }) => p.name);
+            // ?repo=-only clones the repo ROOT on main (PRD #581 behavior):
+            // built-in prompts present, but env user prompts (which live under
+            // the user-prompts/ subdir) are NOT loaded.
+            expect(names).toContain('prd-create');
+            expect(names).not.toContain('eval-run');
+          }
+          // The header is NOT inert when a repo override is present: M2 reads it
+          // and M3 threads it into an isolated, per-request token-bearing clone.
+          // The prompt SET is identical here only because the asserted prompt is
+          // built-in and the public repo ROOT has no user prompts — so the
+          // token-bearing isolated clone and the unauthenticated clone surface
+          // the same result. This remains a valid parity guard (same observable
+          // result with or without the header).
+          const nameSet = (r: { data: { prompts: { name: string }[] } }) =>
+            r.data.prompts.map(p => p.name).sort();
+          expect(nameSet(resH)).toEqual(nameSet(res));
+          // No credential leak in the response.
+          expect(JSON.stringify(resH)).not.toContain(secret);
+        });
+      } finally {
+        await restoreEnvCache();
+      }
+    }, 180000);
   });
 });
