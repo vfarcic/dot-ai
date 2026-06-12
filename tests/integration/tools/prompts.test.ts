@@ -8,7 +8,23 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
-describe.concurrent('Prompts Integration', () => {
+// NOTE: this suite is intentionally NOT describe.concurrent. Every test here
+// exercises the SAME deployed server's SINGLE shared user-prompts loader cache
+// (one on-disk cache directory keyed by repoUrl/branch/subPath, with no locking).
+// That is shared state, so per the integration convention ("only run concurrently
+// if tests are truly independent — no shared state") these tests must be
+// serialized: the non-token override happy-path tests (PRD #621 M1 path/branch
+// subdir clones and the ?repo=-only root clone) RE-CLONE that shared directory to
+// a different coordinate, and running them concurrently with the env-coordinate
+// readers (Prompts List, Prompts Get, Prompts Cache Refresh, the no-?repo source
+// tests) raced — a concurrent rmSync+re-clone made a reader observe an incomplete
+// env cache (built-in-only 11 instead of 11 + 4 env user prompts = 15). Serial
+// execution removes that race entirely. Test FILES still run in parallel via the
+// fork pool (maxForks), and no other base-group-2 file touches /api/v1/prompts,
+// so cross-file parallelism is unaffected. The token-bearing M3 tests clone into
+// their own isolated mkdtemp dir and were never the hazard; serializing is inert
+// for them.
+describe('Prompts Integration', () => {
   const integrationTest = new IntegrationTest();
 
   // Detect deployment mode based on MCP_BASE_URL (parse hostname to avoid substring matching issues)
