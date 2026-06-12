@@ -161,16 +161,23 @@ async function handleRequest(
     const fixture = await loadFixture(route.fixture);
     let payload: unknown = fixture;
     if (isPromptsRoutePath(route.path)) {
-      // repo/path/branch come from the QUERY for GET list & POST get-by-name,
-      // and from the JSON BODY for POST /refresh.
-      let repo = coerceOverrideParam(url.searchParams.get('repo'));
-      let pathParam = coerceOverrideParam(url.searchParams.get('path'));
-      let branchParam = coerceOverrideParam(url.searchParams.get('branch'));
+      // Mirror the real server's override-source contract exactly:
+      //   - POST /api/v1/prompts/refresh → repo/path/branch from the JSON BODY
+      //     ONLY (the real handler reads bodyObj.repo/path/branch; query is not
+      //     consulted for /refresh).
+      //   - GET /api/v1/prompts and POST /api/v1/prompts/:name → from the QUERY.
+      let repo: string | undefined;
+      let pathParam: string | undefined;
+      let branchParam: string | undefined;
       if (method === 'POST' && route.path === '/api/v1/prompts/refresh') {
         const body = await readJsonBody(req);
-        repo = repo ?? coerceOverrideParam(body?.['repo']);
-        pathParam = pathParam ?? coerceOverrideParam(body?.['path']);
-        branchParam = branchParam ?? coerceOverrideParam(body?.['branch']);
+        repo = coerceOverrideParam(body?.['repo']);
+        pathParam = coerceOverrideParam(body?.['path']);
+        branchParam = coerceOverrideParam(body?.['branch']);
+      } else {
+        repo = coerceOverrideParam(url.searchParams.get('repo'));
+        pathParam = coerceOverrideParam(url.searchParams.get('path'));
+        branchParam = coerceOverrideParam(url.searchParams.get('branch'));
       }
 
       // The credential travels ONLY as the X-Dot-AI-Git-Token header. The mock

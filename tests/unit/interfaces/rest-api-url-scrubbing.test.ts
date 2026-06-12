@@ -84,6 +84,19 @@ describe('sanitizeRequestUrlForLogging (PRD #581 F3)', () => {
     );
   });
 
+  // CodeRabbit Finding 1: mcp.ts logs `req.url` through this helper at debug
+  // level. A raw (unencoded) credential-bearing `?repo=` value — exactly what
+  // arrives on `req.url` — must be scrubbed so the embedded token never reaches
+  // the log. PRD #621: "token never appears in logs".
+  test('scrubs a raw credential-bearing ?repo= req.url (mcp debug-log path)', () => {
+    const url = '/api/v1/prompts?repo=https://user:s3cret-tok@host/repo';
+    const result = sanitizeRequestUrlForLogging(url);
+    expect(result).toBeDefined();
+    expect(result).not.toContain('s3cret-tok');
+    expect(result).not.toContain('user:s3cret-tok');
+    expect(decodeURIComponent(result as string)).toContain('***@host/repo');
+  });
+
   test('preserves other query params alongside the `repo` rewrite', () => {
     const url =
       '/api/v1/prompts?other=v1&repo=https%3A%2F%2Fu%3At%40h%2Fr&another=v2';

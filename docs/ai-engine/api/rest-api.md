@@ -376,6 +376,8 @@ curl -s -X POST http://localhost:3456/api/v1/prompts/refresh \
 }
 ```
 
+> **Illustrative example** (placeholder token, non-runnable as written). The response shape is shown for reference, not captured from a live run. Replace `<token for that repo>` with a real token — it is scrubbed from logs and never appears in the response.
+
 **Subdirectory + branch + per-request credential**: load prompts from a `skills/` subdirectory on a non-default branch of a private repo, authenticating with a request-supplied token:
 
 ```bash
@@ -441,6 +443,8 @@ The `source` field echoes the override URL (credentials scrubbed):
 }
 ```
 
+> **Illustrative example** (placeholder token, non-runnable as written). The response shape is shown for reference, not captured from a live run. Replace `<token for that repo>` with a real token — it is scrubbed from logs and never appears in the response.
+
 **Subdirectory + branch + per-request credential**: list the prompts a private cross-realm source publishes under `skills/` on a non-default branch:
 
 ```bash
@@ -487,6 +491,8 @@ curl -s -X POST "http://localhost:3456/api/v1/prompts/prd-create?repo=https://gi
     }
 }
 ```
+
+> **Illustrative example** (placeholder token, non-runnable as written). The response shape is shown for reference, not captured from a live run. Replace `<token for that repo>` with a real token — it is scrubbed from logs and never appears in the response.
 
 **Subdirectory + branch + per-request credential**: render a prompt that lives under `skills/` on a non-default branch of a private cross-realm repo:
 

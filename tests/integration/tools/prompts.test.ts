@@ -705,6 +705,12 @@ describe('Prompts Integration', () => {
       'threaded into the override and honored by the clone (PRD #621 M1).',
     ].join('\n');
 
+    // Two-stage tracking so teardown is robust to PARTIAL setup: the branch is
+    // created before the file is committed, so if the commit (or anything after
+    // branch creation) throws, afterAll must still delete the branch or it is
+    // orphaned on the remote. fixtureBranchCreated gates cleanup; fixtureReady
+    // gates the happy-path tests.
+    let fixtureBranchCreated = false;
     let fixtureReady = false;
 
     async function ghApi(method: string, apiPath: string, body?: unknown) {
@@ -761,6 +767,9 @@ describe('Prompts Integration', () => {
         sha: refData.object.sha,
       });
       expect(branchRes.ok).toBe(true);
+      // The branch now exists on the remote — record this BEFORE the file commit
+      // so afterAll always cleans it up even if the commit below fails.
+      fixtureBranchCreated = true;
 
       // 3. Commit the fixture prompt under the non-default subdirectory on it.
       const fileRes = await ghApi('PUT', `/contents/${fixturePromptPath}`, {
@@ -774,11 +783,22 @@ describe('Prompts Integration', () => {
     });
 
     afterAll(async () => {
-      if (!fixtureReady) return;
-      // Deleting the branch removes the fixture file with it.
-      await ghApi('DELETE', `/git/refs/heads/${fixtureBranch}`);
-      // Leave the server cache on the env-var coordinate for other test files.
-      await restoreEnvCache();
+      try {
+        // Always delete the throwaway branch if it was created — even on a
+        // PARTIAL setup (branch created but file commit failed) — so it is never
+        // orphaned on the remote. Deleting the branch removes the fixture file
+        // with it. Gated on fixtureBranchCreated, NOT fixtureReady.
+        if (fixtureBranchCreated) {
+          await ghApi('DELETE', `/git/refs/heads/${fixtureBranch}`);
+        }
+      } finally {
+        // Restore the shared server cache to the env-var coordinate for other
+        // test files, regardless of whether branch deletion succeeded. Only the
+        // gitToken path runs override tests that could have drifted the cache.
+        if (gitToken) {
+          await restoreEnvCache();
+        }
+      }
     });
 
     test('GET /api/v1/prompts?path=&branch= resolves a prompt from the subdir on the non-default branch (PRD #621)', async () => {
@@ -809,7 +829,9 @@ describe('Prompts Integration', () => {
       } finally {
         await restoreEnvCache();
       }
-    }, 120000);
+      // 300000ms: comprehensive test — real git clone + up to 5 expectEventually
+      // retries (matches the project convention used by the cache-refresh test).
+    }, 300000);
 
     // End-to-end exercise of the real git clone-with-token path (PRD #621 M3).
     // This is the ONLY e2e coverage of the credential clone: every other
@@ -859,7 +881,9 @@ describe('Prompts Integration', () => {
       } finally {
         await restoreEnvCache();
       }
-    }, 120000);
+      // 300000ms: comprehensive e2e — real isolated token-bearing git clone + up
+      // to 5 expectEventually retries (matches the cache-refresh test convention).
+    }, 300000);
 
     test('POST /api/v1/prompts/:name?path=&branch= returns the subdir/branch prompt content (PRD #621)', async () => {
       if (!gitToken) {
@@ -894,7 +918,8 @@ describe('Prompts Integration', () => {
       } finally {
         await restoreEnvCache();
       }
-    }, 120000);
+      // 300000ms: comprehensive test — real git clone + expectEventually retries.
+    }, 300000);
 
     test('POST /api/v1/prompts/refresh honors path and branch body fields (PRD #621)', async () => {
       if (!gitToken) {
@@ -949,7 +974,8 @@ describe('Prompts Integration', () => {
       } finally {
         await restoreEnvCache();
       }
-    }, 180000);
+      // 300000ms: comprehensive test — real git clone + expectEventually retries.
+    }, 300000);
 
     test('GET /api/v1/prompts?path=<traversal> returns 400 with scrubbed credentials and leaves the env cache intact (PRD #621)', async () => {
       const secret = 'prd621_path_secret_xyz';
@@ -978,7 +1004,12 @@ describe('Prompts Integration', () => {
         success: true,
         data: { source: before.data.source },
       });
+      // Scalar count comparison (toBe) — the env prompt count is unchanged after
+      // the rejected request; not an object shape, so toMatchObject does not apply.
       expect(after.data.prompts.length).toBe(before.data.prompts.length);
+      // 120000ms (NOT the 300000ms comprehensive convention): this is a
+      // validation test — the override is rejected BEFORE any clone, so it is
+      // fast and deterministic and does not need the long comprehensive timeout.
     }, 120000);
 
     test('POST /api/v1/prompts/refresh with invalid branch returns 400 with scrubbed credentials (PRD #621)', async () => {
@@ -995,7 +1026,11 @@ describe('Prompts Integration', () => {
         success: false,
         error: { code: 'VALIDATION_ERROR' },
       });
+      // Negative no-leak assertion — intentionally not toMatchObject (no object
+      // shape to match; we assert the credential is absent from the response).
       expect(JSON.stringify(response)).not.toContain(secret);
+      // 120000ms (NOT the 300000ms comprehensive convention): validation test —
+      // rejected before any clone, fast and deterministic.
     }, 120000);
   });
 
@@ -1077,7 +1112,10 @@ describe('Prompts Integration', () => {
         },
       });
       const allowHeaders = res.headers.get('access-control-allow-headers');
-      // Sanity: CORS is enabled and surfaced through the ingress.
+      // These assert a single RESPONSE-HEADER string, not an object shape, so
+      // toMatchObject does not apply: toBeTruthy checks the header is present
+      // (CORS enabled and surfaced through the ingress), and toContain checks the
+      // allowlist string advertises the new credential header.
       expect(allowHeaders).toBeTruthy();
       // RED until M2: the allowlist is "Content-Type, X-Session-Id,
       // Authorization, X-Dot-AI-Authorization" (mcp.ts) / "Content-Type,
@@ -1085,6 +1123,8 @@ describe('Prompts Integration', () => {
       expect((allowHeaders || '').toLowerCase()).toContain(
         'x-dot-ai-git-token'
       );
+      // 60000ms: a single fast OPTIONS preflight — no git clone, no retries — so
+      // the 300000ms comprehensive-test convention does not apply here.
     }, 60000);
 
     // ---- M4 parity: no-?repo= (env-var) path is inert to the credential header ----
@@ -1110,7 +1150,9 @@ describe('Prompts Integration', () => {
         // The forwarded credential must never appear in the response surface.
         expect(JSON.stringify(withHeader)).not.toContain(secret);
       });
-    }, 120000);
+      // 300000ms: comprehensive test — expectEventually retries against the
+      // shared env cache (matches the cache-refresh test convention).
+    }, 300000);
 
     // ---- M4 parity: ?repo=-only path matches PRD #581; the header is threaded
     //      into an isolated token clone but the observed outcome is unchanged
@@ -1132,9 +1174,12 @@ describe('Prompts Integration', () => {
               data: { source: expect.stringContaining('dot-ai-test-prompts') },
             });
             const names = r.data.prompts.map((p: { name: string }) => p.name);
-            // ?repo=-only clones the repo ROOT on main (PRD #581 behavior):
-            // built-in prompts present, but env user prompts (which live under
-            // the user-prompts/ subdir) are NOT loaded.
+            // The response object-shape is asserted with toMatchObject above
+            // (the convention). The two checks below intentionally use toContain
+            // because they assert ARRAY MEMBERSHIP, not object shape — toContain
+            // is the correct matcher here. ?repo=-only clones the repo ROOT on
+            // main (PRD #581 behavior): built-in prompts present, but env user
+            // prompts (which live under the user-prompts/ subdir) are NOT loaded.
             expect(names).toContain('prd-create');
             expect(names).not.toContain('eval-run');
           }
@@ -1147,13 +1192,17 @@ describe('Prompts Integration', () => {
           // result with or without the header).
           const nameSet = (r: { data: { prompts: { name: string }[] } }) =>
             r.data.prompts.map(p => p.name).sort();
+          // toEqual asserts EXACT equality of the two name arrays; toMatchObject
+          // would be the wrong tool (it does partial matching, not array equality).
           expect(nameSet(resH)).toEqual(nameSet(res));
-          // No credential leak in the response.
+          // Negative no-leak assertion — intentionally NOT toMatchObject (there
+          // is no object shape to match; we assert the token is absent entirely).
           expect(JSON.stringify(resH)).not.toContain(secret);
         });
       } finally {
         await restoreEnvCache();
       }
-    }, 180000);
+      // 300000ms: comprehensive test — real git clone + expectEventually retries.
+    }, 300000);
   });
 });

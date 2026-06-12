@@ -46,6 +46,16 @@ describe('CORS allow-header parity (PRD #621 M2)', () => {
     expect(MCP_CORS_ALLOW_HEADERS).toContain('X-Dot-AI-Authorization');
   });
 
+  // CodeRabbit Finding 3: the MCP session router routes by the
+  // `mcp-session-id` request header, so the preflight allowlist must advertise
+  // it (case-insensitively) or browser MCP calls that send it would fail.
+  test('MCP allowlist advertises the session-routing header (Mcp-Session-Id)', () => {
+    expect(MCP_CORS_ALLOW_HEADERS).toContain('Mcp-Session-Id');
+    expect(MCP_CORS_ALLOW_HEADERS.toLowerCase()).toContain('mcp-session-id');
+    // X-Session-Id is retained for backward compat (additive change).
+    expect(MCP_CORS_ALLOW_HEADERS).toContain('X-Session-Id');
+  });
+
   test('BOTH allowlists include the credential header (parity, case-insensitive)', () => {
     for (const list of [REST_CORS_ALLOW_HEADERS, MCP_CORS_ALLOW_HEADERS]) {
       expect(list.toLowerCase()).toContain('x-dot-ai-git-token');

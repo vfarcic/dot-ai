@@ -80,7 +80,7 @@ import {
   type PromptsListArgs,
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
-import { RestApiRouter } from './rest-api';
+import { RestApiRouter, sanitizeRequestUrlForLogging } from './rest-api';
 import { MCP_CORS_ALLOW_HEADERS } from './cors-headers';
 import { redactSensitiveHeaders } from './header-redaction';
 import {
@@ -653,12 +653,15 @@ export class MCPServer {
         // Execute entire request within the span's context for proper propagation
         await context.with(trace.setSpan(context.active(), span), async () => {
           try {
-            // HIGH-1: redact credential-bearing headers (Authorization,
-            // X-Dot-AI-Authorization, X-Dot-AI-Git-Token, ...) before logging —
-            // PRD #621 requires the forwarded token never appear in logs.
+            // PRD #621: the forwarded token must never appear in logs. Redact
+            // credential-bearing headers (HIGH-1) AND scrub credentials from the
+            // request URL — a ?repo=https://user:token@host or a
+            // credential-bearing query param would otherwise leak verbatim
+            // (CodeRabbit Finding 1). sanitizeRequestUrlForLogging is the shared
+            // helper already used by the REST layer.
             this.logger.debug('HTTP request received', {
               method: req.method,
-              url: req.url,
+              url: sanitizeRequestUrlForLogging(req.url),
               headers: redactSensitiveHeaders(req.headers),
             });
 

@@ -35,5 +35,10 @@ export const REST_CORS_ALLOW_HEADERS = `Content-Type, Authorization, ${GIT_TOKEN
 /**
  * `Access-Control-Allow-Headers` value for the front HTTP layer (mcp.ts).
  * Retains X-Session-Id and X-Dot-AI-Authorization from the pre-existing list.
+ *
+ * Includes `Mcp-Session-Id` because the MCP session router in mcp.ts routes
+ * requests by `req.headers['mcp-session-id']` (the Streamable HTTP transport's
+ * session header); without it a browser preflight requesting that header would
+ * fail (CodeRabbit Finding 3). `X-Session-Id` is kept for backward compat.
  */
-export const MCP_CORS_ALLOW_HEADERS = `Content-Type, X-Session-Id, Authorization, X-Dot-AI-Authorization, ${GIT_TOKEN_HEADER}`;
+export const MCP_CORS_ALLOW_HEADERS = `Content-Type, X-Session-Id, Mcp-Session-Id, Authorization, X-Dot-AI-Authorization, ${GIT_TOKEN_HEADER}`;
