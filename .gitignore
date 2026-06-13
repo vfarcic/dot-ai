@@ -123,3 +123,6 @@ eval/results/*.jsonl
 !charts/charts/*.tgz
 
 /aws-creds.conf
+
+# dot-agent-deck orchestrator state (local only)
+.dot-agent-deck/
