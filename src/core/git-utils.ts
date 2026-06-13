@@ -13,12 +13,29 @@
  */
 
 import simpleGit, { SimpleGitOptions } from 'simple-git';
+import { spawn } from 'node:child_process';
 import * as jwt from 'jsonwebtoken';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 const FETCH_TIMEOUT_MS = 30000;
 const GIT_TIMEOUT_MS = 120000; // 2 minutes for git operations
+
+/**
+ * Environment variable name through which a per-request override credential
+ * (PRD #621 M3) is handed to the GIT_ASKPASS helper. The token travels in the
+ * git child process's ENVIRONMENT — never on its argv (ps/proc) and never
+ * embedded in the clone URL written to `.git/config`.
+ */
+export const ASKPASS_TOKEN_ENV = 'DOT_AI_GIT_ASKPASS_TOKEN';
+
+/**
+ * Environment variable naming the host the override token is bound to. The
+ * GIT_ASKPASS helper emits the token ONLY when git's credential prompt names
+ * this host, so a cross-host HTTP redirect can never obtain it (Decision 3).
+ */
+export const ASKPASS_HOST_ENV = 'DOT_AI_GIT_ASKPASS_HOST';
 
 // ─── Auth types ───
 
@@ -200,6 +217,190 @@ export function sanitizeRelativePath(relativePath: string): string {
 export interface CloneOptions {
   branch?: string;
   depth?: number;
+  /**
+   * Per-call git credential (PRD #621 M3). When supplied it OVERRIDES the
+   * env/GitHub-App auth (`getGitAuthConfigFromEnv`) for this clone only
+   * (Decision 4) and is scoped to the host in `repoUrl` with cross-host
+   * redirect forwarding disabled (Decision 3 — see buildOverrideCloneAuth).
+   * When omitted, the clone uses env auth exactly as before.
+   */
+  token?: string;
+}
+
+/**
+ * PRD #621 M3 / Decision 3: build the clone URL + intended host for a
+ * per-request override credential.
+ *
+ * The credential itself is NOT in the returned URL — it is the bare
+ * `x-access-token` username only (the token is passed via a HOST-BOUND
+ * GIT_ASKPASS helper, see cloneRepo / createAskpassScript). So the token never
+ * lands on the git argv or in the cloned `.git/config` remote URL (MEDIUM-2/3).
+ *
+ * No `-c` git config is returned: the earlier `-c credential.helper=` was
+ * REJECTED by simple-git's safety guard (allowUnsafeCredentialHelper), which
+ * aborted the clone entirely; and `-c http.followRedirects=false` is dropped
+ * per review finding R-1 (it blocked legitimate same-host redirects too). The
+ * host-bound askpass makes following redirects provably safe — the token is
+ * emitted ONLY for `host`, and libcurl already strips credentials on a
+ * cross-host redirect by default.
+ *
+ * Returned as plain data so the auth decision is unit-testable without spawning
+ * git. The token is intentionally NOT a parameter — it never influences this
+ * (URL/argv) surface.
+ */
+export function buildOverrideCloneAuth(repoUrl: string): {
+  cloneUrl: string;
+  host: string;
+} {
+  const url = new URL(repoUrl);
+  const host = url.host;
+  url.username = 'x-access-token';
+  url.password = '';
+  return { cloneUrl: url.toString(), host };
+}
+
+/**
+ * Create a throwaway, HOST-BOUND GIT_ASKPASS helper script. The script holds NO
+ * secret — it echoes the token from the environment (ASKPASS_TOKEN_ENV) ONLY
+ * when git's credential prompt (passed as $1) names the intended host
+ * (ASKPASS_HOST_ENV), delimited by `@`/`//` before and a closing quote after.
+ * For any other host — e.g. after an HTTP redirect, or a look-alike like
+ * `github.com.evil.test` — it emits nothing, so the token can never reach a
+ * different host (Decision 3). The token never touches disk. The script lives
+ * in its own 0700 temp dir; `cleanup` removes it.
+ */
+function createAskpassScript(): { scriptPath: string; cleanup: () => void } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dot-ai-askpass-'));
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    /* best-effort hardening */
+  }
+  const scriptPath = path.join(dir, 'askpass.sh');
+  // Host-bound match: require the intended host immediately after `@` or `//`
+  // and immediately before the closing `'` git puts around the URL, so neither
+  // a different redirect host nor a look-alike suffix matches.
+  const script = [
+    '#!/bin/sh',
+    'case "$1" in',
+    `  *"@$${ASKPASS_HOST_ENV}'"*|*"//$${ASKPASS_HOST_ENV}'"*)`,
+    `    printf '%s\\n' "$${ASKPASS_TOKEN_ENV}"`,
+    '    ;;',
+    'esac',
+    '',
+  ].join('\n');
+  fs.writeFileSync(scriptPath, script, { mode: 0o700 });
+  return {
+    scriptPath,
+    cleanup: () => {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* best-effort cleanup; the script holds no secret */
+      }
+    },
+  };
+}
+
+/**
+ * PRD #621 M3: clone an OVERRIDE repo using a per-request token, via a
+ * HOST-BOUND GIT_ASKPASS helper.
+ *
+ * This deliberately spawns `git` DIRECTLY rather than going through simple-git:
+ * simple-git's safety scanner rejects the env vars this approach relies on
+ * (GIT_ASKPASS → allowUnsafeAskPass) and even flags inherited vars like EDITOR
+ * / PAGER, which aborts the clone before it starts. A direct spawn lets us pass
+ * the full process.env (PATH/HOME/proxy/TLS) plus the askpass wiring with no
+ * argument/env guard interference, while still keeping:
+ *   - the token OFF the argv (the URL carries only the `x-access-token`
+ *     username) and OUT of .git/config (MEDIUM-2/MEDIUM-3);
+ *   - the token bound to the source host so a cross-host redirect can't obtain
+ *     it (Decision 3 — host-bound askpass + libcurl's default cross-host
+ *     credential stripping). Redirects are NOT disabled (review finding R-1),
+ *     so legitimate same-host redirects still work.
+ */
+async function cloneWithOverrideToken(
+  repoUrl: string,
+  targetDir: string,
+  opts: CloneOptions & { token: string }
+): Promise<{ localPath: string; branch: string }> {
+  const { cloneUrl, host } = buildOverrideCloneAuth(repoUrl);
+  const askpass = createAskpassScript();
+
+  const args = ['clone'];
+  if (opts.branch) {
+    args.push('--branch', opts.branch);
+  }
+  if (opts.depth) {
+    args.push('--depth', String(opts.depth));
+  }
+  // `--` terminates option parsing so the URL/dir can never be read as flags.
+  args.push('--', cloneUrl, targetDir);
+
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    GIT_ASKPASS: askpass.scriptPath,
+    // Never fall back to an interactive terminal prompt if askpass yields nothing.
+    GIT_TERMINAL_PROMPT: '0',
+    [ASKPASS_TOKEN_ENV]: opts.token,
+    [ASKPASS_HOST_ENV]: host,
+  };
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn('git', args, {
+        env,
+        stdio: ['ignore', 'ignore', 'pipe'],
+      });
+      let stderr = '';
+      // The 'error', 'close', and timeout handlers can each race to settle this
+      // promise (e.g. 'close' still fires after a kill or a spawn 'error'). A
+      // promise only settles once, but the LATER handlers would still run their
+      // logic on an already-settled promise. Guard so the FIRST settle wins and
+      // every subsequent handler is a no-op, and clear the timeout on settle so
+      // no dangling timer fires afterwards.
+      let settled = false;
+      const timerRef: { id?: ReturnType<typeof setTimeout> } = {};
+      const settle = (action: () => void): void => {
+        if (settled) return;
+        settled = true;
+        if (timerRef.id) clearTimeout(timerRef.id);
+        action();
+      };
+
+      timerRef.id = setTimeout(() => {
+        settle(() => {
+          child.kill('SIGKILL');
+          reject(new Error(`git clone timed out after ${GIT_TIMEOUT_MS}ms`));
+        });
+      }, GIT_TIMEOUT_MS);
+      child.stderr?.on('data', chunk => {
+        stderr += chunk.toString();
+      });
+      child.on('error', err => {
+        settle(() => reject(err));
+      });
+      child.on('close', code => {
+        settle(() => {
+          if (code === 0) {
+            resolve();
+          } else {
+            // stderr carries only the username-only URL (no token), so it is
+            // safe to surface; the caller scrubs it again as defense-in-depth.
+            reject(
+              new Error(`git clone exited with code ${code}: ${stderr.trim()}`)
+            );
+          }
+        });
+      });
+    });
+  } finally {
+    // Remove the askpass helper as soon as the clone finishes (success or
+    // failure). It holds no secret, but leaving temp files around is untidy.
+    askpass.cleanup();
+  }
+
+  return { localPath: targetDir, branch: opts.branch || 'main' };
 }
 
 export async function cloneRepo(
@@ -207,10 +408,19 @@ export async function cloneRepo(
   targetDir: string,
   opts?: CloneOptions
 ): Promise<{ localPath: string; branch: string }> {
+  // PRD #621 M3 / Decision 4: a per-request override credential takes precedence
+  // over env auth for THIS clone only and uses the host-bound GIT_ASKPASS path.
+  if (opts?.token) {
+    return cloneWithOverrideToken(repoUrl, targetDir, {
+      ...opts,
+      token: opts.token,
+    });
+  }
+
+  // Env/GitHub-App auth path (unchanged): credentials come from
+  // getGitAuthConfigFromEnv and are embedded in the URL as before.
   const authConfig = getGitAuthConfigFromEnv();
   let cloneUrl: string;
-
-  // Use authenticated URL if credentials are available, otherwise clone unauthenticated (public repos)
   if (authConfig.pat || authConfig.githubApp) {
     const token = await getAuthToken(authConfig);
     cloneUrl = getAuthenticatedUrl(repoUrl, token);

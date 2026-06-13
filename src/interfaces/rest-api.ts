@@ -27,6 +27,10 @@ import {
   UserPromptsOverride,
 } from '../core/user-prompts-loader';
 import { scrubCredentials } from '../core/git-utils';
+import {
+  GIT_TOKEN_HEADER_LC,
+  REST_CORS_ALLOW_HEADERS,
+} from './cors-headers';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import {
   getSessionEventBus,
@@ -117,6 +121,159 @@ export function sanitizeRequestUrlForLogging(
     const qIdx = url.indexOf('?');
     if (qIdx === -1) return url;
     return url.slice(0, qIdx) + UNPARSEABLE_QUERY_PLACEHOLDER;
+  }
+}
+
+/**
+ * Coerce an optional override string param (path/branch) supplied via query
+ * string or JSON body. Mirrors the `repo` guard in extractPromptsOverride:
+ *   - non-string (array, number, object, boolean) → 400 (avoids a 500 from a
+ *     malformed body reaching downstream code).
+ *   - absent (null/undefined) or empty/whitespace-only → `undefined`, i.e.
+ *     treated as not supplied so the downstream default (subPath '' / branch
+ *     'main') is preserved and an empty-string branch never reaches
+ *     isValidGitBranch (which would otherwise reject it).
+ *   - otherwise → the trimmed value.
+ */
+function coerceOverrideStringParam(
+  value: unknown,
+  name: 'path' | 'branch'
+):
+  | { ok: true; value: string | undefined }
+  | { ok: false; message: string } {
+  if (value === undefined || value === null) {
+    return { ok: true, value: undefined };
+  }
+  if (typeof value !== 'string') {
+    return {
+      ok: false,
+      message: `${name} must be a string (got ${Array.isArray(value) ? 'array' : typeof value})`,
+    };
+  }
+  const trimmed = value.trim();
+  return { ok: true, value: trimmed.length > 0 ? trimmed : undefined };
+}
+
+/**
+ * Read the per-request git credential from the X-Dot-AI-Git-Token header
+ * (PRD #621 M2). Node lowercases incoming header names and may present a
+ * repeated header as an array; normalize to a single non-empty string or
+ * undefined. The value is a secret, so it is never logged here.
+ */
+function readGitTokenHeader(req: IncomingMessage): string | undefined {
+  const raw = req.headers[GIT_TOKEN_HEADER_LC];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Extract and validate the per-request prompts override.
+ *
+ * Threads three optional, additive inputs from the request into a
+ * UserPromptsOverride (PRD #581 introduced `repo`; PRD #621 M1 adds `path`
+ * and `branch`):
+ *   - repoParam   → override.repoUrl   (GET ?repo=  / POST body `repo`)
+ *   - pathParam   → override.subPath   (GET ?path=  / POST body `path`)
+ *   - branchParam → override.branch    (GET ?branch= / POST body `branch`)
+ *   - gitToken    → override.gitToken  (X-Dot-AI-Git-Token request header; M2)
+ *
+ * Returns:
+ *   - { ok: true, override }  when no `repo` is supplied (override undefined;
+ *     any path/branch/token are ignored, since they only qualify an override —
+ *     this keeps the no-`repo` / env-var-configured path unchanged).
+ *   - { ok: true, override }  when a syntactically valid override is supplied.
+ *   - { ok: false, message }  when the override fails validation (HTTP 400).
+ *
+ * The validation message is run through scrubCredentials so embedded tokens
+ * never reach the wire response.
+ *
+ * Backward compatibility (PRD #621, non-negotiable): when path/branch are
+ * absent or empty, the override carries `repoUrl` only — byte-identical to
+ * the PRD #581 behavior (same clone target: repo root, `main`). subPath and
+ * branch are populated ONLY for a non-empty value, so downstream defaults are
+ * untouched. The credential header is INERT unless a `?repo=` override is
+ * present: without a repo this returns `override: undefined` before the token
+ * is ever read, so the env-var path is unaffected by a forwarded header.
+ *
+ * Validation is delegated to getUserPromptsConfigFromOverride (scheme,
+ * sanitizeRelativePath for subPath, isValidGitBranch for branch) and happens
+ * BEFORE any clone or shared-cache mutation, so a rejected override can never
+ * corrupt the env-var-configured cache.
+ */
+export function extractPromptsOverride(
+  repoParam: unknown,
+  pathParam?: unknown,
+  branchParam?: unknown,
+  gitToken?: string
+):
+  | {
+      ok: true;
+      override?: UserPromptsOverride;
+    }
+  | {
+      ok: false;
+      message: string;
+    } {
+  // Treat absent (null/undefined) repo as no override. path/branch/token only
+  // qualify an override, so without a repo they are ignored (the credential
+  // header is inert on the env-var path).
+  if (repoParam === undefined || repoParam === null) {
+    return { ok: true, override: undefined };
+  }
+  // The wire contract says `repo` is a string. Anything else (array,
+  // number, object, boolean) is a 400 — otherwise downstream code
+  // would crash to a 500.
+  if (typeof repoParam !== 'string') {
+    return {
+      ok: false,
+      message: `repo must be a string (got ${Array.isArray(repoParam) ? 'array' : typeof repoParam})`,
+    };
+  }
+  const trimmed = repoParam.trim();
+  if (!trimmed) {
+    return { ok: true, override: undefined };
+  }
+  const candidate: UserPromptsOverride = { repoUrl: trimmed };
+
+  // PRD #621 M1: thread ?path= / body `path` into subPath (validated
+  // downstream by sanitizeRelativePath).
+  const pathResult = coerceOverrideStringParam(pathParam, 'path');
+  if (!pathResult.ok) {
+    return pathResult;
+  }
+  if (pathResult.value !== undefined) {
+    candidate.subPath = pathResult.value;
+  }
+
+  // PRD #621 M1: thread ?branch= / body `branch` into branch (validated
+  // downstream by isValidGitBranch).
+  const branchResult = coerceOverrideStringParam(branchParam, 'branch');
+  if (!branchResult.ok) {
+    return branchResult;
+  }
+  if (branchResult.value !== undefined) {
+    candidate.branch = branchResult.value;
+  }
+
+  // PRD #621 M2: the X-Dot-AI-Git-Token header (read by the handler and passed
+  // in already-normalized to a non-empty string or undefined) authenticates
+  // THIS override clone. It travels only as a header — never query/body — and
+  // is never echoed (computePromptsSource uses repoUrl only).
+  if (gitToken) {
+    candidate.gitToken = gitToken;
+  }
+
+  try {
+    // Throws on invalid scheme / subPath / branch.
+    getUserPromptsConfigFromOverride(candidate);
+    return { ok: true, override: candidate };
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : 'Invalid override';
+    return { ok: false, message: scrubCredentials(raw) };
   }
 }
 
@@ -1861,54 +2018,6 @@ export class RestApiRouter {
   }
 
   /**
-   * Extract and validate the per-request `repo` override (PRD #581).
-   *
-   * Returns:
-   *   - { ok: true, override }    when no repo param is supplied, override is undefined.
-   *   - { ok: true, override }    when a syntactically valid override URL is supplied.
-   *   - { ok: false, message }    when the override fails validation (HTTP 400).
-   *
-   * The validation message is run through scrubCredentials so embedded tokens
-   * never reach the wire response.
-   */
-  private extractPromptsOverride(repoParam: unknown):
-    | {
-        ok: true;
-        override?: UserPromptsOverride;
-      }
-    | {
-        ok: false;
-        message: string;
-      } {
-    // Treat absent (null/undefined) as no override.
-    if (repoParam === undefined || repoParam === null) {
-      return { ok: true, override: undefined };
-    }
-    // The wire contract says `repo` is a string. Anything else (array,
-    // number, object, boolean) is a 400 — otherwise downstream code
-    // would crash to a 500.
-    if (typeof repoParam !== 'string') {
-      return {
-        ok: false,
-        message: `repo must be a string (got ${Array.isArray(repoParam) ? 'array' : typeof repoParam})`,
-      };
-    }
-    const trimmed = repoParam.trim();
-    if (!trimmed) {
-      return { ok: true, override: undefined };
-    }
-    const candidate: UserPromptsOverride = { repoUrl: trimmed };
-    try {
-      // Throws on invalid scheme / subPath / branch.
-      getUserPromptsConfigFromOverride(candidate);
-      return { ok: true, override: candidate };
-    } catch (error) {
-      const raw = error instanceof Error ? error.message : 'Invalid override';
-      return { ok: false, message: scrubCredentials(raw) };
-    }
-  }
-
-  /**
    * Handle prompts list requests
    */
   private async handlePromptsListRequest(
@@ -1920,8 +2029,15 @@ export class RestApiRouter {
     try {
       this.logger.info('Processing prompts list request', { requestId });
 
-      const overrideResult = this.extractPromptsOverride(
-        searchParams.get('repo')
+      // PRD #581: ?repo= override. PRD #621 M1: ?path= / ?branch= thread into
+      // candidate.subPath / candidate.branch (absent → unchanged behavior).
+      // PRD #621 M2: X-Dot-AI-Git-Token header authenticates the override clone
+      // (inert when no ?repo= override is present).
+      const overrideResult = extractPromptsOverride(
+        searchParams.get('repo'),
+        searchParams.get('path'),
+        searchParams.get('branch'),
+        readGitTokenHeader(req)
       );
       if (!overrideResult.ok) {
         await this.sendErrorResponse(
@@ -1993,8 +2109,15 @@ export class RestApiRouter {
         promptName,
       });
 
-      const overrideResult = this.extractPromptsOverride(
-        searchParams.get('repo')
+      // PRD #581: ?repo= override. PRD #621 M1: ?path= / ?branch= thread into
+      // candidate.subPath / candidate.branch (absent → unchanged behavior).
+      // PRD #621 M2: X-Dot-AI-Git-Token header authenticates the override clone
+      // (inert when no ?repo= override is present).
+      const overrideResult = extractPromptsOverride(
+        searchParams.get('repo'),
+        searchParams.get('path'),
+        searchParams.get('branch'),
+        readGitTokenHeader(req)
       );
       if (!overrideResult.ok) {
         await this.sendErrorResponse(
@@ -2077,9 +2200,20 @@ export class RestApiRouter {
       });
 
       // body.repo type is checked inside extractPromptsOverride (it accepts
-      // unknown and rejects non-string values with 400 — see F2).
-      const bodyObj = body as { repo?: unknown } | undefined;
-      const overrideResult = this.extractPromptsOverride(bodyObj?.repo);
+      // unknown and rejects non-string values with 400 — see F2). PRD #621 M1:
+      // body `path` / `branch` thread into candidate.subPath / candidate.branch
+      // (absent → unchanged behavior); both are likewise type-checked.
+      const bodyObj = body as
+        | { repo?: unknown; path?: unknown; branch?: unknown }
+        | undefined;
+      // PRD #621 M2: the credential always travels as the X-Dot-AI-Git-Token
+      // header — never the body — and is inert without a repo override.
+      const overrideResult = extractPromptsOverride(
+        bodyObj?.repo,
+        bodyObj?.path,
+        bodyObj?.branch,
+        readGitTokenHeader(req)
+      );
       if (!overrideResult.ok) {
         await this.sendErrorResponse(
           res,
@@ -2639,7 +2773,9 @@ export class RestApiRouter {
 
     if (this.config.enableCors) {
       headers['Access-Control-Allow-Origin'] = '*';
-      headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
+      // R-2: use the shared allowlist (single source of truth in cors-headers.ts)
+      // so the SSE preflight includes X-Dot-AI-Git-Token like every other route.
+      headers['Access-Control-Allow-Headers'] = REST_CORS_ALLOW_HEADERS;
     }
 
     res.writeHead(HttpStatus.OK, headers);
@@ -3588,10 +3724,9 @@ export class RestApiRouter {
   private setCorsHeaders(res: ServerResponse): void {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization'
-    );
+    // PRD #621 M2 / Decision 1: advertise the X-Dot-AI-Git-Token credential
+    // header (shared with the mcp.ts allowlist via cors-headers.ts).
+    res.setHeader('Access-Control-Allow-Headers', REST_CORS_ALLOW_HEADERS);
     res.setHeader('Access-Control-Max-Age', '86400');
   }
 

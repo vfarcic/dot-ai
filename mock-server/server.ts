@@ -14,7 +14,11 @@ import { URL, fileURLToPath } from 'node:url';
 import { matchRoute, getAllRoutes } from './routes.js';
 import {
   applyPromptsRepoOverride,
+  coerceOverrideParam,
+  getOverridePathBranchFixture,
   isPromptsRoutePath,
+  selectsOverridePathBranchSet,
+  validatePromptsOverride,
 } from './prompts-override.js';
 import {
   isSingleResourceRoutePath,
@@ -39,7 +43,12 @@ function setCorsHeaders(res: ServerResponse): void {
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, DELETE, OPTIONS'
   );
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // PRD #621 M2/M5: advertise the X-Dot-AI-Git-Token credential header so the
+  // CLI's preflight succeeds, mirroring the real server's CORS allowlist.
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Dot-AI-Git-Token'
+  );
 }
 
 /**
@@ -177,27 +186,63 @@ async function handleRequest(
     return;
   }
 
-  // Load and return fixture. For prompts routes, apply the optional `repo`
-  // override (PRD #581) so the response's `source` field echoes the supplied
-  // URL — matching the real server's contract that the CLI relies on for
-  // skill tagging.
+  // Load and return fixture. For prompts routes, mirror the real server's
+  // per-request override contract (PRD #581 `repo`; PRD #621 `path`/`branch`
+  // + X-Dot-AI-Git-Token header).
   try {
     const fixture = await loadFixture(route.fixture);
     let payload: unknown = fixture;
     if (isPromptsRoutePath(route.path)) {
-      let repo: string | undefined = url.searchParams.get('repo') || undefined;
-      if (
-        !repo &&
-        method === 'POST' &&
-        route.path === '/api/v1/prompts/refresh'
-      ) {
+      // Mirror the real server's override-source contract exactly:
+      //   - POST /api/v1/prompts/refresh → repo/path/branch from the JSON BODY
+      //     ONLY (the real handler reads bodyObj.repo/path/branch; query is not
+      //     consulted for /refresh).
+      //   - GET /api/v1/prompts and POST /api/v1/prompts/:name → from the QUERY.
+      let repo: string | undefined;
+      let pathParam: string | undefined;
+      let branchParam: string | undefined;
+      if (method === 'POST' && route.path === '/api/v1/prompts/refresh') {
         const body = await readJsonBody(req);
-        const bodyRepo = body?.['repo'];
-        if (typeof bodyRepo === 'string' && bodyRepo.trim()) {
-          repo = bodyRepo.trim();
+        repo = coerceOverrideParam(body?.['repo']);
+        pathParam = coerceOverrideParam(body?.['path']);
+        branchParam = coerceOverrideParam(body?.['branch']);
+      } else {
+        repo = coerceOverrideParam(url.searchParams.get('repo'));
+        pathParam = coerceOverrideParam(url.searchParams.get('path'));
+        branchParam = coerceOverrideParam(url.searchParams.get('branch'));
+      }
+
+      // The credential travels ONLY as the X-Dot-AI-Git-Token header. The mock
+      // advertises it via CORS and tolerates it here, but it is intentionally
+      // never read into — nor reflected by — the response, `source`, or logs.
+
+      // Invalid path/branch (only meaningful with a repo override) → 400 with
+      // credentials scrubbed, exactly as the real server.
+      const validation = validatePromptsOverride({
+        repo,
+        path: pathParam,
+        branch: branchParam,
+      });
+      if (!validation.ok) {
+        sendJson(res, 400, {
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: validation.message },
+        });
+        return;
+      }
+
+      // A repo override carrying BOTH a path and a branch resolves a DISTINCT
+      // prompt set (mirrors the real server resolving a subdir on a non-default
+      // branch). Otherwise the default (root@main) fixture is used.
+      let baseFixture: unknown = fixture;
+      if (selectsOverridePathBranchSet({ repo, path: pathParam, branch: branchParam })) {
+        const overrideFixture = getOverridePathBranchFixture(route.path);
+        if (overrideFixture) {
+          baseFixture = await loadFixture(overrideFixture);
         }
       }
-      payload = applyPromptsRepoOverride(fixture, repo);
+
+      payload = applyPromptsRepoOverride(baseFixture, repo);
     }
     sendJson(res, 200, payload);
   } catch (error) {

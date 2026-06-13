@@ -15,6 +15,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { Logger } from './error-handling';
 import {
   cloneRepo,
@@ -44,6 +45,15 @@ export interface UserPromptsOverride {
   repoUrl: string;
   branch?: string;
   subPath?: string;
+  /**
+   * Per-request git credential forwarded by the caller (PRD #621 M2/M3, via the
+   * X-Dot-AI-Git-Token header). When present it takes precedence over
+   * DOT_AI_GIT_TOKEN for THIS request only (Decision 4) and triggers per-request
+   * cache isolation so a private authenticated clone is never served to/from the
+   * shared unauthenticated cache slot (Decision 2). Never enters the cache key
+   * or any log/error/source surface.
+   */
+  gitToken?: string;
 }
 
 /**
@@ -181,7 +191,10 @@ export function getUserPromptsConfigFromOverride(
     repoUrl: override.repoUrl,
     branch,
     subPath: normalizedSubPath,
-    gitToken: process.env.DOT_AI_GIT_TOKEN,
+    // PRD #621 M2 / Decision 4: a request-supplied token (override.gitToken)
+    // takes precedence over the server env credential for this request only;
+    // the env credential remains the fallback when no header is present.
+    gitToken: override.gitToken ?? process.env.DOT_AI_GIT_TOKEN,
     cacheTtlSeconds,
   };
 }
@@ -279,12 +292,42 @@ function isValidGitBranch(branch: string): boolean {
 }
 
 /**
- * Clone the user prompts repository
+ * Create a unique, throwaway ROOT directory for a token-bearing override
+ * request (PRD #621 M3 / Decision 2). It lives alongside the shared cache
+ * directory but is NOT the shared slot, so an authenticated private clone is
+ * never written to (or served from) the unauthenticated cache. The caller
+ * removes it after reading.
+ *
+ * Hardening (LOW-4): created atomically via fs.mkdtempSync with a CSPRNG
+ * (crypto.randomUUID) name component and mode 0700, so the authenticated clone
+ * cannot land in a predictable, world-readable location.
+ */
+function createIsolatedCloneRoot(): string {
+  const parent = path.dirname(getCacheDirectory());
+  const root = fs.mkdtempSync(
+    path.join(parent, `user-prompts-override-${crypto.randomUUID()}-`)
+  );
+  try {
+    fs.chmodSync(root, 0o700);
+  } catch {
+    /* best-effort hardening (mkdtempSync already creates with 0700) */
+  }
+  return root;
+}
+
+/**
+ * Clone the user prompts repository.
+ *
+ * `overrideToken` (PRD #621 M3) is a per-request credential that, when present,
+ * overrides env auth for this clone only and is scoped to the source host with
+ * no cross-host redirect forwarding (handled in cloneRepo). When omitted, the
+ * clone authenticates via env exactly as before.
  */
 async function cloneRepository(
   config: UserPromptsConfig,
   localPath: string,
-  logger: Logger
+  logger: Logger,
+  overrideToken?: string
 ): Promise<void> {
   // Validate branch name as defense-in-depth
   if (!isValidGitBranch(config.branch)) {
@@ -314,6 +357,9 @@ async function cloneRepository(
     await cloneRepo(config.repoUrl, localPath, {
       branch: config.branch,
       depth: 1,
+      // Per-request override credential (PRD #621 M3). undefined → cloneRepo
+      // falls back to env auth, i.e. today's behavior unchanged.
+      token: overrideToken,
     });
 
     logger.info('Successfully cloned user prompts repository', {
@@ -321,13 +367,13 @@ async function cloneRepository(
       branch: config.branch,
     });
   } catch (error) {
+    const scrub = (raw: string): string =>
+      scrubCredentials(
+        config.gitToken ? raw.replaceAll(config.gitToken, '***') : raw
+      );
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    const sanitizedError = scrubCredentials(
-      config.gitToken
-        ? errorMessage.replaceAll(config.gitToken, '***')
-        : errorMessage
-    );
+    const sanitizedError = scrub(errorMessage);
 
     logger.error(
       'Failed to clone user prompts repository',
@@ -337,6 +383,17 @@ async function cloneRepository(
         branch: config.branch,
       }
     );
+    // LOW-5: scrub the caught error IN PLACE (message + stack) before attaching
+    // it as `cause`, so a serialized `.cause` cannot leak the token. (With the
+    // GIT_ASKPASS rework the override token is no longer on the git argv/URL, so
+    // it cannot appear here in the first place — this is defense-in-depth, esp.
+    // for the env-credential path which still embeds its token in the URL.)
+    if (error instanceof Error) {
+      error.message = scrub(error.message);
+      if (error.stack) {
+        error.stack = scrub(error.stack);
+      }
+    }
     throw new Error(
       `Failed to clone user prompts repository: ${sanitizedError}`,
       { cause: error }
@@ -386,14 +443,64 @@ async function pullRepository(
 }
 
 /**
- * Ensure the repository is cloned and up-to-date
- * Returns the path to the prompts directory within the repository
+ * Ensure the repository is cloned and up-to-date.
+ *
+ * Returns the path to the prompts directory within the repository, plus an
+ * optional `isolatedRoot` the caller must remove after reading (set only for
+ * the token-bearing isolation path below).
+ *
+ * PRD #621 M3 / Decision 2 (cache isolation): when `overrideToken` is present
+ * (a request forwarded an X-Dot-AI-Git-Token), the clone is performed into a
+ * unique throwaway directory and the shared `cacheState` is neither read nor
+ * written. This guarantees an authenticated private clone is never served from
+ * — nor written into — the shared unauthenticated cache slot for the same
+ * (repoUrl, branch, subPath) coordinate, and that the token never enters the
+ * cache key. Token-less requests use the shared cache exactly as before.
  */
 async function ensureRepository(
   config: UserPromptsConfig,
   logger: Logger,
-  forceRefresh: boolean = false
-): Promise<string> {
+  forceRefresh: boolean = false,
+  overrideToken?: string
+): Promise<{ promptsDir: string; isolatedRoot?: string }> {
+  if (overrideToken) {
+    const isolatedRoot = createIsolatedCloneRoot();
+    // Clone into a subdirectory of the 0700 root so the root's restrictive
+    // permissions cover the authenticated clone (git creates `cloneDir` itself).
+    const cloneDir = path.join(isolatedRoot, 'repo');
+    logger.debug('Token-bearing override: cloning in isolation', {
+      url: sanitizeUrlForLogging(config.repoUrl),
+      branch: config.branch,
+    });
+    try {
+      await cloneRepository(config, cloneDir, logger, overrideToken);
+    } catch (error) {
+      // Remove any partial clone before propagating so a failed authenticated
+      // request leaves no isolated directory behind. With GIT_ASKPASS the token
+      // is never written to disk, so a cleanup failure cannot leave a PAT
+      // behind — but warn (don't swallow) for observability.
+      try {
+        fs.rmSync(isolatedRoot, { recursive: true, force: true });
+      } catch (cleanupError) {
+        logger.warn(
+          'Failed to remove isolated clone directory after clone failure',
+          {
+            path: isolatedRoot,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+          }
+        );
+      }
+      throw error;
+    }
+    const promptsDir = config.subPath
+      ? path.join(cloneDir, config.subPath)
+      : cloneDir;
+    return { promptsDir, isolatedRoot };
+  }
+
   const localPath = getCacheDirectory();
   const now = Date.now();
   const ttlMs = config.cacheTtlSeconds * 1000;
@@ -443,7 +550,11 @@ async function ensureRepository(
   }
 
   // Return path to prompts directory (with optional subPath)
-  return config.subPath ? path.join(localPath, config.subPath) : localPath;
+  return {
+    promptsDir: config.subPath
+      ? path.join(localPath, config.subPath)
+      : localPath,
+  };
 }
 
 const SKILL_FILE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB per file (before base64 encoding)
@@ -556,8 +667,22 @@ export async function loadUserPrompts(
     return [];
   }
 
+  // PRD #621 M3 / Decision 2: a request-forwarded credential (override.gitToken)
+  // triggers per-request cache isolation. Track the throwaway clone directory so
+  // it is removed after the read (success-path cleanup; the failure path is
+  // cleaned up inside ensureRepository).
+  const overrideToken = override?.gitToken;
+  let isolatedRoot: string | undefined;
+
   try {
-    const promptsDir = await ensureRepository(config, logger, forceRefresh);
+    const ensured = await ensureRepository(
+      config,
+      logger,
+      forceRefresh,
+      overrideToken
+    );
+    const promptsDir = ensured.promptsDir;
+    isolatedRoot = ensured.isolatedRoot;
 
     if (!fs.existsSync(promptsDir)) {
       logger.warn('User prompts directory not found in repository', {
@@ -651,6 +776,24 @@ export async function loadUserPrompts(
       new Error(safeMessage)
     );
     return [];
+  } finally {
+    // PRD #621 M3 / Decision 2: remove the per-request isolated clone (if any)
+    // so token-bearing override clones leave no on-disk residue. With
+    // GIT_ASKPASS the token is never written to disk, so a failed cleanup
+    // cannot leave a PAT behind — but warn (don't swallow) for observability.
+    if (isolatedRoot) {
+      try {
+        fs.rmSync(isolatedRoot, { recursive: true, force: true });
+      } catch (cleanupError) {
+        logger.warn('Failed to remove isolated clone directory', {
+          path: isolatedRoot,
+          error:
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError),
+        });
+      }
+    }
   }
 }
 

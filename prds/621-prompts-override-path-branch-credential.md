@@ -1,6 +1,6 @@
 # PRD #621: Per-Request Path, Branch, and Credential for the Prompts Repo Override
 
-**Status**: Draft
+**Status**: Implementation complete — CI-verified green (run 27431461358; commits 33e3716, 06907a8). M1–M6 done; M7 (companion CLI PRD) drafted, cross-repo filing pending. Mock-image republish pending at release.
 **Priority**: Important (workarounds exist but are painful)
 **Related Issues**: #621 (this PRD); #607 / #581 (the override this extends); #575 (multi-realm auth discussion); CLI companion `vfarcic/dot-ai-cli#15`
 
@@ -120,13 +120,13 @@ scan + load (unchanged)
 
 Sequenced so the low-risk, high-value path lands first; the credential work (which carries the cache/redirect decisions) follows.
 
-- [ ] **M1 — Path + branch wiring.** `extractPromptsOverride` reads `?path=`/`?branch=` (GET) and `path`/`branch` body fields (POST) into `candidate.subPath`/`candidate.branch`. Existing downstream validation (`sanitizeRelativePath`, `isValidGitBranch`) and cache-key tracking are reused unchanged. Credential scrubbing extended to the new params.
-- [ ] **M2 — Credential header.** Read `X-Dot-AI-Git-Token` in the REST handlers; add `gitToken?` to `UserPromptsOverride`; `getUserPromptsConfigFromOverride` sources the token from the override when present, else env. Add the header to both CORS allowlists.
-- [ ] **M3 — Clone auth + cache isolation.** `cloneRepo` / auth path accepts a per-call token that overrides `getGitAuthConfigFromEnv()`; token scoped to the source host with no cross-host redirect forwarding (decision 3). Cache isolation for token-bearing override requests (decision 2) — finalize the concrete mechanism here.
-- [ ] **M4 — Tests.** Including the **backward-compat parity test** (no-new-param requests unchanged, for both no-`repo` and `?repo=`-only paths); path/branch honored + invalid-value 400s with scrubbing; token precedence over env; token absent from logs/errors/`source`/cache key; cross-host redirect does not leak the token; private authenticated clone not served cross-caller from cache. `npm run test:integration` green.
-- [ ] **M5 — Mock-server parity.** `mock-server/routes.ts` and `mock-server/fixtures/prompts/` accept `path`/`branch` (query + body) and the `X-Dot-AI-Git-Token` header, and reflect behavior consistently. Mock image republished via `publish-mock-server` at release time.
-- [ ] **M6 — Documentation.** Update `docs/ai-engine/api/rest-api.md` (Prompts Endpoints) and `docs/ai-engine/tools/prompts.md` (multi-source override section) with the new params, the header, defaults, token precedence, and the explicit unchanged-by-default guarantee. Changelog fragment in `changelog.d/` (`621-*.feature.md`).
-- [ ] **M7 — Companion CLI PRD handoff.** Create a PRD in `vfarcic/dot-ai-cli` (building on `vfarcic/dot-ai-cli#15`) for the CLI-side `--repo-path`, `--repo-branch`, and `DOT_AI_GIT_TOKEN`-forwarding work. Package the complete server-side contract the CLI needs (see below) so the CLI team can implement and verify against the mock without re-deriving it.
+- [x] **M1 — Path + branch wiring.** `extractPromptsOverride` reads `?path=`/`?branch=` (GET) and `path`/`branch` body fields (POST) into `candidate.subPath`/`candidate.branch`. Existing downstream validation (`sanitizeRelativePath`, `isValidGitBranch`) and cache-key tracking are reused unchanged. Credential scrubbing extended to the new params.
+- [x] **M2 — Credential header.** Read `X-Dot-AI-Git-Token` in the REST handlers; add `gitToken?` to `UserPromptsOverride`; `getUserPromptsConfigFromOverride` sources the token from the override when present, else env. Add the header to both CORS allowlists.
+- [x] **M3 — Clone auth + cache isolation.** `cloneRepo` / auth path accepts a per-call token that overrides `getGitAuthConfigFromEnv()`; token scoped to the source host with no cross-host redirect forwarding (decision 3). Cache isolation for token-bearing override requests (decision 2) — finalize the concrete mechanism here.
+- [x] **M4 — Tests.** Including the **backward-compat parity test** (no-new-param requests unchanged, for both no-`repo` and `?repo=`-only paths); path/branch honored + invalid-value 400s with scrubbing; token precedence over env; token absent from logs/errors/`source`/cache key; cross-host redirect does not leak the token; private authenticated clone not served cross-caller from cache. `npm run test:integration` green.
+- [x] **M5 — Mock-server parity.** (Code done; mock image republish via `publish-mock-server` pending at release.) `mock-server/routes.ts` and `mock-server/fixtures/prompts/` accept `path`/`branch` (query + body) and the `X-Dot-AI-Git-Token` header, and reflect behavior consistently. Mock image republished via `publish-mock-server` at release time.
+- [x] **M6 — Documentation.** (Docs + changelog fragment `changelog.d/621.feature.md` done; optional live-validation of example `promptsLoaded` counts pending.) Update `docs/ai-engine/api/rest-api.md` (Prompts Endpoints) and `docs/ai-engine/tools/prompts.md` (multi-source override section) with the new params, the header, defaults, token precedence, and the explicit unchanged-by-default guarantee. Changelog fragment in `changelog.d/` (`621-*.feature.md`).
+- [ ] **M7 — Companion CLI PRD handoff.** (Drafted at `tmp/621-cli-companion-prd.md` with the full server-side contract; cross-repo filing in `vfarcic/dot-ai-cli` pending user confirmation.) Create a PRD in `vfarcic/dot-ai-cli` (building on `vfarcic/dot-ai-cli#15`) for the CLI-side `--repo-path`, `--repo-branch`, and `DOT_AI_GIT_TOKEN`-forwarding work. Package the complete server-side contract the CLI needs (see below) so the CLI team can implement and verify against the mock without re-deriving it.
 
 ### M7 — Contract the CLI PRD must carry
 

@@ -80,7 +80,9 @@ import {
   type PromptsListArgs,
 } from '../tools/prompts';
 import { RestToolRegistry } from './rest-registry';
-import { RestApiRouter } from './rest-api';
+import { RestApiRouter, sanitizeRequestUrlForLogging } from './rest-api';
+import { MCP_CORS_ALLOW_HEADERS } from './cors-headers';
+import { redactSensitiveHeaders } from './header-redaction';
 import {
   checkBearerAuth,
   DotAIOAuthProvider,
@@ -651,10 +653,16 @@ export class MCPServer {
         // Execute entire request within the span's context for proper propagation
         await context.with(trace.setSpan(context.active(), span), async () => {
           try {
+            // PRD #621: the forwarded token must never appear in logs. Redact
+            // credential-bearing headers (HIGH-1) AND scrub credentials from the
+            // request URL — a ?repo=https://user:token@host or a
+            // credential-bearing query param would otherwise leak verbatim
+            // (CodeRabbit Finding 1). sanitizeRequestUrlForLogging is the shared
+            // helper already used by the REST layer.
             this.logger.debug('HTTP request received', {
               method: req.method,
-              url: req.url,
-              headers: req.headers,
+              url: sanitizeRequestUrlForLogging(req.url),
+              headers: redactSensitiveHeaders(req.headers),
             });
 
             // Handle CORS for browser-based clients
@@ -663,9 +671,11 @@ export class MCPServer {
               'Access-Control-Allow-Methods',
               'GET, POST, DELETE, OPTIONS'
             );
+            // PRD #621 M2 / Decision 1: includes X-Dot-AI-Git-Token, kept in
+            // sync with the REST allowlist via cors-headers.ts.
             res.setHeader(
               'Access-Control-Allow-Headers',
-              'Content-Type, X-Session-Id, Authorization, X-Dot-AI-Authorization'
+              MCP_CORS_ALLOW_HEADERS
             );
 
             if (req.method === 'OPTIONS') {

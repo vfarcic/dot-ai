@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "data": {
+    "prompts": [
+      {
+        "name": "skill-on-branch",
+        "description": "Skill that lives only under a non-default subdirectory on a non-default branch. Reachable only when BOTH ?path= and ?branch= are supplied with the repo override (PRD #621).",
+        "arguments": [
+          {
+            "name": "target",
+            "description": "What to apply the skill to",
+            "required": false
+          }
+        ]
+      }
+    ],
+    "source": "built-in"
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "version": "1.0.0"
+  }
+}

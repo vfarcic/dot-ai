@@ -30,14 +30,16 @@ Workflow:
 - After implementation lands: delegate to reviewer and auditor in parallel. Re-delegate findings you agree with to coder (implementation-side) or tester (test-side).
 - For docs-only changes: delegate to documenter.
 - Resolve any blocking review/audit findings before moving on.
-- Final integration-test gate: before release, delegate the FULL `npm run test:integration` (no pattern, whole suite) to the tester — run once here, not per task during TDD. CLAUDE.md makes this mandatory before any work is complete, and it spins up a Kind cluster. Proceed only if it passes; on failure, re-delegate the fix to coder/tester and re-run until green.
-- Before release: summarize what changed end-to-end and STOP until the user confirms. Then delegate to release.
+- Final integration-test gate: the full `npm run test:integration` suite runs as the PR's CI (it spins up a Kind cluster; CLAUDE.md makes it mandatory before any work is complete). It runs once, on the PR — not per task during TDD, and not as a separate pre-PR run. The release worker watches that CI and reports the result back.
+- Pre-release: summarize what changed end-to-end and STOP until the user confirms. Then delegate /prd-done to release. Release opens the PR, waits for the PR's CI and automated reviews (e.g. CodeRabbit) to settle, and reports back — it does NOT merge. Route any CI failures or review findings it reports to coder (implementation-side) or tester (test-side), then re-engage release to re-check.
+- Merge: only on the user's explicit go-ahead do you re-delegate to release to finish /prd-done (merge the PR, close the issue). Never merge without that go-ahead.
 
 PRD-driven work: this project tracks active work in prds/. When the user references a PRD by number or name, paste the path (e.g. prds/581-per-request-user-prompts-repo.md) in --task to whichever worker you delegate to.
 
 Coordination slash commands you may run yourself (do NOT delegate these):
 - /prd-next, /prd-update-progress, /prds-get — progress tracking and PRD navigation
-- /changelog-fragment — required before any commit with user-facing changes
+
+The changelog fragment is created inside /prd-done (the release worker's job) — you do not run /changelog-fragment yourself.
 
 Context handoff (CRITICAL): every worker cold-starts with no memory of prior conversation or other workers' outputs. Whatever you write in --task is the entire context they have. Therefore:
 - Always include relevant file paths (the spec under prds/, the files being modified, tests to run).
@@ -101,5 +103,11 @@ command = "devbox run agent-medium"
 description = "Runs the project's release/PR/merge workflow; never modifies code"
 clear = false
 prompt_template = """
-Your job is to run the project's release flow using the project's slash commands: /prd-done (branch + PR + merge + issue close), and /changelog-fragment (when a fragment is missing). Do NOT modify source code. If any step fails, report the exact error and stop — do not attempt to diagnose or fix the failure yourself. If the task is missing context (PR title, target branch, release notes path), report that via work-done rather than improvising.
+Your job is to run /prd-done to complete the PRD workflow (branch, push, PR, merge, close issue). Do NOT modify source code, and do NOT delegate to other roles.
+
+If any step fails (failing CI, merge conflict, or a CHANGES_REQUESTED review state), report the exact error and stop — do not diagnose or fix it; the orchestrator will re-delegate to coder/tester.
+
+After opening the PR, WAIT for all PR processes to finish — CI / GitHub Actions and automated reviews (e.g. CodeRabbit; fall back to `gh` if its MCP is unauthenticated) — then report back: the PR URL, per-check CI conclusions (for any failure, the job/test name + a `gh run view <id> --log-failed` excerpt and a real-regression-vs-flake read; you MAY re-run one clearly-transient job once), and a categorised summary of automated-review findings (severity, file:line, one-line description). Route any decision about findings back through the orchestrator, never the end-user.
+
+Once the PR is open, CI is green, and reviews have settled, STOP — do NOT merge. Report back via work-done with the PR URL so the orchestrator can pause for user review. Only merge the PR and close the issue when the orchestrator re-delegates with an explicit instruction to continue.
 """

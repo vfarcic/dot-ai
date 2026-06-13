@@ -43,11 +43,35 @@ vi.mock('../../../src/core/git-utils.js', async () => {
   };
 });
 
+// fs is real for every test EXCEPT when fsMockState.failIsolatedRmSync is set,
+// in which case rmSync on the per-request isolated dir throws — letting us
+// exercise the cleanup-failure-warns path (MEDIUM-2). vitest can't spy on a
+// built-in module's ESM named export, so we mock the module and delegate.
+const fsMockState = vi.hoisted(() => ({ failIsolatedRmSync: false }));
+vi.mock('fs', async () => {
+  const actual = await vi.importActual<typeof import('fs')>('fs');
+  return {
+    ...actual,
+    default: actual,
+    rmSync: (p: import('fs').PathLike, opts?: import('fs').RmOptions) => {
+      if (
+        fsMockState.failIsolatedRmSync &&
+        String(p).includes('user-prompts-override-')
+      ) {
+        throw new Error('simulated rmSync failure');
+      }
+      return actual.rmSync(p, opts);
+    },
+  };
+});
+
 import { cloneRepo } from '../../../src/core/git-utils.js';
 import {
   loadUserPrompts,
   clearUserPromptsCache,
   getUserPromptsCacheState,
+  getUserPromptsConfigFromOverride,
+  getCacheDirectory,
 } from '../../../src/core/user-prompts-loader.js';
 import type { Logger } from '../../../src/core/error-handling.js';
 
@@ -390,6 +414,172 @@ describe('User Prompts Loader Override', () => {
       );
       expect(outerErrors.length).toBeGreaterThan(0);
       expect(JSON.stringify(outerErrors)).not.toContain(secret);
+    });
+  });
+
+  // PRD #621 M2/M3: per-request credential header (override.gitToken) +
+  // clone-auth precedence + cache isolation (Decisions 2 & 4).
+  describe('Credential override (PRD #621 M2/M3)', () => {
+    // --- A: precedence / per-call token to cloneRepo ---
+    describe('token precedence (Decision 4)', () => {
+      test('getUserPromptsConfigFromOverride: override.gitToken wins over env', () => {
+        process.env.DOT_AI_GIT_TOKEN = 'env-token';
+        const config = getUserPromptsConfigFromOverride({
+          repoUrl: OVERRIDE_REPO,
+          gitToken: 'override-token',
+        });
+        expect(config.gitToken).toBe('override-token');
+      });
+
+      test('getUserPromptsConfigFromOverride: env used when no override token', () => {
+        process.env.DOT_AI_GIT_TOKEN = 'env-token';
+        const config = getUserPromptsConfigFromOverride({
+          repoUrl: OVERRIDE_REPO,
+        });
+        expect(config.gitToken).toBe('env-token');
+      });
+
+      test('the override token is the per-call token cloneRepo receives', async () => {
+        process.env.DOT_AI_GIT_TOKEN = 'env-token';
+        await loadUserPrompts(makeCapturingLogger().logger, false, {
+          repoUrl: OVERRIDE_REPO,
+          gitToken: 'override-token',
+        });
+        expect(cloneRepo).toHaveBeenCalledTimes(1);
+        // 3rd arg to cloneRepo is CloneOptions { branch, depth, token }.
+        expect(vi.mocked(cloneRepo).mock.calls[0][2]).toMatchObject({
+          token: 'override-token',
+        });
+      });
+
+      test('no override token → cloneRepo receives token undefined (env auth path)', async () => {
+        process.env.DOT_AI_GIT_TOKEN = 'env-token';
+        await loadUserPrompts(makeCapturingLogger().logger, false, {
+          repoUrl: OVERRIDE_REPO,
+        });
+        expect(vi.mocked(cloneRepo).mock.calls[0][2]).toMatchObject({
+          token: undefined,
+        });
+      });
+    });
+
+    // --- B: cache isolation (Decision 2) ---
+    describe('cache isolation (Decision 2)', () => {
+      test('a token-bearing request clones in isolation and does NOT populate the shared cache', async () => {
+        const result = await loadUserPrompts(
+          makeCapturingLogger().logger,
+          false,
+          { repoUrl: OVERRIDE_REPO, gitToken: 'secret-token' }
+        );
+        // The clone still produces prompts...
+        expect(result).toMatchObject([{ name: 'prd-581-test' }]);
+        // ...but the shared cacheState was never written (isolated path).
+        expect(getUserPromptsCacheState()).toBeNull();
+        // The clone target was a throwaway dir, NOT the shared cache directory.
+        const targetDir = vi.mocked(cloneRepo).mock.calls[0][1];
+        expect(targetDir).not.toBe(getCacheDirectory());
+        expect(targetDir).toContain('user-prompts-override-');
+      });
+
+      test('a later no-token request for the same coordinate is NOT served the token-bearing clone', async () => {
+        // 1. Token-bearing request (isolated, leaves shared cache untouched).
+        await loadUserPrompts(makeCapturingLogger().logger, false, {
+          repoUrl: OVERRIDE_REPO,
+          gitToken: 'secret-token',
+        });
+        expect(cloneRepo).toHaveBeenCalledTimes(1);
+        expect(getUserPromptsCacheState()).toBeNull();
+
+        // 2. No-token request for the SAME coordinate must clone fresh into the
+        //    shared slot (it cannot be served the private isolated clone).
+        await loadUserPrompts(makeCapturingLogger().logger, false, {
+          repoUrl: OVERRIDE_REPO,
+        });
+        expect(cloneRepo).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(cloneRepo).mock.calls[1][1]).toBe(getCacheDirectory());
+        expect(vi.mocked(cloneRepo).mock.calls[1][2]).toMatchObject({
+          token: undefined,
+        });
+        expect(getUserPromptsCacheState()).toMatchObject({
+          repoUrl: OVERRIDE_REPO,
+        });
+      });
+
+      test('the cache key excludes the token (only coordinate fields are tracked)', async () => {
+        await loadUserPrompts(makeCapturingLogger().logger, false, {
+          repoUrl: OVERRIDE_REPO,
+        });
+        const state = getUserPromptsCacheState();
+        expect(state).not.toBeNull();
+        expect(Object.keys(state!).sort()).toEqual([
+          'branch',
+          'lastPullTime',
+          'localPath',
+          'repoUrl',
+          'subPath',
+        ]);
+      });
+    });
+
+    // --- D: log/error scrubbing ---
+    describe('credential scrubbing', () => {
+      test('a forwarded token is scrubbed from clone-error log output', async () => {
+        const secret = 'forwarded_tok_secret_99';
+        vi.mocked(cloneRepo).mockReset();
+        vi.mocked(cloneRepo).mockImplementation(
+          makeFailingClone(
+            `fatal: authentication failed for https://x-access-token:${secret}@github.com/example-org/private.git`
+          )
+        );
+
+        const { logger, calls } = makeCapturingLogger();
+        const result = await loadUserPrompts(logger, false, {
+          repoUrl: OVERRIDE_REPO,
+          gitToken: secret,
+        });
+
+        expect(result).toEqual([]);
+        expect(JSON.stringify(calls)).not.toContain(secret);
+      });
+    });
+
+    // MEDIUM-2: a failed cleanup of the isolated clone must WARN (not swallow),
+    // so an rmSync failure is observable rather than silent.
+    describe('isolation cleanup (MEDIUM-2)', () => {
+      test('cleanup failure is warned, not swallowed', async () => {
+        fsMockState.failIsolatedRmSync = true;
+        const { logger, calls } = makeCapturingLogger();
+        try {
+          const result = await loadUserPrompts(logger, false, {
+            repoUrl: OVERRIDE_REPO,
+            gitToken: 'tok-cleanup',
+          });
+          // The clone+read still succeeded; only the cleanup failed.
+          expect(result).toMatchObject([{ name: 'prd-581-test' }]);
+          const warned = calls.some(
+            c =>
+              c.level === 'warn' &&
+              c.message === 'Failed to remove isolated clone directory'
+          );
+          expect(warned).toBe(true);
+        } finally {
+          const cloneTarget = vi.mocked(cloneRepo).mock.calls.at(0)?.[1] as
+            | string
+            | undefined;
+          fsMockState.failIsolatedRmSync = false;
+          // Remove the dir the simulated failure left behind (rmSync now real).
+          if (cloneTarget) {
+            try {
+              fs.rmSync(path.dirname(cloneTarget), {
+                recursive: true,
+                force: true,
+              });
+            } catch {
+              /* best-effort */
+            }
+          }
+        }
+      });
     });
   });
 });
