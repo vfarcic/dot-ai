@@ -74,6 +74,21 @@ function makeChild(exitCode = 0, stderr = ''): EventEmitter {
   return child;
 }
 
+/** Fake child the test drives manually (no auto-emit), so multiple settling
+ *  events can be fired in a controlled order. */
+function makeManualChild(): EventEmitter & {
+  stderr: EventEmitter;
+  kill: ReturnType<typeof vi.fn>;
+} {
+  const child = new EventEmitter() as EventEmitter & {
+    stderr: EventEmitter;
+    kill: ReturnType<typeof vi.fn>;
+  };
+  child.stderr = new EventEmitter();
+  child.kill = vi.fn();
+  return child;
+}
+
 describe('buildOverrideCloneAuth (PRD #621 M3 / Decision 3)', () => {
   test('returns a username-only URL scoped to the source host (NO token in the URL)', () => {
     const { cloneUrl, host } = buildOverrideCloneAuth(REPO);
@@ -243,6 +258,44 @@ describe('cloneRepo per-call token (PRD #621 M3 / Decisions 3 & 4)', () => {
     await expect(
       cloneRepo(REPO, '/tmp/clone-target', { token: TOKEN })
     ).rejects.toThrow(/git clone exited with code 128/);
+  });
+
+  // CodeRabbit nitpick: the 'error', 'close', and timeout handlers can each try
+  // to settle the promise. The settled-guard must ensure the FIRST wins, later
+  // handlers are no-ops, and the timeout is cleared on settle (no dangling
+  // timer fires afterwards).
+  test('settles exactly once and clears the timeout when error then close both fire', async () => {
+    vi.useFakeTimers();
+    try {
+      const child = makeManualChild();
+      mockSpawn.mockReset();
+      mockSpawn.mockImplementation(() => child);
+
+      const p = cloneRepo(REPO, '/tmp/clone-target', { token: TOKEN });
+      // Capture the outcome up front so the (impossible) double-settle can't
+      // surface as an unhandled rejection.
+      const outcome = p.then(
+        () => ({ status: 'resolved' as const }),
+        (e: Error) => ({ status: 'rejected' as const, error: e })
+      );
+
+      // First settle: spawn 'error'. A later 'close' (process exit after the
+      // error) must be a NO-OP — it must NOT flip the result to the close-code
+      // error.
+      child.emit('error', new Error('spawn ENOENT'));
+      child.emit('close', 1);
+
+      const result = await outcome;
+      expect(result.status).toBe('rejected');
+      expect((result as { error: Error }).error.message).toBe('spawn ENOENT');
+
+      // The timeout was cleared on settle: advancing well past GIT_TIMEOUT_MS
+      // fires nothing (no SIGKILL from a dangling timer).
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      expect(child.kill).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -353,28 +353,45 @@ async function cloneWithOverrideToken(
         stdio: ['ignore', 'ignore', 'pipe'],
       });
       let stderr = '';
-      const timer = setTimeout(() => {
-        child.kill('SIGKILL');
-        reject(new Error(`git clone timed out after ${GIT_TIMEOUT_MS}ms`));
+      // The 'error', 'close', and timeout handlers can each race to settle this
+      // promise (e.g. 'close' still fires after a kill or a spawn 'error'). A
+      // promise only settles once, but the LATER handlers would still run their
+      // logic on an already-settled promise. Guard so the FIRST settle wins and
+      // every subsequent handler is a no-op, and clear the timeout on settle so
+      // no dangling timer fires afterwards.
+      let settled = false;
+      const timerRef: { id?: ReturnType<typeof setTimeout> } = {};
+      const settle = (action: () => void): void => {
+        if (settled) return;
+        settled = true;
+        if (timerRef.id) clearTimeout(timerRef.id);
+        action();
+      };
+
+      timerRef.id = setTimeout(() => {
+        settle(() => {
+          child.kill('SIGKILL');
+          reject(new Error(`git clone timed out after ${GIT_TIMEOUT_MS}ms`));
+        });
       }, GIT_TIMEOUT_MS);
       child.stderr?.on('data', chunk => {
         stderr += chunk.toString();
       });
       child.on('error', err => {
-        clearTimeout(timer);
-        reject(err);
+        settle(() => reject(err));
       });
       child.on('close', code => {
-        clearTimeout(timer);
-        if (code === 0) {
-          resolve();
-        } else {
-          // stderr carries only the username-only URL (no token), so it is safe
-          // to surface; the caller scrubs it again as defense-in-depth.
-          reject(
-            new Error(`git clone exited with code ${code}: ${stderr.trim()}`)
-          );
-        }
+        settle(() => {
+          if (code === 0) {
+            resolve();
+          } else {
+            // stderr carries only the username-only URL (no token), so it is
+            // safe to surface; the caller scrubs it again as defense-in-depth.
+            reject(
+              new Error(`git clone exited with code ${code}: ${stderr.trim()}`)
+            );
+          }
+        });
       });
     });
   } finally {
