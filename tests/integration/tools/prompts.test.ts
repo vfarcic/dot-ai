@@ -1335,4 +1335,372 @@ describe('Prompts Integration', () => {
       // shared deployed server (matches the cache-refresh test convention).
     }, 300000);
   });
+
+  // PRD #647 M4 (lifecycle + content-hash dedup) + D5 (upload-input hardening) +
+  // M5 (secret hygiene + backward-compat parity).
+  //
+  // Builds on the M2+M3 ingest→render core (which is GREEN). Every test here is
+  // black-box over the deployed REST surface and uses a unique runId so repeated
+  // and parallel runs never collide on the ingested identifier or skill name.
+  //
+  // Contract refs: .dot-agent-deck/647-contract.md — D2 (render-miss → re-upload
+  // guidance, never clone), D3 (content-hash dedup short-circuit), D5 (size/count
+  // caps + zip-slip + mode validation), M5 (scrub credentialed identifiers; plain
+  // ?repo= byte-identical to post-#621). The cap CONSTANTS below are the values
+  // the coder must implement so RED → GREEN; they were chosen to be enforceable
+  // BELOW the ~1 MiB nginx ingress request-body limit this suite goes through
+  // (verified: a ~683 KiB upload reaches the app, so a 512 KiB file trips an
+  // app-level 256 KiB total cap without first tripping the ingress).
+  describe('Source ingestion hardening, lifecycle & parity (PRD #647 M4 + D5 + M5)', () => {
+    const runId = Date.now();
+
+    // ---- Caps the coder must implement (stated so RED → GREEN is unambiguous) ----
+    // Reject a manifest carrying MORE than this many files with a 4xx.
+    const MAX_INGEST_FILES = 100;
+    // Reject a manifest whose summed DECODED file bytes exceed this with a 4xx.
+    const MAX_INGEST_TOTAL_BYTES = 256 * 1024; // 256 KiB
+
+    const b64 = (s: string): string => Buffer.from(s, 'utf-8').toString('base64');
+    const sha256 = (s: string): string =>
+      `sha256:${createHash('sha256').update(s, 'utf-8').digest('hex')}`;
+
+    // A minimal, valid folder-based skill body so that — IF a rejected upload were
+    // wrongly cached — the skill would actually RENDER, making the "not cached"
+    // assertions a genuine RED signal rather than a coincidental miss.
+    const skillMd = (name: string, body = 'Body content.'): string =>
+      [
+        '---',
+        `name: ${name}`,
+        `description: PRD 647 hardening fixture ${name}`,
+        '---',
+        '',
+        `# ${name}`,
+        '',
+        body,
+      ].join('\n');
+
+    // ---- D3: content-hash dedup short-circuit (RED) ----
+    // Re-uploading the SAME { source, contentHash } must be recognized as
+    // unchanged and short-circuited (status 'unchanged'), not re-decoded. A
+    // DIFFERENT contentHash for the same identifier must be processed normally.
+    test('re-uploading an unchanged source (same contentHash) is short-circuited as unchanged; a changed hash is re-ingested (PRD #647 D3)', async () => {
+      const source = `local:dedup-${runId}`;
+      const skill = `dedup-skill-${runId}`;
+      const md1 = skillMd(skill, 'First version.');
+      const hash1 = sha256(md1);
+
+      // First upload — the server stores the content + hash for this identifier.
+      const first = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source,
+          contentHash: hash1,
+          files: [{ path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' }],
+        }
+      );
+      expect(first).toMatchObject({
+        success: true,
+        data: { source, contentHash: hash1, fileCount: 1, status: 'ingested' },
+      });
+
+      // Re-upload byte-for-byte identical with the SAME contentHash.
+      // RED until M4/D3: the server re-decodes and returns status 'ingested';
+      // the contract requires it to recognize the unchanged hash and return
+      // status 'unchanged'.
+      const second = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source,
+          contentHash: hash1,
+          files: [{ path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' }],
+        }
+      );
+      expect(second).toMatchObject({
+        success: true,
+        data: { source, contentHash: hash1, status: 'unchanged' },
+      });
+
+      // A genuinely changed upload (new content → new hash) for the same
+      // identifier must NOT be short-circuited — it is processed normally.
+      const md2 = skillMd(skill, 'Second, changed version.');
+      const hash2 = sha256(md2);
+      const third = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source,
+          contentHash: hash2,
+          files: [{ path: `${skill}/SKILL.md`, content: b64(md2), mode: '0644' }],
+        }
+      );
+      expect(third).toMatchObject({
+        success: true,
+        data: { source, contentHash: hash2, status: 'ingested' },
+      });
+      // 120000ms: three fast ingest round-trips, no clone (validation-class).
+    }, 120000);
+
+    // ---- D2: render-miss → re-upload guidance, never a clone (RED) ----
+    // A ?source= identifier with no cached entry must yield a CLEAR error telling
+    // the caller to (re)upload, and must NOT attempt a git clone of the
+    // identifier (D2: ingested identifiers are never cloned).
+    test('rendering a never-uploaded ?source= identifier returns clear re-upload guidance and never attempts a clone (PRD #647 D2)', async () => {
+      const source = `local:never-${runId}`;
+      const response = await integrationTest.httpClient.post(
+        `/api/v1/prompts/ghost-skill-${runId}?source=${encodeURIComponent(source)}`,
+        {}
+      );
+
+      // The render must fail (the source was never uploaded / has been evicted).
+      expect(response).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+
+      const message = response.error?.message ?? '';
+      // RED until M4/D2: today the message is the generic "Prompt not found:
+      // ghost-skill-<runId>"; the contract requires explicit re-upload guidance.
+      expect(message).toMatch(/re-?upload|upload/i);
+      expect(message).toContain('/api/v1/prompts/sources');
+      expect(message).not.toContain('Prompt not found');
+
+      // GREEN today and must STAY green: a `local:` identifier is never cloned, so
+      // the failure must NOT be a git/clone/scheme error (which is what a clone
+      // attempt of "local:..." would surface). This pins the "no clone" guarantee.
+      expect(message).not.toMatch(
+        /scheme|Invalid override repoUrl|failed to parse|clone|git/i
+      );
+      // The identifier must not leak verbatim in a credential-bearing form; this
+      // local: label carries no secret, but the assertion documents the surface.
+      expect(JSON.stringify(response)).not.toContain('password');
+      // 120000ms: single fast render, resolves from cache with no clone.
+    }, 120000);
+
+    // ---- D5: total-payload size cap (RED) ----
+    test(`rejects an upload exceeding the ${MAX_INGEST_TOTAL_BYTES}-byte total payload cap with a 4xx and does not cache it (PRD #647 D5)`, async () => {
+      const source = `local:size-${runId}`;
+      const skill = `size-skill-${runId}`;
+      // One valid SKILL.md whose DECODED size (~512 KiB) is well over the 256 KiB
+      // cap but whose base64 wire form (~683 KiB) stays under the ~1 MiB ingress
+      // limit, so the rejection comes from the APP cap, not the ingress.
+      const oversized = skillMd(skill, 'X'.repeat(512 * 1024));
+      expect(Buffer.byteLength(oversized, 'utf-8')).toBeGreaterThan(
+        MAX_INGEST_TOTAL_BYTES
+      );
+
+      const upload = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source,
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(oversized), mode: '0644' },
+          ],
+        }
+      );
+      // RED until D5: today the oversized payload is accepted (status 'ingested').
+      expect(upload).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+
+      // A rejected upload must never be cached: a subsequent render misses.
+      const render = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
+        {}
+      );
+      expect(render).toMatchObject({ success: false });
+      // 120000ms: one upload + one render, no clone.
+    }, 120000);
+
+    // ---- D5: file-count cap (RED) ----
+    test(`rejects an upload exceeding the ${MAX_INGEST_FILES}-file count cap with a 4xx and does not cache it (PRD #647 D5)`, async () => {
+      const source = `local:count-${runId}`;
+      const skill = `count-skill-${runId}`;
+      // One valid skill + enough padding files to exceed the count cap. Each file
+      // is tiny, so the total payload is small (count, not size, is the trigger).
+      const files = [
+        { path: `${skill}/SKILL.md`, content: b64(skillMd(skill)), mode: '0644' },
+      ];
+      for (let i = 0; i < MAX_INGEST_FILES + 50; i++) {
+        files.push({ path: `pad/file-${i}.txt`, content: b64('x'), mode: '0644' });
+      }
+      expect(files.length).toBeGreaterThan(MAX_INGEST_FILES);
+
+      const upload = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        { source, files }
+      );
+      // RED until D5: today the over-count manifest is accepted (status 'ingested').
+      expect(upload).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+
+      // Not cached → subsequent render misses.
+      const render = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
+        {}
+      );
+      expect(render).toMatchObject({ success: false });
+      // 120000ms: one upload + one render, no clone.
+    }, 120000);
+
+    // ---- D5: path traversal / zip-slip rejection (expected GREEN — safety net) ----
+    // A file path that is relative-escaping ('..') or absolute must be rejected
+    // with a clean 4xx (not a 500), and nothing cached.
+    test('rejects traversal and absolute file paths with a clean 4xx and does not cache the source (PRD #647 D5)', async () => {
+      const traversalSource = `local:zipslip-${runId}`;
+      const traversal = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source: traversalSource,
+          files: [{ path: '../escape/SKILL.md', content: b64('hi'), mode: '0644' }],
+        }
+      );
+      expect(traversal).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      // Clean 4xx, not a generic 500 surface.
+      expect(traversal.error?.code).not.toBe('PROMPTS_SOURCE_INGEST_ERROR');
+
+      const absolute = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source: `local:zipslip-abs-${runId}`,
+          files: [{ path: '/etc/passwd', content: b64('hi'), mode: '0644' }],
+        }
+      );
+      expect(absolute).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+
+      // Rejected before caching → render of the traversal label misses.
+      const render = await integrationTest.httpClient.post(
+        `/api/v1/prompts/escape?source=${encodeURIComponent(traversalSource)}`,
+        {}
+      );
+      expect(render).toMatchObject({ success: false });
+      // 120000ms: validation-class, rejected before any caching.
+    }, 120000);
+
+    // ---- M5: credential / secret hygiene (expected GREEN — safety net) ----
+    // Uploading with a credential-bearing git URL identifier must echo only the
+    // SCRUBBED source, and the credential must appear in NO response body
+    // (ingest echo or render). Render resolves the ingested source (no clone).
+    test('scrubs credentials from the echoed source and never leaks the token in ingest or render responses (PRD #647 M5)', async () => {
+      const token = `s3cr3t_tok_${runId}`;
+      const credSource = `https://user:${token}@gitlab.corp.internal/team/skills.git`;
+      const scrubbedSource = `https://***:***@gitlab.corp.internal/team/skills.git`;
+      const skill = `sec-skill-${runId}`;
+
+      const upload = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source: credSource,
+          files: [{ path: `${skill}/SKILL.md`, content: b64(skillMd(skill)), mode: '0644' }],
+        }
+      );
+      // The echoed source is the scrubbed form, and the token leaks nowhere.
+      expect(upload).toMatchObject({
+        success: true,
+        data: { source: scrubbedSource, fileCount: 1 },
+      });
+      expect(JSON.stringify(upload)).not.toContain(token);
+
+      // Rendering via the credentialed ?source= resolves the ingested entry
+      // (keyed verbatim) with no clone — and still must not echo the token.
+      const render = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skill}?source=${encodeURIComponent(credSource)}`,
+        {}
+      );
+      expect(render).toMatchObject({ success: true });
+      expect(JSON.stringify(render)).not.toContain(token);
+      // 120000ms: ingest + render, no clone.
+    }, 120000);
+
+    // ---- M5: backward-compat parity — plain ?repo= NEVER serves an ingested
+    //      source; the ingested cache is consulted ONLY via the explicit ?source=
+    //      signal (contract D1). This is the non-negotiable parity guarantee
+    //      specific to #647 (the generic ?repo= clone+render behavior is already
+    //      covered by the #581/#621 blocks above, so it is not re-tested here). ----
+    const promptsRepoUrl = 'https://github.com/vfarcic/dot-ai-test-prompts.git';
+
+    async function restoreEnvCache(): Promise<void> {
+      await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+    }
+
+    // Absorb a transient concurrent re-clone of the shared cache directory (see
+    // the cache/race notes in the #581/#621 blocks above). The GREEN state here
+    // is the STABLE state, so retrying can absorb a race but cannot mask a real
+    // regression (which fails every attempt).
+    async function expectEventually(
+      fn: () => Promise<void>,
+      attempts = 5,
+      delayMs = 1500
+    ): Promise<void> {
+      let lastError: unknown;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          await fn();
+          return;
+        } catch (error) {
+          lastError = error;
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+      throw lastError;
+    }
+
+    test('a plain ?repo= render never serves an ingested source keyed by the same URL; only the explicit ?source= signal does (PRD #647 M5 parity)', async () => {
+      const ghostSkill = `parity-ghost-${runId}`;
+      // Stash an ingested source keyed VERBATIM by the real, clonable repo URL,
+      // containing a skill that does NOT exist in that repo's actual tree.
+      const upload = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source: promptsRepoUrl,
+          files: [
+            {
+              path: `${ghostSkill}/SKILL.md`,
+              content: b64(skillMd(ghostSkill)),
+              mode: '0644',
+            },
+          ],
+        }
+      );
+      expect(upload).toMatchObject({ success: true });
+
+      // Control: the explicit ?source= signal DOES resolve the ingested entry
+      // (no clone), proving the entry is well-formed and renderable. This makes
+      // the parity assertion below airtight — the ?repo= miss is specifically
+      // because plain ?repo= ignores the ingested cache, not because the entry
+      // is broken.
+      const viaSource = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${ghostSkill}?source=${encodeURIComponent(promptsRepoUrl)}`,
+        {}
+      );
+      expect(viaSource).toMatchObject({ success: true });
+
+      try {
+        // Parity: a plain ?repo=<same URL> render (NO ?source=) must take the
+        // existing clone path and NOT serve the ingested ghost — so the ghost
+        // skill is absent from the cloned repo and the render fails. If the
+        // ingested cache shadowed the clone path, this would wrongly succeed.
+        await expectEventually(async () => {
+          const viaRepo = await integrationTest.httpClient.post(
+            `/api/v1/prompts/${ghostSkill}?repo=${encodeURIComponent(promptsRepoUrl)}`,
+            {}
+          );
+          expect(viaRepo).toMatchObject({ success: false });
+        });
+      } finally {
+        // Restore the shared loader cache to the env-var coordinate for any
+        // later prompts test (the ?repo= clone above re-cloned the shared dir).
+        await restoreEnvCache();
+      }
+      // 300000ms: comprehensive — ingest + ingested render + a real ?repo= clone
+      // with expectEventually retries (matches the clone-test convention).
+    }, 300000);
+  });
 });
