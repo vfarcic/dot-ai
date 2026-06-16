@@ -6,6 +6,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { createHash } from 'crypto';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 // NOTE: this suite is intentionally NOT describe.concurrent. Every test here
@@ -1203,6 +1204,135 @@ describe('Prompts Integration', () => {
         await restoreEnvCache();
       }
       // 300000ms: comprehensive test — real git clone + expectEventually retries.
+    }, 300000);
+  });
+
+  // PRD #647 M2 (ingest) + M3 (render-resolution) — CORE happy path.
+  //
+  // The CLI uploads a skill source the server itself cannot fetch (a local
+  // working directory, identifier `local:<label>`), then the EXISTING render
+  // path resolves that ingested source by identifier via an explicit `?source=`
+  // signal (contract D1) and renders it through the unchanged template engine
+  // with full argument substitution (contract Goal + PRD Success Criteria).
+  // One renderer, server-side — the only difference from a `?repo=` request is
+  // that the source was RECEIVED from the CLI, not cloned. A `local:` identifier
+  // is intrinsically non-clonable, so a render that succeeds proves NO git
+  // operation was attempted.
+  //
+  // Contract refs: .dot-agent-deck/647-contract.md — D1 (explicit `?source=`),
+  // D6 (JSON manifest with base64 file bodies), Wire format. Scoped to the core
+  // ingest→render success criterion only; lifecycle/eviction (D2), content-hash
+  // dedup (D3), hardening (D5), and `?repo=` parity (M5) are separate later
+  // rounds and are NOT exercised here.
+  //
+  // RED until M2+M3 land, for two independent reasons:
+  //   1. POST /api/v1/prompts/sources is not a registered route, so it falls
+  //      through to POST /api/v1/prompts/:promptName with promptName='sources'
+  //      and returns { success: false, error: 'Prompt not found: sources' } —
+  //      the upload assertion fails first.
+  //   2. The render handler ignores `?source=` (extractPromptsOverride builds the
+  //      override from repo/path/branch only), so even a stored source would not
+  //      be resolved and the skill is never found.
+  // Both are "endpoint/param not implemented yet", not fixture errors.
+  describe('Source ingestion → render (PRD #647 M2 + M3)', () => {
+    // Unique per run so parallel/repeated runs against the same shared server
+    // never collide on the ingested identifier or the skill name.
+    const runId = Date.now();
+    const sourceLabel = `local:tester-${runId}`;
+    const skillName = `ingest-skill-${runId}`;
+    const argName = 'targetName';
+    const argValue = `postgres-${runId}`;
+    const description = 'PRD 647 ingest-then-render fixture skill';
+
+    // A minimal folder-based skill whose SKILL.md takes one REQUIRED argument, so
+    // server-side argument substitution is observable at render time — exactly
+    // like the prd-start `{{prdNumber}}` substitution test above, but served from
+    // the ingested source instead of a git clone.
+    const skillMd = [
+      '---',
+      `name: ${skillName}`,
+      `description: ${description}`,
+      'arguments:',
+      `  - name: ${argName}`,
+      '    description: The resource to deploy (substituted at render time)',
+      '    required: true',
+      '---',
+      '',
+      `# Ingested skill ${skillName}`,
+      '',
+      `This skill was uploaded by the CLI and rendered server-side. Deploy {{${argName}}} into the cluster now.`,
+      '',
+      'It must render with the argument substituted, served from the ingested',
+      'source with no git operation of any kind.',
+    ].join('\n');
+
+    const skillMdBase64 = Buffer.from(skillMd, 'utf-8').toString('base64');
+    // CLI-computed content hash (contract D3 token). On first upload the server
+    // stores it opaquely; this core test does not exercise the dedup path.
+    const contentHash = `sha256:${createHash('sha256')
+      .update(skillMd, 'utf-8')
+      .digest('hex')}`;
+
+    test('uploads a local: skill source then renders it via ?source= with argument substitution and no git operation (PRD #647)', async () => {
+      // Step 1 — INGEST: upload the skill source keyed by the local:<label>
+      // identifier (contract wire format: { source, contentHash, files:[{path,
+      // content(base64), mode}] }). Bearer-authed via the shared httpClient.
+      const uploadResponse = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source: sourceLabel,
+          contentHash,
+          files: [
+            {
+              path: `${skillName}/SKILL.md`,
+              content: skillMdBase64,
+              mode: '0644',
+            },
+          ],
+        }
+      );
+      // RED until M2: the sources route is unregistered and misroutes to the
+      // render handler → { success: false, error: 'Prompt not found: sources' }.
+      expect(uploadResponse).toMatchObject({ success: true });
+
+      // Step 2 — RENDER: resolve the ingested source by identifier via `?source=`
+      // and substitute the argument through the existing render path. Because the
+      // identifier is `local:`, a render that resolves proves the server served
+      // from the ingested cache with NO clone attempt.
+      const renderResponse = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skillName}?source=${encodeURIComponent(sourceLabel)}`,
+        { arguments: { [argName]: argValue } }
+      );
+
+      // RED until M3: `?source=` is ignored, the render falls back to the env
+      // repo, and the ingested skill is never found (success: false).
+      expect(renderResponse).toMatchObject({
+        success: true,
+        data: {
+          description,
+          messages: [
+            {
+              role: 'user',
+              content: { type: 'text', text: expect.any(String) },
+            },
+          ],
+        },
+        meta: {
+          timestamp: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+          ),
+          requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+          version: 'v1',
+        },
+      });
+
+      const renderedText = renderResponse.data.messages[0].content.text;
+      // The argument was substituted by the server-side renderer...
+      expect(renderedText).toContain(`Deploy ${argValue} into the cluster`);
+      // ...and the raw placeholder is gone — proves real substitution, not echo.
+      expect(renderedText).not.toContain(`{{${argName}}}`);
+      // 300000ms: comprehensive test — upload + render round-trip against the
+      // shared deployed server (matches the cache-refresh test convention).
     }, 300000);
   });
 });
