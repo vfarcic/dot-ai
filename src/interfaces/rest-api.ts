@@ -28,6 +28,7 @@ import {
   sanitizeUrlForLogging,
   scrubSourceUrl,
   UserPromptsOverride,
+  UserPromptsOverrideError,
 } from '../core/user-prompts-loader';
 import { scrubCredentials } from '../core/git-utils';
 import {
@@ -2107,6 +2108,21 @@ export class RestApiRouter {
         promptCount: result.prompts?.length || 0,
       });
     } catch (error) {
+      // A per-request override (?repo=) whose source can't be loaded is a
+      // bad-gateway condition, not a server fault: surface it (issue #575)
+      // instead of silently serving built-in prompts with HTTP 200. The
+      // message is already credential-scrubbed by the loader.
+      if (error instanceof UserPromptsOverrideError) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'PROMPTS_SOURCE_ERROR',
+          error.message
+        );
+        return;
+      }
+
       this.logger.error(
         'Prompts list request failed',
         error instanceof Error ? error : new Error(String(error)),
@@ -2195,6 +2211,20 @@ export class RestApiRouter {
         promptName,
       });
     } catch (error) {
+      // A per-request override (?repo=) whose source can't be loaded is a
+      // bad-gateway condition (issue #575); surface it before the generic
+      // validation/500 mapping. The message is already credential-scrubbed.
+      if (error instanceof UserPromptsOverrideError) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'PROMPTS_SOURCE_ERROR',
+          error.message
+        );
+        return;
+      }
+
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -2297,6 +2327,20 @@ export class RestApiRouter {
         source,
       });
     } catch (error) {
+      // A per-request override (body.repo) whose source can't be loaded is a
+      // bad-gateway condition (issue #575); surface it instead of a generic
+      // 500. The message is already credential-scrubbed by the loader.
+      if (error instanceof UserPromptsOverrideError) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'PROMPTS_SOURCE_ERROR',
+          error.message
+        );
+        return;
+      }
+
       this.logger.error(
         'Prompts cache refresh failed',
         error instanceof Error ? error : new Error(String(error)),

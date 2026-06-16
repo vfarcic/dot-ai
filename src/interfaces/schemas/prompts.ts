@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, NotFoundErrorSchema, BadRequestErrorSchema, InternalServerErrorSchema } from './common';
+import { createSuccessResponseSchema, NotFoundErrorSchema, BadRequestErrorSchema, InternalServerErrorSchema, BadGatewayErrorSchema } from './common';
 
 /**
  * Prompt argument definition
@@ -122,6 +122,19 @@ export const PromptsListErrorSchema = InternalServerErrorSchema.extend({
 export const PromptGetErrorSchema = InternalServerErrorSchema.extend({
   error: z.object({
     code: z.literal('PROMPT_GET_ERROR'),
+    message: z.string(),
+    details: z.any().optional(),
+  }),
+});
+
+/**
+ * 502 returned when a per-request prompts-repo override (?repo= / body.repo)
+ * could not be cloned — e.g. a missing/wrong forwarded X-Dot-AI-Git-Token or an
+ * unreachable host (issue #575). The message is credential-scrubbed.
+ */
+export const PromptsSourceErrorSchema = BadGatewayErrorSchema.extend({
+  error: z.object({
+    code: z.literal('PROMPTS_SOURCE_ERROR'),
     message: z.string(),
     details: z.any().optional(),
   }),
