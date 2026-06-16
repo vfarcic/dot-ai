@@ -188,6 +188,7 @@ export {
   PromptValidationErrorSchema,
   PromptsListErrorSchema,
   PromptGetErrorSchema,
+  PromptsSourceErrorSchema,
   PromptsCacheRefreshDataSchema,
   PromptsCacheRefreshResponseSchema,
   PromptsCacheRefreshErrorSchema,

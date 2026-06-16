@@ -109,6 +109,16 @@ export const ServiceUnavailableErrorSchema = ErrorResponseSchema.extend({
   }),
 });
 
+export const BadGatewayErrorSchema = ErrorResponseSchema.extend({
+  error: ErrorDetailsSchema.extend({
+    code: z.enum([
+      // A per-request prompts-repo override (?repo=) whose source could not be
+      // cloned — bad/missing forwarded credential or unreachable host (issue #575).
+      'PROMPTS_SOURCE_ERROR',
+    ]),
+  }),
+});
+
 export const InternalServerErrorSchema = ErrorResponseSchema.extend({
   error: ErrorDetailsSchema.extend({
     code: z.enum([

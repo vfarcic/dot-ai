@@ -1071,6 +1071,7 @@ describe('Prompts Integration', () => {
   describe('Per-request credential header + backward-compat parity (PRD #621 M2/M3/M4)', () => {
     const promptsRepoUrl =
       'https://github.com/vfarcic/dot-ai-test-prompts.git';
+    const gitToken = process.env.DOT_AI_GIT_TOKEN;
 
     // Retry an equality/presence assertion to absorb a transient concurrent
     // re-clone of the shared cache directory (see the M1 cache/race note). Used
@@ -1154,50 +1155,51 @@ describe('Prompts Integration', () => {
       // shared env cache (matches the cache-refresh test convention).
     }, 300000);
 
-    // ---- M4 parity: ?repo=-only path matches PRD #581; the header is threaded
-    //      into an isolated token clone but the observed outcome is unchanged
-    //      here (built-in prompt + empty public repo root) ----
-    test('?repo=-only request matches PRD #581 (root clone) with and without the credential header (PRD #621 M4 parity)', async () => {
-      const secret = 'prd621_repoonly_header_secret_zzz';
+    // ---- M4 parity: ?repo=-only path matches PRD #581 (header ABSENT). The
+    //      header is threaded into an isolated token clone; with a VALID token a
+    //      public-repo root clone still succeeds and yields the same set, so the
+    //      credential is inert for a public source. (A wrong/missing token now
+    //      fails closed with 502 — issue #575 — see the dedicated test below.) ----
+    test('?repo=-only request matches PRD #581 (root clone); a valid credential header is inert (PRD #621 M4 parity)', async () => {
       try {
         await expectEventually(async () => {
+          // Header ABSENT: clones the public repo ROOT on main (PRD #581).
           const res = await integrationTest.httpClient.get(
             `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}`
           );
-          const resH = await integrationTest.httpClient.get(
-            `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}`,
-            { 'X-Dot-AI-Git-Token': secret }
-          );
-          for (const r of [res, resH]) {
-            expect(r).toMatchObject({
+          expect(res).toMatchObject({
+            success: true,
+            data: { source: expect.stringContaining('dot-ai-test-prompts') },
+          });
+          const names = res.data.prompts.map((p: { name: string }) => p.name);
+          // toContain asserts ARRAY MEMBERSHIP (not object shape). ?repo=-only
+          // clones the repo ROOT: built-in prompts present, but env user prompts
+          // (which live under the user-prompts/ subdir) are NOT loaded.
+          expect(names).toContain('prd-create');
+          expect(names).not.toContain('eval-run');
+
+          // Header PRESENT with a VALID token: M2 reads it and M3 threads it into
+          // an isolated, per-request token-bearing clone. The public-repo clone
+          // still succeeds, so the outcome is identical — the credential is inert
+          // for a public source. Skipped without a token; a WRONG token now
+          // surfaces as 502 instead of this success (see the issue #575 test).
+          if (gitToken) {
+            const resH = await integrationTest.httpClient.get(
+              `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}`,
+              { 'X-Dot-AI-Git-Token': gitToken }
+            );
+            expect(resH).toMatchObject({
               success: true,
               data: { source: expect.stringContaining('dot-ai-test-prompts') },
             });
-            const names = r.data.prompts.map((p: { name: string }) => p.name);
-            // The response object-shape is asserted with toMatchObject above
-            // (the convention). The two checks below intentionally use toContain
-            // because they assert ARRAY MEMBERSHIP, not object shape — toContain
-            // is the correct matcher here. ?repo=-only clones the repo ROOT on
-            // main (PRD #581 behavior): built-in prompts present, but env user
-            // prompts (which live under the user-prompts/ subdir) are NOT loaded.
-            expect(names).toContain('prd-create');
-            expect(names).not.toContain('eval-run');
+            // toEqual asserts EXACT equality of the two name arrays (parity);
+            // toMatchObject does partial matching, which is the wrong tool here.
+            expect(
+              resH.data.prompts.map((p: { name: string }) => p.name).sort()
+            ).toEqual(names.slice().sort());
+            // Negative no-leak assertion — the real token must never be echoed.
+            expect(JSON.stringify(resH)).not.toContain(gitToken);
           }
-          // The header is NOT inert when a repo override is present: M2 reads it
-          // and M3 threads it into an isolated, per-request token-bearing clone.
-          // The prompt SET is identical here only because the asserted prompt is
-          // built-in and the public repo ROOT has no user prompts — so the
-          // token-bearing isolated clone and the unauthenticated clone surface
-          // the same result. This remains a valid parity guard (same observable
-          // result with or without the header).
-          const nameSet = (r: { data: { prompts: { name: string }[] } }) =>
-            r.data.prompts.map(p => p.name).sort();
-          // toEqual asserts EXACT equality of the two name arrays; toMatchObject
-          // would be the wrong tool (it does partial matching, not array equality).
-          expect(nameSet(resH)).toEqual(nameSet(res));
-          // Negative no-leak assertion — intentionally NOT toMatchObject (there
-          // is no object shape to match; we assert the token is absent entirely).
-          expect(JSON.stringify(resH)).not.toContain(secret);
         });
       } finally {
         await restoreEnvCache();
@@ -1231,11 +1233,19 @@ describe('Prompts Integration', () => {
           `/api/v1/prompts?repo=${encodeURIComponent(unreachableRepo)}`,
           { 'X-Dot-AI-Git-Token': secret }
         );
-        // The override failure surfaces as a 502 with a dedicated code, instead
-        // of a silent HTTP 200 carrying only built-in prompts.
+        // The override failure surfaces as a 502 with a dedicated code and the
+        // (credential-scrubbed) clone-failure reason, instead of a silent HTTP
+        // 200 carrying only built-in prompts. The message prefix is stable
+        // (cloneRepository wraps every git failure with it); the host-specific
+        // git stderr tail is not asserted as it varies across git versions.
         expect(response).toMatchObject({
           success: false,
-          error: { code: 'PROMPTS_SOURCE_ERROR' },
+          error: {
+            code: 'PROMPTS_SOURCE_ERROR',
+            message: expect.stringContaining(
+              'Failed to clone user prompts repository'
+            ),
+          },
         });
         // Negative no-leak assertion — intentionally NOT toMatchObject (no object
         // shape to match): the forwarded credential must be absent entirely, even

@@ -39,6 +39,7 @@ import {
   PromptGetResponseSchema,
   PromptGetRequestSchema,
   PromptNotFoundErrorSchema,
+  PromptsSourceErrorSchema,
   PromptsCacheRefreshResponseSchema,
   PromptsCacheRefreshErrorSchema,
   // Visualization schemas
@@ -384,6 +385,7 @@ export const routeDefinitions: RouteDefinition<
     tags: ['Prompts'],
     response: PromptsListResponseSchema,
     errorResponses: {
+      502: PromptsSourceErrorSchema,
       500: InternalServerErrorSchema,
     },
   },
@@ -394,6 +396,7 @@ export const routeDefinitions: RouteDefinition<
     tags: ['Prompts'],
     response: PromptsCacheRefreshResponseSchema,
     errorResponses: {
+      502: PromptsSourceErrorSchema,
       500: PromptsCacheRefreshErrorSchema,
     },
   },
@@ -407,6 +410,7 @@ export const routeDefinitions: RouteDefinition<
     response: PromptGetResponseSchema,
     errorResponses: {
       404: PromptNotFoundErrorSchema,
+      502: PromptsSourceErrorSchema,
       500: InternalServerErrorSchema,
     },
   },
