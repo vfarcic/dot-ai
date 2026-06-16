@@ -112,6 +112,14 @@ export class HttpRestApiClient {
         }
       };
 
+      // Settle the promise exactly once. The server may reply and close the
+      // connection BEFORE a large request body is fully drained (e.g. a 413
+      // PAYLOAD_TOO_LARGE: the body cap is rejected up front, the response is
+      // sent, then the socket is reset). In that case the full response arrives
+      // ('end') and is then followed by an ECONNRESET on the socket — without
+      // this guard the late 'error' would clobber the already-received response
+      // and spuriously fail the request. First event (end or error) wins.
+      let settled = false;
       const req = client.request(url, options, (res: IncomingMessage) => {
         let data = '';
 
@@ -119,7 +127,17 @@ export class HttpRestApiClient {
           data += chunk;
         });
 
+        // Swallow a post-response reset on the response stream so it never
+        // surfaces as an unhandled stream error; the 'end' below already has
+        // (or will have) the body, and the 'error' handler covers the no-body
+        // case via the shared `settled` guard.
+        res.on('error', () => {
+          /* handled via req 'error' + settled guard */
+        });
+
         res.on('end', () => {
+          if (settled) return;
+          settled = true;
           cleanup();
           try {
             const response = this.parseResponse(data, res.statusCode || 500);
@@ -136,6 +154,8 @@ export class HttpRestApiClient {
         // Set timeout on socket directly for more reliable timeout handling
         socket.setTimeout(this.timeout);
         socketTimeoutHandler = () => {
+          if (settled) return;
+          settled = true;
           const elapsed = Date.now() - startTime;
           cleanup();
           req.destroy();
@@ -147,12 +167,19 @@ export class HttpRestApiClient {
       req.setTimeout(this.timeout);
 
       req.on('error', (error) => {
+        // If the full response already arrived ('end' settled the promise), a
+        // trailing socket reset is benign — ignore it. Only a reset BEFORE any
+        // response is a real failure.
+        if (settled) return;
+        settled = true;
         const elapsed = Date.now() - startTime;
         cleanup();
         reject(new Error(`Request failed after ${elapsed}ms: ${error.message} (socket assigned: ${socketAssigned})`));
       });
 
       req.on('timeout', () => {
+        if (settled) return;
+        settled = true;
         const elapsed = Date.now() - startTime;
         cleanup();
         req.destroy();

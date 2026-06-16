@@ -1,6 +1,6 @@
 # PRD #647: Server-Side Ingestion Endpoint for CLI-Uploaded Skill Sources
 
-**Status**: Not Started — companion to `vfarcic/dot-ai-cli#13`. **Both halves must ship in the same release**; neither is usable alone. Several design decisions below are open and must be settled jointly with the CLI PRD before implementation.
+**Status**: Server-side implementation COMPLETE (2026-06-16) — all of M1–M7 landed and integration-verified; companion to `vfarcic/dot-ai-cli#13`. **Both halves must ship in the same release**; neither is usable alone. Design Decisions #1–#6 were resolved **server-side** per the leaning recommendations and frozen in `.dot-agent-deck/647-contract.md`; the cross-repo contract still needs `vfarcic/dot-ai-cli#13` sign-off. Remaining before release: (a) republish the mock-server image (manual `publish-mock-server`), (b) coordinate the joint release with cli#13.
 **Priority**: Medium (the static-credential network-isolated case is already covered by #621; this targets only what #621 cannot reach, plus local dev directories — see Scope)
 **Related Issues**: #647 (this PRD); **CLI companion** [`vfarcic/dot-ai-cli#13`](https://github.com/vfarcic/dot-ai-cli/issues/13) (`--repo-fetch` / `--repo-dir` + source upload); #621 / PRD #621 (per-request path/branch/credential override — the reason this is scoped narrowly); #607 / #581 (the original `?repo=` override and the "each request serves exactly one repo, server-fetched" model this extends); #575 (multi-source / per-hook multi-realm discussion)
 
@@ -114,13 +114,13 @@ Same hard rule as #621: **users who do not use the new endpoint see zero change.
 
 ## Milestones
 
-- [ ] **M1 — Contract finalized.** Resolve Design Decisions #1–#6 jointly with `vfarcic/dot-ai-cli#13`; freeze the wire format (upload shape, render-time signal, identifier key space, `local:` uniqueness rule). Output: a fixed contract both PRDs cite.
-- [ ] **M2 — Ingestion endpoint.** `POST /api/v1/prompts/sources`: validate, decode, hardening (#5), cache the source by identifier. Bearer-gated; CORS updated if needed.
-- [ ] **M3 — Render-path resolution.** `POST /api/v1/prompts/:name` resolves ingested identifiers (Decision #1) with no clone for unreachable `--repo-fetch` URLs; argument substitution unchanged.
-- [ ] **M4 — Lifecycle + dedup.** Cache TTL/eviction for pushed sources (#2); content-hash dedup (#3); defined render-miss-after-eviction behavior.
-- [ ] **M5 — Secret hygiene + backward-compat parity.** Scrub credentialed identifiers everywhere; parity test asserting plain `?repo=` is byte-identical to post-#621.
-- [ ] **M6 — Mock-server parity.** Mirror the endpoint in `mock-server/` so the CLI can integration-test `--repo-fetch` / `--repo-dir`. **Unblocks cli#13 M0.**
-- [ ] **M7 — Tests + docs.** Endpoint + render + lifecycle + hardening coverage; documentation; coordinate release so both halves ship together.
+- [x] **M1 — Contract finalized.** Resolve Design Decisions #1–#6 jointly with `vfarcic/dot-ai-cli#13`; freeze the wire format (upload shape, render-time signal, identifier key space, `local:` uniqueness rule). Output: a fixed contract both PRDs cite. — *Server-side decisions frozen in `.dot-agent-deck/647-contract.md` (D1 explicit `?source=` signal, D2 in-memory push-cache, D3 content-hash dedup, D4 verbatim `local:<label>` + documented convention, D6 JSON+base64). Cross-repo "both PRDs cite" sign-off with cli#13 still pending.*
+- [x] **M2 — Ingestion endpoint.** `POST /api/v1/prompts/sources`: validate, decode, hardening (#5), cache the source by identifier. Bearer-gated; CORS updated if needed. — *Implemented in `src/core/user-prompts-loader.ts` (`ingestPromptsSource`) + `src/interfaces/rest-api.ts` (`handlePromptsSourceIngest`); bearer-gated; hardening: zip-slip/null-byte 400, file-count cap 100, decoded-bytes cap 256 KiB, raw-body cap 512 KiB→413, mode-bit stripping, mkdtemp+0700. Integration-verified.*
+- [x] **M3 — Render-path resolution.** `POST /api/v1/prompts/:name` resolves ingested identifiers (Decision #1) with no clone for unreachable `--repo-fetch` URLs; argument substitution unchanged. — *`extractPromptsOverride` reads `?source=`; ingested path short-circuits before URL validation, never clones; arg substitution via the existing renderer. Integration-verified.*
+- [x] **M4 — Lifecycle + dedup.** Cache TTL/eviction for pushed sources (#2); content-hash dedup (#3); defined render-miss-after-eviction behavior. — *Content-hash dedup (`status:'unchanged'`); LRU eviction `MAX_INGESTED_SOURCES=50`; render-miss → 400 with (re)upload guidance, no clone. Integration + unit verified.*
+- [x] **M5 — Secret hygiene + backward-compat parity.** Scrub credentialed identifiers everywhere; parity test asserting plain `?repo=` is byte-identical to post-#621. — *`scrubSourceUrl` on echo/store/error + request-URL logging (`?source=` now scrubbed); parity test confirms plain `?repo=` clones and never serves an ingested entry. Integration-verified.*
+- [x] **M6 — Mock-server parity.** Mirror the endpoint in `mock-server/` so the CLI can integration-test `--repo-fetch` / `--repo-dir`. **Unblocks cli#13 M0.** — *`mock-server/prompts-ingest.ts` + routes/server mirror ingest + `?source=` render (dedup, caps, render-miss, parity); 14 unit tests. ⚠️ Mock image must be republished (manual `publish-mock-server`) before cli#13 e2e sees it.*
+- [x] **M7 — Tests + docs.** Endpoint + render + lifecycle + hardening coverage; documentation; coordinate release so both halves ship together. — *Integration coverage (10 PRD #647 cases GREEN) + unit tests; docs in `docs/ai-engine/api/rest-api.md` and `docs/ai-engine/tools/prompts.md`. Joint release coordination with cli#13 still pending.*
 
 ## Open Questions
 

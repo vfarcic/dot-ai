@@ -452,6 +452,32 @@ Under the hood, each invocation talks to the server once and the server still se
 
 See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full wire contract, the `source` field semantics, validation rules, and response envelopes returned by each endpoint — useful if you're building a custom MCP/HTTP client rather than using the CLI.
 
+### CLI-uploaded skill sources (for sources the server can't reach)
+
+The per-request override above still has the **server** fetch the source. That covers any repository a server-side clone can authenticate to — but not everything. Two cases remain where the developer's laptop (running the CLI) can fetch while the server cannot:
+
+- **Sources the server can't authenticate or route to** — VPNs gated by SSO / OIDC / device attestation (no static token to hand the server), and managed/hardened clusters with no egress path the operator can open.
+- **On-disk directories** — work-in-progress skills on your filesystem, with no git remote at all (the local dev loop).
+
+For these, the CLI fetches the source **locally** and uploads it to the server, which caches it and renders it through the **same** server-side renderer — so a CLI-fetched skill renders identically to one cloned from a repo, with full argument substitution. There is still one renderer, server-side; only how the source reached it changes.
+
+**How it works:**
+
+1. The CLI fetches the source itself — `dot-ai skills generate --repo-fetch <git-url>` (a repo the server can't reach) or `--repo-dir <path> --source-label <label>` (a local directory). See the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical flags.
+2. The CLI **uploads** the fetched files to `POST /api/v1/prompts/sources`, keyed by a stable identifier: the git URL verbatim for `--repo-fetch`, or `local:<label>` for `--repo-dir`.
+3. Rendering a skill from that source uses `POST /api/v1/prompts/<name>?source=<identifier>` — the server serves it from the upload, with **no clone** of any kind (so a server-unreachable URL still renders).
+
+**Identifier conventions and a known limitation:**
+
+- The server stores the identifier exactly as sent — it does not auto-prefix or namespace per caller in this release. To avoid collisions between hosts, use a convention like `local:<user>-<label>` or `local:<host>-<label>` for `--source-label`.
+- Ingested identifiers are **global server state**: any authenticated caller can overwrite any identifier by uploading to the same one. There is no per-principal namespacing in this iteration — treat the endpoint as trusted-caller-only.
+
+> **The ingested cache is in-memory and does not survive a server restart.** There is nothing to pull (the source was pushed, not fetched), so after a restart or cache eviction the next render returns a clear "(re)upload via POST /api/v1/prompts/sources" error — re-upload the source (typically on the next CLI hook fire) and it renders again.
+
+**Safety:** uploads are size/count-capped (max 100 files, max 256 KiB total decoded payload) and reject path traversal; credential-bearing git-URL identifiers are scrubbed in every echo, error, and log. See the [REST API reference](../api/rest-api.md#ingested-cli-uploaded-skill-sources) for the full wire format, limits, and error envelopes.
+
+> **Additive — unchanged by default.** This endpoint is opt-in. Deployments and users that never upload a source see zero change, a plain `?repo=` request behaves exactly as before, and no new configuration is required. The companion CLI support ships in the same release.
+
 ## Troubleshooting
 
 ### Common Issues

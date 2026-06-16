@@ -1359,6 +1359,13 @@ describe('Prompts Integration', () => {
     const MAX_INGEST_FILES = 100;
     // Reject a manifest whose summed DECODED file bytes exceed this with a 4xx.
     const MAX_INGEST_TOTAL_BYTES = 256 * 1024; // 256 KiB
+    // PRD #647 F1 — hard ceiling on the RAW (wire) request body, scoped to the
+    // ingest route, enforced at body-parse time (before any decode) → 413
+    // PAYLOAD_TOO_LARGE. The DECODED cap above (a handler-level 400) is a
+    // SEPARATE, smaller limit; a payload must stay UNDER this raw cap to ever
+    // reach the decoded-cap check, which is why the decoded-cap test's wire size
+    // is kept comfortably below this value.
+    const INGEST_MAX_RAW_BODY_BYTES = 512 * 1024; // 512 KiB
 
     const b64 = (s: string): string => Buffer.from(s, 'utf-8').toString('base64');
     const sha256 = (s: string): string =>
@@ -1475,32 +1482,47 @@ describe('Prompts Integration', () => {
       // 120000ms: single fast render, resolves from cache with no clone.
     }, 120000);
 
-    // ---- D5: total-payload size cap (RED) ----
-    test(`rejects an upload exceeding the ${MAX_INGEST_TOTAL_BYTES}-byte total payload cap with a 4xx and does not cache it (PRD #647 D5)`, async () => {
+    // ---- D5: total-payload size cap (GREEN — handler-level decoded cap) ----
+    // Adjusted for the F1 raw-body cap (PRD #647): the payload's DECODED total
+    // must exceed the 256 KiB decoded cap (so the handler-level 400 fires) while
+    // its base64 WIRE form stays comfortably UNDER the 512 KiB raw-body cap — so
+    // the request actually reaches the decoded-cap check instead of being
+    // rejected earlier with a 413. ~300 KiB decoded → ~400 KiB wire satisfies
+    // both: > 256 KiB decoded, < 512 KiB wire.
+    test(`rejects an upload exceeding the ${MAX_INGEST_TOTAL_BYTES}-byte total payload cap with a 400 VALIDATION_ERROR (not a 413) and does not cache it (PRD #647 D5)`, async () => {
       const source = `local:size-${runId}`;
       const skill = `size-skill-${runId}`;
-      // One valid SKILL.md whose DECODED size (~512 KiB) is well over the 256 KiB
-      // cap but whose base64 wire form (~683 KiB) stays under the ~1 MiB ingress
-      // limit, so the rejection comes from the APP cap, not the ingress.
-      const oversized = skillMd(skill, 'X'.repeat(512 * 1024));
-      expect(Buffer.byteLength(oversized, 'utf-8')).toBeGreaterThan(
-        MAX_INGEST_TOTAL_BYTES
-      );
+      // One valid SKILL.md whose DECODED size (~300 KiB) is over the 256 KiB
+      // decoded cap, but whose base64 wire form (~400 KiB) stays under the
+      // 512 KiB raw-body cap, so the rejection is the handler's decoded-cap 400,
+      // not the F1 raw-body 413.
+      const oversized = skillMd(skill, 'X'.repeat(300 * 1024));
+      const decodedBytes = Buffer.byteLength(oversized, 'utf-8');
+      // Decoded total comfortably over the 256 KiB cap...
+      expect(decodedBytes).toBeGreaterThan(MAX_INGEST_TOTAL_BYTES);
+
+      const requestBody = {
+        source,
+        files: [
+          { path: `${skill}/SKILL.md`, content: b64(oversized), mode: '0644' },
+        ],
+      };
+      // ...while the raw wire body stays under the 512 KiB raw-body cap, so the
+      // 413 path is NOT taken and the request reaches the decoded-cap check.
+      const wireBytes = Buffer.byteLength(JSON.stringify(requestBody), 'utf-8');
+      expect(wireBytes).toBeLessThan(INGEST_MAX_RAW_BODY_BYTES);
 
       const upload = await integrationTest.httpClient.post(
         '/api/v1/prompts/sources',
-        {
-          source,
-          files: [
-            { path: `${skill}/SKILL.md`, content: b64(oversized), mode: '0644' },
-          ],
-        }
+        requestBody
       );
-      // RED until D5: today the oversized payload is accepted (status 'ingested').
+      // The decoded-cap rejection is a handler-level 400 VALIDATION_ERROR —
+      // specifically NOT the F1 raw-body 413 (which the wire-size guard rules out).
       expect(upload).toMatchObject({
         success: false,
         error: { code: 'VALIDATION_ERROR' },
       });
+      expect(upload.error?.code).not.toBe('PAYLOAD_TOO_LARGE');
 
       // A rejected upload must never be cached: a subsequent render misses.
       const render = await integrationTest.httpClient.post(
@@ -1582,6 +1604,156 @@ describe('Prompts Integration', () => {
       );
       expect(render).toMatchObject({ success: false });
       // 120000ms: validation-class, rejected before any caching.
+    }, 120000);
+
+    // ---- F1: raw-body byte cap → app-level rejection over 512 KiB (regression) ----
+    // The app caps the RAW (wire) request body for the untrusted ingest route at
+    // 512 KiB and rejects an over-cap body at body-parse time — BEFORE any decode,
+    // so neither the decoded-byte cap nor any caching is ever reached. The reject
+    // is the standard 413 PAYLOAD_TOO_LARGE: the app sends it on the DECLARED
+    // Content-Length (over the cap) and then closes the connection without
+    // draining the ~683 KiB body still in flight. That correct early-close is a
+    // hard socket close, so through the ingress the tiny 413 body races a TCP
+    // RST that can discard the client's receive buffer — meaning the test client
+    // observes the rejection EITHER as the structured 413 JSON (race won) OR as a
+    // connection reset (race lost). Both are the SAME app-level rejection of the
+    // over-cap body; this test accepts either and pins the durable, race-free
+    // guarantee separately: the source is never cached.
+    //
+    // App-vs-ingress: the wire body is sized BETWEEN the 512 KiB app cap and
+    // ~900 KiB (under the ~1 MiB nginx ingress), so the rejection cannot be the
+    // ingress — a ~683 KiB body is forwarded to the app (the other tests in this
+    // file POST through the same ingress). When the 413 body IS read it is the
+    // app's structured PAYLOAD_TOO_LARGE shape (a nginx 413 would be HTML, which
+    // the client surfaces as INVALID_JSON), proving the app cap fired.
+    test('rejects a raw request body over the 512 KiB cap at the app (413 PAYLOAD_TOO_LARGE or its early-close reset), not the ingress, and does not cache it (PRD #647 F1)', async () => {
+      const source = `local:rawcap-${runId}`;
+      const skill = `rawcap-skill-${runId}`;
+      // A valid SKILL.md whose ~512 KiB body base64-encodes to a ~683 KiB wire
+      // body — over the 512 KiB app cap, under the ~1 MiB ingress limit.
+      const big = skillMd(skill, 'X'.repeat(512 * 1024));
+      const requestBody = {
+        source,
+        files: [{ path: `${skill}/SKILL.md`, content: b64(big), mode: '0644' }],
+      };
+      // Self-validate the wire size sits in the (app cap, ingress) window so the
+      // rejection can only be the app's raw-body cap firing, not the ingress.
+      const wireBytes = Buffer.byteLength(JSON.stringify(requestBody), 'utf-8');
+      expect(wireBytes).toBeGreaterThan(INGEST_MAX_RAW_BODY_BYTES);
+      expect(wireBytes).toBeLessThan(900 * 1024);
+
+      // The app rejects the over-cap body and closes; depending on the TCP RST
+      // race the client either reads the structured 413 or sees a reset. Capture
+      // both, then assert each is a genuine app-level over-cap rejection.
+      // `Connection: close` keeps the reset (poisoned) socket out of the
+      // keep-alive pool so the follow-up render is not handed a dead socket.
+      const closeConn = { Connection: 'close' };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let uploadResponse: any;
+      let uploadError: Error | undefined;
+      try {
+        uploadResponse = await integrationTest.httpClient.post(
+          '/api/v1/prompts/sources',
+          requestBody,
+          closeConn
+        );
+      } catch (error) {
+        uploadError = error as Error;
+      }
+
+      if (uploadError) {
+        // Race lost: the early-close RST discarded the 413 before it was read.
+        // This is the app's correct hard close of an over-cap upload (a body
+        // under the cap, or under the ingress limit generally, is NOT reset).
+        expect(uploadError.message).toMatch(/socket hang up|ECONNRESET|reset/i);
+      } else {
+        // Race won: the app's structured 413 — PAYLOAD_TOO_LARGE, NOT the
+        // decoded-cap's VALIDATION_ERROR (which would mean the raw cap never
+        // fired) and NOT a nginx HTML 413 (surfaced as INVALID_JSON).
+        expect(uploadResponse).toMatchObject({
+          success: false,
+          error: { code: 'PAYLOAD_TOO_LARGE' },
+        });
+        expect(uploadResponse.error?.code).not.toBe('VALIDATION_ERROR');
+        expect(uploadResponse.error?.code).not.toBe('INVALID_JSON');
+      }
+      // In neither case was the upload accepted.
+      expect(uploadResponse?.success).not.toBe(true);
+
+      // Durable, race-free proof the over-cap body was rejected before caching:
+      // a subsequent render of the identifier misses (nothing was stored). Fresh
+      // connection (Connection: close) so it cannot inherit the upload's socket.
+      const render = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
+        {},
+        closeConn
+      );
+      expect(render).toMatchObject({ success: false });
+      // 120000ms: one oversized upload + one render, no clone.
+    }, 120000);
+
+    // ---- F3: NUL-byte file path → 400 VALIDATION_ERROR + atomic re-ingest ----
+    // A file path containing a NUL byte ('\0') is rejected with a clean 400
+    // VALIDATION_ERROR (was a 500 before F3, from a raw fs TypeError). Crucially,
+    // the rejection happens BEFORE the prior cached slot is touched: a good
+    // upload of the SAME identifier stays renderable afterward, proving the
+    // re-ingest is atomic and a rejected upload never corrupts existing cache.
+    test('rejects a NUL-byte file path with a 400 VALIDATION_ERROR and leaves a prior good upload of the same identifier renderable (PRD #647 F3)', async () => {
+      const source = `local:nullbyte-${runId}`;
+      const skill = `nullbyte-skill-${runId}`;
+
+      // 1) Seed a GOOD upload for this identifier and confirm it renders.
+      const good = skillMd(skill, 'Original good body.');
+      const seed = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source,
+          files: [{ path: `${skill}/SKILL.md`, content: b64(good), mode: '0644' }],
+        }
+      );
+      expect(seed).toMatchObject({
+        success: true,
+        data: { source, fileCount: 1, status: 'ingested' },
+      });
+
+      const renderBefore = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
+        {}
+      );
+      expect(renderBefore).toMatchObject({ success: true });
+
+      // 2) Re-ingest the SAME identifier with a NUL byte embedded in a file path.
+      // JSON.stringify encodes the embedded '\0' as a \u0000 escape on the
+      // wire; the server JSON-decodes it back to a real NUL and must reject it
+      // up front with a 400 — not a 500, and not a partial write.
+      const bad = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source,
+          files: [
+            { path: `${skill}/evil${'\0'}.md`, content: b64('pwned'), mode: '0644' },
+          ],
+        }
+      );
+      expect(bad).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      // Clean 400, not the generic 500 ingest-error surface it produced pre-F3.
+      expect(bad.error?.code).not.toBe('PROMPTS_SOURCE_INGEST_ERROR');
+
+      // 3) Atomicity: the prior good upload for this identifier is untouched and
+      // still renders — the rejected NUL-byte upload never promoted into the slot.
+      const renderAfter = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
+        {}
+      );
+      expect(renderAfter).toMatchObject({ success: true });
+      const textAfter = renderAfter.data.messages[0].content.text;
+      expect(textAfter).toContain('Original good body.');
+      // The rejected payload's marker must NOT have leaked into the cache.
+      expect(textAfter).not.toContain('pwned');
+      // 120000ms: seed upload + render + rejected upload + render, no clone.
     }, 120000);
 
     // ---- M5: credential / secret hygiene (expected GREEN — safety net) ----

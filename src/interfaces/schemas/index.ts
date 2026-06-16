@@ -191,6 +191,11 @@ export {
   PromptsCacheRefreshDataSchema,
   PromptsCacheRefreshResponseSchema,
   PromptsCacheRefreshErrorSchema,
+  PromptsSourceIngestFileSchema,
+  PromptsSourceIngestRequestSchema,
+  PromptsSourceIngestDataSchema,
+  PromptsSourceIngestResponseSchema,
+  PromptsSourceIngestErrorSchema,
   type PromptArgument,
   type PromptInfo,
   type PromptsListData,
@@ -202,6 +207,10 @@ export {
   type PromptGetRequest,
   type PromptsCacheRefreshData,
   type PromptsCacheRefreshResponse,
+  type PromptsSourceIngestFile,
+  type PromptsSourceIngestRequest,
+  type PromptsSourceIngestData,
+  type PromptsSourceIngestResponse,
 } from './prompts';
 
 // Knowledge schemas

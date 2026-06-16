@@ -41,6 +41,9 @@ import {
   PromptNotFoundErrorSchema,
   PromptsCacheRefreshResponseSchema,
   PromptsCacheRefreshErrorSchema,
+  PromptsSourceIngestRequestSchema,
+  PromptsSourceIngestResponseSchema,
+  PromptsSourceIngestErrorSchema,
   // Visualization schemas
   VisualizationResponseSchema,
   VisualizationNotFoundErrorSchema,
@@ -395,6 +398,19 @@ export const routeDefinitions: RouteDefinition<
     response: PromptsCacheRefreshResponseSchema,
     errorResponses: {
       500: PromptsCacheRefreshErrorSchema,
+    },
+  },
+  {
+    path: '/api/v1/prompts/sources',
+    method: 'POST',
+    description:
+      'Ingest (upload) a skill source the server caches and renders via POST /api/v1/prompts/:promptName?source=<identifier> with no git clone (PRD #647)',
+    tags: ['Prompts'],
+    body: PromptsSourceIngestRequestSchema,
+    response: PromptsSourceIngestResponseSchema,
+    errorResponses: {
+      400: PromptsSourceIngestErrorSchema,
+      500: InternalServerErrorSchema,
     },
   },
   {

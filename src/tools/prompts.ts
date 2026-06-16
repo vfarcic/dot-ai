@@ -256,6 +256,14 @@ export async function loadAllPrompts(
     const { loadUserPrompts } = await import('../core/user-prompts-loader.js');
     userPrompts = await loadUserPrompts(logger, forceRefresh, override);
   } catch (error) {
+    // PRD #647 D2: a render that names a missing ingested ?source= identifier is
+    // a deliberate, caller-actionable error (re-upload guidance). It must NOT be
+    // swallowed into a silent built-in-only fallback — otherwise the render would
+    // surface the generic "Prompt not found" instead of the re-upload
+    // instruction. Re-throw it so the REST handler maps it to a 400.
+    if (error instanceof Error && error.name === 'IngestedSourceNotFoundError') {
+      throw error;
+    }
     logger.debug('User prompts loader not available or failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });

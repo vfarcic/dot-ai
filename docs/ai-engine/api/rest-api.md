@@ -251,17 +251,22 @@ The override can additionally carry three **optional, additive** qualifiers — 
 
 > **Unchanged by default.** A request that supplies no `path`, no `branch`, and no `X-Dot-AI-Git-Token` header behaves byte-identically to v1.21.0 — same clone target (repo root on `main`), same credential (`DOT_AI_GIT_TOKEN`), same response — whether it uses `?repo=` or the env-var-configured repo (no `?repo=`). All three additions are opt-in per request; existing callers see zero change.
 
+A fourth endpoint — `POST /api/v1/prompts/sources` — works the other way around: instead of the server fetching a repo, the **caller uploads** a skill source it fetched itself, which the server then caches and renders through the same render path. It exists for sources the server cannot reach (SSO/device-gated VPNs, hardened clusters, and on-disk `--repo-dir` dev loops). It is purely additive — deployments and callers that never upload see zero change. See [Ingested (CLI-uploaded) skill sources](#ingested-cli-uploaded-skill-sources) below.
+
 See the [Shared Prompt Library](../tools/prompts.md) for the user-facing tool guide.
 
 ### Endpoint Summary
 
-| Endpoint | `repo` / `path` / `branch` placement | Credential |
+| Endpoint | `repo` / `path` / `branch` / `source` placement | Credential |
 |----------|--------------------------------------|------------|
 | `POST /api/v1/prompts/refresh` | JSON body: `{ "repo": "<url>", "path": "<subdir>", "branch": "<branch>" }` | `X-Dot-AI-Git-Token` header |
 | `GET /api/v1/prompts` | Query string: `?repo=<url>&path=<subdir>&branch=<branch>` | `X-Dot-AI-Git-Token` header |
-| `POST /api/v1/prompts/:promptName` | Query string: `?repo=<url>&path=<subdir>&branch=<branch>` | `X-Dot-AI-Git-Token` header |
+| `POST /api/v1/prompts/:promptName` | Query string: `?repo=<url>&path=<subdir>&branch=<branch>` (clone) **or** `?source=<identifier>` (render an ingested source) | `X-Dot-AI-Git-Token` header |
+| `POST /api/v1/prompts/sources` | JSON body manifest: `{ "source", "contentHash", "files" }` — no `repo`/`path`/`branch` | Never clones (n/a) |
 
-`path` and `branch` follow the same placement as `repo` on each endpoint (query string for `GET` and `POST /:promptName`, JSON body for `refresh`). The credential **always** travels as the `X-Dot-AI-Git-Token` request header — never in the query string or body. See [Per-request `path`, `branch`, and credential](#per-request-path-branch-and-credential) below.
+`path` and `branch` follow the same placement as `repo` on each endpoint (query string for `GET` and `POST /:promptName`, JSON body for `refresh`). The credential **always** travels as the `X-Dot-AI-Git-Token` request header — never in the query string or body. See [Per-request `path`, `branch`, and credential](#per-request-path-branch-and-credential) below. The `?source=` render signal and the `POST /api/v1/prompts/sources` upload endpoint are documented under [Ingested (CLI-uploaded) skill sources](#ingested-cli-uploaded-skill-sources).
+
+> **Every endpoint is bearer-gated.** All of these requests pass through the same bearer-auth check as every non-OpenAPI route (`Authorization: Bearer <token>`). The local-development examples below target `localhost` and omit the header for brevity; a deployed server requires it.
 
 ### The `source` field
 
@@ -465,6 +470,7 @@ Returns the rendered content (`messages`, optional `files`) of a single prompt b
 | `repo` | Override repository URL (HTTPS). When supplied, bypasses `DOT_AI_USER_PROMPTS_REPO` for this request. |
 | `path` | Subdirectory within the override repo to load prompts from. Omit for the repo root. Only applies when `repo` is supplied. |
 | `branch` | Branch of the override repo to clone. Omit for `main`. Only applies when `repo` is supplied. |
+| `source` | Render an already-**ingested** (CLI-uploaded) source by its identifier instead of cloning. Takes precedence over `repo`; the server never clones a `?source=` identifier. See [Ingested (CLI-uploaded) skill sources](#ingested-cli-uploaded-skill-sources). |
 
 The override credential travels as the `X-Dot-AI-Git-Token` header (see [above](#per-request-path-branch-and-credential)), never as a query parameter or body field.
 
@@ -504,6 +510,158 @@ curl -s -X POST "http://localhost:3456/api/v1/prompts/deploy-app?repo=https://fo
 ```
 
 The response carries the rendered `messages` for the prompt resolved under `skills/` on the `team-skills` branch; `source` still echoes `"https://forgejo.example.com/team/skills"`, unchanged by `path`, `branch`, or the header.
+
+## Ingested (CLI-uploaded) skill sources
+
+Every endpoint above has the server **fetch** the source: the caller names a repo and the server clones it. After the per-request credential override, that model reaches any source a server-side clone can authenticate to. Two classes of source remain unreachable — and in both, the laptop where the CLI runs **can** fetch while the server **cannot**:
+
+1. **Sources the server cannot authenticate or route to**, even with a static token — VPNs gated by SSO / OIDC / device attestation, and managed/hardened clusters with no egress path the operator can open.
+2. **On-disk directories** — work-in-progress skills on a developer's filesystem with no remote at all.
+
+For these, the CLI fetches the source locally and **uploads** it; the server caches it and renders it through the **same** render path — one renderer, server-side, so a CLI-fetched skill renders byte-identically to one cloned from `?repo=`. Upload via `POST /api/v1/prompts/sources`; render via `POST /api/v1/prompts/:promptName?source=<identifier>`.
+
+> **Bearer-gated, like every endpoint here.** Both the upload and the `?source=` render pass through the same `Authorization: Bearer <token>` check as the rest of the API.
+
+### Source-identifier key space
+
+An uploaded source is keyed by a **stable identifier** that the render request later names verbatim via `?source=`:
+
+| CLI flag | Identifier | Server behavior |
+|----------|------------|-----------------|
+| `--repo-fetch <git-url>` | the git URL verbatim (credentials scrubbed in echoes) | render from the **ingested** source; the server **never clones** this URL — the whole point is that it cannot reach it |
+| `--repo-dir <path> --source-label <label>` | `local:<label>` | render from the ingested source; a `local:` identifier is intrinsically non-clonable |
+
+> **Identifier uniqueness is the caller's responsibility.** The server stores the identifier exactly as sent — it does **not** auto-prefix or namespace per caller in this release. To avoid cross-host collisions, use a convention such as `local:<user>-<label>` or `local:<host>-<label>`.
+>
+> **Known limitation — ingested identifiers are global server state.** There is no per-principal namespacing in this iteration, so any authenticated caller can overwrite any ingested identifier (a `local:<label>` or an ingested git URL) by uploading to the same identifier. Treat the endpoint as trusted-caller-only.
+
+### `POST /api/v1/prompts/sources`
+
+Uploads (ingests) a skill source as a JSON manifest with base64-encoded file bodies. The server decodes, hardens, and caches it in memory keyed by the `source` identifier, then echoes back the (scrubbed) identifier and a status.
+
+**Request body**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | string (required) | Stable identifier the cached source is keyed by — a git URL (for `--repo-fetch`) or `local:<label>` (for `--repo-dir`). |
+| `contentHash` | string (optional) | CLI-computed hash of the manifest. When an identical hash is already cached for this identifier, the upload is short-circuited as `unchanged` (see below). |
+| `files` | array (required, non-empty) | The uploaded files. Each entry is `{ "path": "<relative>", "content": "<base64>", "mode": "<octal>" }`. `mode` is optional. |
+
+> **Illustrative example** (placeholder token and base64, non-runnable as written). The request and response shapes are shown for reference; replace `<token>`, `<base64>`, and the hash with real values.
+
+```bash
+curl -s -X POST "http://localhost:3456/api/v1/prompts/sources" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "source": "local:team-dev",
+    "contentHash": "sha256:<hash-of-manifest>",
+    "files": [
+      { "path": "deploy-app/SKILL.md", "content": "<base64>", "mode": "0644" }
+    ]
+  }'
+```
+
+A successful ingest returns the scrubbed `source`, the echoed `contentHash` (if one was sent), the number of files cached, and `status: "ingested"`:
+
+```json
+{
+    "success": true,
+    "data": {
+        "source": "local:team-dev",
+        "contentHash": "sha256:<hash-of-manifest>",
+        "fileCount": 1,
+        "status": "ingested"
+    },
+    "meta": {
+        "timestamp": "2026-06-16T12:00:00.000Z",
+        "requestId": "rest_1781000000000_1",
+        "version": "v1"
+    }
+}
+```
+
+**Content-hash dedup** — re-uploading the **same** `source` + `contentHash` is recognized as unchanged and short-circuited: nothing is re-decoded or rewritten, and the response carries `status: "unchanged"`:
+
+```json
+{
+    "success": true,
+    "data": {
+        "source": "local:team-dev",
+        "contentHash": "sha256:<hash-of-manifest>",
+        "fileCount": 1,
+        "status": "unchanged"
+    }
+}
+```
+
+A **different** `contentHash` for the same identifier (or an upload with no hash) is re-ingested normally and returns `status: "ingested"`.
+
+### Rendering an ingested source (`?source=`)
+
+Once a source is ingested, render any skill it contains with `POST /api/v1/prompts/:promptName?source=<identifier>` — **full argument substitution**, identical to a `?repo=` render, but served from the upload with **no clone**. The `?source=` signal takes precedence over `?repo=`, and the server never attempts a git operation for an ingested identifier (so a `--repo-fetch` URL the server cannot reach still renders).
+
+> **Illustrative example** (placeholder token). Render the uploaded `deploy-app` skill, substituting its `environment` argument.
+
+```bash
+curl -s -X POST "http://localhost:3456/api/v1/prompts/deploy-app?source=local:team-dev" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"arguments":{"environment":"prod"}}'
+```
+
+```json
+{
+    "success": true,
+    "data": {
+        "description": "Deploy an application to the specified environment",
+        "messages": [
+            { "role": "user", "content": { "type": "text", "text": "Deploy the application to prod. …" } }
+        ]
+    }
+}
+```
+
+The identifier is URL-encoded in the query string (e.g. `?source=local%3Ateam-dev`). The response shape is identical to a normal render — the only difference is where the source came from.
+
+### Limits and errors
+
+The upload endpoint is an untrusted-input surface, so the manifest is hardened **before anything is cached** — a rejected upload is never partially stored:
+
+| Limit / check | Behavior on violation |
+|---------------|-----------------------|
+| **Max 100 files** per manifest | `HTTP 400` `VALIDATION_ERROR` |
+| **Max 256 KiB** total decoded payload (summed across files) | `HTTP 400` `VALIDATION_ERROR` |
+| **Path traversal / zip-slip** — any `path` that is absolute or contains `..` | `HTTP 400` `VALIDATION_ERROR` (rejected before any write) |
+| **File `mode` bits** | Sanitized: setuid/setgid/sticky stripped, masked to the standard `0777` permission bits; an unparseable mode falls back to `0644`. |
+
+> The 256 KiB cap is an application-level limit chosen to trip before a typical ~1 MiB ingress request-body limit; a manifest may travel as a larger base64 payload on the wire while its **decoded** total stays under the cap.
+
+**Render-miss** — rendering a `?source=` identifier with no cached entry (never uploaded, or evicted, or lost on a restart) returns a clear `HTTP 400` instructing the caller to (re)upload. It does **not** fall back to cloning, and the message carries no git/clone vocabulary:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Ingested source not found: local:team-dev. (Re)upload it via POST /api/v1/prompts/sources before rendering."
+  }
+}
+```
+
+> **The ingested cache is in-memory and does not survive a server restart.** There is no background refresh (nothing to pull) — re-upload the source (e.g. on the next CLI hook fire) after a restart or eviction.
+
+### Secret hygiene
+
+A credential-bearing git-URL identifier is **scrubbed everywhere** it surfaces — the echoed `source`, error messages, and logs. Userinfo credentials and credential-looking query parameters are redacted deterministically: `https://user:tok@gitlab.corp.internal/team/skills.git` becomes `https://***:***@gitlab.corp.internal/team/skills.git`. The same credentialed input always scrubs to the same `source`, so it stays usable as a stable key. The render path resolves the ingested entry by the verbatim identifier (so a credentialed URL still renders), but never echoes the credential.
+
+### Backward compatibility
+
+This endpoint is **purely additive**:
+
+- Deployments and callers that never upload see **zero change**. No new **required** configuration.
+- A plain `?repo=<url>` request (no `?source=`) behaves **exactly as before** — clone + render, byte-identical to the previous release. `?source=` is the **only** signal that selects an ingested source; the env-var and `?repo=` clone paths are untouched.
+- The companion CLI support (`--repo-fetch` / `--repo-dir` + source upload) ships in the same release; neither half is usable alone.
 
 ### Validation Rules for `repo`, `path`, and `branch`
 

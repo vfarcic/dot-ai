@@ -150,3 +150,74 @@ export const PromptsCacheRefreshErrorSchema = InternalServerErrorSchema.extend({
     details: z.any().optional(),
   }),
 });
+
+/**
+ * Source ingestion (PRD #647 M2)
+ * POST /api/v1/prompts/sources
+ *
+ * A single file in the uploaded manifest: a relative path, base64-encoded
+ * content, and an optional POSIX mode string.
+ */
+export const PromptsSourceIngestFileSchema = z.object({
+  path: z.string().describe('Relative path within the uploaded skill source'),
+  content: z.string().describe('Base64-encoded file content'),
+  mode: z.string().optional().describe('POSIX file mode (e.g., "0644")'),
+});
+
+export type PromptsSourceIngestFile = z.infer<
+  typeof PromptsSourceIngestFileSchema
+>;
+
+/**
+ * Source ingestion request body — the CLI-uploaded skill source manifest.
+ */
+export const PromptsSourceIngestRequestSchema = z.object({
+  source: z
+    .string()
+    .describe(
+      'Stable source identifier (e.g., "local:team-dev" or a git URL the server cannot reach)'
+    ),
+  contentHash: z
+    .string()
+    .optional()
+    .describe('CLI-computed content hash (enables future re-upload dedup)'),
+  files: z
+    .array(PromptsSourceIngestFileSchema)
+    .describe('Uploaded files with base64-encoded content'),
+});
+
+export type PromptsSourceIngestRequest = z.infer<
+  typeof PromptsSourceIngestRequestSchema
+>;
+
+/**
+ * Source ingestion response data — the cached source echoed back (scrubbed).
+ */
+export const PromptsSourceIngestDataSchema = z.object({
+  source: z
+    .string()
+    .describe('Credential-scrubbed identifier the cached source is keyed by'),
+  contentHash: z.string().optional().describe('Echoed content hash, if provided'),
+  fileCount: z.number().describe('Number of files cached'),
+  status: z.string().describe('Ingestion status (e.g., "ingested")'),
+});
+
+export type PromptsSourceIngestData = z.infer<
+  typeof PromptsSourceIngestDataSchema
+>;
+
+export const PromptsSourceIngestResponseSchema = createSuccessResponseSchema(
+  PromptsSourceIngestDataSchema
+);
+
+export type PromptsSourceIngestResponse = z.infer<
+  typeof PromptsSourceIngestResponseSchema
+>;
+
+export const PromptsSourceIngestErrorSchema = BadRequestErrorSchema.extend({
+  error: z.object({
+    code: z.literal('VALIDATION_ERROR'),
+    message: z.string(),
+    details: z.any().optional(),
+  }),
+});

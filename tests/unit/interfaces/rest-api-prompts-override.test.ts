@@ -278,6 +278,67 @@ describe('extractPromptsOverride', () => {
     });
   });
 
+  describe('ingested source selection (PRD #647 D1)', () => {
+    test('source param → ingested override (precedence over repo, no clone params)', () => {
+      const result = extractPromptsOverride(
+        REPO,
+        'skills',
+        'feature',
+        'tok123',
+        'local:team-dev'
+      );
+      // ?source= is the explicit ingested signal: it wins over ?repo= and the
+      // clone-qualifying params do not apply.
+      expect(result).toEqual({
+        ok: true,
+        override: { repoUrl: 'local:team-dev', ingestedSource: 'local:team-dev' },
+      });
+    });
+
+    test('source param is trimmed', () => {
+      const result = extractPromptsOverride(
+        null,
+        undefined,
+        undefined,
+        undefined,
+        '  local:team-dev  '
+      );
+      expect(result).toEqual({
+        ok: true,
+        override: { repoUrl: 'local:team-dev', ingestedSource: 'local:team-dev' },
+      });
+    });
+
+    test('a git-URL identifier is accepted verbatim as an ingested source', () => {
+      const url = 'https://gitlab.corp.internal/team/skills';
+      const result = extractPromptsOverride(
+        null,
+        undefined,
+        undefined,
+        undefined,
+        url
+      );
+      expect(result).toEqual({
+        ok: true,
+        override: { repoUrl: url, ingestedSource: url },
+      });
+    });
+
+    test('empty/whitespace source falls through to the repo/clone path', () => {
+      // No source signal → behaves exactly as before (repoUrl only).
+      expect(
+        extractPromptsOverride(REPO, undefined, undefined, undefined, '')
+      ).toEqual({ ok: true, override: { repoUrl: REPO } });
+      expect(
+        extractPromptsOverride(REPO, undefined, undefined, undefined, '   ')
+      ).toEqual({ ok: true, override: { repoUrl: REPO } });
+      // null (searchParams.get miss) likewise falls through.
+      expect(
+        extractPromptsOverride(REPO, undefined, undefined, undefined, null)
+      ).toEqual({ ok: true, override: { repoUrl: REPO } });
+    });
+  });
+
   describe('credential scrubbing on validation failure (HARD CONSTRAINT 3)', () => {
     const secret = 'unit_secret_token_xyz';
 
