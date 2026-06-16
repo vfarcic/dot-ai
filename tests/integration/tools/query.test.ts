@@ -1242,7 +1242,17 @@ spec:
 
     // Visualization mode returns visualization format (sessionId, title, visualizations, insights)
     // sessionId enables URL caching/bookmarking for dashboard UIs
-    expect(response).toMatchObject({
+    // The diagnostic message surfaces the actual payload (error on success:false,
+    // or the result shape) so an AI-driven failure is self-explanatory in CI
+    // instead of an opaque toMatchObject diff.
+    expect(
+      response,
+      `[visualization] query expected success+visualization data, got: ${JSON.stringify(
+        response.success === false
+          ? response.error
+          : response.data?.result ?? response
+      )}`
+    ).toMatchObject({
       success: true,
       data: {
         tool: 'query',
