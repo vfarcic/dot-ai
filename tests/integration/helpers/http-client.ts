@@ -127,12 +127,24 @@ export class HttpRestApiClient {
           data += chunk;
         });
 
-        // Swallow a post-response reset on the response stream so it never
-        // surfaces as an unhandled stream error; the 'end' below already has
-        // (or will have) the body, and the 'error' handler covers the no-body
-        // case via the shared `settled` guard.
-        res.on('error', () => {
-          /* handled via req 'error' + settled guard */
+        // PRD #647 C4 (CodeRabbit): gate the response-stream error through the
+        // SAME one-shot `settled` guard as 'end'/'error'/'timeout' (first wins).
+        // If 'end' already settled the promise, a trailing reset on the response
+        // stream is benign — ignore it (the post-413 early-close case the F1 test
+        // relies on). But if the stream errors BEFORE 'end' (a truncated/aborted
+        // response) and the request-level 'error' never fires, the old no-op
+        // handler left the promise to hang until the socket timeout. Settling it
+        // here as a failure closes that gap.
+        res.on('error', (error) => {
+          if (settled) return;
+          settled = true;
+          const elapsed = Date.now() - startTime;
+          cleanup();
+          reject(
+            new Error(
+              `Response stream error (connection reset) after ${elapsed}ms: ${error.message} (socket assigned: ${socketAssigned})`
+            )
+          );
         });
 
         res.on('end', () => {

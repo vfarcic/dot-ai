@@ -1662,6 +1662,16 @@
               }
             }
           },
+          "413": {
+            "description": "Payload too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsSourcesPostError413"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1743,6 +1753,46 @@
             "schema": {
               "type": "string",
               "description": "Name of the prompt"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Render a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). Takes precedence over repo/path/branch.",
+            "schema": {
+              "description": "Render a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). Takes precedence over repo/path/branch.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "description": "Per-request git repository URL override (PRD #581)",
+            "schema": {
+              "description": "Per-request git repository URL override (PRD #581)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "description": "Subdirectory within the override repo (PRD #621)",
+            "schema": {
+              "description": "Subdirectory within the override repo (PRD #621)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Branch of the override repo (PRD #621)",
+            "schema": {
+              "description": "Branch of the override repo (PRD #621)",
+              "type": "string"
             }
           }
         ],
@@ -6035,7 +6085,11 @@
               },
               "status": {
                 "type": "string",
-                "description": "Ingestion status (e.g., \"ingested\")"
+                "enum": [
+                  "ingested",
+                  "unchanged"
+                ],
+                "description": "Ingestion status: \"ingested\" (decoded and cached) or \"unchanged\" (content-hash dedup short-circuit)"
               }
             },
             "required": [
@@ -6169,6 +6223,62 @@
           "error"
         ]
       },
+      "PromptsSourcesPostError413": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PAYLOAD_TOO_LARGE"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
       "PromptsSourcesPostError500": {
         "type": "object",
         "properties": {
@@ -6181,36 +6291,12 @@
             "properties": {
               "code": {
                 "type": "string",
-                "enum": [
-                  "INTERNAL_ERROR",
-                  "DISCOVERY_ERROR",
-                  "EXECUTION_ERROR",
-                  "OPENAPI_ERROR",
-                  "SYNC_ERROR",
-                  "RESOURCE_KINDS_ERROR",
-                  "SEARCH_ERROR",
-                  "LIST_RESOURCES_ERROR",
-                  "NAMESPACES_ERROR",
-                  "RESOURCE_ERROR",
-                  "EVENTS_ERROR",
-                  "LOGS_ERROR",
-                  "PROMPTS_LIST_ERROR",
-                  "PROMPT_GET_ERROR",
-                  "VISUALIZATION_ERROR",
-                  "SESSION_RETRIEVAL_ERROR",
-                  "MIGRATION_ERROR",
-                  "PROMPTS_CACHE_REFRESH_ERROR",
-                  "PROMPTS_SOURCE_INGEST_ERROR",
-                  "USER_MANAGEMENT_ERROR"
-                ]
+                "const": "PROMPTS_SOURCE_INGEST_ERROR"
               },
               "message": {
-                "type": "string",
-                "description": "Human-readable error message"
+                "type": "string"
               },
-              "details": {
-                "description": "Additional error context"
-              }
+              "details": {}
             },
             "required": [
               "code",

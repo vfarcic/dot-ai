@@ -45,6 +45,9 @@ import {
   PromptsSourceIngestRequestSchema,
   PromptsSourceIngestResponseSchema,
   PromptsSourceIngestErrorSchema,
+  PromptsSourceIngestPayloadTooLargeErrorSchema,
+  PromptsSourceIngestServerErrorSchema,
+  PromptGetQuerySchema,
   // Visualization schemas
   VisualizationResponseSchema,
   VisualizationNotFoundErrorSchema,
@@ -413,7 +416,12 @@ export const routeDefinitions: RouteDefinition<
     response: PromptsSourceIngestResponseSchema,
     errorResponses: {
       400: PromptsSourceIngestErrorSchema,
-      500: InternalServerErrorSchema,
+      // PRD #647 A7/A9 (CodeRabbit): the 512 KiB raw-body cap returns 413
+      // (PAYLOAD_TOO_LARGE) from mcp.ts before route dispatch — document it.
+      413: PromptsSourceIngestPayloadTooLargeErrorSchema,
+      // PRD #647 A8 (CodeRabbit): narrowed to the only 500 code this handler
+      // emits, instead of the shared broad InternalServerErrorSchema union.
+      500: PromptsSourceIngestServerErrorSchema,
     },
   },
   {
@@ -422,6 +430,9 @@ export const routeDefinitions: RouteDefinition<
     description: 'Get a prompt with rendered template arguments',
     tags: ['Prompts'],
     params: PromptNameParamsSchema,
+    // PRD #647 A6 (CodeRabbit): declare the per-request render query params
+    // (?source= ingest-render, plus ?repo=/?path=/?branch= overrides).
+    query: PromptGetQuerySchema,
     body: PromptGetRequestSchema,
     response: PromptGetResponseSchema,
     errorResponses: {

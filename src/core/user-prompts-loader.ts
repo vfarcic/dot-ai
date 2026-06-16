@@ -178,6 +178,20 @@ export function sanitizeIngestFileMode(mode: unknown): number {
   return parsed & 0o777;
 }
 
+/**
+ * PRD #647 C5 (CodeRabbit) — strict canonical-base64 matcher. `Buffer.from(s,
+ * 'base64')` silently DROPS any out-of-alphabet character and tolerates missing
+ * padding, so a malformed `content` would otherwise decode to corrupt bytes and
+ * be cached. The CLI always uploads canonical, padded standard base64
+ * (Buffer#toString('base64')), so we require exactly that: only the standard
+ * alphabet (A–Z a–z 0–9 + /), `=` padding allowed only at the end, and a length
+ * that is a multiple of 4. The empty string (an empty file) is accepted.
+ */
+const CANONICAL_BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+function isCanonicalBase64(content: string): boolean {
+  return content.length % 4 === 0 && CANONICAL_BASE64_RE.test(content);
+}
+
 /** Shape of the uploaded manifest (validated at runtime; all fields untrusted). */
 export interface IngestPromptsSourceInput {
   source: unknown;
@@ -382,6 +396,15 @@ export function ingestPromptsSource(
         `Invalid file path "${file.path}": ${message}`
       );
     }
+    // PRD #647 C5 — reject malformed base64 with a 400 BEFORE decoding, so a
+    // corrupt upload is never silently decoded (Buffer.from drops bad chars)
+    // and cached. Checked after the path guards so a rejected upload never
+    // touches disk.
+    if (!isCanonicalBase64(file.content)) {
+      throw new PromptsSourceValidationError(
+        `Invalid base64 content for file "${file.path}"`
+      );
+    }
     const bytes = Buffer.from(file.content, 'base64');
     totalBytes += bytes.length;
     // PRD #647 D5 — total decoded payload cap, checked before any write so an
@@ -416,6 +439,16 @@ export function ingestPromptsSource(
   // sanitize to the same path collapse to one file on disk, so fileCount must
   // not double-count them.
   const writtenPaths = new Set<string>();
+  // PRD #647 F3 (CodeRabbit C1) — failure-ATOMIC promote. The earlier version
+  // `rmSync(finalDir)`'d the prior slot BEFORE the rename, so a rename failure
+  // destroyed the last known-good entry (the map still pointed at finalDir).
+  // Instead: move the old slot aside to an unpredictable backup, rename staging
+  // into place, then delete the backup. If the promote throws, the backup is
+  // moved back so the prior cached entry is always recoverable. rename does not
+  // follow a symlink at the source or target, so a pre-planted finalDir symlink
+  // is moved/replaced, not written through.
+  const backupDir = `${finalDir}.bak-${crypto.randomUUID()}`;
+  let hadPrevious = false;
   try {
     for (const { relPath, bytes, mode } of decoded) {
       const fullPath = path.join(stagingDir, relPath);
@@ -423,21 +456,40 @@ export function ingestPromptsSource(
       fs.writeFileSync(fullPath, bytes, { mode });
       writtenPaths.add(relPath);
     }
-    // Promote: replace any prior slot with the fully-written staging dir. Only
-    // now — every file having been written successfully — is the old content
-    // removed, so any failure above left the prior cache intact. rename does
-    // not follow a symlink at the target, so a pre-planted finalDir symlink is
-    // replaced, not written through.
-    fs.rmSync(finalDir, { recursive: true, force: true });
+    // Move any prior slot aside FIRST (so it can be restored on failure), then
+    // promote the fully-written staging dir into place.
+    if (fs.existsSync(finalDir)) {
+      fs.renameSync(finalDir, backupDir);
+      hadPrevious = true;
+    }
     fs.renameSync(stagingDir, finalDir);
   } catch (error) {
-    // Roll back the partial staging dir; the prior cached entry is untouched.
+    // Roll back the partial staging dir; never leave it behind.
     try {
       fs.rmSync(stagingDir, { recursive: true, force: true });
     } catch {
       /* best-effort cleanup of the abandoned staging dir */
     }
+    // Restore the prior cached entry if it was moved aside but the promote
+    // never completed, so a failed re-upload truly never destroys it.
+    if (hadPrevious && fs.existsSync(backupDir) && !fs.existsSync(finalDir)) {
+      try {
+        fs.renameSync(backupDir, finalDir);
+      } catch {
+        /* best-effort restore; backup remains on disk for manual recovery */
+      }
+    }
     throw error;
+  }
+  // Promote succeeded — discard the prior good copy. Best-effort: a cleanup
+  // failure here must NOT fail an already-successful re-ingest (the new content
+  // is in place), at worst leaving a stale backup dir for the tmp sweep.
+  if (hadPrevious) {
+    try {
+      fs.rmSync(backupDir, { recursive: true, force: true });
+    } catch {
+      /* best-effort cleanup of the superseded prior copy */
+    }
   }
 
   const fileCount = writtenPaths.size;

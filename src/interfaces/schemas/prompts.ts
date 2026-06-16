@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, NotFoundErrorSchema, BadRequestErrorSchema, InternalServerErrorSchema, BadGatewayErrorSchema } from './common';
+import { createSuccessResponseSchema, NotFoundErrorSchema, BadRequestErrorSchema, InternalServerErrorSchema, BadGatewayErrorSchema, PayloadTooLargeErrorSchema } from './common';
 
 /**
  * Prompt argument definition
@@ -212,7 +212,13 @@ export const PromptsSourceIngestDataSchema = z.object({
     .describe('Credential-scrubbed identifier the cached source is keyed by'),
   contentHash: z.string().optional().describe('Echoed content hash, if provided'),
   fileCount: z.number().describe('Number of files cached'),
-  status: z.string().describe('Ingestion status (e.g., "ingested")'),
+  // PRD #647 N16: the runtime only ever returns 'ingested' (decoded+written) or
+  // 'unchanged' (D3 dedup short-circuit), so pin the contract to that union.
+  status: z
+    .enum(['ingested', 'unchanged'])
+    .describe(
+      'Ingestion status: "ingested" (decoded and cached) or "unchanged" (content-hash dedup short-circuit)'
+    ),
 });
 
 export type PromptsSourceIngestData = z.infer<
@@ -234,3 +240,57 @@ export const PromptsSourceIngestErrorSchema = BadRequestErrorSchema.extend({
     details: z.any().optional(),
   }),
 });
+
+/**
+ * PRD #647 A7 (CodeRabbit) — 413 returned when the ingest raw body exceeds the
+ * 512 KiB cap (enforced in mcp.ts parseRequestBody before route dispatch). The
+ * handler emits code PAYLOAD_TOO_LARGE.
+ */
+export const PromptsSourceIngestPayloadTooLargeErrorSchema =
+  PayloadTooLargeErrorSchema;
+
+/**
+ * PRD #647 A8 (CodeRabbit) — endpoint-specific 500 for the ingest route. The
+ * handler only ever emits PROMPTS_SOURCE_INGEST_ERROR for non-validation
+ * failures (rest-api.ts handlePromptsSourceIngest), so the contract is narrowed
+ * from the shared InternalServerErrorSchema union to exactly that code to avoid
+ * misleading client SDK unions.
+ */
+export const PromptsSourceIngestServerErrorSchema =
+  InternalServerErrorSchema.extend({
+    error: z.object({
+      code: z.literal('PROMPTS_SOURCE_INGEST_ERROR'),
+      message: z.string(),
+      details: z.any().optional(),
+    }),
+  });
+
+/**
+ * PRD #647 A6 (CodeRabbit) — query parameters the render endpoint
+ * (POST /api/v1/prompts/:promptName) accepts. These were previously undeclared
+ * by convention; declaring them makes the new `?source=` ingest-render contract
+ * (and its `?repo=`/`?path=`/`?branch=` siblings) discoverable in the OpenAPI
+ * spec. All are optional and additive — absent means the env-var/built-in path.
+ */
+export const PromptGetQuerySchema = z.object({
+  source: z
+    .string()
+    .optional()
+    .describe(
+      'Render a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). Takes precedence over repo/path/branch.'
+    ),
+  repo: z
+    .string()
+    .optional()
+    .describe('Per-request git repository URL override (PRD #581)'),
+  path: z
+    .string()
+    .optional()
+    .describe('Subdirectory within the override repo (PRD #621)'),
+  branch: z
+    .string()
+    .optional()
+    .describe('Branch of the override repo (PRD #621)'),
+});
+
+export type PromptGetQuery = z.infer<typeof PromptGetQuerySchema>;

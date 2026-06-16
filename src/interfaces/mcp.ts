@@ -1005,15 +1005,20 @@ export class MCPServer {
   /**
    * PRD #647 F1: true only for the prompts source ingest endpoint, the one
    * untrusted route the raw-body cap is scoped to. Parses the pathname so a
-   * query string or trailing slash can't bypass (or wrongly trip) the cap.
+   * query string can't bypass (or wrongly trip) the cap.
+   *
+   * PRD #647 C2 (CodeRabbit): the cap check runs BEFORE route dispatch, so a
+   * non-canonical pathname must be normalized here or it slips past the cap and
+   * buffers an uncapped body (DoS). A strict `===` let `POST /api/v1/prompts/
+   * sources/` (trailing slash) — the same ingest surface — skip `maxBytes`.
+   * Collapse trailing slashes (keeping a bare "/" intact) before comparing.
    */
   private isPromptsIngestRequest(url: string | undefined): boolean {
     if (!url) return false;
     try {
-      return (
-        new URL(url, 'http://internal.invalid').pathname ===
-        PROMPTS_INGEST_PATHNAME
-      );
+      const pathname = new URL(url, 'http://internal.invalid').pathname;
+      const normalized = pathname.replace(/\/+$/, '') || '/';
+      return normalized === PROMPTS_INGEST_PATHNAME;
     } catch {
       return false;
     }

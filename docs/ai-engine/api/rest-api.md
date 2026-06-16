@@ -547,7 +547,7 @@ Uploads (ingests) a skill source as a JSON manifest with base64-encoded file bod
 | `contentHash` | string (optional) | CLI-computed hash of the manifest. When an identical hash is already cached for this identifier, the upload is short-circuited as `unchanged` (see below). |
 | `files` | array (required, non-empty) | The uploaded files. Each entry is `{ "path": "<relative>", "content": "<base64>", "mode": "<octal>" }`. `mode` is optional. |
 
-> **Illustrative example** (placeholder token and base64, non-runnable as written). The request and response shapes are shown for reference; replace `<token>`, `<base64>`, and the hash with real values.
+> **Real request/response, captured against a running server.** The `Authorization` token is redacted to `<token>` (never paste a real credential into docs); everything else — the base64 body, the `contentHash`, and the response — is verbatim. The `content` field is the base64 of the skill's `SKILL.md`; the `contentHash` is the CLI-computed `sha256` of the same manifest. The host is shown as `localhost:3456` to match the other examples on this page.
 
 ```bash
 curl -s -X POST "http://localhost:3456/api/v1/prompts/sources" \
@@ -555,9 +555,9 @@ curl -s -X POST "http://localhost:3456/api/v1/prompts/sources" \
   -H "Authorization: Bearer <token>" \
   -d '{
     "source": "local:team-dev",
-    "contentHash": "sha256:<hash-of-manifest>",
+    "contentHash": "sha256:f5b51e0f406fd1a380966ae9a5a47167c98eb38f45b116fce2ae96d720f58e5b",
     "files": [
-      { "path": "deploy-app/SKILL.md", "content": "<base64>", "mode": "0644" }
+      { "path": "deploy-app/SKILL.md", "content": "LS0tCm5hbWU6IGRlcGxveS1hcHAKZGVzY3JpcHRpb246IERlcGxveSBhbiBhcHBsaWNhdGlvbiB0byB0aGUgc3BlY2lmaWVkIGVudmlyb25tZW50CmFyZ3VtZW50czoKICAtIG5hbWU6IGVudmlyb25tZW50CiAgICBkZXNjcmlwdGlvbjogVGFyZ2V0IGVudmlyb25tZW50IChzdWJzdGl0dXRlZCBhdCByZW5kZXIgdGltZSkKICAgIHJlcXVpcmVkOiB0cnVlCi0tLQoKIyBkZXBsb3ktYXBwCgpEZXBsb3kgdGhlIGFwcGxpY2F0aW9uIHRvIHt7ZW52aXJvbm1lbnR9fS4gUHJvdmlzaW9uIHRoZSBuYW1lc3BhY2UsIGFwcGx5IHRoZSBtYW5pZmVzdHMsIGFuZCB2ZXJpZnkgdGhlIHJvbGxvdXQuCg==", "mode": "0644" }
     ]
   }'
 ```
@@ -569,13 +569,13 @@ A successful ingest returns the scrubbed `source`, the echoed `contentHash` (if 
     "success": true,
     "data": {
         "source": "local:team-dev",
-        "contentHash": "sha256:<hash-of-manifest>",
+        "contentHash": "sha256:f5b51e0f406fd1a380966ae9a5a47167c98eb38f45b116fce2ae96d720f58e5b",
         "fileCount": 1,
         "status": "ingested"
     },
     "meta": {
-        "timestamp": "2026-06-16T12:00:00.000Z",
-        "requestId": "rest_1781000000000_1",
+        "timestamp": "2026-06-16T23:29:11.284Z",
+        "requestId": "rest_1781652551282_3",
         "version": "v1"
     }
 }
@@ -588,9 +588,14 @@ A successful ingest returns the scrubbed `source`, the echoed `contentHash` (if 
     "success": true,
     "data": {
         "source": "local:team-dev",
-        "contentHash": "sha256:<hash-of-manifest>",
+        "contentHash": "sha256:f5b51e0f406fd1a380966ae9a5a47167c98eb38f45b116fce2ae96d720f58e5b",
         "fileCount": 1,
         "status": "unchanged"
+    },
+    "meta": {
+        "timestamp": "2026-06-16T23:29:21.128Z",
+        "requestId": "rest_1781652561128_5",
+        "version": "v1"
     }
 }
 ```
@@ -601,10 +606,10 @@ A **different** `contentHash` for the same identifier (or an upload with no hash
 
 Once a source is ingested, render any skill it contains with `POST /api/v1/prompts/:promptName?source=<identifier>` — **full argument substitution**, identical to a `?repo=` render, but served from the upload with **no clone**. The `?source=` signal takes precedence over `?repo=`, and the server never attempts a git operation for an ingested identifier (so a `--repo-fetch` URL the server cannot reach still renders).
 
-> **Illustrative example** (placeholder token). Render the uploaded `deploy-app` skill, substituting its `environment` argument.
+> **Real request/response, captured against a running server** (token redacted to `<token>`). Render the uploaded `deploy-app` skill, substituting its `environment` argument — served from the upload above with no clone.
 
 ```bash
-curl -s -X POST "http://localhost:3456/api/v1/prompts/deploy-app?source=local:team-dev" \
+curl -s -X POST "http://localhost:3456/api/v1/prompts/deploy-app?source=local%3Ateam-dev" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -d '{"arguments":{"environment":"prod"}}'
@@ -616,13 +621,25 @@ curl -s -X POST "http://localhost:3456/api/v1/prompts/deploy-app?source=local:te
     "data": {
         "description": "Deploy an application to the specified environment",
         "messages": [
-            { "role": "user", "content": { "type": "text", "text": "Deploy the application to prod. …" } }
-        ]
+            {
+                "role": "user",
+                "content": {
+                    "type": "text",
+                    "text": "# deploy-app\n\nDeploy the application to prod. Provision the namespace, apply the manifests, and verify the rollout."
+                }
+            }
+        ],
+        "source": "local:team-dev"
+    },
+    "meta": {
+        "timestamp": "2026-06-16T23:29:21.106Z",
+        "requestId": "rest_1781652561104_4",
+        "version": "v1"
     }
 }
 ```
 
-The identifier is URL-encoded in the query string (e.g. `?source=local%3Ateam-dev`). The response shape is identical to a normal render — the only difference is where the source came from.
+The `{{environment}}` placeholder in the uploaded `SKILL.md` was substituted with `prod` by the server-side renderer, and `source` echoes the (scrubbed) identifier the entry was served from. The identifier is URL-encoded in the query string (e.g. `?source=local%3Ateam-dev`). The response shape is identical to a normal render — the only difference is where the source came from.
 
 ### Limits and errors
 
@@ -630,12 +647,14 @@ The upload endpoint is an untrusted-input surface, so the manifest is hardened *
 
 | Limit / check | Behavior on violation |
 |---------------|-----------------------|
+| **Max 512 KiB raw request body** — the outer DoS guard, checked **before** the JSON is parsed | `HTTP 413` `PAYLOAD_TOO_LARGE` (`"Request body exceeds 524288 bytes"`) |
 | **Max 100 files** per manifest | `HTTP 400` `VALIDATION_ERROR` |
 | **Max 256 KiB** total decoded payload (summed across files) | `HTTP 400` `VALIDATION_ERROR` |
 | **Path traversal / zip-slip** — any `path` that is absolute or contains `..` | `HTTP 400` `VALIDATION_ERROR` (rejected before any write) |
+| **Null byte in a file `path`** | `HTTP 400` `VALIDATION_ERROR` (`"Invalid file path \"…\": contains null byte"`, rejected before any write) |
 | **File `mode` bits** | Sanitized: setuid/setgid/sticky stripped, masked to the standard `0777` permission bits; an unparseable mode falls back to `0644`. |
 
-> The 256 KiB cap is an application-level limit chosen to trip before a typical ~1 MiB ingress request-body limit; a manifest may travel as a larger base64 payload on the wire while its **decoded** total stays under the cap.
+> The two size caps work together: the **512 KiB raw-body cap** is the outer DoS guard, rejected with `413` before the JSON is even parsed; the **256 KiB decoded cap** is the inner application limit on the summed file bodies, rejected with `400` after decode. Base64 inflates a payload by ~33%, so a manifest at the 256 KiB decoded limit travels as ~341 KiB on the wire — comfortably inside the 512 KiB raw cap, which therefore only trips on genuinely oversized requests.
 
 **Render-miss** — rendering a `?source=` identifier with no cached entry (never uploaded, or evicted, or lost on a restart) returns a clear `HTTP 400` instructing the caller to (re)upload. It does **not** fall back to cloning, and the message carries no git/clone vocabulary:
 

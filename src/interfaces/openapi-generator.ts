@@ -650,6 +650,7 @@ export class OpenApiGenerator {
       404: 'Not found',
       405: 'Method not allowed',
       409: 'Conflict',
+      413: 'Payload too large',
       422: 'Unprocessable entity',
       500: 'Internal server error',
       502: 'Bad gateway',

@@ -258,7 +258,12 @@ function stripQuotes(value: string): string {
  * the real loader skipping a malformed skill file (→ "Prompt not found").
  */
 function parseSkillMd(content: string): ParsedSkill | null {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  // PRD #647 N15: the `\n?` before the closing `---` (and the `(\n…|)` body
+  // alternation that requires the fence to be followed by a newline or EOF)
+  // handles a SKILL.md with no trailing newline / no body, while still pinning
+  // the closing fence to its own line — so a `description` value that itself
+  // contains `---` is not mistaken for the fence.
+  const match = content.match(/^---\n([\s\S]*?)\n?---(\n[\s\S]*|)$/);
   if (!match) {
     return null;
   }

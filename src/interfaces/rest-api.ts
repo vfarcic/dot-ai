@@ -112,7 +112,19 @@ export function sanitizeRequestUrlForLogging(
   if (!url) return url;
   // Fast path: only walk the URL when it carries a credential-bearing param
   // we know how to scrub (PRD #581 `repo=`, PRD #647 `source=`).
-  if (!url.includes('repo=') && !url.includes('source=')) return url;
+  //
+  // CodeRabbit C3: a percent-encoded param NAME (e.g. `r%65po=`, `s%6Frce=`)
+  // decodes to `repo`/`source` once parsed, so the literal-substring fast path
+  // would early-return WITHOUT scrubbing and leak the credential into the log.
+  // Any `%` means a name could be encoded, so fall through to the full
+  // parse-and-scrub below (URLSearchParams decodes the name, catching it).
+  if (
+    !url.includes('repo=') &&
+    !url.includes('source=') &&
+    !url.includes('%')
+  ) {
+    return url;
+  }
   try {
     // req.url is path-relative; provide a dummy base for URL parsing.
     const parsed = new URL(url, 'http://internal.invalid');

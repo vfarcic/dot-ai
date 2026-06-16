@@ -1757,6 +1757,80 @@ describe('Prompts Integration', () => {
       // 120000ms: one oversized upload + one render, no clone.
     }, 120000);
 
+    // ---- C2: trailing-slash cap bypass → cap still fires (CodeRabbit regression) ----
+    // The 512 KiB raw-body cap is enforced on the ingest PATHNAME before route
+    // dispatch. A strict `===` pathname check let `POST /api/v1/prompts/sources/`
+    // (TRAILING SLASH) — the same ingest surface — slip past the cap and buffer an
+    // uncapped body (DoS). The fix normalizes the pathname (collapsing trailing
+    // slashes) before the cap check, so the trailing-slash variant STILL trips the
+    // 512 KiB cap. This is the exact F1 over-cap scenario on the trailing-slash
+    // path, so it reuses F1's race-tolerant assertion: the app rejects the over-cap
+    // body and hard-closes, so the client observes EITHER the structured 413
+    // PAYLOAD_TOO_LARGE (race won) OR a connection reset (race lost). Either way the
+    // durable, race-free guarantee is identical: the source is NEVER cached.
+    test('still enforces the 512 KiB raw-body cap on the trailing-slash ingest path (POST .../sources/), so the cap is not bypassed and nothing is cached (PRD #647 C2)', async () => {
+      const source = `local:trailcap-${runId}`;
+      const skill = `trailcap-skill-${runId}`;
+      // Same sizing as F1: a ~512 KiB body base64-encodes to a ~683 KiB wire body —
+      // over the 512 KiB app cap, under the ~900 KiB ingress window.
+      const big = skillMd(skill, 'X'.repeat(512 * 1024));
+      const requestBody = {
+        source,
+        files: [{ path: `${skill}/SKILL.md`, content: b64(big), mode: '0644' }],
+      };
+      // Self-validate the wire size sits in the (app cap, ingress) window so the
+      // rejection can only be the app's raw-body cap firing, not the ingress.
+      const wireBytes = Buffer.byteLength(JSON.stringify(requestBody), 'utf-8');
+      expect(wireBytes).toBeGreaterThan(INGEST_MAX_RAW_BODY_BYTES);
+      expect(wireBytes).toBeLessThan(900 * 1024);
+
+      // `Connection: close` keeps the reset (poisoned) socket out of the keep-alive
+      // pool so the follow-up render is not handed a dead socket.
+      const closeConn = { Connection: 'close' };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let uploadResponse: any;
+      let uploadError: Error | undefined;
+      try {
+        // NOTE the TRAILING SLASH — the pre-fix cap-bypass path.
+        uploadResponse = await integrationTest.httpClient.post(
+          '/api/v1/prompts/sources/',
+          requestBody,
+          closeConn
+        );
+      } catch (error) {
+        uploadError = error as Error;
+      }
+
+      if (uploadError) {
+        // Race lost: the early-close RST discarded the 413 before it was read.
+        expect(uploadError.message).toMatch(/socket hang up|ECONNRESET|reset/i);
+      } else {
+        // Race won: the app's structured 413 — PAYLOAD_TOO_LARGE, proving the cap
+        // fired on the trailing-slash path too (NOT a bypass that buffered the body
+        // and reached the decoded-cap VALIDATION_ERROR, and NOT an nginx HTML 413
+        // surfaced as INVALID_JSON).
+        expect(uploadResponse).toMatchObject({
+          success: false,
+          error: { code: 'PAYLOAD_TOO_LARGE' },
+        });
+        expect(uploadResponse.error?.code).not.toBe('VALIDATION_ERROR');
+        expect(uploadResponse.error?.code).not.toBe('INVALID_JSON');
+      }
+      // In neither case was the upload accepted.
+      expect(uploadResponse?.success).not.toBe(true);
+
+      // Durable, race-free proof the over-cap body was rejected before caching:
+      // a subsequent render of the identifier misses (nothing was stored). Fresh
+      // connection (Connection: close) so it cannot inherit the upload's socket.
+      const render = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
+        {},
+        closeConn
+      );
+      expect(render).toMatchObject({ success: false });
+      // 120000ms: one oversized upload + one render, no clone.
+    }, 120000);
+
     // ---- F3: NUL-byte file path → 400 VALIDATION_ERROR + atomic re-ingest ----
     // A file path containing a NUL byte ('\0') is rejected with a clean 400
     // VALIDATION_ERROR (was a 500 before F3, from a raw fs TypeError). Crucially,
@@ -1819,6 +1893,49 @@ describe('Prompts Integration', () => {
       // The rejected payload's marker must NOT have leaked into the cache.
       expect(textAfter).not.toContain('pwned');
       // 120000ms: seed upload + render + rejected upload + render, no clone.
+    }, 120000);
+
+    // ---- C5: malformed base64 content → 400 VALIDATION_ERROR (CodeRabbit regression) ----
+    // `Buffer.from(content, 'base64')` silently DROPS out-of-alphabet characters
+    // and tolerates missing padding, so a malformed `content` would decode to
+    // corrupt bytes and be cached. The fix validates each file's base64 up front
+    // and rejects malformed input with a 400 VALIDATION_ERROR (a
+    // PromptsSourceValidationError) BEFORE any decode or write — so nothing is
+    // cached and a follow-up render misses.
+    test('rejects a file whose content is malformed base64 with a 400 VALIDATION_ERROR and does not cache it (PRD #647 C5)', async () => {
+      const source = `local:badb64-${runId}`;
+      const skill = `badb64-skill-${runId}`;
+
+      // `not!valid!base64!` is NOT canonical base64: it carries out-of-alphabet
+      // '!' characters and its length is not a multiple of 4. Buffer.from would
+      // silently strip the bad chars and decode garbage; the validator must reject
+      // it up front instead.
+      const upload = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source,
+          files: [
+            { path: `${skill}/SKILL.md`, content: 'not!valid!base64!', mode: '0644' },
+          ],
+        }
+      );
+      expect(upload).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      // Specifically the handler-level 400 validation surface, NOT the generic 500
+      // ingest-error surface (which would mean the malformed input slipped past the
+      // validator into a decode/write failure instead of being rejected up front).
+      expect(upload.error?.code).toBe('VALIDATION_ERROR');
+      expect(upload.error?.code).not.toBe('PROMPTS_SOURCE_INGEST_ERROR');
+
+      // Not cached → a subsequent render of the identifier misses.
+      const render = await integrationTest.httpClient.post(
+        `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
+        {}
+      );
+      expect(render).toMatchObject({ success: false });
+      // 120000ms: one rejected upload + one render, no clone.
     }, 120000);
 
     // ---- M5: credential / secret hygiene (expected GREEN — safety net) ----

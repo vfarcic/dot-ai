@@ -182,15 +182,15 @@ describe('loadUserPrompts ingested resolution (PRD #647 M3)', () => {
     // D2: a missing ingested identifier must NOT silently fall back to [] (which
     // would surface the generic "Prompt not found"); it must throw actionable
     // re-upload guidance — and never a git/clone error (it is never cloned).
-    await expect(
-      loadUserPrompts(noopLogger, false, override)
-    ).rejects.toThrow(IngestedSourceNotFoundError);
-    let message = '';
+    // Capture the thrown error ONCE and assert both its type and message (N14).
+    let caught: unknown;
     try {
       await loadUserPrompts(noopLogger, false, override);
     } catch (error) {
-      message = error instanceof Error ? error.message : String(error);
+      caught = error;
     }
+    expect(caught).toBeInstanceOf(IngestedSourceNotFoundError);
+    const message = caught instanceof Error ? caught.message : String(caught);
     expect(message).toMatch(/re-?upload|upload/i);
     expect(message).toContain('/api/v1/prompts/sources');
     expect(message).not.toContain('Prompt not found');
