@@ -150,13 +150,8 @@ export { WorkflowEngine } from './workflow';
 export { AIProvider, AIResponse, AIProviderConfig } from './ai-provider.interface';
 export { createAIProvider, AIProviderFactory } from './ai-provider-factory';
 export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
-export { OrganizationalPattern, CreatePatternRequest } from './pattern-types';
-export { BaseOrganizationalEntity, PolicyIntent, CreatePolicyIntentRequest, DeployedPolicyReference } from './organizational-types';
-export { validatePattern, createPattern, serializePattern, deserializePattern } from './pattern-operations';
-// Removed obsolete pattern creation types - now using unified creation system
+// PRD #375: Pattern/policy vector services and types removed — unified knowledge base now handles all
 export { BaseVectorService, BaseSearchOptions, BaseSearchResult, VectorDocument } from './base-vector-service';
-export { PatternVectorService, PatternSearchOptions, PatternSearchResult } from './pattern-vector-service';
-export { PolicyVectorService, PolicySearchOptions, PolicySearchResult } from './policy-vector-service';
 export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } from './capability-vector-service';
 export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, VercelEmbeddingProvider } from './embedding-service';
 export { AgentDisplayOptions, buildAgentDisplayBlock } from './agent-display';
