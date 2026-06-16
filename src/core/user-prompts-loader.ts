@@ -631,11 +631,32 @@ function loadSkillFolder(
 }
 
 /**
+ * Raised when a PER-REQUEST prompts-repo override (PRD #581/#621) fails to load —
+ * e.g. the clone is rejected (missing/wrong forwarded credential) or the source is
+ * unreachable. An env-var-configured repo failure falls back to built-in prompts,
+ * but an override is an explicit caller request, so its failure must surface as an
+ * error instead of silently returning fewer skills ("fail open" — issue #575).
+ *
+ * The `message` is already credential-scrubbed by the thrower, so callers may
+ * surface it to clients directly.
+ */
+export class UserPromptsOverrideError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UserPromptsOverrideError';
+  }
+}
+
+/**
  * Load user prompts from a git repository.
  *
  * When `override` is supplied, fetches from that repository for this call only,
  * ignoring DOT_AI_USER_PROMPTS_REPO env vars. Otherwise, uses env-var configuration.
- * Returns empty array if not configured or on error.
+ *
+ * Returns an empty array when not configured, or when an ENV-VAR-configured repo
+ * fails to load (graceful fallback to built-in prompts). When a per-request
+ * `override` fails to load, throws {@link UserPromptsOverrideError} instead — the
+ * caller asked for that specific source, so the failure must not be swallowed.
  */
 export async function loadUserPrompts(
   logger: Logger,
@@ -653,6 +674,15 @@ export async function loadUserPrompts(
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'Unknown error';
     const safeMessage = scrubCredentials(rawMessage);
+    // A per-request override that fails validation is an explicit caller request
+    // gone wrong — surface it (issue #575). Env-var config failures fall back.
+    if (override) {
+      logger.error(
+        'Per-request prompts override is invalid',
+        new Error(safeMessage)
+      );
+      throw new UserPromptsOverrideError(safeMessage);
+    }
     logger.error(
       'Failed to load user prompts, falling back to built-in only',
       new Error(safeMessage)
@@ -771,6 +801,17 @@ export async function loadUserPrompts(
         ? rawMessage.replaceAll(config.gitToken, '***')
         : rawMessage
     );
+    // A per-request override clone failure (bad/missing forwarded credential,
+    // unreachable host, missing branch/subdir) must NOT silently fall back to
+    // built-in prompts — the caller explicitly requested this source, so surface
+    // the failure (issue #575). Env-var-configured repo failures still fall back.
+    if (override) {
+      logger.error(
+        'Failed to load per-request prompts override',
+        new Error(safeMessage)
+      );
+      throw new UserPromptsOverrideError(safeMessage);
+    }
     logger.error(
       'Failed to load user prompts, falling back to built-in only',
       new Error(safeMessage)
