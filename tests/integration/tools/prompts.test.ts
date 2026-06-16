@@ -1204,5 +1204,60 @@ describe('Prompts Integration', () => {
       }
       // 300000ms: comprehensive test — real git clone + expectEventually retries.
     }, 300000);
+
+    // ---- issue #575: a per-request override whose source cannot be cloned must
+    //      FAIL (502), not silently fall back to built-in prompts with HTTP 200
+    //      ("fail open"). Regression guard for the fix that makes loadUserPrompts
+    //      throw UserPromptsOverrideError on an override clone failure. ----
+    test('GET /api/v1/prompts?repo=<unreachable> with X-Dot-AI-Git-Token returns 502 PROMPTS_SOURCE_ERROR, scrubs the credential, and leaves the env cache intact (issue #575)', async () => {
+      const secret = 'issue575_failopen_secret_zzz';
+      // A syntactically valid https repo on a guaranteed-unresolvable host
+      // (RFC 2606 reserved .invalid TLD): the override clone dies at DNS before
+      // it can load any prompt — the same shape as vtmocanu's VPN-gated host.
+      // Before the fix this silently fell back to built-in prompts with HTTP
+      // 200; now the override failure must surface as a bad-gateway error.
+      const unreachableRepo =
+        'https://dot-ai-575-failopen.invalid/team/private-skills.git';
+
+      // Baseline: the env-var-configured source serves normally.
+      const before = await integrationTest.httpClient.get('/api/v1/prompts');
+      expect(before).toMatchObject({
+        success: true,
+        data: { source: expect.stringContaining('dot-ai-test-prompts') },
+      });
+
+      try {
+        const response = await integrationTest.httpClient.get(
+          `/api/v1/prompts?repo=${encodeURIComponent(unreachableRepo)}`,
+          { 'X-Dot-AI-Git-Token': secret }
+        );
+        // The override failure surfaces as a 502 with a dedicated code, instead
+        // of a silent HTTP 200 carrying only built-in prompts.
+        expect(response).toMatchObject({
+          success: false,
+          error: { code: 'PROMPTS_SOURCE_ERROR' },
+        });
+        // Negative no-leak assertion — intentionally NOT toMatchObject (no object
+        // shape to match): the forwarded credential must be absent entirely, even
+        // though the underlying git error can echo the authenticated URL.
+        expect(JSON.stringify(response)).not.toContain(secret);
+
+        // A failed override must NOT corrupt the env-var cache: the env config
+        // still serves the same source and prompt set afterwards.
+        const after = await integrationTest.httpClient.get('/api/v1/prompts');
+        expect(after).toMatchObject({
+          success: true,
+          data: { source: before.data.source },
+        });
+        // Scalar count comparison (toBe) — the env prompt count is unchanged
+        // after the failed override; not an object shape, so toMatchObject does
+        // not apply.
+        expect(after.data.prompts.length).toBe(before.data.prompts.length);
+      } finally {
+        await restoreEnvCache();
+      }
+      // 120000ms (NOT the 300000ms comprehensive convention): the override clone
+      // fails fast at DNS resolution — no successful clone and no retries needed.
+    }, 120000);
   });
 });

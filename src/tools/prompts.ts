@@ -256,6 +256,16 @@ export async function loadAllPrompts(
     const { loadUserPrompts } = await import('../core/user-prompts-loader.js');
     userPrompts = await loadUserPrompts(logger, forceRefresh, override);
   } catch (error) {
+    // A per-request override (PRD #581/#621) is an explicit caller request: when
+    // its source fails to load, loadUserPrompts throws UserPromptsOverrideError
+    // and we must surface it (issue #575) rather than silently degrading to
+    // built-in prompts. Env-var-repo failures never reach here (loadUserPrompts
+    // returns [] for those). Matched by name to avoid a circular import — the
+    // loader imports from this module. Other errors (e.g. the dynamic import
+    // itself failing) stay non-fatal.
+    if (error instanceof Error && error.name === 'UserPromptsOverrideError') {
+      throw error;
+    }
     logger.debug('User prompts loader not available or failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -345,6 +355,11 @@ export async function handlePromptsListRequest(
       source: computePromptsSource(override),
     };
   } catch (error) {
+    // Surface a per-request override failure unchanged (issue #575) so the REST
+    // layer can map it to 502 instead of a generic 500.
+    if (error instanceof Error && error.name === 'UserPromptsOverrideError') {
+      throw error;
+    }
     logger.error('Prompts list request failed', error as Error);
 
     throw ErrorHandler.createError(
@@ -484,8 +499,12 @@ export async function handlePromptsGetRequest(
   } catch (error) {
     logger.error('Prompts get request failed', error as Error);
 
-    // Re-throw if already an AppError
-    if (error instanceof Error && 'category' in error) {
+    // Surface a per-request override failure unchanged (issue #575) so the REST
+    // layer can map it to 502; likewise re-throw if already an AppError.
+    if (
+      error instanceof Error &&
+      (error.name === 'UserPromptsOverrideError' || 'category' in error)
+    ) {
       throw error;
     }
 

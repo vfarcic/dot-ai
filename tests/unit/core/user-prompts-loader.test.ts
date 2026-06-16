@@ -9,11 +9,13 @@
  *     `DOT_AI_USER_PROMPTS_REPO`
  *   - Cache is invalidated when any of (repoUrl, branch, subPath) changes
  *   - Consecutive calls with the same override repoUrl serve from cache
- *   - Override input validation rejects bad scheme / traversal / branch
- *   - A failing override clone returns empty without corrupting the env-var
- *     cache state, and a subsequent no-override call recovers
- *   - Credentials in an override URL are scrubbed from all log output, including
- *     errors propagated through the outer catch
+ *   - Override input validation rejects bad scheme / traversal / branch by
+ *     THROWING UserPromptsOverrideError (issue #575 — an explicit per-request
+ *     override must surface its failure, not silently fall back to built-in)
+ *   - A failing override clone throws UserPromptsOverrideError without corrupting
+ *     the env-var cache state, and a subsequent no-override call recovers
+ *   - Credentials in an override URL are scrubbed from all log output AND from
+ *     the thrown error message, including errors propagated through the outer catch
  *
  * Network IO is mocked at the `cloneRepo`/`pullRepo` boundary so tests remain
  * deterministic. The loader logic, cache invalidation, scrubCredentials, and
@@ -72,6 +74,7 @@ import {
   getUserPromptsCacheState,
   getUserPromptsConfigFromOverride,
   getCacheDirectory,
+  UserPromptsOverrideError,
 } from '../../../src/core/user-prompts-loader.js';
 import type { Logger } from '../../../src/core/error-handling.js';
 
@@ -266,69 +269,58 @@ describe('User Prompts Loader Override', () => {
       'ssh://git@github.com/example/repo.git',
       'git://github.com/example/repo.git',
     ])('rejects non-http(s) scheme %s', async credUrl => {
+      // issue #575: a malformed PER-REQUEST override must surface as an error,
+      // not silently fall back to built-in prompts (which `toEqual([])` was).
       const { logger, calls } = makeCapturingLogger();
-      const result = await loadUserPrompts(logger, false, {
-        repoUrl: credUrl,
-      });
+      await expect(
+        loadUserPrompts(logger, false, { repoUrl: credUrl })
+      ).rejects.toBeInstanceOf(UserPromptsOverrideError);
 
-      expect(result).toEqual([]);
       expect(cloneRepo).not.toHaveBeenCalled();
       expect(calls.some(c => c.level === 'error')).toBe(true);
     });
 
     test('rejects unparseable repoUrl', async () => {
-      const result = await loadUserPrompts(
-        makeCapturingLogger().logger,
-        false,
-        {
+      await expect(
+        loadUserPrompts(makeCapturingLogger().logger, false, {
           repoUrl: 'not a url at all',
-        }
-      );
-      expect(result).toEqual([]);
+        })
+      ).rejects.toBeInstanceOf(UserPromptsOverrideError);
       expect(cloneRepo).not.toHaveBeenCalled();
     });
 
     test.each(['../etc', 'a/../../escape', '/absolute/path'])(
       'rejects unsafe subPath %s',
       async subPath => {
-        const result = await loadUserPrompts(
-          makeCapturingLogger().logger,
-          false,
-          {
+        await expect(
+          loadUserPrompts(makeCapturingLogger().logger, false, {
             repoUrl: OVERRIDE_REPO,
             subPath,
-          }
-        );
-        expect(result).toEqual([]);
+          })
+        ).rejects.toBeInstanceOf(UserPromptsOverrideError);
         expect(cloneRepo).not.toHaveBeenCalled();
       }
     );
 
     test('rejects subPath containing a null byte', async () => {
-      const result = await loadUserPrompts(
-        makeCapturingLogger().logger,
-        false,
-        {
+      await expect(
+        loadUserPrompts(makeCapturingLogger().logger, false, {
           repoUrl: OVERRIDE_REPO,
           subPath: 'safe/\0bad',
-        }
-      );
-      expect(result).toEqual([]);
+        })
+      ).rejects.toBeInstanceOf(UserPromptsOverrideError);
       expect(cloneRepo).not.toHaveBeenCalled();
     });
 
     test.each(['feature; rm -rf /', 'foo$(whoami)', 'name with spaces'])(
       'rejects invalid branch %s',
       async branch => {
-        const result = await loadUserPrompts(
-          makeCapturingLogger().logger,
-          false,
-          {
+        await expect(
+          loadUserPrompts(makeCapturingLogger().logger, false, {
             repoUrl: OVERRIDE_REPO,
             branch,
-          }
-        );
-        expect(result).toEqual([]);
+          })
+        ).rejects.toBeInstanceOf(UserPromptsOverrideError);
         expect(cloneRepo).not.toHaveBeenCalled();
       }
     );
@@ -351,12 +343,13 @@ describe('User Prompts Loader Override', () => {
         makeFailingClone('fatal: repository not found')
       );
       const malformedLogger = makeCapturingLogger();
-      const malformedResult = await loadUserPrompts(
-        malformedLogger.logger,
-        false,
-        { repoUrl: 'https://invalid.example.test/missing.git' }
-      );
-      expect(malformedResult).toEqual([]);
+      // issue #575: the failed override now surfaces as an error instead of
+      // returning [] — but it must still NOT corrupt the env-var cache.
+      await expect(
+        loadUserPrompts(malformedLogger.logger, false, {
+          repoUrl: 'https://invalid.example.test/missing.git',
+        })
+      ).rejects.toBeInstanceOf(UserPromptsOverrideError);
       // In-memory cacheState still tracks the env-var repo URL.
       expect(getUserPromptsCacheState()).toMatchObject({ repoUrl: ENV_REPO });
 
@@ -383,15 +376,21 @@ describe('User Prompts Loader Override', () => {
       );
 
       const { logger, calls } = makeCapturingLogger();
-      const result = await loadUserPrompts(logger, false, { repoUrl: credUrl });
+      // issue #575: the override failure is surfaced; the credential must be
+      // scrubbed from BOTH the log output and the thrown error message (which
+      // the REST layer now returns to the client).
+      const err = await loadUserPrompts(logger, false, {
+        repoUrl: credUrl,
+      }).catch(e => e);
 
-      expect(result).toEqual([]);
+      expect(err).toBeInstanceOf(UserPromptsOverrideError);
+      expect(err.message).not.toContain(secret);
       const serialized = JSON.stringify(calls);
       expect(serialized).not.toContain(secret);
       expect(serialized).toContain('***@github.com/example-org/private.git');
     });
 
-    test('token-bearing git errors are scrubbed in the outer "Failed to load user prompts" log', async () => {
+    test('token-bearing git errors are scrubbed in the outer override-failure log and thrown error', async () => {
       const secret = 'tok_outer_catch_secret_42';
       const tokenUrl = `https://x-access-token:${secret}@github.com/example-org/private.git`;
 
@@ -401,16 +400,18 @@ describe('User Prompts Loader Override', () => {
       );
 
       const { logger, calls } = makeCapturingLogger();
-      const result = await loadUserPrompts(logger, false, {
+      const err = await loadUserPrompts(logger, false, {
         repoUrl: 'https://github.com/example-org/private.git',
-      });
+      }).catch(e => e);
 
-      expect(result).toEqual([]);
+      expect(err).toBeInstanceOf(UserPromptsOverrideError);
+      expect(err.message).not.toContain(secret);
+      // issue #575: the outer catch now logs the override-failure message before
+      // throwing (the env-var-fallback message is reserved for the no-override path).
       const outerErrors = calls.filter(
         c =>
           c.level === 'error' &&
-          c.message ===
-            'Failed to load user prompts, falling back to built-in only'
+          c.message === 'Failed to load per-request prompts override'
       );
       expect(outerErrors.length).toBeGreaterThan(0);
       expect(JSON.stringify(outerErrors)).not.toContain(secret);
@@ -533,12 +534,15 @@ describe('User Prompts Loader Override', () => {
         );
 
         const { logger, calls } = makeCapturingLogger();
-        const result = await loadUserPrompts(logger, false, {
+        // issue #575: a forwarded-token clone failure surfaces as an error; the
+        // token must be scrubbed from the logs and the thrown error message.
+        const err = await loadUserPrompts(logger, false, {
           repoUrl: OVERRIDE_REPO,
           gitToken: secret,
-        });
+        }).catch(e => e);
 
-        expect(result).toEqual([]);
+        expect(err).toBeInstanceOf(UserPromptsOverrideError);
+        expect(err.message).not.toContain(secret);
         expect(JSON.stringify(calls)).not.toContain(secret);
       });
     });
