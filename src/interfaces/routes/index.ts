@@ -39,6 +39,7 @@ import {
   PromptGetResponseSchema,
   PromptGetRequestSchema,
   PromptNotFoundErrorSchema,
+  PromptValidationErrorSchema,
   PromptsSourceErrorSchema,
   PromptsCacheRefreshResponseSchema,
   PromptsCacheRefreshErrorSchema,
@@ -436,6 +437,10 @@ export const routeDefinitions: RouteDefinition<
     body: PromptGetRequestSchema,
     response: PromptGetResponseSchema,
     errorResponses: {
+      // PRD #647 (CodeRabbit): the render handler returns 400 VALIDATION_ERROR
+      // when ?source= resolution fails (unresolvable ingested source → D2) or
+      // required arguments are missing — document that contract.
+      400: PromptValidationErrorSchema,
       404: PromptNotFoundErrorSchema,
       502: PromptsSourceErrorSchema,
       500: InternalServerErrorSchema,
