@@ -278,6 +278,25 @@ describe('Qdrant Operations', () => {
       );
     });
 
+    it('should include vectors when requested', async () => {
+      mockClient.getCollections.mockResolvedValue({
+        collections: [{ name: 'collection' }],
+      });
+      mockClient.scroll.mockResolvedValue({
+        points: [{ id: 'doc-1', payload: { name: 'item1' }, vector: [0.1, 0.2] }],
+      });
+
+      const results = await operations.list('collection', { includeVector: true });
+
+      expect(mockClient.scroll).toHaveBeenCalledWith(
+        'collection',
+        expect.objectContaining({ with_vector: true })
+      );
+      expect(results).toEqual([
+        { id: 'doc-1', payload: { name: 'item1' }, vector: [0.1, 0.2] },
+      ]);
+    });
+
     it('should throw error if collection does not exist', async () => {
       mockClient.getCollections.mockResolvedValue({ collections: [] });
 

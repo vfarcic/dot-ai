@@ -68,11 +68,15 @@ async function collectionExists(name: string): Promise<boolean> {
 }
 
 /**
- * List all documents in a collection (no vectors needed — we re-embed
- * from the stored text payload).
+ * List all documents in a collection, including vectors so migration can
+ * reuse existing embeddings without per-document lookups.
  */
 async function listAll(collection: string): Promise<VectorDocument[]> {
-  return pluginCall<VectorDocument[]>('vector_list', { collection, limit: 100_000 });
+  return pluginCall<VectorDocument[]>('vector_list', {
+    collection,
+    limit: 100_000,
+    includeVector: true,
+  });
 }
 
 /**
@@ -125,7 +129,7 @@ async function migrateLegacyCollection(
       await pluginCall('vector_store', {
         collection: KNOWLEDGE_COLLECTION,
         id: doc.id,
-        vector: doc.vector,
+        embedding: doc.vector,
         payload: mergedPayload,
       });
       successCount++;

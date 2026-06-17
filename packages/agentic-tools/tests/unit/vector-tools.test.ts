@@ -552,7 +552,11 @@ describe('Vector Tool Handlers', () => {
         limit: 100,
       });
 
-      expect(mockList).toHaveBeenCalledWith('capabilities', { limit: 100, filter: undefined });
+      expect(mockList).toHaveBeenCalledWith('capabilities', {
+        limit: 100,
+        filter: undefined,
+        includeVector: false,
+      });
       expect(result).toMatchObject({
         success: true,
         data: expect.arrayContaining([
@@ -568,7 +572,11 @@ describe('Vector Tool Handlers', () => {
       const handler = TOOL_HANDLERS['vector_list'];
       await handler({ collection: 'capabilities' });
 
-      expect(mockList).toHaveBeenCalledWith('capabilities', { limit: 10000, filter: undefined });
+      expect(mockList).toHaveBeenCalledWith('capabilities', {
+        limit: 10000,
+        filter: undefined,
+        includeVector: false,
+      });
     });
 
     it('should pass filter when provided', async () => {
@@ -583,6 +591,25 @@ describe('Vector Tool Handlers', () => {
       expect(mockList).toHaveBeenCalledWith('capabilities', {
         limit: 10000,
         filter: { must: [{ key: 'type', match: { value: 'database' } }] },
+        includeVector: false,
+      });
+    });
+
+    it('should pass includeVector when provided', async () => {
+      mockList.mockResolvedValue([
+        { id: 'doc-1', payload: { text: 'test' }, vector: [0.1, 0.2] },
+      ]);
+
+      const handler = TOOL_HANDLERS['vector_list'];
+      await handler({
+        collection: 'capabilities',
+        includeVector: true,
+      });
+
+      expect(mockList).toHaveBeenCalledWith('capabilities', {
+        limit: 10000,
+        filter: undefined,
+        includeVector: true,
       });
     });
   });
