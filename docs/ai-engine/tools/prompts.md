@@ -410,7 +410,7 @@ The feature is designed for graceful degradation:
 
 **Changes not appearing**
 - **Cause**: Cache hasn't expired yet
-- **Solution**: Force-refresh the cache via [`dot-ai prompts refresh`](https://devopstoolkit.ai/docs/cli) (CLI) or `curl -X POST http://<your-server>/api/v1/prompts/refresh`, wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing
+- **Solution**: Force-refresh the cache via [`dot-ai prompts refresh`](https://devopstoolkit.ai/docs/cli) (CLI), wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing. If you're building a custom HTTP client rather than using the CLI, see the [REST API reference](../api/rest-api.md#prompts-endpoints) for the refresh endpoint.
 
 **Prompt has same name as built-in**
 - **Cause**: Name collision with built-in prompt
@@ -473,11 +473,9 @@ Typically each source is wired up as its own agent hook, so the CLI re-fetches a
 - The server stores the identifier exactly as sent — it does not auto-prefix or namespace per caller in this release. To avoid collisions between hosts, use a convention like `local:<user>-<label>` or `local:<host>-<label>` for `--source-label`.
 - Ingested identifiers are **global server state**: any authenticated caller can overwrite any identifier by uploading to the same one. There is no per-principal namespacing in this iteration — treat the endpoint as trusted-caller-only.
 
-> **The ingested cache is in-memory, populated by the CLI's upload on each hook fire (content-hash-gated).** A fresh deployment and a restart are the same empty-cache state — neither has any ingested source pre-loaded, and the next hook fire (re)uploads and renders normally. A render for a source that isn't currently cached — never uploaded, evicted, or after a restart before the next upload — returns a clear `HTTP 400` with re-upload guidance (there is nothing to pull; the source was pushed, not fetched). A restart is therefore a transient loss of previously-ingested sources until the next hook re-uploads them — part of the normal upload-driven lifecycle, not a failure mode.
-
 **Safety:** uploads are size/count-capped (max 512 KiB raw request body → `413`; max 100 files and max 256 KiB total decoded payload → `400`) and reject path traversal and null-byte paths; credential-bearing git-URL identifiers are scrubbed in every echo, error, and log. See the [REST API reference](../api/rest-api.md#ingested-cli-uploaded-skill-sources) for the full wire format, limits, and error envelopes.
 
-> **Additive — unchanged by default.** This endpoint is opt-in. Deployments and users that never upload a source see zero change, a plain `?repo=` request behaves exactly as before, and no new configuration is required. The companion CLI support ships in the same release.
+> **Additive — unchanged by default.** This endpoint is opt-in: deployments and users that never upload a source see zero change, a plain `?repo=` request behaves exactly as before, and no new configuration is required.
 
 ## Troubleshooting
 
