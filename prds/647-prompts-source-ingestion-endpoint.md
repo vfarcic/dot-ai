@@ -21,6 +21,7 @@ Add one additive endpoint that lets the CLI **upload** a skill source the server
 
 - **`POST /api/v1/prompts/sources`** — accepts uploaded skill source plus a **stable source identifier**. The server stashes the source keyed by that identifier in the same coordinate space the git-fetch loader cache already uses, so the existing render path can look it up uniformly.
 - The existing **`POST /api/v1/prompts/:name`** render path resolves a source by identifier and renders it **unchanged** — same template engine, same argument substitution. The only difference from a `?repo=` request is how the source reached the cache: **received from the CLI**, not cloned from git.
+- **`GET /api/v1/prompts?source=<identifier>`** — **contract amendment (2026-06-19, requested by `vfarcic/dot-ai-cli#13`).** Enumerates the prompts contained in an uploaded source (same list schema as `GET /api/v1/prompts`, scoped to the ingested source, `data.source` echoes the scrubbed identifier). The CLI's `generate` flow is upload → **list** → render-each; without this, only skill names that already exist in the built-in set could be generated, so the PRD's primary "brand-new on-disk WIP skills" case was unreachable. Unknown/evicted `?source=` returns 400 with the same re-upload guidance as the render-miss path; no clone is ever attempted. The CLI **accepted** the explicit-`?source=` render signal (Design Decision #1 option b) and the caller-side `local:<user>-<label>` uniqueness convention (#4).
 
 This is symmetric with today's model — the server already does "fetch git → cache source → render on demand"; this adds "receive source from CLI → cache source → render on demand."
 
@@ -111,6 +112,7 @@ Same hard rule as #621: **users who do not use the new endpoint see zero change.
 - No credential or credentialed identifier appears in logs, errors, or the echoed `source`.
 - Upload input limits and path-traversal rejection are enforced and tested.
 - The mock server mirrors the endpoint, unblocking the CLI PRD's M0.
+- **`GET /api/v1/prompts?source=<identifier>`** enumerates an uploaded source's prompts — including **genuinely-new** skill names not in the built-in set — with the standard list schema and scrubbed identifier echo; an unknown/evicted identifier returns 400 with re-upload guidance and **no clone**. (Contract amendment for cli#13's upload→list→render flow.)
 
 ## Milestones
 

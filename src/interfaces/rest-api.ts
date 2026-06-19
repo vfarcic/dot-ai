@@ -2079,11 +2079,16 @@ export class RestApiRouter {
       // candidate.subPath / candidate.branch (absent → unchanged behavior).
       // PRD #621 M2: X-Dot-AI-Git-Token header authenticates the override clone
       // (inert when no ?repo= override is present).
+      // PRD #647 list-by-source: ?source= selects an already-ingested source,
+      // resolved from the in-memory upload cache with no git operation (same
+      // signal as the render path). Absent → byte-identical to today (env-var /
+      // built-in set), so the no-?source= behavior is unchanged.
       const overrideResult = extractPromptsOverride(
         searchParams.get('repo'),
         searchParams.get('path'),
         searchParams.get('branch'),
-        readGitTokenHeader(req)
+        readGitTokenHeader(req),
+        searchParams.get('source')
       );
       if (!overrideResult.ok) {
         await this.sendErrorResponse(
@@ -2131,6 +2136,24 @@ export class RestApiRouter {
           HttpStatus.BAD_GATEWAY,
           'PROMPTS_SOURCE_ERROR',
           error.message
+        );
+        return;
+      }
+
+      // PRD #647 list-by-source (D2): an unknown/evicted ?source= identifier is
+      // a caller-actionable validation error — surface the re-upload guidance as
+      // a 400 (same mapping the render handler uses), NOT a generic 500 or a
+      // silent success-with-builtins. The message names POST
+      // /api/v1/prompts/sources and carries no clone/git/scheme vocabulary.
+      const listErrorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (listErrorMessage.includes('Ingested source not found')) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          listErrorMessage
         );
         return;
       }

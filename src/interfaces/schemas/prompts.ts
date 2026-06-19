@@ -294,3 +294,34 @@ export const PromptGetQuerySchema = z.object({
 });
 
 export type PromptGetQuery = z.infer<typeof PromptGetQuerySchema>;
+
+/**
+ * PRD #647 list-by-source — query parameters the list endpoint
+ * (GET /api/v1/prompts) accepts. Mirrors PromptGetQuerySchema: `?source=`
+ * enumerates a previously-ingested (CLI-uploaded) source with no git clone, and
+ * its `?repo=`/`?path=`/`?branch=` siblings select a per-request git override.
+ * All are optional and additive — absent means the env-var/built-in set, so the
+ * no-query behavior is byte-identical to before.
+ */
+export const PromptsListQuerySchema = z.object({
+  source: z
+    .string()
+    .optional()
+    .describe(
+      'Enumerate a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). An unknown/evicted identifier returns 400 with re-upload guidance. Takes precedence over repo/path/branch.'
+    ),
+  repo: z
+    .string()
+    .optional()
+    .describe('Per-request git repository URL override (PRD #581)'),
+  path: z
+    .string()
+    .optional()
+    .describe('Subdirectory within the override repo (PRD #621)'),
+  branch: z
+    .string()
+    .optional()
+    .describe('Branch of the override repo (PRD #621)'),
+});
+
+export type PromptsListQuery = z.infer<typeof PromptsListQuerySchema>;

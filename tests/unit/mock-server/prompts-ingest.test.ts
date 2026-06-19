@@ -22,6 +22,7 @@ import {
   MAX_INGEST_TOTAL_BYTES,
   clearIngestedSources,
   ingestPromptsSource,
+  listIngestedPrompts,
   renderIngestedPrompt,
 } from '../../../mock-server/prompts-ingest';
 
@@ -237,6 +238,75 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
       expect(rendered.files).toEqual([
         { path: 'scripts/run.sh', content: b64('echo hi') },
       ]);
+    });
+  });
+
+  describe('listIngestedPrompts (PRD #647 list-by-source)', () => {
+    test('enumerates an uploaded source in the frozen { name, description, arguments } shape', () => {
+      ingestPromptsSource({
+        source: 'local:list',
+        files: [
+          {
+            path: 'wip-experimental/SKILL.md',
+            content: b64(
+              skillMd('wip-experimental', {
+                description: 'A genuinely novel skill the CLI must enumerate',
+                required: true,
+              })
+            ),
+            mode: '0644',
+          },
+          // A sibling (non-SKILL.md) file is not itself an enumerable prompt.
+          { path: 'wip-experimental/scripts/run.sh', content: b64('echo hi'), mode: '0755' },
+        ],
+      });
+
+      const result = listIngestedPrompts('local:list');
+      expect(result.source).toBe('local:list');
+      expect(result.prompts).toEqual([
+        {
+          name: 'wip-experimental',
+          description: 'A genuinely novel skill the CLI must enumerate',
+          arguments: [
+            {
+              name: 'targetName',
+              description: 'The resource to deploy',
+              required: true,
+            },
+          ],
+        },
+      ]);
+    });
+
+    test('D2: an unknown/evicted source throws clear re-upload guidance, no clone vocabulary', () => {
+      let thrown: unknown;
+      try {
+        listIngestedPrompts('local:never-uploaded');
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(IngestedSourceNotFoundError);
+      const message = (thrown as Error).message;
+      expect(message).toMatch(/re-?upload|upload/i);
+      expect(message).toContain('/api/v1/prompts/sources');
+      expect(message).not.toContain('Prompt not found');
+      expect(message).not.toMatch(/clone|git|scheme/i);
+    });
+
+    test('M5: echoes the credential-scrubbed identifier as data.source', () => {
+      ingestPromptsSource({
+        source: 'https://user:s3cr3t@gitlab.corp.internal/team/skills.git',
+        files: [
+          { path: 'sec/SKILL.md', content: b64(skillMd('sec')), mode: '0644' },
+        ],
+      });
+      const result = listIngestedPrompts(
+        'https://user:s3cr3t@gitlab.corp.internal/team/skills.git'
+      );
+      expect(result.source).toBe(
+        'https://***:***@gitlab.corp.internal/team/skills.git'
+      );
+      expect(JSON.stringify(result)).not.toContain('s3cr3t');
     });
   });
 });

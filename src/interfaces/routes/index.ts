@@ -49,6 +49,7 @@ import {
   PromptsSourceIngestPayloadTooLargeErrorSchema,
   PromptsSourceIngestServerErrorSchema,
   PromptGetQuerySchema,
+  PromptsListQuerySchema,
   // Visualization schemas
   VisualizationResponseSchema,
   VisualizationNotFoundErrorSchema,
@@ -390,8 +391,16 @@ export const routeDefinitions: RouteDefinition<
     method: 'GET',
     description: 'List all available prompts',
     tags: ['Prompts'],
+    // PRD #647 list-by-source: declare the per-request query params the list
+    // endpoint accepts. `?source=` enumerates a previously-ingested source (no
+    // git clone); `?repo=`/`?path=`/`?branch=` are the existing git overrides.
+    query: PromptsListQuerySchema,
     response: PromptsListResponseSchema,
     errorResponses: {
+      // PRD #647 list-by-source (D2): an unknown/evicted ?source= identifier
+      // returns 400 VALIDATION_ERROR with re-upload guidance — same contract as
+      // the render endpoint's ?source= miss.
+      400: PromptValidationErrorSchema,
       502: PromptsSourceErrorSchema,
       500: InternalServerErrorSchema,
     },

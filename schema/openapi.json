@@ -1570,6 +1570,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsGetError400"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1590,7 +1600,49 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Enumerate a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). An unknown/evicted identifier returns 400 with re-upload guidance. Takes precedence over repo/path/branch.",
+            "schema": {
+              "description": "Enumerate a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). An unknown/evicted identifier returns 400 with re-upload guidance. Takes precedence over repo/path/branch.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "description": "Per-request git repository URL override (PRD #581)",
+            "schema": {
+              "description": "Per-request git repository URL override (PRD #581)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "description": "Subdirectory within the override repo (PRD #621)",
+            "schema": {
+              "description": "Subdirectory within the override repo (PRD #621)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Branch of the override repo (PRD #621)",
+            "schema": {
+              "description": "Branch of the override repo (PRD #621)",
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/prompts/refresh": {
@@ -5777,6 +5829,59 @@
           "data"
         ]
       },
+      "PromptsGetError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
       "PromptsGetError500": {
         "type": "object",
         "properties": {
@@ -8506,9 +8611,12 @@
                 "const": "INVALID_REQUEST"
               },
               "message": {
-                "type": "string"
+                "type": "string",
+                "description": "Human-readable error message"
               },
-              "details": {}
+              "details": {
+                "description": "Additional error context"
+              }
             },
             "required": [
               "code",
@@ -8794,7 +8902,7 @@
                 "type": "string",
                 "format": "email",
                 "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
-                "description": "Created user email"
+                "description": "Deleted user email"
               },
               "message": {
                 "type": "string",

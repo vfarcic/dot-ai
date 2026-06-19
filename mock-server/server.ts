@@ -30,6 +30,7 @@ import {
   IngestValidationError,
   PromptRenderError,
   ingestPromptsSource,
+  listIngestedPrompts,
   renderIngestedPrompt,
 } from './prompts-ingest.js';
 
@@ -194,6 +195,39 @@ async function handlePromptsSourceRender(
 }
 
 /**
+ * PRD #647 list-by-source: handle GET /api/v1/prompts?source=<identifier> —
+ * enumerate a previously-ingested source's prompts from the in-memory mirror
+ * with no clone. Mirrors the real list response shape
+ * ({ success, data: { prompts:[{name, description, arguments}], source }, meta })
+ * with data.source echoing the scrubbed identifier. An unknown/evicted source →
+ * 400 VALIDATION_ERROR carrying the same re-upload guidance the render-miss path
+ * returns (D2), NOT a generic success-with-builtins.
+ */
+function handlePromptsSourceList(res: ServerResponse, source: string): void {
+  try {
+    const data = listIngestedPrompts(source);
+    sendJson(res, 200, { success: true, data, meta: buildMeta() });
+  } catch (error) {
+    if (error instanceof IngestedSourceNotFoundError) {
+      sendJson(res, 400, {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.message },
+      });
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendJson(res, 500, {
+      success: false,
+      error: {
+        code: 'PROMPTS_LIST_ERROR',
+        message: 'Failed to list prompts',
+        details: message,
+      },
+    });
+  }
+}
+
+/**
  * Handle incoming HTTP requests
  */
 async function handleRequest(
@@ -281,6 +315,17 @@ async function handleRequest(
     sourceParam
   ) {
     await handlePromptsSourceRender(req, res, sourceParam, params.promptName);
+    return;
+  }
+  // PRD #647 list-by-source: GET /api/v1/prompts?source=<id> enumerates the
+  // uploaded source from the in-memory mirror. A plain GET with no `?source=`
+  // falls through to the existing fixture-based list (backward-compat parity).
+  if (
+    route.path === '/api/v1/prompts' &&
+    method === 'GET' &&
+    sourceParam
+  ) {
+    handlePromptsSourceList(res, sourceParam);
     return;
   }
 

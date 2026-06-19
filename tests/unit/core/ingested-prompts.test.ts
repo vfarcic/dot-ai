@@ -28,6 +28,7 @@ import {
   type UserPromptsOverride,
 } from '../../../src/core/user-prompts-loader';
 import type { Logger } from '../../../src/core/error-handling';
+import { handlePromptsListRequest } from '../../../src/tools/prompts';
 
 const noopLogger: Logger = {
   debug: () => {},
@@ -186,6 +187,64 @@ describe('loadUserPrompts ingested resolution (PRD #647 M3)', () => {
     let caught: unknown;
     try {
       await loadUserPrompts(noopLogger, false, override);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(IngestedSourceNotFoundError);
+    const message = caught instanceof Error ? caught.message : String(caught);
+    expect(message).toMatch(/re-?upload|upload/i);
+    expect(message).toContain('/api/v1/prompts/sources');
+    expect(message).not.toContain('Prompt not found');
+    expect(message).not.toMatch(/scheme|clone|git/i);
+  });
+});
+
+describe('handlePromptsListRequest ingested resolution (PRD #647 list-by-source)', () => {
+  beforeEach(() => {
+    clearIngestedPromptsSources();
+  });
+
+  test('enumerates an ingested source via override and echoes the identifier', async () => {
+    const source = uniqueLabel();
+    // A clearly novel name (not a built-in prompt) so a hit proves the LIST
+    // enumerated the UPLOADED skill, not just the built-in set.
+    const skillName = `wip-experimental-${counter}`;
+    ingestPromptsSource(
+      { source, files: [skillManifestFile(skillName)] },
+      noopLogger
+    );
+
+    const override: UserPromptsOverride = {
+      repoUrl: source,
+      ingestedSource: source,
+    };
+    const result = await handlePromptsListRequest(
+      {},
+      noopLogger,
+      'req-list-ingested',
+      override
+    );
+
+    // data.source echoes the (scrubbed) ingested identifier, not an env coord.
+    expect(result.source).toBe(source);
+    const listed = result.prompts.find(p => p.name === skillName);
+    expect(listed).toMatchObject({
+      name: skillName,
+      description: 'PRD 647 unit ingest fixture',
+      arguments: [{ name: 'targetName', required: true }],
+    });
+  });
+
+  test('re-throws IngestedSourceNotFoundError for an unknown identifier (PRD #647 D2)', async () => {
+    // The list handler must surface the loader's re-upload guidance unchanged so
+    // the REST layer maps it to 400 (not a generic 500 or silent built-in set).
+    const override: UserPromptsOverride = {
+      repoUrl: 'local:never-uploaded-list',
+      ingestedSource: 'local:never-uploaded-list',
+    };
+    let caught: unknown;
+    try {
+      await handlePromptsListRequest({}, noopLogger, 'req-list-miss', override);
     } catch (error) {
       caught = error;
     }

@@ -244,7 +244,7 @@ export function ingestPromptsSource(
 
 interface ParsedSkill {
   description: string;
-  args: { name: string; required: boolean }[];
+  args: { name: string; description?: string; required: boolean }[];
   body: string;
 }
 
@@ -271,9 +271,10 @@ function parseSkillMd(content: string): ParsedSkill | null {
   const lines = frontmatter.split('\n');
 
   let description = '';
-  const args: { name: string; required: boolean }[] = [];
+  const args: { name: string; description?: string; required: boolean }[] = [];
   let inArgs = false;
-  let current: { name: string; required: boolean } | null = null;
+  let current: { name: string; description?: string; required: boolean } | null =
+    null;
 
   for (const line of lines) {
     if (/^arguments:\s*$/.test(line)) {
@@ -290,6 +291,15 @@ function parseSkillMd(content: string): ParsedSkill | null {
       const reqMatch = line.match(/^\s*required:\s*(.+?)\s*$/);
       if (reqMatch && current) {
         current.required = /^true$/i.test(stripQuotes(reqMatch[1]));
+        continue;
+      }
+      // PRD #647 list-by-source: capture the per-argument `description:` so the
+      // list path can echo the full { name, description, required } argument
+      // shape the real server returns. Indented under the argument, so it is
+      // captured here (and `continue`d) before the top-level description parse.
+      const argDescMatch = line.match(/^\s+description:\s*(.+?)\s*$/);
+      if (argDescMatch && current) {
+        current.description = stripQuotes(argDescMatch[1]);
         continue;
       }
       // A non-indented, non-list line ends the arguments block; fall through to
@@ -391,4 +401,72 @@ export function renderIngestedPrompt(
   }
 
   return response;
+}
+
+export interface ListedPromptArgument {
+  name: string;
+  description?: string;
+  required: boolean;
+}
+
+export interface ListedPrompt {
+  name: string;
+  description: string;
+  arguments?: ListedPromptArgument[];
+}
+
+export interface ListIngestedResult {
+  prompts: ListedPrompt[];
+  /** Credential-scrubbed identifier echoed back as data.source. */
+  source: string;
+}
+
+/**
+ * Enumerate the prompts contained in a previously-ingested source (PRD #647
+ * list-by-source — the new contract addition the CLI's upload → LIST → render
+ * flow needs). Resolves the identifier from the in-memory cache and reads the
+ * decoded upload directly — NO git operation. A miss (never uploaded / evicted)
+ * throws IngestedSourceNotFoundError carrying re-upload guidance, exactly like
+ * the render path (D2), so the mock returns the same 400 instead of a generic
+ * success-with-builtins. On a hit each `<name>/SKILL.md` is parsed into the
+ * frozen { name, description, arguments } shape the real list endpoint emits,
+ * and data.source echoes the scrubbed identifier.
+ */
+export function listIngestedPrompts(identifier: string): ListIngestedResult {
+  const entry = ingestedSources.get(identifier);
+  if (!entry) {
+    const scrubbed = scrubRepoUrl(identifier);
+    throw new IngestedSourceNotFoundError(
+      `Ingested source not found: ${scrubbed}. (Re)upload it via POST /api/v1/prompts/sources before rendering.`
+    );
+  }
+
+  const prompts: ListedPrompt[] = [];
+  for (const [relPath, bytes] of entry.files) {
+    // Folder-based skills are keyed as `<name>/SKILL.md`; only those are
+    // enumerable prompts. Sibling files in a skill folder are skipped.
+    const match = relPath.match(/^([^/]+)\/SKILL\.md$/);
+    if (!match) continue;
+    const parsed = parseSkillMd(bytes.toString('utf-8'));
+    if (!parsed) continue;
+    const item: ListedPrompt = {
+      name: match[1],
+      description: parsed.description,
+    };
+    if (parsed.args.length > 0) {
+      item.arguments = parsed.args.map(arg => {
+        const out: ListedPromptArgument = {
+          name: arg.name,
+          required: arg.required,
+        };
+        if (arg.description !== undefined) {
+          out.description = arg.description;
+        }
+        return out;
+      });
+    }
+    prompts.push(item);
+  }
+
+  return { prompts, source: entry.source };
 }

@@ -364,9 +364,18 @@ export async function handlePromptsListRequest(
       source: computePromptsSource(override),
     };
   } catch (error) {
-    // Surface a per-request override failure unchanged (issue #575) so the REST
-    // layer can map it to 502 instead of a generic 500.
-    if (error instanceof Error && error.name === 'UserPromptsOverrideError') {
+    // Surface explicit, caller-actionable override failures unchanged so the
+    // REST layer can map them precisely:
+    //   - UserPromptsOverrideError → 502 (issue #575): a ?repo= override clone
+    //     that failed.
+    //   - IngestedSourceNotFoundError → 400 (PRD #647 list-by-source / D2): a
+    //     ?source= identifier that is unknown/evicted, so the caller gets the
+    //     re-upload guidance instead of a generic 500 or a silent builtin set.
+    if (
+      error instanceof Error &&
+      (error.name === 'UserPromptsOverrideError' ||
+        error.name === 'IngestedSourceNotFoundError')
+    ) {
       throw error;
     }
     logger.error('Prompts list request failed', error as Error);
