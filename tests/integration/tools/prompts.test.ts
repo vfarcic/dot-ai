@@ -1401,6 +1401,158 @@ describe('Prompts Integration', () => {
     }, 300000);
   });
 
+  // PRD #647 list-by-source — NEW contract addition the CLI needs
+  // (vfarcic/dot-ai-cli#13). The CLI's generate flow is upload → LIST → render-each:
+  // after uploading a source it must ENUMERATE which prompts that source contains
+  // so it knows what to render. Today GET /api/v1/prompts ignores `?source=` (the
+  // list handler omits the source arg), so an uploaded source's prompts are never
+  // listed — only the built-in/env names come back. This block pins the gap.
+  //
+  // FROZEN SHAPE (.dot-agent-deck/647-contract.md identifier rules + the existing
+  // GET /api/v1/prompts schema):
+  //   - GET /api/v1/prompts?source=<identifier>, bearer-gated.
+  //   - Returns the prompt set of the uploaded source using the SAME response
+  //     schema the existing list emits:
+  //     { success:true, data:{ prompts:[{name, description, arguments}], source } }.
+  //     data.source echoes the (scrubbed) identifier.
+  //   - Unknown/evicted ?source= → 400 with the SAME re-upload guidance the render
+  //     path returns (names POST /api/v1/prompts/sources, matches /upload/i, no
+  //     clone/git vocab) — NOT a generic success-with-builtins.
+  //   - Identifier key space unchanged: `local:<label>` verbatim.
+  //
+  // RED until list-by-source lands, for the exact gap the CLI hit:
+  //   1. CORE — `?source=` is ignored on the LIST path, so an uploaded source's
+  //      genuinely-NEW skill (a name that is NOT a built-in prompt) is absent from
+  //      the returned set, and data.source is the env coordinate, not the uploaded
+  //      identifier.
+  //   2. A never-uploaded `?source=` returns the generic env/built-in success set
+  //      instead of the 400 re-upload guidance the contract requires.
+  describe('Source listing by ?source= (PRD #647 list-by-source)', () => {
+    // Unique per run so parallel/repeated runs against the shared server never
+    // collide on the ingested identifier or skill name.
+    const runId = Date.now();
+    const sourceLabel = `local:list-tester-${runId}`;
+    // A clearly NOVEL name — NOT a built-in prompt — so a pass proves the LIST
+    // enumerates genuinely-new uploaded skills (the exact gap the CLI hit), not
+    // just that the built-in/env set came back.
+    const skillName = `wip-experimental-${runId}`;
+    const argName = 'targetName';
+    const argDescription = 'The resource to deploy (substituted at render time)';
+    const description =
+      'PRD 647 list-by-source fixture — a genuinely novel skill the CLI must enumerate';
+
+    // A minimal folder-based skill carrying a description and one required
+    // argument, so the listed entry's metadata (name + description + arguments)
+    // is observable in the list response exactly as the frozen schema specifies.
+    const skillMd = [
+      '---',
+      `name: ${skillName}`,
+      `description: ${description}`,
+      'arguments:',
+      `  - name: ${argName}`,
+      `    description: ${argDescription}`,
+      '    required: true',
+      '---',
+      '',
+      `# Novel skill ${skillName}`,
+      '',
+      `Uploaded by the CLI; must be enumerable via the list path. Deploy {{${argName}}}.`,
+    ].join('\n');
+
+    const skillMdBase64 = Buffer.from(skillMd, 'utf-8').toString('base64');
+    const contentHash = `sha256:${createHash('sha256')
+      .update(skillMd, 'utf-8')
+      .digest('hex')}`;
+
+    test('GET /api/v1/prompts?source= enumerates a genuinely-new uploaded skill and echoes the identifier (PRD #647 list-by-source)', async () => {
+      // Step 1 — INGEST: upload the source keyed by the local:<label> identifier
+      // (the ingest endpoint is already implemented; this step is GREEN).
+      const uploadResponse = await integrationTest.httpClient.post(
+        '/api/v1/prompts/sources',
+        {
+          source: sourceLabel,
+          contentHash,
+          files: [
+            {
+              path: `${skillName}/SKILL.md`,
+              content: skillMdBase64,
+              mode: '0644',
+            },
+          ],
+        }
+      );
+      expect(uploadResponse).toMatchObject({ success: true });
+
+      // Step 2 — LIST BY SOURCE: enumerate the uploaded source's prompts via
+      // `?source=`. Bearer-authed through the shared httpClient.
+      const listResponse = await integrationTest.httpClient.get(
+        `/api/v1/prompts?source=${encodeURIComponent(sourceLabel)}`
+      );
+
+      // The list call itself succeeds (today it succeeds too, but with the
+      // env/built-in set because ?source= is ignored).
+      expect(listResponse).toMatchObject({ success: true });
+
+      // PRIMARY RED until list-by-source lands: today `?source=` is ignored on the
+      // LIST path, so the returned set is the env/built-in list and the novel
+      // skill is absent (find → undefined). The CLI cannot discover what to render.
+      const listed = listResponse.data.prompts.find(
+        (p: { name: string }) => p.name === skillName
+      );
+      expect(listed).toBeDefined();
+      // ...and it carries the uploaded metadata (frozen schema: name, description,
+      // arguments) so the CLI can render-each.
+      expect(listed).toMatchObject({
+        name: skillName,
+        description,
+        arguments: [
+          { name: argName, description: argDescription, required: true },
+        ],
+      });
+
+      // SECONDARY RED: data.source must echo the uploaded identifier (scrubbed),
+      // not the env coordinate that the ignored-?source= fallback returns today.
+      expect(listResponse).toMatchObject({
+        success: true,
+        data: {
+          prompts: expect.arrayContaining([
+            expect.objectContaining({ name: skillName }),
+          ]),
+          source: sourceLabel,
+        },
+      });
+      // 300000ms: upload + list round-trip against the shared deployed server.
+    }, 300000);
+
+    test('GET /api/v1/prompts?source=<never-uploaded> returns 400 re-upload guidance, not a generic success-with-builtins (PRD #647 list-by-source)', async () => {
+      const source = `local:never-uploaded-${runId}`;
+      const response = await integrationTest.httpClient.get(
+        `/api/v1/prompts?source=${encodeURIComponent(source)}`
+      );
+
+      // RED until list-by-source lands: today `?source=` is ignored, so the call
+      // returns success: true with the generic env/built-in set. The contract
+      // requires a clear 400 telling the caller to (re)upload.
+      expect(response).toMatchObject({
+        success: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+
+      const message = response.error?.message ?? '';
+      // Same re-upload guidance the render-miss path returns: names the ingest
+      // endpoint and tells the caller to (re)upload.
+      expect(message).toMatch(/re-?upload|upload/i);
+      expect(message).toContain('/api/v1/prompts/sources');
+      // A `local:` identifier is never cloned, so the failure must NOT be a
+      // git/clone/scheme error and must NOT be the generic "Prompt not found".
+      expect(message).not.toMatch(
+        /scheme|Invalid override repoUrl|failed to parse|clone|git/i
+      );
+      expect(message).not.toContain('Prompt not found');
+      // 120000ms: single fast list call, resolves from cache with no clone.
+    }, 120000);
+  });
+
   // PRD #647 M4 (lifecycle + content-hash dedup) + D5 (upload-input hardening) +
   // M5 (secret hygiene + backward-compat parity).
   //
