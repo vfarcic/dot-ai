@@ -461,62 +461,19 @@ The per-request override above still has the **server** fetch the source. That c
 
 For these, the CLI fetches the source **locally** and uploads it to the server, which caches it and renders it through the **same** server-side renderer — so a CLI-fetched skill renders identically to one cloned from a repo, with full argument substitution. There is still one renderer, server-side; only how the source reached it changes.
 
-**How it works:**
+**What you run** — point `dot-ai skills generate` at the source the CLI should fetch:
 
-1. The CLI fetches the source itself — `dot-ai skills generate --repo-fetch <git-url>` (a repo the server can't reach) or `--repo-dir <path> --source-label <label>` (a local directory). See the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical flags.
-2. The CLI **uploads** the fetched files to `POST /api/v1/prompts/sources`, keyed by a stable identifier: the git URL verbatim for `--repo-fetch`, or `local:<label>` for `--repo-dir`.
-3. Rendering a skill from that source uses `POST /api/v1/prompts/<name>?source=<identifier>` — the server serves it from the upload, with **no clone** of any kind (so a server-unreachable URL still renders).
+- `dot-ai skills generate --repo-fetch <git-url>` — for a repository the server can't reach; the source is keyed by the git URL verbatim.
+- `dot-ai skills generate --repo-dir <path> --source-label <label>` — for an on-disk directory with no git remote; the source is keyed by `local:<label>`.
 
-**Validated server-side round-trip.** The `dot-ai skills generate` wrapper (steps 1–2) ships from the [CLI repo](https://devopstoolkit.ai/docs/cli) and is validated there; the two server calls it drives — the upload, then the `?source=` render — are shown below with **real captured output** from a running server (the `Authorization` token is redacted to `<token>`; the full base64 body and a copy-pasteable curl live in the [REST API reference](../api/rest-api.md#post-apiv1promptssources)). Step 2 — upload a one-file `local:team-dev` manifest:
-
-```bash
-curl -s -X POST "http://localhost:3456/api/v1/prompts/sources" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{
-        "source": "local:team-dev",
-        "contentHash": "sha256:f5b51e0f406fd1a380966ae9a5a47167c98eb38f45b116fce2ae96d720f58e5b",
-        "files": [ { "path": "deploy-app/SKILL.md", "content": "<base64 of SKILL.md>", "mode": "0644" } ]
-      }'
-```
-
-```json
-{
-  "success": true,
-  "data": { "source": "local:team-dev", "contentHash": "sha256:f5b51e0f406fd1a380966ae9a5a47167c98eb38f45b116fce2ae96d720f58e5b", "fileCount": 1, "status": "ingested" }
-}
-```
-
-Step 3 — render a skill from that ingested source, with full argument substitution and no clone:
-
-```bash
-curl -s -X POST "http://localhost:3456/api/v1/prompts/deploy-app?source=local%3Ateam-dev" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{"arguments":{"environment":"prod"}}'
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "description": "Deploy an application to the specified environment",
-    "messages": [
-      { "role": "user", "content": { "type": "text", "text": "# deploy-app\n\nDeploy the application to prod. Provision the namespace, apply the manifests, and verify the rollout." } }
-    ],
-    "source": "local:team-dev"
-  }
-}
-```
-
-The uploaded `SKILL.md` declared a required `environment` argument and a `{{environment}}` placeholder; the render substituted it with `prod` server-side — byte-identical to rendering the same skill from a `?repo=` clone (the envelope `meta` is omitted above for brevity).
+Typically each source is wired up as its own agent hook, so the CLI re-fetches and re-uploads on every hook fire (content-hash-gated, so an unchanged source is a no-op). See the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical flags, and the [REST API reference](../api/rest-api.md#prompts-endpoints) for the wire contract — the upload and `?source=` render calls, with real captured request/response output.
 
 **Identifier conventions and a known limitation:**
 
 - The server stores the identifier exactly as sent — it does not auto-prefix or namespace per caller in this release. To avoid collisions between hosts, use a convention like `local:<user>-<label>` or `local:<host>-<label>` for `--source-label`.
 - Ingested identifiers are **global server state**: any authenticated caller can overwrite any identifier by uploading to the same one. There is no per-principal namespacing in this iteration — treat the endpoint as trusted-caller-only.
 
-> **The ingested cache is in-memory and does not survive a server restart.** There is nothing to pull (the source was pushed, not fetched), so after a restart or cache eviction the next render returns a clear "(re)upload via POST /api/v1/prompts/sources" error — re-upload the source (typically on the next CLI hook fire) and it renders again.
+> **The ingested cache is in-memory, populated by the CLI's upload on each hook fire (content-hash-gated).** A fresh deployment and a restart are the same empty-cache state — neither has any ingested source pre-loaded, and the next hook fire (re)uploads and renders normally. A render for a source that isn't currently cached — never uploaded, evicted, or after a restart before the next upload — returns a clear `HTTP 400` with re-upload guidance (there is nothing to pull; the source was pushed, not fetched). A restart is therefore a transient loss of previously-ingested sources until the next hook re-uploads them — part of the normal upload-driven lifecycle, not a failure mode.
 
 **Safety:** uploads are size/count-capped (max 512 KiB raw request body → `413`; max 100 files and max 256 KiB total decoded payload → `400`) and reject path traversal and null-byte paths; credential-bearing git-URL identifiers are scrubbed in every echo, error, and log. See the [REST API reference](../api/rest-api.md#ingested-cli-uploaded-skill-sources) for the full wire format, limits, and error envelopes.
 

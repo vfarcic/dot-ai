@@ -656,7 +656,7 @@ The upload endpoint is an untrusted-input surface, so the manifest is hardened *
 
 > The two size caps work together: the **512 KiB raw-body cap** is the outer DoS guard, rejected with `413` before the JSON is even parsed; the **256 KiB decoded cap** is the inner application limit on the summed file bodies, rejected with `400` after decode. Base64 inflates a payload by ~33%, so a manifest at the 256 KiB decoded limit travels as ~341 KiB on the wire — comfortably inside the 512 KiB raw cap, which therefore only trips on genuinely oversized requests.
 
-**Render-miss** — rendering a `?source=` identifier with no cached entry (never uploaded, or evicted, or lost on a restart) returns a clear `HTTP 400` instructing the caller to (re)upload. It does **not** fall back to cloning, and the message carries no git/clone vocabulary:
+**Render-miss** — rendering a `?source=` identifier with no cached entry (never uploaded, evicted, or not yet re-uploaded since a restart) returns a clear `HTTP 400` instructing the caller to (re)upload. It does **not** fall back to cloning, and the message carries no git/clone vocabulary:
 
 ```json
 {
@@ -668,7 +668,7 @@ The upload endpoint is an untrusted-input surface, so the manifest is hardened *
 }
 ```
 
-> **The ingested cache is in-memory and does not survive a server restart.** There is no background refresh (nothing to pull) — re-upload the source (e.g. on the next CLI hook fire) after a restart or eviction.
+> **The ingested cache is in-memory** — populated by the CLI's upload, not fetched by the server, so there is no background refresh (nothing to pull). A fresh deployment and a restart are the same empty-cache state: neither has any ingested source pre-loaded, and the next CLI hook fire (re)uploads and renders normally. A restart is a transient loss of previously-ingested sources until that next upload — part of the normal upload-driven lifecycle, not a failure mode. Re-upload after a restart or eviction (typically on the next hook fire) and the source renders again.
 
 ### Secret hygiene
 
