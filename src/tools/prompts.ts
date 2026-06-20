@@ -256,14 +256,23 @@ export async function loadAllPrompts(
     const { loadUserPrompts } = await import('../core/user-prompts-loader.js');
     userPrompts = await loadUserPrompts(logger, forceRefresh, override);
   } catch (error) {
-    // A per-request override (PRD #581/#621) is an explicit caller request: when
-    // its source fails to load, loadUserPrompts throws UserPromptsOverrideError
-    // and we must surface it (issue #575) rather than silently degrading to
-    // built-in prompts. Env-var-repo failures never reach here (loadUserPrompts
-    // returns [] for those). Matched by name to avoid a circular import — the
-    // loader imports from this module. Other errors (e.g. the dynamic import
-    // itself failing) stay non-fatal.
-    if (error instanceof Error && error.name === 'UserPromptsOverrideError') {
+    // Surface two classes of explicit, caller-actionable failures instead of
+    // silently degrading to built-in prompts:
+    //   - UserPromptsOverrideError (issue #575): a per-request ?repo=/body.repo
+    //     override (PRD #581/#621) whose source failed to clone. Env-var-repo
+    //     failures never reach here (loadUserPrompts returns [] for those).
+    //   - IngestedSourceNotFoundError (PRD #647 D2): a render that names a
+    //     missing ingested ?source= identifier — re-throw so the REST handler
+    //     maps it to a 400 with re-upload guidance instead of the generic
+    //     "Prompt not found".
+    // Matched by name to avoid a circular import — the loader imports from this
+    // module. Other errors (e.g. the dynamic import itself failing) stay
+    // non-fatal.
+    if (
+      error instanceof Error &&
+      (error.name === 'UserPromptsOverrideError' ||
+        error.name === 'IngestedSourceNotFoundError')
+    ) {
       throw error;
     }
     logger.debug('User prompts loader not available or failed', {
@@ -355,9 +364,18 @@ export async function handlePromptsListRequest(
       source: computePromptsSource(override),
     };
   } catch (error) {
-    // Surface a per-request override failure unchanged (issue #575) so the REST
-    // layer can map it to 502 instead of a generic 500.
-    if (error instanceof Error && error.name === 'UserPromptsOverrideError') {
+    // Surface explicit, caller-actionable override failures unchanged so the
+    // REST layer can map them precisely:
+    //   - UserPromptsOverrideError → 502 (issue #575): a ?repo= override clone
+    //     that failed.
+    //   - IngestedSourceNotFoundError → 400 (PRD #647 list-by-source / D2): a
+    //     ?source= identifier that is unknown/evicted, so the caller gets the
+    //     re-upload guidance instead of a generic 500 or a silent builtin set.
+    if (
+      error instanceof Error &&
+      (error.name === 'UserPromptsOverrideError' ||
+        error.name === 'IngestedSourceNotFoundError')
+    ) {
       throw error;
     }
     logger.error('Prompts list request failed', error as Error);
@@ -499,11 +517,15 @@ export async function handlePromptsGetRequest(
   } catch (error) {
     logger.error('Prompts get request failed', error as Error);
 
-    // Surface a per-request override failure unchanged (issue #575) so the REST
-    // layer can map it to 502; likewise re-throw if already an AppError.
+    // Surface explicit, caller-actionable failures unchanged so the REST layer
+    // can map them precisely: UserPromptsOverrideError → 502 (issue #575) and
+    // IngestedSourceNotFoundError → 400 with re-upload guidance (PRD #647 D2);
+    // likewise re-throw if already an AppError.
     if (
       error instanceof Error &&
-      (error.name === 'UserPromptsOverrideError' || 'category' in error)
+      (error.name === 'UserPromptsOverrideError' ||
+        error.name === 'IngestedSourceNotFoundError' ||
+        'category' in error)
     ) {
       throw error;
     }

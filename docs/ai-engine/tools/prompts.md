@@ -410,7 +410,7 @@ The feature is designed for graceful degradation:
 
 **Changes not appearing**
 - **Cause**: Cache hasn't expired yet
-- **Solution**: Force-refresh the cache via [`dot-ai prompts refresh`](https://devopstoolkit.ai/docs/cli) (CLI) or `curl -X POST http://<your-server>/api/v1/prompts/refresh`, wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing
+- **Solution**: Force-refresh the cache via [`dot-ai prompts refresh`](https://devopstoolkit.ai/docs/cli) (CLI), wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing. If you're building a custom HTTP client rather than using the CLI, see the [REST API reference](../api/rest-api.md#prompts-endpoints) for the refresh endpoint.
 
 **Prompt has same name as built-in**
 - **Cause**: Name collision with built-in prompt
@@ -451,6 +451,29 @@ Under the hood, each invocation talks to the server once and the server still se
 - From untrusted clients (no SSRF guard in this release).
 
 See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full wire contract, the `source` field semantics, validation rules, and response envelopes returned by each endpoint — useful if you're building a custom MCP/HTTP client rather than using the CLI.
+
+### CLI-uploaded skill sources (for sources the server can't reach)
+
+The per-request override above still has the **server** fetch the source. That covers any repository a server-side clone can authenticate to — but not everything. Two cases remain where the developer's laptop (running the CLI) can fetch while the server cannot:
+
+- **Sources the server can't authenticate or route to** — VPNs gated by SSO / OIDC / device attestation (no static token to hand the server), and managed/hardened clusters with no egress path the operator can open.
+- **On-disk directories** — work-in-progress skills on your filesystem, with no git remote at all (the local dev loop).
+
+For these, the CLI fetches the source **locally** and uploads it to the server, which caches it and renders it through the **same** server-side renderer — so a CLI-fetched skill renders identically to one cloned from a repo, with full argument substitution. There is still one renderer, server-side; only how the source reached it changes.
+
+**What you run** — point `dot-ai skills generate` at the source the CLI should fetch:
+
+- `dot-ai skills generate --repo-fetch <git-url>` — for a repository the server can't reach; the source is keyed by the git URL verbatim.
+- `dot-ai skills generate --repo-dir <path> --source-label <label>` — for an on-disk directory with no git remote; the source is keyed by `local:<label>`.
+
+Typically each source is wired up as its own agent hook, so the CLI re-fetches and re-uploads on every hook fire (content-hash-gated, so an unchanged source is a no-op). See the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical flags, and the [REST API reference](../api/rest-api.md#prompts-endpoints) for the wire contract — the upload and `?source=` render calls, with real captured request/response output.
+
+**Identifier conventions and a known limitation:**
+
+- The server stores the identifier exactly as sent — it does not auto-prefix or namespace per caller in this release. To avoid collisions between hosts, use a convention like `local:<user>-<label>` or `local:<host>-<label>` for `--source-label`.
+- Ingested identifiers are **global server state**: any authenticated caller can overwrite any identifier by uploading to the same one. There is no per-principal namespacing in this iteration — treat the endpoint as trusted-caller-only.
+
+**Safety:** uploads are size/count-capped (max 512 KiB raw request body → `413`; max 100 files and max 256 KiB total decoded payload → `400`) and reject path traversal and null-byte paths; credential-bearing git-URL identifiers are scrubbed in every echo, error, and log. See the [REST API reference](../api/rest-api.md#ingested-cli-uploaded-skill-sources) for the full wire format, limits, and error envelopes.
 
 ## Troubleshooting
 

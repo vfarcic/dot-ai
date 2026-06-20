@@ -107,6 +107,64 @@ describe('sanitizeRequestUrlForLogging (PRD #581 F3)', () => {
     expect(result).not.toContain('u:t@');
   });
 
+  // PRD #647 M5 (F2): `?source=` is equally credential-bearing (it may be a
+  // git URL with userinfo or a credential query param) and must be scrubbed in
+  // the request-URL log exactly like `?repo=`.
+  describe('source= scrubbing (PRD #647 F2)', () => {
+    test('passes through URLs without a `source` query param', () => {
+      expect(sanitizeRequestUrlForLogging('/api/v1/prompts?foo=bar')).toBe(
+        '/api/v1/prompts?foo=bar'
+      );
+    });
+
+    test('preserves a credential-free local: source verbatim', () => {
+      const url = '/api/v1/prompts/foo?source=local%3Ateam-dev';
+      const result = sanitizeRequestUrlForLogging(url);
+      expect(result).toBeDefined();
+      expect(decodeURIComponent(result as string)).toContain(
+        'source=local:team-dev'
+      );
+    });
+
+    test('scrubs userinfo credentials embedded in the `source` value', () => {
+      const url =
+        '/api/v1/prompts/foo?source=https%3A%2F%2Fuser%3As3cret-tok%40gitlab.corp%2Fteam%2Fskills';
+      const result = sanitizeRequestUrlForLogging(url);
+      expect(result).toBeDefined();
+      expect(result).not.toContain('s3cret-tok');
+      expect(decodeURIComponent(result as string)).toContain(
+        '***@gitlab.corp/team/skills'
+      );
+    });
+
+    test('scrubs a credential-bearing query param inside the `source` URL', () => {
+      // scrubSourceUrl (the echo helper) redacts ?token=… style params too.
+      const url =
+        '/api/v1/prompts/foo?source=https%3A%2F%2Fgitlab.corp%2Fteam%2Fskills%3Ftoken%3Dleaked-abc';
+      const result = sanitizeRequestUrlForLogging(url);
+      expect(result).toBeDefined();
+      expect(result).not.toContain('leaked-abc');
+    });
+
+    test('scrubs a raw credential-bearing ?source= req.url (mcp debug-log path)', () => {
+      const url =
+        '/api/v1/prompts/foo?source=https://user:s3cret-tok@host/repo';
+      const result = sanitizeRequestUrlForLogging(url);
+      expect(result).toBeDefined();
+      expect(result).not.toContain('s3cret-tok');
+      expect(decodeURIComponent(result as string)).toContain('***@host/repo');
+    });
+
+    test('scrubs both repo= and source= when present together', () => {
+      const url =
+        '/api/v1/prompts?repo=https%3A%2F%2Fa%3Atok-a%40h1%2Fr&source=https%3A%2F%2Fb%3Atok-b%40h2%2Fs';
+      const result = sanitizeRequestUrlForLogging(url);
+      expect(result).toBeDefined();
+      expect(result).not.toContain('tok-a');
+      expect(result).not.toContain('tok-b');
+    });
+  });
+
   // CodeRabbit Major B: on parse failure, do not echo the raw query string.
   // The WHATWG URL parser in Node is extremely lenient and canonicalizes
   // most malformed inputs rather than throwing, so we mock the URL

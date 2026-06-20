@@ -23,7 +23,10 @@ import {
 import {
   computePromptsSource,
   getUserPromptsConfigFromOverride,
+  ingestPromptsSource,
+  PromptsSourceValidationError,
   sanitizeUrlForLogging,
+  scrubSourceUrl,
   UserPromptsOverride,
   UserPromptsOverrideError,
 } from '../core/user-prompts-loader';
@@ -90,9 +93,11 @@ export const UNPARSEABLE_QUERY_PLACEHOLDER = '?<redacted-unparseable>';
 
 /**
  * F3: req.url is logged on every request; with PRD #581 the query string may
- * carry `?repo=<user-supplied-url>` whose value can include credentials. This
- * helper rewrites the `repo` value to its credential-scrubbed form so the
- * raw token doesn't reach the log. Everything else is preserved verbatim.
+ * carry `?repo=<user-supplied-url>` whose value can include credentials, and
+ * PRD #647 adds `?source=<identifier>` which is equally credential-bearing (it
+ * may be a `https://user:tok@host` git URL). This helper rewrites BOTH values
+ * to their credential-scrubbed form so the raw token doesn't reach the log.
+ * Everything else is preserved verbatim.
  *
  * CodeRabbit Major B: on parse failure, we no longer return the input
  * verbatim — an unparseable URL is more likely than a parseable one to hide
@@ -105,13 +110,34 @@ export function sanitizeRequestUrlForLogging(
   url: string | undefined
 ): string | undefined {
   if (!url) return url;
-  if (!url.includes('repo=')) return url;
+  // Fast path: only walk the URL when it carries a credential-bearing param
+  // we know how to scrub (PRD #581 `repo=`, PRD #647 `source=`).
+  //
+  // CodeRabbit C3: a percent-encoded param NAME (e.g. `r%65po=`, `s%6Frce=`)
+  // decodes to `repo`/`source` once parsed, so the literal-substring fast path
+  // would early-return WITHOUT scrubbing and leak the credential into the log.
+  // Any `%` means a name could be encoded, so fall through to the full
+  // parse-and-scrub below (URLSearchParams decodes the name, catching it).
+  if (
+    !url.includes('repo=') &&
+    !url.includes('source=') &&
+    !url.includes('%')
+  ) {
+    return url;
+  }
   try {
     // req.url is path-relative; provide a dummy base for URL parsing.
     const parsed = new URL(url, 'http://internal.invalid');
     const repo = parsed.searchParams.get('repo');
     if (repo) {
       parsed.searchParams.set('repo', sanitizeUrlForLogging(repo));
+    }
+    // PRD #647 M5 (F2): `?source=` is scrubbed with the same deep helper used
+    // for the echoed `source` (userinfo + credential-bearing query params), so
+    // `?source=https://user:tok@host` never appears unscrubbed in the log.
+    const source = parsed.searchParams.get('source');
+    if (source) {
+      parsed.searchParams.set('source', scrubSourceUrl(source));
     }
     // Return path + search only (drop the dummy base).
     return parsed.pathname + parsed.search + parsed.hash;
@@ -209,7 +235,8 @@ export function extractPromptsOverride(
   repoParam: unknown,
   pathParam?: unknown,
   branchParam?: unknown,
-  gitToken?: string
+  gitToken?: string,
+  sourceParam?: unknown
 ):
   | {
       ok: true;
@@ -219,6 +246,22 @@ export function extractPromptsOverride(
       ok: false;
       message: string;
     } {
+  // PRD #647 D1: an explicit `?source=<identifier>` selects an already-ingested
+  // (CLI-uploaded) source. It is the explicit ingested signal, so it takes
+  // precedence over `?repo=` and the clone-qualifying params (path/branch/token)
+  // do not apply — they only describe a git clone, which an ingested source is
+  // not. Resolution against the in-memory ingested cache (and the "never clone"
+  // guarantee) happens in loadUserPrompts via override.ingestedSource. The raw
+  // identifier doubles as repoUrl ONLY so computePromptsSource echoes the
+  // scrubbed source; it is never cloned or logged unscrubbed on this path.
+  if (typeof sourceParam === 'string' && sourceParam.trim() !== '') {
+    const identifier = sourceParam.trim();
+    return {
+      ok: true,
+      override: { repoUrl: identifier, ingestedSource: identifier },
+    };
+  }
+
   // Treat absent (null/undefined) repo as no override. path/branch/token only
   // qualify an override, so without a repo they are ignored (the credential
   // header is inert on the env-var path).
@@ -627,6 +670,8 @@ export class RestApiRouter {
         this.handlePromptsListRequest(req, res, requestId, searchParams),
       'POST:/api/v1/prompts/refresh': () =>
         this.handlePromptsCacheRefresh(req, res, requestId, body),
+      'POST:/api/v1/prompts/sources': () =>
+        this.handlePromptsSourceIngest(req, res, requestId, body),
       'POST:/api/v1/prompts/:promptName': () =>
         this.handlePromptsGetRequest(
           req,
@@ -2034,11 +2079,16 @@ export class RestApiRouter {
       // candidate.subPath / candidate.branch (absent → unchanged behavior).
       // PRD #621 M2: X-Dot-AI-Git-Token header authenticates the override clone
       // (inert when no ?repo= override is present).
+      // PRD #647 list-by-source: ?source= selects an already-ingested source,
+      // resolved from the in-memory upload cache with no git operation (same
+      // signal as the render path). Absent → byte-identical to today (env-var /
+      // built-in set), so the no-?source= behavior is unchanged.
       const overrideResult = extractPromptsOverride(
         searchParams.get('repo'),
         searchParams.get('path'),
         searchParams.get('branch'),
-        readGitTokenHeader(req)
+        readGitTokenHeader(req),
+        searchParams.get('source')
       );
       if (!overrideResult.ok) {
         await this.sendErrorResponse(
@@ -2090,6 +2140,24 @@ export class RestApiRouter {
         return;
       }
 
+      // PRD #647 list-by-source (D2): an unknown/evicted ?source= identifier is
+      // a caller-actionable validation error — surface the re-upload guidance as
+      // a 400 (same mapping the render handler uses), NOT a generic 500 or a
+      // silent success-with-builtins. The message names POST
+      // /api/v1/prompts/sources and carries no clone/git/scheme vocabulary.
+      const listErrorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (listErrorMessage.includes('Ingested source not found')) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          listErrorMessage
+        );
+        return;
+      }
+
       this.logger.error(
         'Prompts list request failed',
         error instanceof Error ? error : new Error(String(error)),
@@ -2129,11 +2197,16 @@ export class RestApiRouter {
       // candidate.subPath / candidate.branch (absent → unchanged behavior).
       // PRD #621 M2: X-Dot-AI-Git-Token header authenticates the override clone
       // (inert when no ?repo= override is present).
+      // PRD #647 D1/M3: ?source= selects an already-ingested source, resolved
+      // from the in-memory upload cache with no git operation (precedence over
+      // ?repo=). Absent → unchanged behavior, so the env-var/clone paths are
+      // byte-identical to today.
       const overrideResult = extractPromptsOverride(
         searchParams.get('repo'),
         searchParams.get('path'),
         searchParams.get('branch'),
-        readGitTokenHeader(req)
+        readGitTokenHeader(req),
+        searchParams.get('source')
       );
       if (!overrideResult.ok) {
         await this.sendErrorResponse(
@@ -2198,10 +2271,13 @@ export class RestApiRouter {
         }
       );
 
-      // Check if it's a validation error (missing required arguments or prompt not found)
+      // Check if it's a validation error (missing required arguments, prompt not
+      // found, or a missing ingested ?source= identifier — PRD #647 D2, which
+      // carries re-upload guidance and must be a 400, not a 500).
       const isValidationError =
         errorMessage.includes('Missing required arguments') ||
-        errorMessage.includes('Prompt not found');
+        errorMessage.includes('Prompt not found') ||
+        errorMessage.includes('Ingested source not found');
 
       await this.sendErrorResponse(
         res,
@@ -2312,6 +2388,84 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'PROMPTS_CACHE_REFRESH_ERROR',
         'Failed to refresh prompts cache'
+      );
+    }
+  }
+
+  /**
+   * Handle prompts source ingestion (PRD #647 M2).
+   *
+   * Accepts a JSON manifest { source, contentHash, files:[{path, content(base64),
+   * mode}] }, base64-decodes and caches the uploaded skill source keyed by its
+   * `source` identifier in the in-memory ingested cache. A later
+   * POST /api/v1/prompts/:promptName?source=<identifier> renders it through the
+   * existing render path with no git operation. The (scrubbed) source is echoed
+   * back. Bearer-gated by the same checkBearerAuth path as every non-OpenAPI
+   * request.
+   */
+  private async handlePromptsSourceIngest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    body: unknown
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing prompts source ingest request', {
+        requestId,
+      });
+
+      // All fields are untrusted; ingestPromptsSource validates and decodes
+      // them, throwing PromptsSourceValidationError (→ 400) on a malformed or
+      // unsafe manifest before anything is cached.
+      const manifest = body as
+        | { source?: unknown; contentHash?: unknown; files?: unknown }
+        | undefined;
+
+      const result = ingestPromptsSource(
+        {
+          source: manifest?.source,
+          contentHash: manifest?.contentHash,
+          files: manifest?.files,
+        },
+        this.logger
+      );
+
+      const response: RestApiResponse = {
+        success: true,
+        data: result,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Prompts source ingest completed', {
+        requestId,
+        source: result.source,
+        fileCount: result.fileCount,
+      });
+    } catch (error) {
+      const isValidationError = error instanceof PromptsSourceValidationError;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        'Prompts source ingest failed',
+        error instanceof Error ? error : new Error(String(error)),
+        { requestId }
+      );
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        isValidationError
+          ? HttpStatus.BAD_REQUEST
+          : HttpStatus.INTERNAL_SERVER_ERROR,
+        isValidationError ? 'VALIDATION_ERROR' : 'PROMPTS_SOURCE_INGEST_ERROR',
+        isValidationError ? errorMessage : 'Failed to ingest prompts source'
       );
     }
   }

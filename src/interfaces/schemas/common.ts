@@ -98,6 +98,16 @@ export const MethodNotAllowedErrorSchema = ErrorResponseSchema.extend({
   }),
 });
 
+/**
+ * 413 returned when a request body exceeds a per-route raw-body cap (PRD #647:
+ * the 512 KiB prompts source ingest cap). The handler emits PAYLOAD_TOO_LARGE.
+ */
+export const PayloadTooLargeErrorSchema = ErrorResponseSchema.extend({
+  error: ErrorDetailsSchema.extend({
+    code: z.literal('PAYLOAD_TOO_LARGE'),
+  }),
+});
+
 export const ServiceUnavailableErrorSchema = ErrorResponseSchema.extend({
   error: ErrorDetailsSchema.extend({
     code: z.enum([
@@ -140,6 +150,7 @@ export const InternalServerErrorSchema = ErrorResponseSchema.extend({
       'SESSION_RETRIEVAL_ERROR',
       'MIGRATION_ERROR',
       'PROMPTS_CACHE_REFRESH_ERROR',
+      'PROMPTS_SOURCE_INGEST_ERROR',
       'USER_MANAGEMENT_ERROR',
     ]),
   }),

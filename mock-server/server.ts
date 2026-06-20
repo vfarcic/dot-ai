@@ -25,6 +25,14 @@ import {
   lookupResource,
 } from './resource-lookup.js';
 import { BodyTooLargeError, readJsonBody } from './read-json-body.js';
+import {
+  IngestedSourceNotFoundError,
+  IngestValidationError,
+  PromptRenderError,
+  ingestPromptsSource,
+  listIngestedPrompts,
+  renderIngestedPrompt,
+} from './prompts-ingest.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -66,6 +74,157 @@ async function loadFixture(fixturePath: string): Promise<unknown> {
   const fullPath = join(FIXTURES_DIR, fixturePath);
   const content = await readFile(fullPath, 'utf-8');
   return JSON.parse(content);
+}
+
+/**
+ * Build the standard mock `meta` block.
+ */
+function buildMeta(): { timestamp: string; version: string } {
+  return { timestamp: new Date().toISOString(), version: '1.0.0' };
+}
+
+/**
+ * PRD #647 M6: handle POST /api/v1/prompts/sources — ingest a CLI-uploaded skill
+ * source into the in-memory mirror. Mirrors the real handler's response shape
+ * ({ success, data: { source, contentHash?, fileCount, status }, meta }) and its
+ * error mapping (D5 caps / zip-slip → 400 VALIDATION_ERROR; oversized body → 413).
+ */
+async function handlePromptsSourceIngest(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  let manifest: Record<string, unknown> | undefined;
+  try {
+    manifest = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      sendJson(res, 413, {
+        success: false,
+        error: { code: 'PAYLOAD_TOO_LARGE', message: error.message },
+      });
+      return;
+    }
+    throw error;
+  }
+
+  try {
+    const result = ingestPromptsSource({
+      source: manifest?.['source'],
+      contentHash: manifest?.['contentHash'],
+      files: manifest?.['files'],
+    });
+    sendJson(res, 200, { success: true, data: result, meta: buildMeta() });
+  } catch (error) {
+    if (error instanceof IngestValidationError) {
+      sendJson(res, 400, {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.message },
+      });
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendJson(res, 500, {
+      success: false,
+      error: {
+        code: 'PROMPTS_SOURCE_INGEST_ERROR',
+        message: 'Failed to ingest prompts source',
+        details: message,
+      },
+    });
+  }
+}
+
+/**
+ * PRD #647 M3/D2: handle POST /api/v1/prompts/:promptName?source=<identifier> —
+ * render a previously-ingested source from the in-memory mirror with no clone.
+ * A render-miss (never uploaded / evicted) → 400 VALIDATION_ERROR carrying
+ * re-upload guidance; a cached-but-absent skill or missing required argument →
+ * 400 VALIDATION_ERROR (mirrors the real "Prompt not found" / "Missing required
+ * arguments"). On success the `{{argument}}` placeholders are substituted.
+ */
+async function handlePromptsSourceRender(
+  req: IncomingMessage,
+  res: ServerResponse,
+  source: string,
+  promptName: string
+): Promise<void> {
+  let body: Record<string, unknown> | undefined;
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      sendJson(res, 413, {
+        success: false,
+        error: { code: 'PAYLOAD_TOO_LARGE', message: error.message },
+      });
+      return;
+    }
+    throw error;
+  }
+
+  const rawArgs = body?.['arguments'];
+  const args =
+    rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
+      ? (rawArgs as Record<string, string>)
+      : {};
+
+  try {
+    const data = renderIngestedPrompt(source, promptName, args);
+    sendJson(res, 200, { success: true, data, meta: buildMeta() });
+  } catch (error) {
+    if (
+      error instanceof IngestedSourceNotFoundError ||
+      error instanceof PromptRenderError
+    ) {
+      sendJson(res, 400, {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.message },
+      });
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendJson(res, 500, {
+      success: false,
+      error: {
+        code: 'PROMPT_GET_ERROR',
+        message: 'Failed to render prompt',
+        details: message,
+      },
+    });
+  }
+}
+
+/**
+ * PRD #647 list-by-source: handle GET /api/v1/prompts?source=<identifier> —
+ * enumerate a previously-ingested source's prompts from the in-memory mirror
+ * with no clone. Mirrors the real list response shape
+ * ({ success, data: { prompts:[{name, description, arguments}], source }, meta })
+ * with data.source echoing the scrubbed identifier. An unknown/evicted source →
+ * 400 VALIDATION_ERROR carrying the same re-upload guidance the render-miss path
+ * returns (D2), NOT a generic success-with-builtins.
+ */
+function handlePromptsSourceList(res: ServerResponse, source: string): void {
+  try {
+    const data = listIngestedPrompts(source);
+    sendJson(res, 200, { success: true, data, meta: buildMeta() });
+  } catch (error) {
+    if (error instanceof IngestedSourceNotFoundError) {
+      sendJson(res, 400, {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.message },
+      });
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendJson(res, 500, {
+      success: false,
+      error: {
+        code: 'PROMPTS_LIST_ERROR',
+        message: 'Failed to list prompts',
+        details: message,
+      },
+    });
+  }
 }
 
 /**
@@ -136,6 +295,37 @@ async function handleRequest(
     if (state) redirectUrl.searchParams.set('state', state);
     res.writeHead(302, { Location: redirectUrl.toString() });
     res.end();
+    return;
+  }
+
+  // PRD #647 M6: source ingestion + render-from-ingested are served dynamically
+  // from an in-memory mirror (no fixture). Handled before the fixture path so
+  // the fixture-less /sources route is not treated as 501, and so a `?source=`
+  // render resolves the uploaded source instead of the static get fixture. A
+  // plain `?repo=` render (no `?source=`) falls through to the existing
+  // fixture-based override behavior unchanged (backward-compat parity).
+  if (route.path === '/api/v1/prompts/sources' && method === 'POST') {
+    await handlePromptsSourceIngest(req, res);
+    return;
+  }
+  const sourceParam = coerceOverrideParam(url.searchParams.get('source'));
+  if (
+    route.path === '/api/v1/prompts/:promptName' &&
+    method === 'POST' &&
+    sourceParam
+  ) {
+    await handlePromptsSourceRender(req, res, sourceParam, params.promptName);
+    return;
+  }
+  // PRD #647 list-by-source: GET /api/v1/prompts?source=<id> enumerates the
+  // uploaded source from the in-memory mirror. A plain GET with no `?source=`
+  // falls through to the existing fixture-based list (backward-compat parity).
+  if (
+    route.path === '/api/v1/prompts' &&
+    method === 'GET' &&
+    sourceParam
+  ) {
+    handlePromptsSourceList(res, sourceParam);
     return;
   }
 

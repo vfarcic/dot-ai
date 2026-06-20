@@ -151,6 +151,14 @@ export const routes: RouteDefinition[] = [
     fixture: 'prompts/refresh-success.json',
   },
   {
+    // PRD #647 M6: ingest a CLI-uploaded skill source. Handled dynamically
+    // in-memory (no fixture); must precede :promptName so it is not swallowed
+    // by the get-by-name route.
+    path: '/api/v1/prompts/sources',
+    method: 'POST',
+    description: 'Ingest a CLI-uploaded skill source (PRD #647)',
+  },
+  {
     path: '/api/v1/prompts/:promptName',
     method: 'POST',
     description: 'Get a prompt with arguments',

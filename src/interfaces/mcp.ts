@@ -138,6 +138,40 @@ const SESSION_TTL_MS = 60 * 60 * 1000;
 /** How often to check for expired sessions. */
 const SESSION_GC_INTERVAL_MS = 5 * 60 * 1000;
 
+/**
+ * PRD #647 F1 — hard raw-body byte ceiling for the untrusted prompts source
+ * ingest endpoint (POST /api/v1/prompts/sources).
+ *
+ * parseRequestBody buffers the whole body before JSON.parse + per-file
+ * base64-decode, all of which allocate fully BEFORE the 256 KiB *decoded* cap
+ * in ingestPromptsSource — so without a raw ceiling a multi-GB authenticated
+ * POST OOMs the shared process. 512 KiB is:
+ *   - comfortably ABOVE the largest valid manifest: 256 KiB decoded ≈ ~342 KiB
+ *     base64 + JSON/path/mode overhead (~350 KiB raw), and
+ *   - testably BELOW the ~1 MiB nginx-ingress limit the integration suite
+ *     traverses, so the app returns 413 before the proxy would.
+ * The cap is scoped to the ingest route only (see parseRequestBody's maxBytes
+ * argument); every other endpoint keeps today's uncapped behavior.
+ */
+const INGEST_MAX_RAW_BODY_BYTES = 512 * 1024;
+
+/** Pathname of the prompts source ingest endpoint the raw-body cap is scoped to. */
+const PROMPTS_INGEST_PATHNAME = '/api/v1/prompts/sources';
+
+/**
+ * PRD #647 F1 — thrown by parseRequestBody when the raw request body exceeds the
+ * per-route ceiling, so the HTTP handler can map it to a 413 (matching the mock
+ * server's read-json-body.ts) instead of buffering an unbounded body.
+ */
+class RequestBodyTooLargeError extends Error {
+  public readonly limit: number;
+  constructor(limit: number) {
+    super(`Request body exceeds ${limit} bytes`);
+    this.name = 'RequestBodyTooLargeError';
+    this.limit = limit;
+  }
+}
+
 export class MCPServer {
   private dotAI: DotAI;
   private initialized: boolean = false;
@@ -743,13 +777,39 @@ export class MCPServer {
               // Parse request body for POST requests
               let body: unknown = undefined;
               if (req.method === 'POST') {
-                body = await this.parseRequestBody(req);
+                // PRD #647 F1: cap the raw body for the untrusted ingest route
+                // only (default = today's uncapped behavior elsewhere) and map
+                // an oversize body to 413 (matches the mock server).
+                const maxBytes = this.isPromptsIngestRequest(req.url)
+                  ? INGEST_MAX_RAW_BODY_BYTES
+                  : undefined;
+                try {
+                  body = await this.parseRequestBody(req, maxBytes);
+                } catch (error) {
+                  if (error instanceof RequestBodyTooLargeError) {
+                    this.logger.warn('Request body too large', {
+                      url: sanitizeRequestUrlForLogging(req.url),
+                      limit: error.limit,
+                    });
+                    sendErrorResponse(
+                      res,
+                      413,
+                      'PAYLOAD_TOO_LARGE',
+                      error.message
+                    );
+                    endSpan(413);
+                    return;
+                  }
+                  throw error;
+                }
               }
 
               // Check if this is a REST API request
               if (this.restApiRouter.isApiRequest(req.url || '')) {
                 this.logger.debug('Routing to REST API handler', {
-                  url: req.url,
+                  // PRD #647 M5 (F2): scrub credential-bearing ?repo=/?source=
+                  // values before they reach the log (matches the REST handler).
+                  url: sanitizeRequestUrlForLogging(req.url),
                 });
                 // Mark span as REST API request
                 span.setAttribute('request.type', 'rest-api');
@@ -884,11 +944,54 @@ export class MCPServer {
     });
   }
 
-  private async parseRequestBody(req: IncomingMessage): Promise<unknown> {
+  /**
+   * Buffer and JSON-parse the request body.
+   *
+   * PRD #647 F1: when `maxBytes` is supplied (the untrusted ingest route), the
+   * body is rejected with RequestBodyTooLargeError as soon as the declared
+   * Content-Length OR the accumulated bytes exceed the ceiling — so an
+   * authenticated multi-GB POST can't buffer unbounded and OOM the shared
+   * process. When `maxBytes` is omitted (every other endpoint), behavior is
+   * exactly as before: no cap.
+   */
+  private async parseRequestBody(
+    req: IncomingMessage,
+    maxBytes?: number
+  ): Promise<unknown> {
     return new Promise((resolve, reject) => {
+      // Reject up front on a declared Content-Length over the cap, so we never
+      // start buffering a body we already know is too large.
+      if (maxBytes !== undefined) {
+        const declaredLen = parseInt(
+          (req.headers['content-length'] as string | undefined) || '0',
+          10
+        );
+        if (!Number.isNaN(declaredLen) && declaredLen > maxBytes) {
+          reject(new RequestBodyTooLargeError(maxBytes));
+          return;
+        }
+      }
+
       let body = '';
-      req.on('data', chunk => (body += chunk.toString()));
+      let received = 0;
+      let aborted = false;
+      req.on('data', chunk => {
+        if (aborted) return;
+        // Defense-in-depth: enforce the cap against actual bytes in case the
+        // Content-Length header is absent or lies.
+        if (maxBytes !== undefined) {
+          received += chunk.length;
+          if (received > maxBytes) {
+            aborted = true;
+            req.destroy();
+            reject(new RequestBodyTooLargeError(maxBytes));
+            return;
+          }
+        }
+        body += chunk.toString();
+      });
       req.on('end', () => {
+        if (aborted) return;
         try {
           resolve(body ? JSON.parse(body) : undefined);
         } catch (error) {
@@ -897,6 +1000,28 @@ export class MCPServer {
       });
       req.on('error', reject);
     });
+  }
+
+  /**
+   * PRD #647 F1: true only for the prompts source ingest endpoint, the one
+   * untrusted route the raw-body cap is scoped to. Parses the pathname so a
+   * query string can't bypass (or wrongly trip) the cap.
+   *
+   * PRD #647 C2 (CodeRabbit): the cap check runs BEFORE route dispatch, so a
+   * non-canonical pathname must be normalized here or it slips past the cap and
+   * buffers an uncapped body (DoS). A strict `===` let `POST /api/v1/prompts/
+   * sources/` (trailing slash) — the same ingest surface — skip `maxBytes`.
+   * Collapse trailing slashes (keeping a bare "/" intact) before comparing.
+   */
+  private isPromptsIngestRequest(url: string | undefined): boolean {
+    if (!url) return false;
+    try {
+      const pathname = new URL(url, 'http://internal.invalid').pathname;
+      const normalized = pathname.replace(/\/+$/, '') || '/';
+      return normalized === PROMPTS_INGEST_PATHNAME;
+    } catch {
+      return false;
+    }
   }
 
   async stop(): Promise<void> {
