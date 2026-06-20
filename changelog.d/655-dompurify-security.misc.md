@@ -1,1 +1,0 @@
-Pinned the transitive `dompurify` dependency to `^3.4.11` via an `overrides` entry to clear the moderate advisory GHSA-cmwh-pvxp-8882 (permanent `ALLOWED_ATTR` pollution via `setConfig()` bypassing the hook clone-guard; incomplete fix of the 3.4.7 patch). `npm audit` now reports no moderate-or-higher vulnerabilities.

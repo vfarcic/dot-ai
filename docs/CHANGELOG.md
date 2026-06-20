@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.23.0] - 2026-06-20
+
+### Features
+
+- Added server-side ingestion endpoint (`POST /api/v1/prompts/sources`) that accepts CLI-uploaded skill sources as a JSON manifest with base64-encoded file entries, stores them in an LRU cache with deduplication (M4), and serves them via `?source=<key>` on the existing prompt-render endpoint without requiring a Git clone. Includes D5 hardening: 512 KiB raw-body limit (413), zip-slip and null-byte path rejection (400), mode stripping, and atomic re-ingest. M5 secret scrubbing and `?repo=` render parity are also included, along with mock-server parity and documentation. Also added `GET /api/v1/prompts?source=<id>` to enumerate the prompts contained in an uploaded source (standard list schema, scrubbed identifier echo); an unknown or evicted source returns 400 with re-upload guidance and never triggers a clone. ([#647-prompts-source-ingestion-endpoint](https://github.com/vfarcic/dot-ai/issues/647-prompts-source-ingestion-endpoint))
+
+### Bug Fixes
+
+- A per-request prompts-repo override (`?repo=` / `body.repo`) whose source cannot be cloned — for example a missing or wrong forwarded `X-Dot-AI-Git-Token`, or an unreachable host — now fails with HTTP 502 (`PROMPTS_SOURCE_ERROR`) instead of silently falling back to built-in prompts with HTTP 200. The CLI surfaces this as an error rather than reporting success with fewer skills. Failures of the env-var-configured repo (`DOT_AI_USER_PROMPTS_REPO`) still fall back to built-in prompts as before, and the returned error message remains credential-scrubbed. ([#575-prompts-override-fail-open](https://github.com/vfarcic/dot-ai/issues/575-prompts-override-fail-open))
+
+### Other Changes
+
+- Updated dependencies to clear known security advisories. Bumped `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` to `0.219.0` (resolving the `@opentelemetry/core` and `protobufjs` advisories) and refreshed transitive packages (`form-data`, `hono`, `ws`, `vite`, `dompurify`, `js-yaml`) to patched versions. `npm audit` now reports no moderate-or-higher vulnerabilities. ([#648-dependency-security-updates](https://github.com/vfarcic/dot-ai/issues/648-dependency-security-updates))
+- Pinned the transitive `dompurify` dependency to `^3.4.11` via an `overrides` entry to clear the moderate advisory GHSA-cmwh-pvxp-8882 (permanent `ALLOWED_ATTR` pollution via `setConfig()` bypassing the hook clone-guard; incomplete fix of the 3.4.7 patch). `npm audit` now reports no moderate-or-higher vulnerabilities. ([#655-dompurify-security](https://github.com/vfarcic/dot-ai/issues/655-dompurify-security))
+- Pinned the transitive `undici` dependency to `^6.27.0` via an `overrides` entry to clear four newly-disclosed advisories: GHSA-p88m-4jfj-68fv (moderate, HTTP header injection via Set-Cookie percent-decoding), GHSA-vxpw-j846-p89q (high, WebSocket client DoS via fragment count bypass), GHSA-35p6-xmwp-9g52 (low, HTTP response queue poisoning via keep-alive socket reuse), and GHSA-g8m3-5g58-fq7m (low, Set-Cookie SameSite downgrade). `npm audit` now reports no moderate-or-higher vulnerabilities. ([#655-undici-security](https://github.com/vfarcic/dot-ai/issues/655-undici-security))
+
+
 ## [1.22.0] - 2026-06-13
 
 ### Features
