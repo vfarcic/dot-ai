@@ -475,8 +475,6 @@ Typically each source is wired up as its own agent hook, so the CLI re-fetches a
 
 **Safety:** uploads are size/count-capped (max 512 KiB raw request body → `413`; max 100 files and max 256 KiB total decoded payload → `400`) and reject path traversal and null-byte paths; credential-bearing git-URL identifiers are scrubbed in every echo, error, and log. See the [REST API reference](../api/rest-api.md#ingested-cli-uploaded-skill-sources) for the full wire format, limits, and error envelopes.
 
-> **Additive — unchanged by default.** This endpoint is opt-in: deployments and users that never upload a source see zero change, a plain `?repo=` request behaves exactly as before, and no new configuration is required.
-
 ## Troubleshooting
 
 ### Common Issues
