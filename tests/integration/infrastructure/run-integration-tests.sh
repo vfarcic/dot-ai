@@ -705,6 +705,90 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 RBAC_ADMIN_EOF
 
+# ---------------------------------------------------------------------------
+# Migration seed (PRD #375): seed a legacy `patterns` collection and trigger the
+# server's startup auto-migration so the migration integration test actually
+# runs (otherwise it skips when MIGRATION_SEED_ID/MARKER are unset).
+#
+# Why seed-then-restart instead of seed-before-deploy: the seed vector must come
+# from the *same* embedding provider the server uses (knowledge search is
+# dense-vector only), and the CI default provider — the in-cluster local
+# embeddings (TEI) service — only exists *after* the Helm deploy. So we deploy,
+# seed via the now-reachable embeddings endpoint, then restart the server to run
+# the one-shot startup migration (src/core/knowledge-migration.ts).
+#
+# Disable with SKIP_MIGRATION_SEED=true (the test then skips, which is safe).
+# ---------------------------------------------------------------------------
+if [[ "${SKIP_MIGRATION_SEED}" != "true" ]]; then
+    log_info "Seeding legacy patterns collection for migration test (PRD #375)..."
+
+    MIGRATION_SEED_ID="$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)"
+    MIGRATION_SEED_MARKER="MIGSEED-$(date +%s)"
+
+    # Port-forward Qdrant so the seeder can write the legacy collection.
+    kubectl port-forward -n dot-ai svc/qdrant 6333:6333 >/tmp/migseed-qdrant-pf.log 2>&1 &
+    MIGSEED_QDRANT_PF_PID=$!
+
+    # Resolve the active embeddings endpoint (must match the server's space).
+    MIGSEED_EMBED_PF_PID=""
+    if [[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]]; then
+        # In-cluster TEI exposes an OpenAI-compatible endpoint at /v1; keyless.
+        kubectl port-forward -n dot-ai svc/dot-ai-local-embeddings 8081:80 >/tmp/migseed-embed-pf.log 2>&1 &
+        MIGSEED_EMBED_PF_PID=$!
+        SEED_EMBEDDINGS_URL="http://localhost:8081/v1"
+        SEED_EMBEDDINGS_MODEL="sentence-transformers/all-MiniLM-L6-v2"
+        SEED_EMBEDDINGS_API_KEY=""
+    else
+        # OpenAI is the default cloud embeddings provider for local dev runs.
+        SEED_EMBEDDINGS_URL="https://api.openai.com/v1"
+        SEED_EMBEDDINGS_MODEL="text-embedding-3-small"
+        SEED_EMBEDDINGS_API_KEY="${OPENAI_API_KEY}"
+    fi
+
+    sleep 3  # allow port-forwards to establish
+
+    MIGSEED_OK=false
+    if QDRANT_URL="http://localhost:6333" \
+       EMBEDDINGS_URL="${SEED_EMBEDDINGS_URL}" \
+       EMBEDDINGS_MODEL="${SEED_EMBEDDINGS_MODEL}" \
+       EMBEDDINGS_API_KEY="${SEED_EMBEDDINGS_API_KEY}" \
+       MIGRATION_SEED_ID="${MIGRATION_SEED_ID}" \
+       MIGRATION_SEED_MARKER="${MIGRATION_SEED_MARKER}" \
+       node "${SCRIPT_DIR}/seed-legacy-patterns.mjs"; then
+        log_info "Seed complete (id=${MIGRATION_SEED_ID}). Restarting server to trigger migration..."
+        kubectl rollout restart deployment/dot-ai -n dot-ai
+        kubectl rollout status deployment/dot-ai -n dot-ai --timeout=180s
+
+        # Re-wait for the server + plugin to be reachable after the restart.
+        MIGSEED_WAITED=0
+        while [ $MIGSEED_WAITED -lt 120 ]; do
+            PLUGIN_COUNT=$(curl -sf "${MCP_URL}/api/v1/tools/version" -X POST \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ${TEST_AUTH_TOKEN}" \
+                -d '{}' 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(j?.data?.result?.system?.plugins?.pluginCount||0)}catch{console.log(0)}})" 2>/dev/null || echo "0")
+            if [ "$PLUGIN_COUNT" -ge 1 ] 2>/dev/null; then
+                log_info "Server ready after restart (migration executed)."
+                MIGSEED_OK=true
+                break
+            fi
+            sleep 3
+            MIGSEED_WAITED=$((MIGSEED_WAITED + 3))
+        done
+        [[ "${MIGSEED_OK}" == "true" ]] || log_error "Server did not recover after migration restart"
+    else
+        log_error "Migration seed failed — migration test will be skipped"
+    fi
+
+    kill "${MIGSEED_QDRANT_PF_PID}" 2>/dev/null || true
+    [[ -n "${MIGSEED_EMBED_PF_PID}" ]] && kill "${MIGSEED_EMBED_PF_PID}" 2>/dev/null || true
+
+    if [[ "${MIGSEED_OK}" == "true" ]]; then
+        export MIGRATION_SEED_ID MIGRATION_SEED_MARKER
+    fi
+else
+    log_warn "Skipping migration seed (SKIP_MIGRATION_SEED=true) — migration test will skip"
+fi
+
 # Step 5: Run integration tests
 log_info "Running integration tests (RBAC_ENABLED=${RBAC_ENABLED})..."
 npx vitest run --config=vitest.integration.config.ts --test-timeout=1200000 "${TEST_ARGS[@]}"
