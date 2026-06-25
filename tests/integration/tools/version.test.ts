@@ -84,13 +84,9 @@ describe.concurrent('Version Tool Integration', () => {
               vectorDB: {
                 connected: true,
                 url: expect.stringContaining('qdrant'), // Service DNS in-cluster
+                // PRD #375: legacy patterns/policies collection blocks removed;
+                // unified knowledge base reports knowledgeBase instead.
                 collections: {
-                  patterns: expect.objectContaining({
-                    exists: true,
-                  }),
-                  policies: expect.objectContaining({
-                    exists: true,
-                  }),
                   capabilities: expect.objectContaining({
                     exists: true,
                   }),
@@ -170,15 +166,15 @@ describe.concurrent('Version Tool Integration', () => {
             },
             summary: {
               overall: 'healthy', // Specific - test environment should be healthy
-              patternSearch: expect.stringMatching(
-                /^(semantic\+keyword|keyword|semantic)$/
-              ), // Pattern - search capabilities
+              // PRD #375: patternSearch renamed to knowledgeSearch. Embedding
+              // service is available in the test environment, so semantic+keyword.
+              knowledgeSearch: 'semantic+keyword',
               capabilityScanning: 'ready', // Specific - capability scanning should be ready
               kubernetesAccess: 'connected', // Specific - should match kubernetes.connected
-              policyIntentManagement: 'ready', // Specific - policy intent management should be ready (available without Kyverno)
+              // PRD #375: policyIntentManagement summary field removed.
               kyvernoPolicyGeneration: 'ready', // Specific - Kyverno policy generation should be ready (requires Kyverno)
               capabilities: expect.arrayContaining([
-                'policy-intent-management', // Available with Vector DB and embedding service
+                'knowledge-base-search', // PRD #375: replaces pattern/policy-intent management; available with Vector DB and embedding service
                 'capability-scanning',
                 'semantic-search',
                 'ai-recommendations',
