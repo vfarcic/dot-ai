@@ -15,6 +15,7 @@
 
 import { Logger } from './error-handling';
 import { invokePluginTool, isPluginInitialized } from './plugin-registry';
+import { createHash } from 'crypto';
 
 const PLUGIN_NAME = 'agentic-tools';
 
@@ -31,6 +32,94 @@ interface VectorDocument {
   id: string;
   payload: Record<string, unknown>;
   vector?: number[];
+}
+
+function toStringValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+function buildLegacyContent(payload: Record<string, unknown>, legacyName: string): string {
+  const description = toStringValue(payload.description);
+  const triggers = toStringArray(payload.triggers);
+  const rationale = toStringValue(payload.rationale);
+
+  const lines: string[] = [];
+  if (description) {
+    lines.push(description);
+  }
+  if (triggers.length > 0) {
+    lines.push(`Triggers: ${triggers.join(', ')}`);
+  }
+
+  if (legacyName === 'patterns') {
+    const suggestedResources = toStringArray(payload.suggestedResources);
+    if (suggestedResources.length > 0) {
+      lines.push(`Suggested resources: ${suggestedResources.join(', ')}`);
+    }
+  }
+
+  if (legacyName === 'policies') {
+    const deployedPolicies = Array.isArray(payload.deployedPolicies)
+      ? payload.deployedPolicies
+          .map(item => {
+            if (typeof item === 'string') {
+              return item;
+            }
+            if (item && typeof item === 'object' && 'name' in item) {
+              const name = (item as { name?: unknown }).name;
+              return typeof name === 'string' ? name : '';
+            }
+            return '';
+          })
+          .filter(Boolean)
+      : [];
+
+    if (deployedPolicies.length > 0) {
+      lines.push(`Deployed policies: ${deployedPolicies.join(', ')}`);
+    }
+  }
+
+  if (rationale) {
+    lines.push(`Rationale: ${rationale}`);
+  }
+
+  if (lines.length === 0) {
+    return JSON.stringify(payload);
+  }
+
+  return lines.join('\n\n');
+}
+
+function buildMigratedPayload(
+  doc: VectorDocument,
+  legacyName: string,
+  tags: string[]
+): Record<string, unknown> {
+  const content = buildLegacyContent(doc.payload, legacyName);
+  const ingestedAt = new Date().toISOString();
+
+  return {
+    content,
+    uri: `legacy://${legacyName}/${doc.id}`,
+    metadata: {
+      migratedFrom: legacyName,
+      originalId: doc.id,
+      originalPayload: doc.payload,
+    },
+    checksum: createHash('sha256').update(content).digest('hex'),
+    ingestedAt,
+    chunkIndex: 0,
+    totalChunks: 1,
+    tags,
+    extractedPolicyIds: [],
+  };
 }
 
 /**
@@ -68,11 +157,15 @@ async function collectionExists(name: string): Promise<boolean> {
 }
 
 /**
- * List all documents in a collection (no vectors needed — we re-embed
- * from the stored text payload).
+ * List all documents in a collection, including vectors so migration can
+ * reuse existing embeddings without per-document lookups.
  */
 async function listAll(collection: string): Promise<VectorDocument[]> {
-  return pluginCall<VectorDocument[]>('vector_list', { collection, limit: 100_000 });
+  return pluginCall<VectorDocument[]>('vector_list', {
+    collection,
+    limit: 100_000,
+    includeVector: true,
+  });
 }
 
 /**
@@ -100,18 +193,32 @@ async function migrateLegacyCollection(
 
   logger.info(`[migration] Migrating ${documents.length} point(s) from '${legacyName}'`);
 
+  // vector_store does not auto-create the target collection. At server startup
+  // the unified knowledge-base collection may not exist yet (no ingest has run),
+  // so initialize it before storing. Legacy embeddings were produced by the same
+  // embedding model, so their dimensionality is the correct vector size.
+  const vectorSize = documents.find(
+    (d) => Array.isArray(d.vector) && d.vector.length > 0
+  )?.vector?.length;
+  if (!vectorSize) {
+    logger.warn(
+      `[migration] No documents in '${legacyName}' have embeddings — skipping migration (legacy collection preserved)`
+    );
+    return;
+  }
+  await pluginCall('collection_initialize', {
+    collection: KNOWLEDGE_COLLECTION,
+    vectorSize,
+    createTextIndex: true,
+  });
+
   let successCount = 0;
   let failCount = 0;
 
   for (const doc of documents) {
     try {
-      // Preserve the original payload and overlay the tags field.
-      const mergedPayload = {
-        ...doc.payload,
-        tags,
-        // Record migration origin for auditability
-        migratedFrom: legacyName,
-      };
+      // Convert legacy pattern/policy payloads into canonical knowledge chunk payload shape.
+      const mergedPayload = buildMigratedPayload(doc, legacyName, tags);
 
       // vector_store requires a pre-computed embedding vector.
       // Legacy documents were stored with embeddings — reuse the stored vector.
@@ -125,7 +232,7 @@ async function migrateLegacyCollection(
       await pluginCall('vector_store', {
         collection: KNOWLEDGE_COLLECTION,
         id: doc.id,
-        vector: doc.vector,
+        embedding: doc.vector,
         payload: mergedPayload,
       });
       successCount++;

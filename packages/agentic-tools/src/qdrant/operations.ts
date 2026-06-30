@@ -203,6 +203,7 @@ export async function list(
 ): Promise<VectorDocument[]> {
   const client = getQdrantClient();
   const limit = options.limit ?? 10000;
+  const includeVector = options.includeVector ?? false;
 
   // Check if collection exists first
   const collections = await client.getCollections();
@@ -219,13 +220,14 @@ export async function list(
   const scrollResult = await client.scroll(collection, {
     limit,
     with_payload: true,
-    with_vector: false,
+    with_vector: includeVector,
     ...(options.filter && { filter: options.filter }),
   });
 
   return scrollResult.points.map(point => ({
     id: point.id.toString(),
     payload: (point.payload as Record<string, unknown>) || {},
+    ...(includeVector && { vector: point.vector as number[] | undefined }),
   }));
 }
 

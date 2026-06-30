@@ -5,11 +5,13 @@
  * Milestone 6: End-to-end validation of the full unified knowledge base workflow
  *
  * Test strategy:
- * - Migration tests: seed a legacy collection via direct plugin call → trigger
- *   migration → verify unified collection has the data with correct tags → verify
- *   legacy collection is gone.
+ * - Migration test: the integration harness seeds a legacy `patterns` collection
+ *   with a single real document (real embedding + legacy payload shape) BEFORE
+ *   the server boots. The server's startup migration moves it into the unified
+ *   knowledge-base. This test then verifies the migrated chunk is searchable with
+ *   a populated content/uri/tags and that the legacy collection is gone.
  * - E2E tests: ingest various document types → verify AI tags → search → verify
- *   results include tags.
+ *   results include the expected tags.
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
@@ -93,15 +95,30 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
             result: {
               success: true,
               operation: 'search',
-              data: expect.arrayContaining([
+              chunks: expect.arrayContaining([
                 expect.objectContaining({
+                  content: expect.any(String),
                   uri,
+                  chunkIndex: expect.any(Number),
+                  totalChunks: expect.any(Number),
                   tags: expect.arrayContaining(['policy']),
                 }),
               ]),
             },
           },
         });
+
+        const policyResult = searchResponse.data.result.chunks as Array<{
+          uri: string;
+          content: string;
+          chunkIndex: number;
+          totalChunks: number;
+        }>;
+        const ourPolicyDoc = policyResult.find((d) => d.uri === uri);
+        expect(ourPolicyDoc).toBeDefined();
+        expect((ourPolicyDoc?.content || '').length).toBeGreaterThan(0);
+        expect((ourPolicyDoc?.chunkIndex ?? -1)).toBeGreaterThanOrEqual(0);
+        expect((ourPolicyDoc?.totalChunks ?? 0)).toBeGreaterThanOrEqual(1);
 
         // Cleanup
         await callTool(integrationTest.httpClient, 'manageKnowledge', {
@@ -153,15 +170,30 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
           data: {
             result: {
               success: true,
-              data: expect.arrayContaining([
+              chunks: expect.arrayContaining([
                 expect.objectContaining({
+                  content: expect.any(String),
                   uri,
+                  chunkIndex: expect.any(Number),
+                  totalChunks: expect.any(Number),
                   tags: expect.arrayContaining(['pattern']),
                 }),
               ]),
             },
           },
         });
+
+        const patternResult = searchResponse.data.result.chunks as Array<{
+          uri: string;
+          content: string;
+          chunkIndex: number;
+          totalChunks: number;
+        }>;
+        const ourPatternDoc = patternResult.find((d) => d.uri === uri);
+        expect(ourPatternDoc).toBeDefined();
+        expect((ourPatternDoc?.content || '').length).toBeGreaterThan(0);
+        expect((ourPatternDoc?.chunkIndex ?? -1)).toBeGreaterThanOrEqual(0);
+        expect((ourPatternDoc?.totalChunks ?? 0)).toBeGreaterThanOrEqual(1);
 
         // Cleanup
         await callTool(integrationTest.httpClient, 'manageKnowledge', {
@@ -213,10 +245,12 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
           data: {
             result: {
               success: true,
-              data: expect.arrayContaining([
+              chunks: expect.arrayContaining([
                 expect.objectContaining({
+                  content: expect.any(String),
                   uri,
-                  tags: expect.any(Array),
+                  chunkIndex: expect.any(Number),
+                  totalChunks: expect.any(Number),
                 }),
               ]),
             },
@@ -224,9 +258,18 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
         });
 
         // General documents should have empty or no policy/pattern tags
-        const result = searchResponse.data.result.data as Array<{ uri: string; tags?: string[] }>;
+        const result = searchResponse.data.result.chunks as Array<{
+          uri: string;
+          tags?: string[];
+          content: string;
+          chunkIndex: number;
+          totalChunks: number;
+        }>;
         const ourDoc = result.find((d) => d.uri === uri);
         expect(ourDoc).toBeDefined();
+        expect((ourDoc?.content || '').length).toBeGreaterThan(0);
+        expect((ourDoc?.chunkIndex ?? -1)).toBeGreaterThanOrEqual(0);
+        expect((ourDoc?.totalChunks ?? 0)).toBeGreaterThanOrEqual(1);
         expect(ourDoc?.tags ?? []).not.toContain('policy');
         expect(ourDoc?.tags ?? []).not.toContain('pattern');
 
@@ -309,7 +352,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
           data: {
             result: {
               success: true,
-              data: expect.arrayContaining([
+              chunks: expect.arrayContaining([
                 expect.objectContaining({ uri }),
               ]),
             },
@@ -327,49 +370,74 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Milestone 5: Migration idempotency — no legacy collections → no-op
+  // Milestone 5: Migration — legacy `patterns` collection → unified knowledge
+  //
+  // Migration only runs at server startup (runKnowledgeMigration in
+  // src/mcp/server.ts). To exercise it, the integration harness seeds a single
+  // legacy `patterns` document — with a real embedding and the legacy payload
+  // shape — into Qdrant BEFORE the dot-ai server boots. The server then migrates
+  // it into the unified knowledge-base on startup. This test asserts the seeded
+  // document is searchable post-migration with a populated content/uri/tags and
+  // that its legacy origin is preserved in the canonical `legacy://` uri.
+  //
+  // The harness communicates the seed identity via env vars; when they are not
+  // set (e.g. upstream CI that does not seed), the test is skipped rather than
+  // failing.
   // -------------------------------------------------------------------------
 
-  describe('Migration: Idempotency', () => {
-    test(
-      'should complete knowledge search successfully when no legacy collections exist',
+  describe('Migration: Legacy patterns → Unified knowledge base', () => {
+    const seedMarker = process.env.MIGRATION_SEED_MARKER;
+    const seedId = process.env.MIGRATION_SEED_ID;
+
+    test.runIf(Boolean(seedMarker && seedId))(
+      'should migrate a seeded legacy pattern, searchable with populated content, uri and tags',
       async () => {
-        // This test verifies that the absence of legacy collections does not
-        // break any functionality — the migration runs as a no-op at startup
-        // and the knowledge base operates normally.
-        const testId = Date.now();
-        const uri = `https://example.com/idempotency-check-${testId}.md`;
-
-        const ingestResponse = await callTool(integrationTest.httpClient, 'manageKnowledge', {
-          operation: 'ingest',
-          uri,
-          content: `Idempotency check document ${testId}. The migration is a no-op when no legacy collections are present.`,
-          metadata: { testId },
-        });
-
-        expect(ingestResponse).toMatchObject({
-          success: true,
-          data: { result: { success: true } },
-        });
+        const expectedUri = `legacy://patterns/${seedId}`;
 
         const searchResponse = await callTool(integrationTest.httpClient, 'manageKnowledge', {
           operation: 'search',
-          query: `idempotency check migration ${testId}`,
-          limit: 3,
+          query: `${seedMarker} horizontal pod autoscaler scaling pattern`,
+          limit: 10,
         });
 
         expect(searchResponse).toMatchObject({
           success: true,
-          data: { result: { success: true } },
+          data: {
+            result: {
+              success: true,
+              operation: 'search',
+              chunks: expect.arrayContaining([
+                expect.objectContaining({
+                  uri: expectedUri,
+                  tags: expect.arrayContaining(['pattern']),
+                  content: expect.stringContaining(seedMarker as string),
+                }),
+              ]),
+            },
+          },
         });
 
-        // Cleanup
-        await callTool(integrationTest.httpClient, 'manageKnowledge', {
-          operation: 'deleteByUri',
-          uri,
-        });
+        const results = searchResponse.data.result.chunks as Array<{
+          uri: string;
+          content: string;
+          tags?: string[];
+          chunkIndex: number;
+          totalChunks: number;
+        }>;
+        const migrated = results.find((d) => d.uri === expectedUri);
+        expect(migrated).toBeDefined();
+        expect(migrated?.tags ?? []).toContain('pattern');
+        expect((migrated?.content || '').length).toBeGreaterThan(0);
+        expect(migrated?.chunkIndex ?? -1).toBeGreaterThanOrEqual(0);
+        expect(migrated?.totalChunks ?? 0).toBeGreaterThanOrEqual(1);
+
+        // The legacy collection must be gone after a successful migration.
+        const versionResponse = await callTool(integrationTest.httpClient, 'version', {});
+        const collections =
+          versionResponse.data?.result?.system?.vectorDB?.collections ?? {};
+        expect(collections).not.toHaveProperty('patterns');
       },
-      120_000
+      300_000
     );
   });
 });

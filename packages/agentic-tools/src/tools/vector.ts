@@ -330,6 +330,10 @@ export const vectorList: QdrantTool = {
           type: 'object',
           description: 'Optional Qdrant filter to narrow results',
         },
+        includeVector: {
+          type: 'boolean',
+          description: 'Include vector embeddings in listed documents (default: false)',
+        },
       },
       required: ['collection'],
     },
@@ -346,9 +350,14 @@ export const vectorList: QdrantTool = {
       'filter',
       undefined
     );
+    const includeVector = optionalQdrantParam<boolean>(
+      args,
+      'includeVector',
+      false
+    );
 
     try {
-      const documents = await list(collection, { limit, filter });
+      const documents = await list(collection, { limit, filter, includeVector });
       return qdrantSuccessResult(
         documents,
         `Listed ${documents.length} documents from '${collection}'`
