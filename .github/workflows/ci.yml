@@ -111,6 +111,9 @@ jobs:
             tests: operate manage-org-data-patterns manage-knowledge auth rbac
           - name: base-group-2
             tests: resource-sync openapi plugin project-setup prompts
+          # Isolated in its own group because its migration seed step recreates and then deletes the legacy `patterns` collection.
+          - name: unified-knowledge-base
+            tests: unified-knowledge-base
 
     steps:
     - name: Checkout code

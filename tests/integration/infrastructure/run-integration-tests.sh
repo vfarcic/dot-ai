@@ -26,6 +26,23 @@ if [[ ${#TEST_ARGS[@]} -gt 0 ]]; then
     done
 fi
 
+# Decide whether to seed the legacy `patterns` collection (and restart the
+# server to migrate it). Seed only when the unified-knowledge-base migration
+# test is actually selected, because the seed step deletes the legacy
+# `patterns` collection and would disturb the pattern/knowledge tests in other
+# groups. With no filter (full local run) the migration test is included, so
+# seed then too. SKIP_MIGRATION_SEED=true forces it off regardless.
+RUN_MIGRATION_SEED=false
+if [[ "${SKIP_MIGRATION_SEED}" != "true" ]]; then
+    if [[ ${#TEST_ARGS[@]} -eq 0 ]]; then
+        RUN_MIGRATION_SEED=true
+    else
+        for arg in "${TEST_ARGS[@]}"; do
+            [[ "$arg" == *unified-knowledge-base* ]] && RUN_MIGRATION_SEED=true
+        done
+    fi
+fi
+
 # Configuration
 TEST_AUTH_TOKEN="test-auth-token-integration"
 RBAC_ENABLED="${RBAC_ENABLED:-true}"
@@ -719,7 +736,7 @@ RBAC_ADMIN_EOF
 #
 # Disable with SKIP_MIGRATION_SEED=true (the test then skips, which is safe).
 # ---------------------------------------------------------------------------
-if [[ "${SKIP_MIGRATION_SEED}" != "true" ]]; then
+if [[ "${RUN_MIGRATION_SEED}" == "true" ]]; then
     log_info "Seeding legacy patterns collection for migration test (PRD #375)..."
 
     MIGRATION_SEED_ID="$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)"
@@ -786,7 +803,7 @@ if [[ "${SKIP_MIGRATION_SEED}" != "true" ]]; then
         export MIGRATION_SEED_ID MIGRATION_SEED_MARKER
     fi
 else
-    log_warn "Skipping migration seed (SKIP_MIGRATION_SEED=true) — migration test will skip"
+    log_warn "Skipping migration seed (not selected, or SKIP_MIGRATION_SEED=true) — migration test will skip"
 fi
 
 # Step 5: Run integration tests
