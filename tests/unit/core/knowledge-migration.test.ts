@@ -147,6 +147,13 @@ describe('runKnowledgeMigration', () => {
 
     expect(captured).toHaveLength(1);
 
+    expect(captured[0]).toMatchObject({
+      collection: 'knowledge-base',
+      id: 'pattern-abc',
+      embedding: FAKE_VECTOR,
+    });
+    expect(captured[0]).not.toHaveProperty('vector');
+
     const { payload } = captured[0] as { payload: Record<string, unknown> };
 
     // --- mandatory chunk fields ---
