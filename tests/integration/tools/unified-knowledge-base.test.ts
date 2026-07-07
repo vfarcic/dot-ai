@@ -389,9 +389,23 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
     const seedMarker = process.env.MIGRATION_SEED_MARKER;
     const seedId = process.env.MIGRATION_SEED_ID;
 
-    test.runIf(Boolean(seedMarker && seedId))(
+    const seedRequired = process.env.RUN_MIGRATION_SEED === 'true';
+    const migrationTest = seedRequired
+      ? test
+      : test.runIf(Boolean(seedMarker && seedId));
+
+    migrationTest(
       'should migrate a seeded legacy pattern, searchable with populated content, uri and tags',
       async () => {
+        expect(
+          seedId,
+          'MIGRATION_SEED_ID must be set when the migration test is required'
+        ).toBeTruthy();
+        expect(
+          seedMarker,
+          'MIGRATION_SEED_MARKER must be set when the migration test is required'
+        ).toBeTruthy();
+
         const expectedUri = `legacy://patterns/${seedId}`;
 
         const searchResponse = await callTool(integrationTest.httpClient, 'manageKnowledge', {

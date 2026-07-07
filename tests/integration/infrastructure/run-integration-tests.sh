@@ -739,6 +739,11 @@ RBAC_ADMIN_EOF
 if [[ "${RUN_MIGRATION_SEED}" == "true" ]]; then
     log_info "Seeding legacy patterns collection for migration test (PRD #375)..."
 
+    # The migration test is required for this run: export the decision so the
+    # test hard-fails (rather than skips) if the seed identity is somehow
+    # missing.
+    export RUN_MIGRATION_SEED
+
     MIGRATION_SEED_ID="$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)"
     MIGRATION_SEED_MARKER="MIGSEED-$(date +%s)"
 
@@ -793,15 +798,18 @@ if [[ "${RUN_MIGRATION_SEED}" == "true" ]]; then
         done
         [[ "${MIGSEED_OK}" == "true" ]] || log_error "Server did not recover after migration restart"
     else
-        log_error "Migration seed failed — migration test will be skipped"
+        log_error "Migration seed failed"
     fi
 
+    # Tear down the seeding port-forwards regardless of outcome.
     kill "${MIGSEED_QDRANT_PF_PID}" 2>/dev/null || true
     [[ -n "${MIGSEED_EMBED_PF_PID}" ]] && kill "${MIGSEED_EMBED_PF_PID}" 2>/dev/null || true
 
-    if [[ "${MIGSEED_OK}" == "true" ]]; then
-        export MIGRATION_SEED_ID MIGRATION_SEED_MARKER
+    if [[ "${MIGSEED_OK}" != "true" ]]; then
+        log_error "Migration seed/restart failed for the explicitly selected migration test — failing the job"
+        exit 1
     fi
+    export MIGRATION_SEED_ID MIGRATION_SEED_MARKER
 else
     log_warn "Skipping migration seed (not selected, or SKIP_MIGRATION_SEED=true) — migration test will skip"
 fi
