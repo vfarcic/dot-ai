@@ -74,18 +74,18 @@ describe('Prompts Integration', () => {
           name: 'prdNumber',
           description:
             'PRD number to implement (e.g., 306). Required — no auto-detection.',
-          required: true,
+          required: false,
         },
         {
           name: 'mode',
           description:
             "Isolation strategy for this PRD's work. Must be `branch` or `worktree`. Pre-answers the branch-vs-worktree decision in `/prd-start`.",
-          required: true,
+          required: false,
         },
       ],
-      // prd-full has required arguments — the Prompts Get test must supply
-      // them or the server returns success: false.
-      testArgs: { prdNumber: '306', mode: 'branch' },
+      // prd-full args are required: false so the body renders statically for
+      // skill generation (placeholders remain); the prompt body enforces them
+      // at runtime. See the no-argument regression test below (issue #681).
     },
     {
       name: 'prd-next',
