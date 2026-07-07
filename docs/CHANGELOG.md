@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.23.1] - 2026-07-07
+
+### Bug Fixes
+
+- Generating skills from the `prd-full` prompt now produces a complete `SKILL.md` with its full instruction body. Previously its `prdNumber` and `mode` arguments were marked `required: true`, so static skill generation (which calls `prompts/get` with no arguments) failed with `400 Missing required arguments` and wrote a metadata-only, body-less skill. Both arguments are now `required: false` — the prompt body still enforces them at invocation time — matching sibling prompts like `prd-start`. ([#681-prd-full-skill-body](https://github.com/vfarcic/dot-ai/issues/681-prd-full-skill-body))
+
+
 ## [1.23.0] - 2026-06-20
 
 ### Features
