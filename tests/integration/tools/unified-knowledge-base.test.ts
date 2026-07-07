@@ -29,6 +29,14 @@ async function callTool(
   return client.post(`/api/v1/tools/${tool}`, params);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function atLeast(min: number): any {
+  return {
+    asymmetricMatch: (actual: unknown) => typeof actual === 'number' && actual >= min,
+    toString: () => `atLeast(${min})`,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Suite
 // ---------------------------------------------------------------------------
@@ -97,28 +105,16 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
               operation: 'search',
               chunks: expect.arrayContaining([
                 expect.objectContaining({
-                  content: expect.any(String),
+                  content: expect.stringMatching(/[\s\S]/),
                   uri,
-                  chunkIndex: expect.any(Number),
-                  totalChunks: expect.any(Number),
+                  chunkIndex: atLeast(0),
+                  totalChunks: atLeast(1),
                   tags: expect.arrayContaining(['policy']),
                 }),
               ]),
             },
           },
         });
-
-        const policyResult = searchResponse.data.result.chunks as Array<{
-          uri: string;
-          content: string;
-          chunkIndex: number;
-          totalChunks: number;
-        }>;
-        const ourPolicyDoc = policyResult.find((d) => d.uri === uri);
-        expect(ourPolicyDoc).toBeDefined();
-        expect((ourPolicyDoc?.content || '').length).toBeGreaterThan(0);
-        expect((ourPolicyDoc?.chunkIndex ?? -1)).toBeGreaterThanOrEqual(0);
-        expect((ourPolicyDoc?.totalChunks ?? 0)).toBeGreaterThanOrEqual(1);
 
         // Cleanup
         await callTool(integrationTest.httpClient, 'manageKnowledge', {
@@ -172,28 +168,16 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
               success: true,
               chunks: expect.arrayContaining([
                 expect.objectContaining({
-                  content: expect.any(String),
+                  content: expect.stringMatching(/[\s\S]/),
                   uri,
-                  chunkIndex: expect.any(Number),
-                  totalChunks: expect.any(Number),
+                  chunkIndex: atLeast(0),
+                  totalChunks: atLeast(1),
                   tags: expect.arrayContaining(['pattern']),
                 }),
               ]),
             },
           },
         });
-
-        const patternResult = searchResponse.data.result.chunks as Array<{
-          uri: string;
-          content: string;
-          chunkIndex: number;
-          totalChunks: number;
-        }>;
-        const ourPatternDoc = patternResult.find((d) => d.uri === uri);
-        expect(ourPatternDoc).toBeDefined();
-        expect((ourPatternDoc?.content || '').length).toBeGreaterThan(0);
-        expect((ourPatternDoc?.chunkIndex ?? -1)).toBeGreaterThanOrEqual(0);
-        expect((ourPatternDoc?.totalChunks ?? 0)).toBeGreaterThanOrEqual(1);
 
         // Cleanup
         await callTool(integrationTest.httpClient, 'manageKnowledge', {
@@ -247,29 +231,19 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
               success: true,
               chunks: expect.arrayContaining([
                 expect.objectContaining({
-                  content: expect.any(String),
+                  content: expect.stringMatching(/[\s\S]/),
                   uri,
-                  chunkIndex: expect.any(Number),
-                  totalChunks: expect.any(Number),
+                  chunkIndex: atLeast(0),
+                  totalChunks: atLeast(1),
                 }),
               ]),
             },
           },
         });
 
-        // General documents should have empty or no policy/pattern tags
-        const result = searchResponse.data.result.chunks as Array<{
-          uri: string;
-          tags?: string[];
-          content: string;
-          chunkIndex: number;
-          totalChunks: number;
-        }>;
-        const ourDoc = result.find((d) => d.uri === uri);
-        expect(ourDoc).toBeDefined();
-        expect((ourDoc?.content || '').length).toBeGreaterThan(0);
-        expect((ourDoc?.chunkIndex ?? -1)).toBeGreaterThanOrEqual(0);
-        expect((ourDoc?.totalChunks ?? 0)).toBeGreaterThanOrEqual(1);
+        // General documents should have neither the policy nor pattern tag.
+        const ourDoc = (searchResponse.data.result.chunks as Array<{ uri: string; tags?: string[] }>)
+          .find((d) => d.uri === uri);
         expect(ourDoc?.tags ?? []).not.toContain('policy');
         expect(ourDoc?.tags ?? []).not.toContain('pattern');
 
@@ -425,25 +399,13 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
                   uri: expectedUri,
                   tags: expect.arrayContaining(['pattern']),
                   content: expect.stringContaining(seedMarker as string),
+                  chunkIndex: atLeast(0),
+                  totalChunks: atLeast(1),
                 }),
               ]),
             },
           },
         });
-
-        const results = searchResponse.data.result.chunks as Array<{
-          uri: string;
-          content: string;
-          tags?: string[];
-          chunkIndex: number;
-          totalChunks: number;
-        }>;
-        const migrated = results.find((d) => d.uri === expectedUri);
-        expect(migrated).toBeDefined();
-        expect(migrated?.tags ?? []).toContain('pattern');
-        expect((migrated?.content || '').length).toBeGreaterThan(0);
-        expect(migrated?.chunkIndex ?? -1).toBeGreaterThanOrEqual(0);
-        expect(migrated?.totalChunks ?? 0).toBeGreaterThanOrEqual(1);
 
         // The legacy collection must be gone after a successful migration.
         const versionResponse = await callTool(integrationTest.httpClient, 'version', {});
