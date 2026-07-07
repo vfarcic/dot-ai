@@ -18,7 +18,7 @@ vi.mock('../../../src/core/plugin-registry', () => ({
   invokePluginTool: vi.fn(),
 }));
 
-import { runKnowledgeMigration } from '../../../src/core/knowledge-migration.js';
+import { runKnowledgeMigration, LEGACY_LIST_CAP } from '../../../src/core/knowledge-migration.js';
 import { isPluginInitialized, invokePluginTool } from '../../../src/core/plugin-registry.js';
 import type { Logger } from '../../../src/core/error-handling.js';
 
@@ -360,5 +360,95 @@ describe('runKnowledgeMigration', () => {
     await runKnowledgeMigration(makeLogger());
 
     expect(deletedCollections).toContain('patterns');
+  });
+
+  test('preserves the legacy collection when the list reaches the cap (possible truncation)', async () => {
+    // A full page (>= cap) means the listing may be truncated. Migration must
+    // NOT delete the source, or the unread remainder would be lost.
+    const doc = {
+      id: 'd1',
+      vector: FAKE_VECTOR,
+      payload: { description: 'A pattern', triggers: [], rationale: 'r' },
+    };
+    const cappedDocs = new Array(LEGACY_LIST_CAP).fill(doc);
+
+    const deletedCollections: string[] = [];
+    let storeCalls = 0;
+
+    vi.mocked(invokePluginTool).mockImplementation(
+      async (_plugin: string, tool: string, args: Record<string, unknown>) => {
+        const ok = (data: unknown) => ({ success: true, result: { success: true, data } });
+        if (tool === 'collection_list') return ok(['patterns']);
+        if (tool === 'vector_list') return ok(cappedDocs);
+        if (tool === 'collection_initialize') return ok(null);
+        if (tool === 'vector_store') {
+          storeCalls++;
+          return ok(null);
+        }
+        if (tool === 'collection_delete') {
+          deletedCollections.push(args.collection as string);
+          return ok(null);
+        }
+        return { success: false, result: null };
+      }
+    );
+
+    const logger = makeLogger();
+    await runKnowledgeMigration(logger);
+
+    // Source preserved, nothing stored, and the risk is logged loudly.
+    expect(deletedCollections).not.toContain('patterns');
+    expect(storeCalls).toBe(0);
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      expect.stringContaining('list cap')
+    );
+  });
+
+  test('skips migration when the target knowledge-base exists at a different dimension (no recreate)', async () => {
+    // knowledge-base already exists at a different vector size (embedding model
+    // changed). Migration must NOT recreate it (which would drop existing data)
+    // and must preserve the legacy collection.
+    const doc = {
+      id: 'd1',
+      vector: FAKE_VECTOR, // length 4
+      payload: { description: 'A pattern', triggers: [], rationale: 'r' },
+    };
+
+    const initializedCollections: string[] = [];
+    const deletedCollections: string[] = [];
+    let storeCalls = 0;
+
+    vi.mocked(invokePluginTool).mockImplementation(
+      async (_plugin: string, tool: string, args: Record<string, unknown>) => {
+        const ok = (data: unknown) => ({ success: true, result: { success: true, data } });
+        if (tool === 'collection_list') return ok(['patterns', 'knowledge-base']);
+        if (tool === 'vector_list') return ok([doc]);
+        if (tool === 'collection_stats') return ok({ exists: true, vectorSize: FAKE_VECTOR.length + 1 });
+        if (tool === 'collection_initialize') {
+          initializedCollections.push(args.collection as string);
+          return ok(null);
+        }
+        if (tool === 'vector_store') {
+          storeCalls++;
+          return ok(null);
+        }
+        if (tool === 'collection_delete') {
+          deletedCollections.push(args.collection as string);
+          return ok(null);
+        }
+        return { success: false, result: null };
+      }
+    );
+
+    const logger = makeLogger();
+    await runKnowledgeMigration(logger);
+
+    // No recreate, no store, legacy preserved, and the mismatch is logged.
+    expect(initializedCollections).not.toContain('knowledge-base');
+    expect(storeCalls).toBe(0);
+    expect(deletedCollections).not.toContain('patterns');
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith(
+      expect.stringContaining('vector size')
+    );
   });
 });

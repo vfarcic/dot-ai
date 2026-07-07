@@ -28,6 +28,12 @@ const LEGACY_COLLECTIONS: Array<{ name: string; tags: string[] }> = [
 /** Target unified collection */
 const KNOWLEDGE_COLLECTION = 'knowledge-base';
 
+/**
+ * Maximum number of points fetched from a legacy collection in a single
+ * `vector_list` call.
+ */
+export const LEGACY_LIST_CAP = 100_000;
+
 interface VectorDocument {
   id: string;
   payload: Record<string, unknown>;
@@ -163,7 +169,7 @@ async function collectionExists(name: string): Promise<boolean> {
 async function listAll(collection: string): Promise<VectorDocument[]> {
   return pluginCall<VectorDocument[]>('vector_list', {
     collection,
-    limit: 100_000,
+    limit: LEGACY_LIST_CAP,
     includeVector: true,
   });
 }
@@ -191,6 +197,18 @@ async function migrateLegacyCollection(
     return;
   }
 
+  // A full page (>= the list cap) means the listing may be truncated. Migration
+  // deletes the legacy collection once its points are stored, so proceeding here
+  // could silently drop the unread remainder.
+  if (documents.length >= LEGACY_LIST_CAP) {
+    logger.error(
+      `[migration] '${legacyName}' returned ${documents.length} point(s), reaching the ` +
+        `${LEGACY_LIST_CAP} list cap — the page may be truncated. Refusing to migrate-and-delete ` +
+        `to avoid data loss; legacy collection preserved. Please migrate '${legacyName}' manually.`
+    );
+    return;
+  }
+
   logger.info(`[migration] Migrating ${documents.length} point(s) from '${legacyName}'`);
 
   // vector_store does not auto-create the target collection. At server startup
@@ -206,11 +224,26 @@ async function migrateLegacyCollection(
     );
     return;
   }
-  await pluginCall('collection_initialize', {
-    collection: KNOWLEDGE_COLLECTION,
-    vectorSize,
-    createTextIndex: true,
-  });
+
+  if (!(await collectionExists(KNOWLEDGE_COLLECTION))) {
+    await pluginCall('collection_initialize', {
+      collection: KNOWLEDGE_COLLECTION,
+      vectorSize,
+      createTextIndex: true,
+    });
+  } else {
+    const target = await pluginCall<{ vectorSize?: number }>('collection_stats', {
+      collection: KNOWLEDGE_COLLECTION,
+    });
+    if (target?.vectorSize !== vectorSize) {
+      logger.error(
+        `[migration] Target '${KNOWLEDGE_COLLECTION}' exists with vector size ${target?.vectorSize}, ` +
+          `but legacy '${legacyName}' vectors are ${vectorSize}-dimensional. Skipping migration to avoid ` +
+          `recreating (and dropping) the existing knowledge base; legacy collection preserved.`
+      );
+      return;
+    }
+  }
 
   let successCount = 0;
   let failCount = 0;
