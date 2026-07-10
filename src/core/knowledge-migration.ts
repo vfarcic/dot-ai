@@ -16,6 +16,7 @@
 import { Logger } from './error-handling';
 import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 import { createHash } from 'crypto';
+import { v5 as uuidv5 } from 'uuid';
 
 const PLUGIN_NAME = 'agentic-tools';
 
@@ -27,6 +28,8 @@ const LEGACY_COLLECTIONS: Array<{ name: string; tags: string[] }> = [
 
 /** Target unified collection */
 const KNOWLEDGE_COLLECTION = 'knowledge-base';
+
+export const KNOWLEDGE_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
 /**
  * Maximum number of points fetched from a legacy collection in a single
@@ -264,7 +267,7 @@ async function migrateLegacyCollection(
 
       await pluginCall('vector_store', {
         collection: KNOWLEDGE_COLLECTION,
-        id: doc.id,
+        id: uuidv5(`legacy://${legacyName}/${doc.id}#0`, KNOWLEDGE_NAMESPACE),
         embedding: doc.vector,
         payload: mergedPayload,
       });

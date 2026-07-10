@@ -11,6 +11,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { v5 as uuidv5 } from 'uuid';
 
 // Must be hoisted before the import that depends on it.
 vi.mock('../../../src/core/plugin-registry', () => ({
@@ -18,7 +19,7 @@ vi.mock('../../../src/core/plugin-registry', () => ({
   invokePluginTool: vi.fn(),
 }));
 
-import { runKnowledgeMigration, LEGACY_LIST_CAP } from '../../../src/core/knowledge-migration.js';
+import { runKnowledgeMigration, LEGACY_LIST_CAP, KNOWLEDGE_NAMESPACE } from '../../../src/core/knowledge-migration.js';
 import { isPluginInitialized, invokePluginTool } from '../../../src/core/plugin-registry.js';
 import type { Logger } from '../../../src/core/error-handling.js';
 
@@ -149,7 +150,7 @@ describe('runKnowledgeMigration', () => {
 
     expect(captured[0]).toMatchObject({
       collection: 'knowledge-base',
-      id: 'pattern-abc',
+      id: uuidv5('legacy://patterns/pattern-abc#0', KNOWLEDGE_NAMESPACE),
       embedding: FAKE_VECTOR,
     });
     expect(captured[0]).not.toHaveProperty('vector');
