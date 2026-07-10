@@ -16,7 +16,7 @@ import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
 import { CapabilityVectorService } from '../core/capability-vector-service';
 import { KnowledgeSearchResultItem } from '../core/knowledge-types';
-import { searchKnowledgeBase } from './manage-knowledge';
+import { searchKnowledgeBase } from '../core/knowledge-service';
 import { ResourceCapability } from '../core/capabilities';
 import { BaseVisualizationData } from '../core/visualization';
 import { buildAgentDisplayBlock } from '../core/index';

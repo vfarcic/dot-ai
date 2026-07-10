@@ -58,7 +58,7 @@ import { invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
 import {
   searchKnowledgeBase,
   type SearchKnowledgeBaseResult,
-} from '../tools/manage-knowledge';
+} from '../core/knowledge-service';
 import type { AITool } from '../core/ai-provider.interface';
 import { createUser, listUsers, deleteUser } from './oauth/user-management';
 import { getCurrentIdentity } from './request-context';
