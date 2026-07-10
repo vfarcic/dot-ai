@@ -27,12 +27,12 @@ import { checkToolAccess } from '../core/rbac';
 // Organizational knowledge is now managed via manageKnowledge (ingest/search/deleteByUri).
 // This tool is now capabilities-only.
 export const ORGANIZATIONAL_DATA_TOOL_NAME = 'manageOrgData';
-export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Tool for managing cluster resource capabilities. Supports scan, list, get, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType="capabilities" to manage cluster capabilities. NOTE: Organizational patterns and policies are now managed via manageKnowledge tool (ingest documents, search, deleteByUri) with automatic AI classification.';
+export const ORGANIZATIONAL_DATA_TOOL_DESCRIPTION = 'Tool for managing cluster resource capabilities. Supports scan, list, get, search, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType="capabilities" to manage cluster capabilities. NOTE: Organizational patterns and policies are now managed via manageKnowledge tool (ingest documents, search, deleteByUri) with automatic AI classification.';
 
 // Schema - capabilities only (PRD #375: pattern/policy removed from this tool)
 export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   dataType: z.enum(['capabilities']).describe('Type of cluster data to manage: "capabilities" for resource capabilities. (Note: organizational knowledge/patterns/policies are managed via manageKnowledge tool)'),
-  operation: z.enum(['list', 'get', 'delete', 'deleteAll', 'scan', 'analyze', 'progress', 'search']).describe('Operation to perform on the cluster data'),
+  operation: z.enum(['list', 'get', 'delete', 'deleteAll', 'scan', 'progress', 'search']).describe('Operation to perform on the cluster data'),
 
   // Workflow fields for step-by-step capability scanning
   sessionId: z.string().optional().describe('Session ID (required for continuing workflow steps, optional for progress - uses latest session if omitted)'),
@@ -69,7 +69,7 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
  */
 export interface OrganizationalDataInput {
   dataType: 'capabilities';
-  operation: 'list' | 'get' | 'delete' | 'deleteAll' | 'scan' | 'analyze' | 'progress' | 'search';
+  operation: 'list' | 'get' | 'delete' | 'deleteAll' | 'scan' | 'progress' | 'search';
   sessionId?: string;
   step?: string;
   response?: string;
@@ -907,5 +907,3 @@ export async function handleOrganizationalDataTool(
     };
   }
 }
-
-
