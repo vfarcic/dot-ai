@@ -286,7 +286,7 @@ export function formatKnowledgeContext(chunks: KnowledgeSearchResultItem[]): str
       : 'General';
     formatted += `### Knowledge ${index + 1} [${typeLabel}]\n\n`;
     formatted += `**Source:** ${chunk.uri}\n\n`;
-    formatted += chunk.content + '\n\n';
+    formatted += (chunk.content.length > 300 ? chunk.content.substring(0, 300) + '...' : chunk.content) + '\n\n';
     if (index < chunks.length - 1) {
       formatted += '---\n\n';
     }
