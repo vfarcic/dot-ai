@@ -8,14 +8,16 @@
  * Design decisions:
  * - Idempotent: safe to run multiple times (skips if legacy collections absent)
  * - Non-fatal: migration failures are logged but do not crash the server
- * - Verify-before-delete: legacy collection is only removed after verifying
- *   migrated point count matches the source
+ * - Delete-after-success: the legacy collection is only removed when every point
+ *   stored successfully (failCount === 0); deterministic UUIDv5 IDs prevent
+ *   collisions/overwrites, making store-success gating safe
  * - Tags assigned by collection origin: patterns → ["pattern"], policies → ["policy"]
  */
 
 import { Logger } from './error-handling';
 import { invokePluginTool, isPluginInitialized } from './plugin-registry';
 import { createHash } from 'crypto';
+import { v5 as uuidv5 } from 'uuid';
 
 const PLUGIN_NAME = 'agentic-tools';
 
@@ -27,6 +29,8 @@ const LEGACY_COLLECTIONS: Array<{ name: string; tags: string[] }> = [
 
 /** Target unified collection */
 const KNOWLEDGE_COLLECTION = 'knowledge-base';
+
+export const KNOWLEDGE_NAMESPACE = uuidv5.DNS;
 
 /**
  * Maximum number of points fetched from a legacy collection in a single
@@ -264,7 +268,7 @@ async function migrateLegacyCollection(
 
       await pluginCall('vector_store', {
         collection: KNOWLEDGE_COLLECTION,
-        id: doc.id,
+        id: uuidv5(`legacy://${legacyName}/${doc.id}#0`, KNOWLEDGE_NAMESPACE),
         embedding: doc.vector,
         payload: mergedPayload,
       });
@@ -292,6 +296,8 @@ async function migrateLegacyCollection(
   logger.info(`[migration] Deleted legacy collection '${legacyName}'`);
 }
 
+let migrationInProgress = false;
+
 /**
  * Run the auto-migration check at server startup.
  *
@@ -304,6 +310,12 @@ export async function runKnowledgeMigration(logger: Logger): Promise<void> {
     logger.info('[migration] Plugin not initialised — skipping legacy knowledge migration');
     return;
   }
+
+  if (migrationInProgress) {
+    logger.info('[migration] Migration already in progress — skipping concurrent run');
+    return;
+  }
+  migrationInProgress = true;
 
   try {
     for (const { name, tags } of LEGACY_COLLECTIONS) {
@@ -320,5 +332,7 @@ export async function runKnowledgeMigration(logger: Logger): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(`[migration] Migration failed — server continues normally: ${msg}`);
+  } finally {
+    migrationInProgress = false;
   }
 }

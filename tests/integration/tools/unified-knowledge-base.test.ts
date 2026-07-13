@@ -53,7 +53,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
   // Milestone 6: E2E — ingest → classify → search → verify tags in results
   // -------------------------------------------------------------------------
 
-  describe('E2E: Ingest, Classification, and Search', () => {
+  describe.concurrent('E2E: Ingest, Classification, and Search', () => {
     test(
       'should classify policy document and return tags in search results',
       async () => {
@@ -284,7 +284,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
   // knowledge with tags
   // -------------------------------------------------------------------------
 
-  describe('E2E: Consumer Tools See Unified Knowledge', () => {
+  describe.concurrent('E2E: Consumer Tools See Unified Knowledge', () => {
     test(
       'should allow operate tool to find context from unified knowledge base',
       async () => {
@@ -359,7 +359,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
   // failing.
   // -------------------------------------------------------------------------
 
-  describe('Migration: Legacy patterns → Unified knowledge base', () => {
+  describe.concurrent('Migration: Legacy patterns → Unified knowledge base', () => {
     const seedMarker = process.env.MIGRATION_SEED_MARKER;
     const seedId = process.env.MIGRATION_SEED_ID;
 

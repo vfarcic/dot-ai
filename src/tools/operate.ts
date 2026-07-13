@@ -16,7 +16,7 @@ import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
 import { CapabilityVectorService } from '../core/capability-vector-service';
 import { KnowledgeSearchResultItem } from '../core/knowledge-types';
-import { searchKnowledgeBase } from './manage-knowledge';
+import { searchKnowledgeBase } from '../core/knowledge-service';
 import { ResourceCapability } from '../core/capabilities';
 import { BaseVisualizationData } from '../core/visualization';
 import { buildAgentDisplayBlock } from '../core/index';
@@ -286,7 +286,7 @@ export function formatKnowledgeContext(chunks: KnowledgeSearchResultItem[]): str
       : 'General';
     formatted += `### Knowledge ${index + 1} [${typeLabel}]\n\n`;
     formatted += `**Source:** ${chunk.uri}\n\n`;
-    formatted += chunk.content + '\n\n';
+    formatted += (chunk.content.length > 300 ? chunk.content.substring(0, 300) + '...' : chunk.content) + '\n\n';
     if (index < chunks.length - 1) {
       formatted += '---\n\n';
     }

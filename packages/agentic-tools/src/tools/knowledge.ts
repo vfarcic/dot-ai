@@ -32,9 +32,9 @@ export interface KnowledgeTool {
 
 /**
  * UUID v5 namespace for knowledge chunk IDs
- * Using the URL namespace as base for URI-based IDs
+ * Uses the RFC 4122 DNS namespace as base for URI-based IDs
  */
-const KNOWLEDGE_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+const KNOWLEDGE_NAMESPACE = uuidv5.DNS;
 
 /**
  * Chunk result returned by the chunking tool

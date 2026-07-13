@@ -14,7 +14,7 @@ import { extractJsonFromAIResponse, execAsync } from './platform-utils';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { HelmChartInfo } from './helm-types';
 import { KnowledgeSearchResultItem } from './knowledge-types';
-import { searchKnowledgeBase } from '../tools/manage-knowledge';
+import { searchKnowledgeBase } from './knowledge-service';
 
 // PRD #343: Inline sanitization (helm-utils.ts removed)
 function sanitizeShellArg(arg: string, fieldName: string = 'argument'): string {
