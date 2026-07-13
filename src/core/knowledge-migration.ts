@@ -319,13 +319,22 @@ export async function runKnowledgeMigration(logger: Logger): Promise<void> {
 
   try {
     for (const { name, tags } of LEGACY_COLLECTIONS) {
-      const exists = await collectionExists(name);
-      if (!exists) {
-        logger.info(`[migration] Legacy collection '${name}' not found — nothing to migrate`);
-        continue;
-      }
+      // Isolate each collection: a failure migrating one (e.g. from
+      // collectionExists/collection_initialize/collection_stats) must not abort
+      // migration of the others — the design is non-fatal and per-collection
+      // independent. The next run also retries anything left behind.
+      try {
+        const exists = await collectionExists(name);
+        if (!exists) {
+          logger.info(`[migration] Legacy collection '${name}' not found — nothing to migrate`);
+          continue;
+        }
 
-      await migrateLegacyCollection(name, tags, logger);
+        await migrateLegacyCollection(name, tags, logger);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error(`[migration] Migration of '${name}' failed — continuing with remaining collections: ${msg}`);
+      }
     }
 
     logger.info('[migration] Knowledge base migration check complete');
