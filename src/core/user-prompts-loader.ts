@@ -232,8 +232,7 @@ function getIngestedCacheRoot(): string {
  * writeFileSync calls to follow (TOCTOU) — the same hardening the token-bearing
  * clone path uses in createIsolatedCloneRoot.
  */
-function createIngestedStagingDir(): string {
-  const root = getIngestedCacheRoot();
+function createIngestedStagingDir(root: string): string {
   fs.mkdirSync(root, { recursive: true });
   const dir = fs.mkdtempSync(
     path.join(root, `staging-${crypto.randomUUID()}-`)
@@ -430,11 +429,16 @@ export function ingestPromptsSource(
   // EISDIR, disk full, …) NEVER destroys the previously-cached entry — the old
   // slot is removed only on the success path, and the in-memory registry is
   // updated last.
+  // PRD #647 F3 — resolve the cache root ONCE so the staging dir and the final
+  // slot are guaranteed to live on the same filesystem. getIngestedCacheRoot()
+  // can otherwise resolve to a different device between calls (project tmp vs the
+  // os.tmpdir() fallback), which made the promote rename fail with EXDEV.
+  const cacheRoot = getIngestedCacheRoot();
   const finalDir = path.join(
-    getIngestedCacheRoot(),
+    cacheRoot,
     crypto.createHash('sha256').update(identifier).digest('hex')
   );
-  const stagingDir = createIngestedStagingDir();
+  const stagingDir = createIngestedStagingDir(cacheRoot);
   // PRD #647 N3 — count DISTINCT written paths: two manifest entries that
   // sanitize to the same path collapse to one file on disk, so fileCount must
   // not double-count them.
@@ -702,8 +706,11 @@ export function getCacheDirectory(): string {
       fs.mkdirSync(parentTmp, { recursive: true });
     }
 
-    // Test if we can write to it
-    const testFile = path.join(parentTmp, '.write-test');
+    // Test if we can write to it. Use a unique probe name so concurrent callers
+    // never unlink each other's probe — a shared name races (one caller's unlink
+    // makes another's write/unlink throw), wrongly forcing the os.tmpdir()
+    // fallback and splitting a single ingest's writes across filesystems.
+    const testFile = path.join(parentTmp, `.write-test-${process.pid}-${crypto.randomUUID()}`);
     fs.writeFileSync(testFile, 'test');
     fs.unlinkSync(testFile);
 
