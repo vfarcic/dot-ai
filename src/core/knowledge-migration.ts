@@ -30,7 +30,7 @@ const LEGACY_COLLECTIONS: Array<{ name: string; tags: string[] }> = [
 /** Target unified collection */
 const KNOWLEDGE_COLLECTION = 'knowledge-base';
 
-export const KNOWLEDGE_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+export const KNOWLEDGE_NAMESPACE = uuidv5.DNS;
 
 /**
  * Maximum number of points fetched from a legacy collection in a single
