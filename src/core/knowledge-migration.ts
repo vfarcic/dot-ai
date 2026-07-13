@@ -295,6 +295,8 @@ async function migrateLegacyCollection(
   logger.info(`[migration] Deleted legacy collection '${legacyName}'`);
 }
 
+let migrationInProgress = false;
+
 /**
  * Run the auto-migration check at server startup.
  *
@@ -307,6 +309,12 @@ export async function runKnowledgeMigration(logger: Logger): Promise<void> {
     logger.info('[migration] Plugin not initialised — skipping legacy knowledge migration');
     return;
   }
+
+  if (migrationInProgress) {
+    logger.info('[migration] Migration already in progress — skipping concurrent run');
+    return;
+  }
+  migrationInProgress = true;
 
   try {
     for (const { name, tags } of LEGACY_COLLECTIONS) {
@@ -323,5 +331,7 @@ export async function runKnowledgeMigration(logger: Logger): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(`[migration] Migration failed — server continues normally: ${msg}`);
+  } finally {
+    migrationInProgress = false;
   }
 }

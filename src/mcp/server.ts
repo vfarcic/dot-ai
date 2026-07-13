@@ -135,9 +135,11 @@ async function main() {
           process.stderr.write(`Background discovery: Plugin '${plugin.name}' now available with ${plugin.tools.length} tool(s)\n`);
           // Note: Tools are automatically registered via pluginManager's internal maps
           // The version tool will reflect the updated plugin status
-          runKnowledgeMigration(new ConsoleLogger('KnowledgeMigration')).catch((err) => {
-            process.stderr.write(`Knowledge migration (post-discovery) error: ${err instanceof Error ? err.message : String(err)}\n`);
-          });
+          if (plugin.tools.some((tool) => tool.name === 'vector_store')) {
+            runKnowledgeMigration(new ConsoleLogger('KnowledgeMigration')).catch((err) => {
+              process.stderr.write(`Knowledge migration (post-discovery) error: ${err instanceof Error ? err.message : String(err)}\n`);
+            });
+          }
         });
         pluginManager.startBackgroundDiscovery();
       }
