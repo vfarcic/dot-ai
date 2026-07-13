@@ -29,6 +29,14 @@ const KNOWLEDGE_COLLECTION = 'knowledge-base';
  */
 const DEFAULT_SEARCH_LIMIT = 20;
 
+let embeddingServiceInstance: EmbeddingService | null = null;
+function getEmbeddingService(): EmbeddingService {
+  if (!embeddingServiceInstance) {
+    embeddingServiceInstance = new EmbeddingService();
+  }
+  return embeddingServiceInstance;
+}
+
 /**
  * Result type for the reusable search function
  */
@@ -64,7 +72,7 @@ export async function searchKnowledgeBase(params: {
   }
 
   // Check embedding service availability
-  const embeddingService = new EmbeddingService();
+  const embeddingService = getEmbeddingService();
   if (!embeddingService.isAvailable()) {
     const status = embeddingService.getStatus();
     return {
