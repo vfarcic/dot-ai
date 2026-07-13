@@ -8,8 +8,9 @@
  * Design decisions:
  * - Idempotent: safe to run multiple times (skips if legacy collections absent)
  * - Non-fatal: migration failures are logged but do not crash the server
- * - Verify-before-delete: legacy collection is only removed after verifying
- *   migrated point count matches the source
+ * - Delete-after-success: the legacy collection is only removed when every point
+ *   stored successfully (failCount === 0); deterministic UUIDv5 IDs prevent
+ *   collisions/overwrites, making store-success gating safe
  * - Tags assigned by collection origin: patterns → ["pattern"], policies → ["policy"]
  */
 
