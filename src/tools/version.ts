@@ -888,14 +888,20 @@ export async function handleVersionTool(
     // Build summary object
     const summary = {
       overall: (vectorDBStatus.connected && aiProviderStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded') as 'healthy' | 'degraded',
-      // PRD #375: Unified knowledge base replaces separate pattern/policy search
-      knowledgeSearch: vectorDBStatus.connected && embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
+      // PRD #375: Unified knowledge base replaces separate pattern/policy search.
+      // Keep this on the same readiness rule as the `knowledge-base-search` capability
+      // below (both gate on vectorDBStatus.connected) so diagnostics never contradict.
+      knowledgeSearch: !vectorDBStatus.connected
+        ? 'unavailable'
+        : embeddingStatus.available
+          ? 'semantic+keyword'
+          : 'keyword-only',
       capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
       kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
       kyvernoPolicyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
       capabilities: [
         // PRD #375: knowledge-base-search replaces pattern-management and policy-intent-management
-        vectorDBStatus.connected && embeddingStatus.available ? 'knowledge-base-search' : null,
+        vectorDBStatus.connected ? 'knowledge-base-search' : null,
         capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
         embeddingStatus.available ? 'semantic-search' : null,
         aiProviderStatus.connected ? 'ai-recommendations' : null,
