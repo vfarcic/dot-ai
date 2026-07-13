@@ -29,6 +29,14 @@ export const KNOWLEDGE_COLLECTION = 'knowledge-base';
  */
 export const DEFAULT_SEARCH_LIMIT = 20;
 
+/**
+ * A missing target collection surfaces as a "Not Found" error from the vector
+ * store; callers treat that as an empty result rather than a failure.
+ */
+function isCollectionNotFoundError(message: string): boolean {
+  return message.includes('Not Found') || message.includes('not found');
+}
+
 let embeddingServiceInstance: EmbeddingService | null = null;
 function getEmbeddingService(): EmbeddingService {
   if (!embeddingServiceInstance) {
@@ -125,7 +133,7 @@ export async function searchKnowledgeBase(params: {
     const errorMessage = error?.message || error?.error || 'Search failed';
 
     // If collection doesn't exist (Not Found), return empty result (not error)
-    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+    if (isCollectionNotFoundError(errorMessage)) {
       return {
         success: true,
         chunks: [],
@@ -166,7 +174,7 @@ export async function searchKnowledgeBase(params: {
     const errorMessage = searchResult.error || searchResult.message || 'Search failed';
 
     // If collection doesn't exist, return empty result (not error)
-    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
+    if (isCollectionNotFoundError(errorMessage)) {
       return {
         success: true,
         chunks: [],
