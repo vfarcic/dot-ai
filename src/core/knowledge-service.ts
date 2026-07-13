@@ -159,13 +159,13 @@ export async function searchKnowledgeBase(params: {
   const results = searchResult.data || [];
   const chunks: KnowledgeSearchResultItem[] = results.map((result) => ({
     id: result.id,
-    content: result.payload.content as string,
+    content: (result.payload.content as string) || '',
     score: result.score,
     matchType: 'semantic' as const, // Dense vector search only (BM25 deferred)
-    uri: result.payload.uri as string,
+    uri: (result.payload.uri as string) || '',
     metadata: (result.payload.metadata as Record<string, unknown>) || {},
-    chunkIndex: result.payload.chunkIndex as number,
-    totalChunks: result.payload.totalChunks as number,
+    chunkIndex: (result.payload.chunkIndex as number) ?? 0,
+    totalChunks: (result.payload.totalChunks as number) ?? 0,
     tags: (result.payload.tags as string[]) || [], // PRD #375: AI classification tags
     extractedPolicies: undefined, // Populated by PRD #357
   }));
