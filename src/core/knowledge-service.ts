@@ -84,7 +84,17 @@ export async function searchKnowledgeBase(params: {
   }
 
   // Generate embedding for the search query
-  const queryEmbedding = await embeddingService.generateEmbedding(query);
+  let queryEmbedding: number[];
+  try {
+    queryEmbedding = await embeddingService.generateEmbedding(query);
+  } catch (err) {
+    return {
+      success: false,
+      chunks: [],
+      totalMatches: 0,
+      error: `Failed to generate query embedding: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 
   // Build filter if uriFilter is provided
   let filter: Record<string, unknown> | undefined;
