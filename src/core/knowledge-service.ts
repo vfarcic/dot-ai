@@ -125,18 +125,27 @@ export async function searchKnowledgeBase(params: {
 
   // Extract results from plugin response
   const searchResult = searchResponse.result as {
-    success: boolean;
+    success?: boolean;
     data?: Array<{
       id: string;
       score: number;
       payload: Record<string, unknown>;
     }>;
     error?: string;
-    message: string;
-  };
+    message?: string;
+  } | null;
+
+  if (!searchResult || typeof searchResult !== 'object') {
+    return {
+      success: false,
+      chunks: [],
+      totalMatches: 0,
+      error: 'Search returned an invalid response',
+    };
+  }
 
   if (!searchResult.success) {
-    const errorMessage = searchResult.error || searchResult.message;
+    const errorMessage = searchResult.error || searchResult.message || 'Search failed';
 
     // If collection doesn't exist, return empty result (not error)
     if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
