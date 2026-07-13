@@ -237,7 +237,12 @@ export async function handleQueryTool(
       : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...mcpTools];
 
     // Execute tool loop with capability, resource, kubectl, and MCP tools
-    const result = await aiProvider.toolLoop({
+    // The query tool loop uses only read-only tools (capability/resource search,
+    // kubectl get/describe/logs/events, mermaid), so a transient AI-loop failure is
+    // safe to retry. Smaller models occasionally fail the agentic loop; retry a
+    // bounded number of times before surfacing the (already isRetryable) error below.
+    const MAX_QUERY_ATTEMPTS = 3;
+    const runQueryLoop = () => aiProvider.toolLoop({
       systemPrompt,
       userMessage: intent,
       tools,
@@ -249,6 +254,19 @@ export async function handleQueryTool(
       },
       interaction_id: args.interaction_id
     });
+
+    let result = await runQueryLoop();
+    for (
+      let attempt = 1;
+      attempt < MAX_QUERY_ATTEMPTS && result.status && result.status !== 'success';
+      attempt++
+    ) {
+      logger.warn(
+        `Query tool loop returned status '${result.status}' — retrying (attempt ${attempt + 1}/${MAX_QUERY_ATTEMPTS})`,
+        { requestId, finalMessage: result.finalMessage }
+      );
+      result = await runQueryLoop();
+    }
 
     // Extract data from execution record (reliable, not AI self-reporting)
     const toolsUsed = [...new Set(result.toolCallsExecuted.map(tc => tc.tool))];
