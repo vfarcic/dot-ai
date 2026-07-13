@@ -183,82 +183,30 @@ EOF`);
       const testId = Date.now();
       const patternNamespace = 'operate-pattern-test';
 
-      // SETUP: Create HPA scaling pattern via MCP endpoint (same workflow as pattern tests)
-      const createResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'create'
+      // SETUP: Register an HPA scaling pattern in the unified knowledge base.
+      // PRD #375: organizational patterns now live in manageKnowledge (not manageOrgData).
+      // operate retrieves this via searchKnowledgeBase and should apply it during analysis.
+      // The actionable guidance is front-loaded into the first ~300 characters because
+      // operate's formatKnowledgeContext truncates each chunk to 300 chars.
+      const patternUri = `https://example.com/patterns/hpa-scaling-${testId}.md`;
+      const patternContent =
+        `Organizational scaling Pattern ${testId}: always use a HorizontalPodAutoscaler (HPA) for scaling. ` +
+        `When asked to scale a Deployment to N replicas, create an HPA targeting it with minReplicas=N and maxReplicas=N, even when both are the same value. ` +
+        `Pattern triggers: scaling, scale, replicas, horizontal scaling, HPA, HorizontalPodAutoscaler. ` +
+        `Pattern rationale: routing every scale operation through an HPA keeps replica management declarative and consistent across the platform. ` +
+        `Suggested resource: HorizontalPodAutoscaler (autoscaling/v2). This is a mandatory platform scaling pattern adopted by all teams.`;
+
+      const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'ingest',
+        uri: patternUri,
+        content: patternContent,
+        metadata: { testId, type: 'pattern' }
       });
 
-      const sessionId = createResponse.data.result.workflow.sessionId;
-
-      // Step 1: Provide description (capability description)
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'create',
-        sessionId,
-        response: 'Horizontal scaling with HPA'
-      });
-
-      // Step 2: Provide trigger keywords
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'create',
-        sessionId,
-        response: 'applications, scaling, replicas, horizontal'
-      });
-
-      // Step 3: Confirm trigger expansion (AI shows expanded list)
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'create',
-        sessionId,
-        response: 'HorizontalPodAutoscaler, scaling, horizontal scaling'
-      });
-
-      // Step 4: Provide suggested resources
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'create',
-        sessionId,
-        response: 'HorizontalPodAutoscaler'
-      });
-
-      // Step 5: Provide rationale
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'create',
-        sessionId,
-        response: 'All scaling operations should use HorizontalPodAutoscaler for managing multiple replicas, even if both min and max are the same.'
-      });
-
-      // Step 6: Provide creator name
-      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'create',
-        sessionId,
-        response: 'integration-test'
-      });
-
-      // Step 7: Confirm pattern creation after review
-      const finalResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'create',
-        sessionId,
-        response: 'confirm'
-      });
-
-      expect(finalResponse.data.result.success).toBe(true);
-      const patternId = finalResponse.data.result.storage.patternId;
-
-      // Verify pattern was actually stored
-      const getPatternResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'pattern',
-        operation: 'get',
-        id: patternId
-      });
-
-      expect(getPatternResponse.data.result.success).toBe(true);
-      expect(getPatternResponse.data.result.data).toBeDefined();
+      expect(
+        ingestResponse.data.result.success,
+        `Pattern ingest failed: ${JSON.stringify(ingestResponse.data?.result?.error ?? 'no error')}`
+      ).toBe(true);
 
       // SETUP: Create namespace
       await integrationTest.kubectl(`create namespace ${patternNamespace}`);
@@ -388,6 +336,11 @@ EOF`);
       expect(testApiHpa.spec.scaleTargetRef.kind).toBe('Deployment');
       expect(testApiHpa.spec.scaleTargetRef.name).toBe('test-api');
 
+      // Cleanup: remove the ingested pattern from the unified knowledge base
+      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
+        operation: 'deleteByUri',
+        uri: patternUri
+      });
     }, 300000); // 5 minute timeout for full workflow
   });
 
