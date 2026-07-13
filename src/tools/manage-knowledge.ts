@@ -22,12 +22,12 @@ import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { loadPrompt } from '../core/shared-prompt-loader';
-import { searchKnowledgeBase } from '../core/knowledge-service';
-
-/**
- * Collection name for knowledge base chunks in Qdrant
- */
-const KNOWLEDGE_COLLECTION = 'knowledge-base';
+import {
+  searchKnowledgeBase,
+  PLUGIN_NAME,
+  KNOWLEDGE_COLLECTION,
+  DEFAULT_SEARCH_LIMIT,
+} from '../core/knowledge-service';
 
 /**
  * Valid classification tags for document content
@@ -154,11 +154,6 @@ export interface ManageKnowledgeInput {
   uriFilter?: string;
   interaction_id?: string;
 }
-
-/**
- * Plugin name for agentic-tools
- */
-const PLUGIN_NAME = 'agentic-tools';
 
 /**
  * Create error response matching other tool patterns
@@ -396,11 +391,6 @@ async function handleIngestOperation(
     });
   }
 }
-
-/**
- * Default limit for search results
- */
-const DEFAULT_SEARCH_LIMIT = 20;
 
 /**
  * Handle the search operation (MCP tool handler)

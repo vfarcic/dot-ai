@@ -17,17 +17,17 @@ import { KnowledgeSearchResultItem } from './knowledge-types';
 /**
  * Plugin providing the vector store operations
  */
-const PLUGIN_NAME = 'agentic-tools';
+export const PLUGIN_NAME = 'agentic-tools';
 
 /**
  * Collection name for knowledge base chunks in Qdrant
  */
-const KNOWLEDGE_COLLECTION = 'knowledge-base';
+export const KNOWLEDGE_COLLECTION = 'knowledge-base';
 
 /**
  * Default limit for search results
  */
-const DEFAULT_SEARCH_LIMIT = 20;
+export const DEFAULT_SEARCH_LIMIT = 20;
 
 let embeddingServiceInstance: EmbeddingService | null = null;
 function getEmbeddingService(): EmbeddingService {
