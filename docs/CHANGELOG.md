@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.23.1] - 2026-07-07
+
+### Bug Fixes
+
+- Generating skills from the `prd-full` prompt now produces a complete `SKILL.md` with its full instruction body. Previously its `prdNumber` and `mode` arguments were marked `required: true`, so static skill generation (which calls `prompts/get` with no arguments) failed with `400 Missing required arguments` and wrote a metadata-only, body-less skill. Both arguments are now `required: false` — the prompt body still enforces them at invocation time — matching sibling prompts like `prd-start`. ([#681-prd-full-skill-body](https://github.com/vfarcic/dot-ai/issues/681-prd-full-skill-body))
+
+
+## [1.23.0] - 2026-06-20
+
+### Features
+
+- Added server-side ingestion endpoint (`POST /api/v1/prompts/sources`) that accepts CLI-uploaded skill sources as a JSON manifest with base64-encoded file entries, stores them in an LRU cache with deduplication (M4), and serves them via `?source=<key>` on the existing prompt-render endpoint without requiring a Git clone. Includes D5 hardening: 512 KiB raw-body limit (413), zip-slip and null-byte path rejection (400), mode stripping, and atomic re-ingest. M5 secret scrubbing and `?repo=` render parity are also included, along with mock-server parity and documentation. Also added `GET /api/v1/prompts?source=<id>` to enumerate the prompts contained in an uploaded source (standard list schema, scrubbed identifier echo); an unknown or evicted source returns 400 with re-upload guidance and never triggers a clone. ([#647-prompts-source-ingestion-endpoint](https://github.com/vfarcic/dot-ai/issues/647-prompts-source-ingestion-endpoint))
+
+### Bug Fixes
+
+- A per-request prompts-repo override (`?repo=` / `body.repo`) whose source cannot be cloned — for example a missing or wrong forwarded `X-Dot-AI-Git-Token`, or an unreachable host — now fails with HTTP 502 (`PROMPTS_SOURCE_ERROR`) instead of silently falling back to built-in prompts with HTTP 200. The CLI surfaces this as an error rather than reporting success with fewer skills. Failures of the env-var-configured repo (`DOT_AI_USER_PROMPTS_REPO`) still fall back to built-in prompts as before, and the returned error message remains credential-scrubbed. ([#575-prompts-override-fail-open](https://github.com/vfarcic/dot-ai/issues/575-prompts-override-fail-open))
+
+### Other Changes
+
+- Updated dependencies to clear known security advisories. Bumped `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` to `0.219.0` (resolving the `@opentelemetry/core` and `protobufjs` advisories) and refreshed transitive packages (`form-data`, `hono`, `ws`, `vite`, `dompurify`, `js-yaml`) to patched versions. `npm audit` now reports no moderate-or-higher vulnerabilities. ([#648-dependency-security-updates](https://github.com/vfarcic/dot-ai/issues/648-dependency-security-updates))
+- Pinned the transitive `dompurify` dependency to `^3.4.11` via an `overrides` entry to clear the moderate advisory GHSA-cmwh-pvxp-8882 (permanent `ALLOWED_ATTR` pollution via `setConfig()` bypassing the hook clone-guard; incomplete fix of the 3.4.7 patch). `npm audit` now reports no moderate-or-higher vulnerabilities. ([#655-dompurify-security](https://github.com/vfarcic/dot-ai/issues/655-dompurify-security))
+- Pinned the transitive `undici` dependency to `^6.27.0` via an `overrides` entry to clear four newly-disclosed advisories: GHSA-p88m-4jfj-68fv (moderate, HTTP header injection via Set-Cookie percent-decoding), GHSA-vxpw-j846-p89q (high, WebSocket client DoS via fragment count bypass), GHSA-35p6-xmwp-9g52 (low, HTTP response queue poisoning via keep-alive socket reuse), and GHSA-g8m3-5g58-fq7m (low, Set-Cookie SameSite downgrade). `npm audit` now reports no moderate-or-higher vulnerabilities. ([#655-undici-security](https://github.com/vfarcic/dot-ai/issues/655-undici-security))
+
+
+## [1.22.0] - 2026-06-13
+
+### Features
+
+- ## Per-Request Path, Branch, and Credential for the Prompts Repo Override
+
+  The per-request prompts-repo override now carries a subdirectory, a branch, and a credential, so a secondary skills source no longer has to live at the repository root on `main` behind the server's single git token. Previously the override (`?repo=`) cloned only the repository root of the default branch using the server's `DOT_AI_GIT_TOKEN`, which left repositories that keep skills under a `skills/`-style subdirectory, on a non-default branch, or in a different authentication realm unusable as a source.
+
+  `GET /api/v1/prompts` and `POST /api/v1/prompts/:name` now accept `?path=` and `?branch=` query parameters, and `POST /api/v1/prompts/refresh` accepts `path` and `branch` body fields, so the override can target a subdirectory on any branch. A new `X-Dot-AI-Git-Token` request header authenticates the override clone against its own host and takes precedence over the server's `DOT_AI_GIT_TOKEN` for that request only — letting you pull from a private repository in a separate auth realm without reconfiguring the server. The forwarded token is scoped to the source host (never forwarded across a redirect), never written to logs, error messages, the `source` field, or the cache key, and token-bearing requests are cloned in isolation so a private source is never served from or into the shared cache.
+
+  All three additions are optional and additive: omit `path` for the repository root, omit `branch` for `main`, and omit the header to use the server's environment credential. A request that sends none of them behaves identically to before, so existing deployments see no change.
+
+  See the [Prompts REST API reference](https://devopstoolkit.ai/docs/mcp/ai-engine/api/rest-api) and the [multi-source skills override guide](https://devopstoolkit.ai/docs/mcp/ai-engine/tools/prompts) for parameters, defaults, and precedence. ([#621](https://github.com/vfarcic/dot-ai/issues/621))
+
+
+## [1.21.1] - 2026-06-12
+
+### Bug Fixes
+
+- The operate tool now extracts JSON from AI responses using a more robust parser, fixing intermittent `Operation failed: Invalid AI response format` errors that occurred when the model included explanatory text alongside the JSON object. ([#operate-json-parse](https://github.com/vfarcic/dot-ai/issues/operate-json-parse))
+- GitHub Copilot provider configuration now rejects personal access tokens (`github_pat_*` and `ghp_*`) before making inference calls, because `api.githubcopilot.com` does not support PATs for this direct-token endpoint. Docs and Helm comments now list only `gho_*` and `ghu_*` tokens. ([#627-fix-copilot-pat-support](https://github.com/vfarcic/dot-ai/issues/627-fix-copilot-pat-support))
+
+
+## [1.21.0] - 2026-06-06
+
+### Features
+
+- ## Per-Request User Prompts Repository Override
+
+  The three prompts REST endpoints now accept an optional `repo` parameter that overrides `DOT_AI_USER_PROMPTS_REPO` for a single request, letting CLI consumers compose skills from multiple repositories without standing up multiple servers or aggregating into a single repo. Requests without `repo` behave identically to before — fully additive.
+
+  `POST /api/v1/prompts/refresh` accepts `repo` in the JSON body; `GET /api/v1/prompts` and `POST /api/v1/prompts/:promptName` accept `?repo=<url>` as a query parameter. Every response now includes a `source` field that echoes the override URL (or the env-var-configured repo, or `"built-in"`), with embedded credentials scrubbed via `sanitizeUrlForLogging`. The value is stable across requests for the same repo so CLI consumers can use it as a per-source tag in skill frontmatter and wipe only their own slice on subsequent invocations. Invalid `repo` values (non-`http(s)` schemes, path traversal in `subPath`, invalid branches, non-string types) return `400 VALIDATION_ERROR` without disturbing the env-var-configured cache.
+
+  MVP scope notes: the existing `DOT_AI_GIT_TOKEN` is reused for all override URLs (per-repo tokens deferred), and the loader keeps a single-slot cache (sequential requests across different repos re-clone — per-repo cache map deferred). Per-request `branch` and `path` defaults match the env-var defaults (`main` and repo root) and can be exposed additively later. MCP `prompts/list` and `prompts/get` are unchanged — composition is CLI-driven.
+
+  See the [REST API reference](https://devopstoolkit.ai/docs/mcp/api/rest-api) for full request/response shapes, validation rules, and credential-scrubbing examples, and the [Prompts tool guide](https://devopstoolkit.ai/docs/mcp/tools/prompts) for the multi-source composition workflow. ([#581](https://github.com/vfarcic/dot-ai/issues/581))
+
+
+## [1.20.0] - 2026-05-27
+
+### Features
+
+- ## GitHub Copilot Provider
+
+  Use an existing GitHub Copilot subscription as the AI backend instead of paying for a separate per-token API (Anthropic, OpenAI, etc.). Previously, the only subscription-based option was the `host` provider, which required a compatible MCP client to delegate generation; the new `copilot` provider works standalone with just a token.
+
+  Set `AI_PROVIDER=copilot` and supply a long-lived GitHub token via `GITHUB_COPILOT_TOKEN`. Supported token prefixes are `gho_` (OAuth, from `gh auth token`) and `ghu_` (GitHub App). Personal access tokens (`github_pat_` fine-grained PATs and classic `ghp_` PATs) are not supported by `api.githubcopilot.com`. The resolver also checks `GH_TOKEN` and `GITHUB_TOKEN` as fallbacks. The provider sends the token directly to the Copilot API with VS Code-style headers and retries once on 401. Default model is `claude-sonnet-4-6`, overridable via `AI_MODEL`.
+
+  Helm support is included: `--set ai.provider=copilot --set secrets.copilot.token=$GITHUB_COPILOT_TOKEN`. Note that this is an unofficial integration that sends requests to `api.githubcopilot.com` with VS Code-style headers, mirroring the approach used by other third-party tools. It may break without notice if GitHub changes the API, and operators should review Copilot terms for their subscription tier before deploying.
+
+  See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/deployment) for the full Helm command and the unofficial-integration notice. ([#587](https://github.com/vfarcic/dot-ai/issues/587))
+
+### Other Changes
+
+- Followup to PR #572 (issue #464): add `MockLanguageModelV3`-based unit tests covering `VercelProvider.toolLoop`. Verifies the multi-step tool-call flow end to end: a single `tool-call` content part dispatches the executor with parsed input, two sequential tool calls produce ordered `toolCallsExecuted` entries with matching iteration counts, and an unknown tool name leaves the executor untouched while the loop still returns the final text. No production code changes. ([#464-vercel-provider-toolloop-tests](https://github.com/vfarcic/dot-ai/issues/464-vercel-provider-toolloop-tests))
+
+
 ## [1.19.1] - 2026-05-13
 
 ### Other Changes

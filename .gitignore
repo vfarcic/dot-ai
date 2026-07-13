@@ -96,6 +96,9 @@ gke_gcloud_auth_plugin_cache
 # Crush
 .crush/
 
+# Agent coordination artifacts (dot-agent-deck worker tasks and reports)
+.dot-agent-deck/
+
 # Local testing scripts
 start-http-server.sh
 
@@ -120,3 +123,6 @@ eval/results/*.jsonl
 !charts/charts/*.tgz
 
 /aws-creds.conf
+
+# dot-agent-deck orchestrator state (local only)
+.dot-agent-deck/

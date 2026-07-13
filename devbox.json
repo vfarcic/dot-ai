@@ -16,13 +16,14 @@
   ],
   "shell": {
     "init_hook": [
-      "export PATH=\"$HOME/.local/bin:$PATH\"",
+      "export PATH=\"$HOME/.local/bin:$HOME/.local/bin:$PATH\"",
       "[ -n \"$USE_VALS\" ] && eval \"$(vals env -export -f .env.vals.yaml)\" || true",
-      "[ -f .env ] && source .env || true"
+      "[ -f .env ] && source ./.env || true"
     ],
     "scripts": {
       "agent": ["claude --continue"],
       "agent-new": ["claude"],
+      "agent-tester": ["claude"],
       "agent-medium": ["claude --model sonnet"]
     }
   }

@@ -35,7 +35,9 @@ Read `pyproject.toml` to see the available fragment types. Each `[[tool.towncrie
 - A comment above it describing when to use that type
 - A `directory` field (the type identifier used in the filename, e.g., `feature` for `.feature.md`)
 
-Choose the type that best matches the PRD based on those descriptions.
+**First, ask the breaking question — before matching the change to any other type.** Determine whether this change is *breaking* as this project defines it: does it break compatibility with a prior release, or otherwise require existing users to take action to keep working? Read the project's `breaking`-type comment in `pyproject.toml` for the project-specific definition — it may be broader than an API/CLI change (for example a wire-protocol, on-disk-format, or other cross-process/compatibility contract, including a change that stays structurally compatible but shifts meaning). When the change matches that definition — or you are unsure and it plausibly could — prefer the breaking type. Under-classifying a breaking change is costly: it ships with the wrong version bump and with no breaking-change entry to warn users.
+
+Otherwise, choose the type that best matches the PRD based on those descriptions.
 
 ### Step 4: Write the Fragment
 

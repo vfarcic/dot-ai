@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.19.0",
+    "version": "1.23.0",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -1570,6 +1570,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsGetError400"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1579,8 +1589,60 @@
                 }
               }
             }
+          },
+          "502": {
+            "description": "Bad gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsGetError502"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Enumerate a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). An unknown/evicted identifier returns 400 with re-upload guidance. Takes precedence over repo/path/branch.",
+            "schema": {
+              "description": "Enumerate a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). An unknown/evicted identifier returns 400 with re-upload guidance. Takes precedence over repo/path/branch.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "description": "Per-request git repository URL override (PRD #581)",
+            "schema": {
+              "description": "Per-request git repository URL override (PRD #581)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "description": "Subdirectory within the override repo (PRD #621)",
+            "schema": {
+              "description": "Subdirectory within the override repo (PRD #621)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Branch of the override repo (PRD #621)",
+            "schema": {
+              "description": "Branch of the override repo (PRD #621)",
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/prompts/refresh": {
@@ -1610,6 +1672,77 @@
                 }
               }
             }
+          },
+          "502": {
+            "description": "Bad gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsRefreshPostError502"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompts/sources": {
+      "post": {
+        "summary": "Ingest (upload) a skill source the server caches and renders via POST /api/v1/prompts/:promptName?source=<identifier> with no git clone (PRD #647)",
+        "description": "Ingest (upload) a skill source the server caches and renders via POST /api/v1/prompts/:promptName?source=<identifier> with no git clone (PRD #647)",
+        "tags": [
+          "Prompts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsSourcesPostResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsSourcesPostError400"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsSourcesPostError413"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsSourcesPostError500"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptsSourcesPostRequest"
+              }
+            }
           }
         }
       }
@@ -1628,6 +1761,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PromptsPromptNamePostResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsPromptNamePostError400"
                 }
               }
             }
@@ -1651,6 +1794,16 @@
                 }
               }
             }
+          },
+          "502": {
+            "description": "Bad gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsPromptNamePostError502"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1662,6 +1815,46 @@
             "schema": {
               "type": "string",
               "description": "Name of the prompt"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Render a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). Takes precedence over repo/path/branch.",
+            "schema": {
+              "description": "Render a previously-ingested (CLI-uploaded) source by its identifier with no git clone (PRD #647). Takes precedence over repo/path/branch.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "description": "Per-request git repository URL override (PRD #581)",
+            "schema": {
+              "description": "Per-request git repository URL override (PRD #581)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "description": "Subdirectory within the override repo (PRD #621)",
+            "schema": {
+              "description": "Subdirectory within the override repo (PRD #621)",
+              "type": "string"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Branch of the override repo (PRD #621)",
+            "schema": {
+              "description": "Branch of the override repo (PRD #621)",
+              "type": "string"
             }
           }
         ],
@@ -3109,6 +3302,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -3447,6 +3641,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -3694,6 +3889,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -3898,6 +4094,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -4200,6 +4397,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -4475,6 +4673,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -4717,6 +4916,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -4897,6 +5097,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -5195,6 +5396,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -5438,6 +5640,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -5626,6 +5829,59 @@
           "data"
         ]
       },
+      "PromptsGetError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
       "PromptsGetError500": {
         "type": "object",
         "properties": {
@@ -5657,6 +5913,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -5667,6 +5924,59 @@
               "details": {
                 "description": "Additional error context"
               }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsGetError502": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PROMPTS_SOURCE_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
             },
             "required": [
               "code",
@@ -5773,6 +6083,330 @@
               "code": {
                 "type": "string",
                 "const": "PROMPTS_CACHE_REFRESH_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsRefreshPostError502": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PROMPTS_SOURCE_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsSourcesPostResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "description": "Credential-scrubbed identifier the cached source is keyed by"
+              },
+              "contentHash": {
+                "description": "Echoed content hash, if provided",
+                "type": "string"
+              },
+              "fileCount": {
+                "type": "number",
+                "description": "Number of files cached"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ingested",
+                  "unchanged"
+                ],
+                "description": "Ingestion status: \"ingested\" (decoded and cached) or \"unchanged\" (content-hash dedup short-circuit)"
+              }
+            },
+            "required": [
+              "source",
+              "fileCount",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "PromptsSourcesPostRequest": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Stable source identifier (e.g., \"local:team-dev\" or a git URL the server cannot reach)"
+          },
+          "contentHash": {
+            "description": "CLI-computed content hash (enables future re-upload dedup)",
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Relative path within the uploaded skill source"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "Base64-encoded file content"
+                },
+                "mode": {
+                  "description": "POSIX file mode (e.g., \"0644\")",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "content"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Uploaded files with base64-encoded content"
+          }
+        },
+        "required": [
+          "source",
+          "files"
+        ]
+      },
+      "PromptsSourcesPostError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsSourcesPostError413": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PAYLOAD_TOO_LARGE"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "description": "Additional error context"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsSourcesPostError500": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PROMPTS_SOURCE_INGEST_ERROR"
               },
               "message": {
                 "type": "string"
@@ -5938,6 +6572,59 @@
           }
         }
       },
+      "PromptsPromptNamePostError400": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
       "PromptsPromptNamePostError404": {
         "type": "object",
         "properties": {
@@ -6023,6 +6710,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -6033,6 +6721,59 @@
               "details": {
                 "description": "Additional error context"
               }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "description": "ISO 8601 timestamp of the response"
+              },
+              "requestId": {
+                "description": "Unique request identifier for tracing",
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "API version"
+              }
+            },
+            "required": [
+              "timestamp",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "PromptsPromptNamePostError502": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "PROMPTS_SOURCE_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
             },
             "required": [
               "code",
@@ -6441,6 +7182,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -6850,6 +7592,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -6977,6 +7720,7 @@
                   "SESSION_RETRIEVAL_ERROR",
                   "MIGRATION_ERROR",
                   "PROMPTS_CACHE_REFRESH_ERROR",
+                  "PROMPTS_SOURCE_INGEST_ERROR",
                   "USER_MANAGEMENT_ERROR"
                 ]
               },
@@ -7867,9 +8611,12 @@
                 "const": "INVALID_REQUEST"
               },
               "message": {
-                "type": "string"
+                "type": "string",
+                "description": "Human-readable error message"
               },
-              "details": {}
+              "details": {
+                "description": "Additional error context"
+              }
             },
             "required": [
               "code",
@@ -8155,7 +8902,7 @@
                 "type": "string",
                 "format": "email",
                 "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
-                "description": "Created user email"
+                "description": "Deleted user email"
               },
               "message": {
                 "type": "string",

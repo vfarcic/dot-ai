@@ -148,6 +148,7 @@ All AI models must meet these minimum requirements:
 | **Host** | Host Environment LLM | `host` | None (uses host's AI) | Yes (if supported) |
 | **Moonshot AI** | Kimi K2.5 | `kimi` | `MOONSHOT_API_KEY` | Yes |
 | **Alibaba** | Qwen 3.5 Plus | `alibaba` | `ALIBABA_API_KEY` | Yes |
+| **GitHub Copilot** | Claude Sonnet 4.6 (via Copilot) | `copilot` | `GITHUB_COPILOT_TOKEN` | Yes |
 | **OpenAI** | GPT-5.4 | `openai` | `OPENAI_API_KEY` | No * |
 | **xAI** | Grok-4 | `xai` | `XAI_API_KEY` | No * |
 
@@ -185,6 +186,45 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
   --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
   # ... other settings
 ```
+
+#### GitHub Copilot (no per-token billing)
+
+Use your existing GitHub Copilot subscription instead of a pay-per-token API:
+
+> **Important — unofficial integration notice**
+>
+> This provider sends requests directly to `api.githubcopilot.com` using VS Code-style
+> headers (`Copilot-Integration-Id: vscode-chat`, `Editor-Version: vscode/1.104.1`).
+> This mirrors the approach used by other third-party tools (e.g. `opencode`) — it is
+> **not** an officially documented or supported GitHub API path.
+>
+> Operators should be aware of the following before deploying:
+>
+> - ❌ **May break without notice.** GitHub may change the Copilot API, required headers,
+>   or authentication model at any time.
+> - 🎯 **Terms of service.** Review the GitHub Copilot terms for your subscription tier
+>   (Individual, Business, or Enterprise). Third-party clients using VS Code-style headers
+>   may not be permitted under all tiers.
+> - 🔧 **No official support from GitHub.** Issues caused by API changes cannot be resolved
+>   through GitHub support.
+
+```bash
+# Set your GitHub OAuth token (gho_* prefix, from a Copilot-enabled account)
+# Obtain one with: gh auth token  (requires gh CLI)
+export GITHUB_COPILOT_TOKEN="gho_..."
+
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set ai.provider=copilot \
+  --set secrets.copilot.token="$GITHUB_COPILOT_TOKEN" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set ingress.enabled=true \
+  --set ingress.className="$INGRESS_CLASS_NAME" \
+  --set ingress.host="dot-ai.127.0.0.1.nip.io" \
+  --namespace dot-ai \
+  --wait
+```
+
+Supported token formats: `gho_*` (OAuth, recommended) and `ghu_*` (GitHub App). Personal access tokens (`github_pat_*` fine-grained PATs and `ghp_*` classic PATs) are not supported by `api.githubcopilot.com`. The resolver checks `GITHUB_COPILOT_TOKEN`, `GH_TOKEN`, and `GITHUB_TOKEN` env vars in that priority order. Note: the `gh auth token` CLI fallback is not available in Kubernetes deployments where `gh` is not installed — supply the token explicitly via the env var.
 
 **AI Keys Are Optional**: The MCP server starts successfully without AI API keys. Tools like **Shared Prompts Library** and **REST API Gateway** work without AI. AI-powered tools (deployment recommendations, remediation, pattern/policy management, capability scanning) require AI keys (unless using the `host` provider) and will show helpful error messages when accessed without configuration.
 

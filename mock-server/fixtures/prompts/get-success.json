@@ -20,7 +20,8 @@
         "path": "templates/pod-debug.yaml",
         "content": "YXBpVmVyc2lvbjogdjEKa2luZDogUG9kCm1ldGFkYXRhOgogIG5hbWU6IGRlYnVnLXBvZAogIG5hbWVzcGFjZTogZGVmYXVsdApzcGVjOgogIGNvbnRhaW5lcnM6CiAgICAtIG5hbWU6IGRlYnVnCiAgICAgIGltYWdlOiBidXN5Ym94OmxhdGVzdAogICAgICBjb21tYW5kOiBbInNsZWVwIiwgIjM2MDAiXQogICAgICByZXNvdXJjZXM6CiAgICAgICAgbGltaXRzOgogICAgICAgICAgbWVtb3J5OiAiMTI4TWkiCiAgICAgICAgICBjcHU6ICIyNTBtIgo="
       }
-    ]
+    ],
+    "source": "built-in"
   },
   "meta": {
     "timestamp": "2024-01-15T10:30:00.000Z",

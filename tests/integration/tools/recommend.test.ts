@@ -396,8 +396,17 @@ describe.concurrent('Recommend Tool Integration', () => {
         }
       );
 
-      // Validate answerQuestion response (should return next stage questions)
-      expect(answerRequiredResponse).toMatchObject({
+      // Validate answerQuestion response (should return next stage questions).
+      // The diagnostic message surfaces the actual result (or error) so an
+      // AI-driven mismatch is legible in CI instead of an opaque "data {…3}" diff.
+      expect(
+        answerRequiredResponse,
+        `answerQuestion:required expected status=stage_questions/currentStage=basic, got: ${JSON.stringify(
+          answerRequiredResponse.data?.result ??
+            answerRequiredResponse.error ??
+            answerRequiredResponse
+        )}`
+      ).toMatchObject({
         success: true,
         data: {
           result: {

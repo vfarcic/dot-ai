@@ -1,6 +1,6 @@
 ---
 name: dot-ai-tag-release
-description: Create a release tag based on accumulated changelog fragments. Run when ready to cut a release.
+description: Create a release tag based on accumulated changelog fragments, then prune merged worktrees and branches. Run when ready to cut a release.
 user-invocable: true
 ---
 
@@ -59,11 +59,58 @@ Show the user:
 2. The tag URL on GitHub (if applicable)
 3. Note that CI/CD will generate release notes from the fragments
 
+### Step 6: Clean Up Merged Worktrees and Branches
+
+Once the release is tagged, the branches and worktrees whose work it contains are
+done. Run the read-only detection script bundled with this skill:
+```bash
+bash .claude/skills/dot-ai-tag-release/cleanup.sh
+```
+
+Interpret the output:
+- If `NOTHING_TO_CLEAN=true`, tell the user there is nothing to clean and finish.
+- Otherwise present the `WORKTREES`, `LOCAL_BRANCHES`, and `REMOTE_BRANCHES` lists
+  and ask the user to confirm before deleting anything.
+
+**This step is destructive — always show the full list and get explicit
+confirmation first.** Never touch the default branch (`DEFAULT_BRANCH`) or the
+branch/worktree you are currently on; `.claude/skills/dot-ai-tag-release/cleanup.sh` already excludes them.
+
+After confirmation, process the items **in this order**:
+
+1. Remove each worktree (must come before deleting its branch — a branch checked
+   out in a worktree cannot be deleted):
+   ```bash
+   git worktree remove [worktree_path]
+   ```
+   If a worktree has uncommitted changes git refuses; report it and skip rather
+   than using `--force`, unless the user explicitly asks.
+
+2. Delete each local branch:
+   ```bash
+   git branch -d [branch]
+   ```
+   Use `-d` (not `-D`) as a safety net — it refuses unmerged branches. If it
+   refuses, surface the warning and ask before forcing with `-D`.
+
+3. Delete each remote branch:
+   ```bash
+   git push origin --delete [branch]
+   ```
+
+Finally, prune stale worktree metadata:
+```bash
+git worktree prune
+```
+
 ## Guidelines
 
 - **Don't run during PR workflow**: This is a separate release activity
 - **Review fragments first**: Make sure all fragments are accurate before tagging
-- **Use semantic versioning**: Follow semver strictly based on fragment types
+- **Use semantic versioning**: Follow semver strictly based on fragment types. While the project is pre-1.0 (`v0.x`), the minor digit is the compatibility boundary, so `breaking` fragments bump the minor and `feature`/`bugfix` fragments are patch releases; from `1.0` onward, standard semver applies (`breaking`→major, `feature`→minor, `bugfix`→patch). The `.claude/skills/dot-ai-tag-release/analyze.sh` output already reflects this.
 - **Brief tag message**: Summarize the release in 1-2 sentences
 - **Never tag [skip ci] commits**: Always create a preparation commit first
+- **Clean up only after tagging**: Run the cleanup step (Step 6) once the release
+  is cut, never before — and always confirm the detected list with the user, since
+  removing worktrees and deleting branches is destructive
 

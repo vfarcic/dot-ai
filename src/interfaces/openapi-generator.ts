@@ -128,7 +128,14 @@ export class OpenApiGenerator {
   private specCache?: OpenApiSpec;
   private lastCacheUpdate: number = 0;
   private cacheValidityMs: number = 60000; // 1 minute
-  private schemaCache: Map<string, JsonSchemaObject> = new Map();
+  // Keyed on the Zod schema OBJECT identity, not a structural stringify: two
+  // distinct schemas that differ only in their `.describe()` text serialize to
+  // the same string, so a string key would conflate them and leak one schema's
+  // descriptions into the other's endpoint (e.g. the prompts list vs. render
+  // `?source=` query). Identity keying gives each schema object its own entry
+  // while a schema reused across routes still hits the cache.
+  private schemaCache: WeakMap<z.ZodSchema<unknown>, JsonSchemaObject> =
+    new WeakMap();
 
   constructor(
     toolRegistry: RestToolRegistry,
@@ -650,6 +657,7 @@ export class OpenApiGenerator {
       404: 'Not found',
       405: 'Method not allowed',
       409: 'Conflict',
+      413: 'Payload too large',
       422: 'Unprocessable entity',
       500: 'Internal server error',
       502: 'Bad gateway',
@@ -664,9 +672,8 @@ export class OpenApiGenerator {
   private zodSchemaToJsonSchema(
     schema: z.ZodSchema<unknown>
   ): JsonSchemaObject {
-    const cacheKey = JSON.stringify(schema);
-    if (this.schemaCache.has(cacheKey)) {
-      return this.schemaCache.get(cacheKey)!;
+    if (this.schemaCache.has(schema)) {
+      return this.schemaCache.get(schema)!;
     }
 
     try {
@@ -676,7 +683,7 @@ export class OpenApiGenerator {
       delete result.$schema;
       delete result.additionalProperties;
 
-      this.schemaCache.set(cacheKey, result);
+      this.schemaCache.set(schema, result);
       return result;
     } catch (error) {
       this.logger.warn('Failed to convert Zod schema to JSON Schema', {

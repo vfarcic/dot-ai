@@ -39,8 +39,17 @@ import {
   PromptGetResponseSchema,
   PromptGetRequestSchema,
   PromptNotFoundErrorSchema,
+  PromptValidationErrorSchema,
+  PromptsSourceErrorSchema,
   PromptsCacheRefreshResponseSchema,
   PromptsCacheRefreshErrorSchema,
+  PromptsSourceIngestRequestSchema,
+  PromptsSourceIngestResponseSchema,
+  PromptsSourceIngestErrorSchema,
+  PromptsSourceIngestPayloadTooLargeErrorSchema,
+  PromptsSourceIngestServerErrorSchema,
+  PromptGetQuerySchema,
+  PromptsListQuerySchema,
   // Visualization schemas
   VisualizationResponseSchema,
   VisualizationNotFoundErrorSchema,
@@ -382,8 +391,17 @@ export const routeDefinitions: RouteDefinition<
     method: 'GET',
     description: 'List all available prompts',
     tags: ['Prompts'],
+    // PRD #647 list-by-source: declare the per-request query params the list
+    // endpoint accepts. `?source=` enumerates a previously-ingested source (no
+    // git clone); `?repo=`/`?path=`/`?branch=` are the existing git overrides.
+    query: PromptsListQuerySchema,
     response: PromptsListResponseSchema,
     errorResponses: {
+      // PRD #647 list-by-source (D2): an unknown/evicted ?source= identifier
+      // returns 400 VALIDATION_ERROR with re-upload guidance — same contract as
+      // the render endpoint's ?source= miss.
+      400: PromptValidationErrorSchema,
+      502: PromptsSourceErrorSchema,
       500: InternalServerErrorSchema,
     },
   },
@@ -394,7 +412,26 @@ export const routeDefinitions: RouteDefinition<
     tags: ['Prompts'],
     response: PromptsCacheRefreshResponseSchema,
     errorResponses: {
+      502: PromptsSourceErrorSchema,
       500: PromptsCacheRefreshErrorSchema,
+    },
+  },
+  {
+    path: '/api/v1/prompts/sources',
+    method: 'POST',
+    description:
+      'Ingest (upload) a skill source the server caches and renders via POST /api/v1/prompts/:promptName?source=<identifier> with no git clone (PRD #647)',
+    tags: ['Prompts'],
+    body: PromptsSourceIngestRequestSchema,
+    response: PromptsSourceIngestResponseSchema,
+    errorResponses: {
+      400: PromptsSourceIngestErrorSchema,
+      // PRD #647 A7/A9 (CodeRabbit): the 512 KiB raw-body cap returns 413
+      // (PAYLOAD_TOO_LARGE) from mcp.ts before route dispatch — document it.
+      413: PromptsSourceIngestPayloadTooLargeErrorSchema,
+      // PRD #647 A8 (CodeRabbit): narrowed to the only 500 code this handler
+      // emits, instead of the shared broad InternalServerErrorSchema union.
+      500: PromptsSourceIngestServerErrorSchema,
     },
   },
   {
@@ -403,10 +440,18 @@ export const routeDefinitions: RouteDefinition<
     description: 'Get a prompt with rendered template arguments',
     tags: ['Prompts'],
     params: PromptNameParamsSchema,
+    // PRD #647 A6 (CodeRabbit): declare the per-request render query params
+    // (?source= ingest-render, plus ?repo=/?path=/?branch= overrides).
+    query: PromptGetQuerySchema,
     body: PromptGetRequestSchema,
     response: PromptGetResponseSchema,
     errorResponses: {
+      // PRD #647 (CodeRabbit): the render handler returns 400 VALIDATION_ERROR
+      // when ?source= resolution fails (unresolvable ingested source → D2) or
+      // required arguments are missing — document that contract.
+      400: PromptValidationErrorSchema,
       404: PromptNotFoundErrorSchema,
+      502: PromptsSourceErrorSchema,
       500: InternalServerErrorSchema,
     },
   },

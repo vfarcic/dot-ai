@@ -26,8 +26,8 @@ export interface PromptMetadata {
 }
 
 export interface PromptFile {
-  path: string;       // Relative path within skill folder (e.g., "create-worktree.sh")
-  content: string;    // Base64-encoded file content
+  path: string; // Relative path within skill folder (e.g., "create-worktree.sh")
+  content: string; // Base64-encoded file content
 }
 
 export interface Prompt {
@@ -242,17 +242,39 @@ export function mergePrompts(
 export async function loadAllPrompts(
   logger: Logger,
   baseDir?: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  override?: import('../core/user-prompts-loader.js').UserPromptsOverride
 ): Promise<Prompt[]> {
   // Load built-in prompts (synchronous)
   const builtInPrompts = loadBuiltInPrompts(logger, baseDir);
 
-  // Load user prompts from git repository (async, graceful failure)
+  // Load user prompts from git repository (async, graceful failure). When a
+  // per-request override is supplied (PRD #581), it replaces the env-var
+  // configured repo for this single call.
   let userPrompts: Prompt[] = [];
   try {
     const { loadUserPrompts } = await import('../core/user-prompts-loader.js');
-    userPrompts = await loadUserPrompts(logger, forceRefresh);
+    userPrompts = await loadUserPrompts(logger, forceRefresh, override);
   } catch (error) {
+    // Surface two classes of explicit, caller-actionable failures instead of
+    // silently degrading to built-in prompts:
+    //   - UserPromptsOverrideError (issue #575): a per-request ?repo=/body.repo
+    //     override (PRD #581/#621) whose source failed to clone. Env-var-repo
+    //     failures never reach here (loadUserPrompts returns [] for those).
+    //   - IngestedSourceNotFoundError (PRD #647 D2): a render that names a
+    //     missing ingested ?source= identifier — re-throw so the REST handler
+    //     maps it to a 400 with re-upload guidance instead of the generic
+    //     "Prompt not found".
+    // Matched by name to avoid a circular import — the loader imports from this
+    // module. Other errors (e.g. the dynamic import itself failing) stay
+    // non-fatal.
+    if (
+      error instanceof Error &&
+      (error.name === 'UserPromptsOverrideError' ||
+        error.name === 'IngestedSourceNotFoundError')
+    ) {
+      throw error;
+    }
     logger.debug('User prompts loader not available or failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -282,22 +304,30 @@ interface PromptsListResponse {
     description: string;
     arguments?: PromptArgument[];
   }>;
+  source: string;
 }
 
 /**
- * Handle prompts/list MCP request
+ * Handle prompts/list MCP request.
+ *
+ * The optional `override` parameter (PRD #581) is REST-only; MCP callers always
+ * pass undefined since there's no natural way for MCP to express a per-request
+ * repo override.
  */
 export async function handlePromptsListRequest(
   args: PromptsListArgs | undefined,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  override?: import('../core/user-prompts-loader.js').UserPromptsOverride
 ): Promise<PromptsListResponse> {
   try {
     logger.info('Processing prompts/list request', { requestId });
 
     const allPrompts = await loadAllPrompts(
       logger,
-      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
+      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined,
+      false,
+      override
     );
 
     // Filter out file-dependent skills when requested (MCP clients can't deliver files)
@@ -326,10 +356,28 @@ export async function handlePromptsListRequest(
       promptCount: promptList.length,
     });
 
+    const { computePromptsSource } =
+      await import('../core/user-prompts-loader.js');
+
     return {
       prompts: promptList,
+      source: computePromptsSource(override),
     };
   } catch (error) {
+    // Surface explicit, caller-actionable override failures unchanged so the
+    // REST layer can map them precisely:
+    //   - UserPromptsOverrideError → 502 (issue #575): a ?repo= override clone
+    //     that failed.
+    //   - IngestedSourceNotFoundError → 400 (PRD #647 list-by-source / D2): a
+    //     ?source= identifier that is unknown/evicted, so the caller gets the
+    //     re-upload guidance instead of a generic 500 or a silent builtin set.
+    if (
+      error instanceof Error &&
+      (error.name === 'UserPromptsOverrideError' ||
+        error.name === 'IngestedSourceNotFoundError')
+    ) {
+      throw error;
+    }
     logger.error('Prompts list request failed', error as Error);
 
     throw ErrorHandler.createError(
@@ -356,15 +404,21 @@ interface PromptsGetResponse {
   description?: string;
   messages: Array<{ role: string; content: { type: string; text: string } }>;
   files?: PromptFile[];
+  source: string;
 }
 
 /**
- * Handle prompts/get MCP request
+ * Handle prompts/get MCP request.
+ *
+ * The optional `override` parameter (PRD #581) is REST-only; MCP callers always
+ * pass undefined since there's no natural way for MCP to express a per-request
+ * repo override.
  */
 export async function handlePromptsGetRequest(
   args: PromptsGetArgs,
   logger: Logger,
-  requestId: string
+  requestId: string,
+  override?: import('../core/user-prompts-loader.js').UserPromptsOverride
 ): Promise<PromptsGetResponse> {
   try {
     logger.info('Processing prompts/get request', {
@@ -378,7 +432,9 @@ export async function handlePromptsGetRequest(
 
     const prompts = await loadAllPrompts(
       logger,
-      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined
+      process.env.NODE_ENV === 'test' ? args?.baseDir : undefined,
+      false,
+      override
     );
     const prompt = prompts.find(p => p.name === args.name);
 
@@ -435,6 +491,9 @@ export async function handlePromptsGetRequest(
       argumentsProvided: Object.keys(providedArgs).length,
     });
 
+    const { computePromptsSource } =
+      await import('../core/user-prompts-loader.js');
+
     // Convert to MCP prompts/get response format
     const response: PromptsGetResponse = {
       description: prompt.description,
@@ -447,6 +506,7 @@ export async function handlePromptsGetRequest(
           },
         },
       ],
+      source: computePromptsSource(override),
     };
 
     if (prompt.files && prompt.files.length > 0) {
@@ -457,8 +517,16 @@ export async function handlePromptsGetRequest(
   } catch (error) {
     logger.error('Prompts get request failed', error as Error);
 
-    // Re-throw if already an AppError
-    if (error instanceof Error && 'category' in error) {
+    // Surface explicit, caller-actionable failures unchanged so the REST layer
+    // can map them precisely: UserPromptsOverrideError → 502 (issue #575) and
+    // IngestedSourceNotFoundError → 400 with re-upload guidance (PRD #647 D2);
+    // likewise re-throw if already an AppError.
+    if (
+      error instanceof Error &&
+      (error.name === 'UserPromptsOverrideError' ||
+        error.name === 'IngestedSourceNotFoundError' ||
+        'category' in error)
+    ) {
       throw error;
     }
 

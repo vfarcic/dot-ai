@@ -20,6 +20,21 @@ import {
   handlePromptsGetRequest,
   loadAllPrompts,
 } from '../tools/prompts';
+import {
+  computePromptsSource,
+  getUserPromptsConfigFromOverride,
+  ingestPromptsSource,
+  PromptsSourceValidationError,
+  sanitizeUrlForLogging,
+  scrubSourceUrl,
+  UserPromptsOverride,
+  UserPromptsOverrideError,
+} from '../core/user-prompts-loader';
+import { scrubCredentials } from '../core/git-utils';
+import {
+  GIT_TOKEN_HEADER_LC,
+  REST_CORS_ALLOW_HEADERS,
+} from './cors-headers';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import {
   getSessionEventBus,
@@ -67,6 +82,244 @@ import {
   filterAuthorizedTools,
   logUserManagementOperation,
 } from '../core/rbac';
+
+/**
+ * Constant placeholder used when the request URL fails to parse and the
+ * caller would otherwise have to choose between logging a potentially
+ * credential-bearing query string or dropping the request log entirely. A
+ * stable string keeps log-grepping useful.
+ */
+export const UNPARSEABLE_QUERY_PLACEHOLDER = '?<redacted-unparseable>';
+
+/**
+ * F3: req.url is logged on every request; with PRD #581 the query string may
+ * carry `?repo=<user-supplied-url>` whose value can include credentials, and
+ * PRD #647 adds `?source=<identifier>` which is equally credential-bearing (it
+ * may be a `https://user:tok@host` git URL). This helper rewrites BOTH values
+ * to their credential-scrubbed form so the raw token doesn't reach the log.
+ * Everything else is preserved verbatim.
+ *
+ * CodeRabbit Major B: on parse failure, we no longer return the input
+ * verbatim — an unparseable URL is more likely than a parseable one to hide
+ * a credential (a stray character may have broken the parse). Instead, keep
+ * the pathname (so the log still tells you which endpoint was hit) but
+ * REDACT the entire query string with a fixed placeholder. URLs without a
+ * '?' are pass-through (no risk).
+ */
+export function sanitizeRequestUrlForLogging(
+  url: string | undefined
+): string | undefined {
+  if (!url) return url;
+  // Fast path: only walk the URL when it carries a credential-bearing param
+  // we know how to scrub (PRD #581 `repo=`, PRD #647 `source=`).
+  //
+  // CodeRabbit C3: a percent-encoded param NAME (e.g. `r%65po=`, `s%6Frce=`)
+  // decodes to `repo`/`source` once parsed, so the literal-substring fast path
+  // would early-return WITHOUT scrubbing and leak the credential into the log.
+  // Any `%` means a name could be encoded, so fall through to the full
+  // parse-and-scrub below (URLSearchParams decodes the name, catching it).
+  if (
+    !url.includes('repo=') &&
+    !url.includes('source=') &&
+    !url.includes('%')
+  ) {
+    return url;
+  }
+  try {
+    // req.url is path-relative; provide a dummy base for URL parsing.
+    const parsed = new URL(url, 'http://internal.invalid');
+    const repo = parsed.searchParams.get('repo');
+    if (repo) {
+      parsed.searchParams.set('repo', sanitizeUrlForLogging(repo));
+    }
+    // PRD #647 M5 (F2): `?source=` is scrubbed with the same deep helper used
+    // for the echoed `source` (userinfo + credential-bearing query params), so
+    // `?source=https://user:tok@host` never appears unscrubbed in the log.
+    const source = parsed.searchParams.get('source');
+    if (source) {
+      parsed.searchParams.set('source', scrubSourceUrl(source));
+    }
+    // Return path + search only (drop the dummy base).
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch {
+    // F3/Major B: don't echo a potentially credential-bearing query string
+    // we couldn't parse. Keep the path (useful for log triage) and replace
+    // the rest with a constant marker.
+    const qIdx = url.indexOf('?');
+    if (qIdx === -1) return url;
+    return url.slice(0, qIdx) + UNPARSEABLE_QUERY_PLACEHOLDER;
+  }
+}
+
+/**
+ * Coerce an optional override string param (path/branch) supplied via query
+ * string or JSON body. Mirrors the `repo` guard in extractPromptsOverride:
+ *   - non-string (array, number, object, boolean) → 400 (avoids a 500 from a
+ *     malformed body reaching downstream code).
+ *   - absent (null/undefined) or empty/whitespace-only → `undefined`, i.e.
+ *     treated as not supplied so the downstream default (subPath '' / branch
+ *     'main') is preserved and an empty-string branch never reaches
+ *     isValidGitBranch (which would otherwise reject it).
+ *   - otherwise → the trimmed value.
+ */
+function coerceOverrideStringParam(
+  value: unknown,
+  name: 'path' | 'branch'
+):
+  | { ok: true; value: string | undefined }
+  | { ok: false; message: string } {
+  if (value === undefined || value === null) {
+    return { ok: true, value: undefined };
+  }
+  if (typeof value !== 'string') {
+    return {
+      ok: false,
+      message: `${name} must be a string (got ${Array.isArray(value) ? 'array' : typeof value})`,
+    };
+  }
+  const trimmed = value.trim();
+  return { ok: true, value: trimmed.length > 0 ? trimmed : undefined };
+}
+
+/**
+ * Read the per-request git credential from the X-Dot-AI-Git-Token header
+ * (PRD #621 M2). Node lowercases incoming header names and may present a
+ * repeated header as an array; normalize to a single non-empty string or
+ * undefined. The value is a secret, so it is never logged here.
+ */
+function readGitTokenHeader(req: IncomingMessage): string | undefined {
+  const raw = req.headers[GIT_TOKEN_HEADER_LC];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Extract and validate the per-request prompts override.
+ *
+ * Threads three optional, additive inputs from the request into a
+ * UserPromptsOverride (PRD #581 introduced `repo`; PRD #621 M1 adds `path`
+ * and `branch`):
+ *   - repoParam   → override.repoUrl   (GET ?repo=  / POST body `repo`)
+ *   - pathParam   → override.subPath   (GET ?path=  / POST body `path`)
+ *   - branchParam → override.branch    (GET ?branch= / POST body `branch`)
+ *   - gitToken    → override.gitToken  (X-Dot-AI-Git-Token request header; M2)
+ *
+ * Returns:
+ *   - { ok: true, override }  when no `repo` is supplied (override undefined;
+ *     any path/branch/token are ignored, since they only qualify an override —
+ *     this keeps the no-`repo` / env-var-configured path unchanged).
+ *   - { ok: true, override }  when a syntactically valid override is supplied.
+ *   - { ok: false, message }  when the override fails validation (HTTP 400).
+ *
+ * The validation message is run through scrubCredentials so embedded tokens
+ * never reach the wire response.
+ *
+ * Backward compatibility (PRD #621, non-negotiable): when path/branch are
+ * absent or empty, the override carries `repoUrl` only — byte-identical to
+ * the PRD #581 behavior (same clone target: repo root, `main`). subPath and
+ * branch are populated ONLY for a non-empty value, so downstream defaults are
+ * untouched. The credential header is INERT unless a `?repo=` override is
+ * present: without a repo this returns `override: undefined` before the token
+ * is ever read, so the env-var path is unaffected by a forwarded header.
+ *
+ * Validation is delegated to getUserPromptsConfigFromOverride (scheme,
+ * sanitizeRelativePath for subPath, isValidGitBranch for branch) and happens
+ * BEFORE any clone or shared-cache mutation, so a rejected override can never
+ * corrupt the env-var-configured cache.
+ */
+export function extractPromptsOverride(
+  repoParam: unknown,
+  pathParam?: unknown,
+  branchParam?: unknown,
+  gitToken?: string,
+  sourceParam?: unknown
+):
+  | {
+      ok: true;
+      override?: UserPromptsOverride;
+    }
+  | {
+      ok: false;
+      message: string;
+    } {
+  // PRD #647 D1: an explicit `?source=<identifier>` selects an already-ingested
+  // (CLI-uploaded) source. It is the explicit ingested signal, so it takes
+  // precedence over `?repo=` and the clone-qualifying params (path/branch/token)
+  // do not apply — they only describe a git clone, which an ingested source is
+  // not. Resolution against the in-memory ingested cache (and the "never clone"
+  // guarantee) happens in loadUserPrompts via override.ingestedSource. The raw
+  // identifier doubles as repoUrl ONLY so computePromptsSource echoes the
+  // scrubbed source; it is never cloned or logged unscrubbed on this path.
+  if (typeof sourceParam === 'string' && sourceParam.trim() !== '') {
+    const identifier = sourceParam.trim();
+    return {
+      ok: true,
+      override: { repoUrl: identifier, ingestedSource: identifier },
+    };
+  }
+
+  // Treat absent (null/undefined) repo as no override. path/branch/token only
+  // qualify an override, so without a repo they are ignored (the credential
+  // header is inert on the env-var path).
+  if (repoParam === undefined || repoParam === null) {
+    return { ok: true, override: undefined };
+  }
+  // The wire contract says `repo` is a string. Anything else (array,
+  // number, object, boolean) is a 400 — otherwise downstream code
+  // would crash to a 500.
+  if (typeof repoParam !== 'string') {
+    return {
+      ok: false,
+      message: `repo must be a string (got ${Array.isArray(repoParam) ? 'array' : typeof repoParam})`,
+    };
+  }
+  const trimmed = repoParam.trim();
+  if (!trimmed) {
+    return { ok: true, override: undefined };
+  }
+  const candidate: UserPromptsOverride = { repoUrl: trimmed };
+
+  // PRD #621 M1: thread ?path= / body `path` into subPath (validated
+  // downstream by sanitizeRelativePath).
+  const pathResult = coerceOverrideStringParam(pathParam, 'path');
+  if (!pathResult.ok) {
+    return pathResult;
+  }
+  if (pathResult.value !== undefined) {
+    candidate.subPath = pathResult.value;
+  }
+
+  // PRD #621 M1: thread ?branch= / body `branch` into branch (validated
+  // downstream by isValidGitBranch).
+  const branchResult = coerceOverrideStringParam(branchParam, 'branch');
+  if (!branchResult.ok) {
+    return branchResult;
+  }
+  if (branchResult.value !== undefined) {
+    candidate.branch = branchResult.value;
+  }
+
+  // PRD #621 M2: the X-Dot-AI-Git-Token header (read by the handler and passed
+  // in already-normalized to a non-empty string or undefined) authenticates
+  // THIS override clone. It travels only as a header — never query/body — and
+  // is never echoed (computePromptsSource uses repoUrl only).
+  if (gitToken) {
+    candidate.gitToken = gitToken;
+  }
+
+  try {
+    // Throws on invalid scheme / subPath / branch.
+    getUserPromptsConfigFromOverride(candidate);
+    return { ok: true, override: candidate };
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : 'Invalid override';
+    return { ok: false, message: scrubCredentials(raw) };
+  }
+}
 
 /**
  * HTTP status codes for REST responses
@@ -273,7 +526,10 @@ export class RestApiRouter {
       this.logger.debug('REST API request received', {
         requestId,
         method: req.method,
-        url: req.url,
+        // F3: req.url may carry a `?repo=<user-supplied-url>` whose query
+        // value includes credentials (PRD #581). Sanitize that single
+        // value before logging.
+        url: sanitizeRequestUrlForLogging(req.url),
         hasBody: !!body,
       });
 
@@ -411,16 +667,19 @@ export class RestApiRouter {
       'GET:/api/v1/logs': () =>
         this.handleGetLogs(req, res, requestId, searchParams),
       'GET:/api/v1/prompts': () =>
-        this.handlePromptsListRequest(req, res, requestId),
+        this.handlePromptsListRequest(req, res, requestId, searchParams),
       'POST:/api/v1/prompts/refresh': () =>
-        this.handlePromptsCacheRefresh(req, res, requestId),
+        this.handlePromptsCacheRefresh(req, res, requestId, body),
+      'POST:/api/v1/prompts/sources': () =>
+        this.handlePromptsSourceIngest(req, res, requestId, body),
       'POST:/api/v1/prompts/:promptName': () =>
         this.handlePromptsGetRequest(
           req,
           res,
           requestId,
           params.promptName,
-          body
+          body,
+          searchParams
         ),
       'GET:/api/v1/visualize/:sessionId': () =>
         this.handleVisualize(
@@ -1810,12 +2069,44 @@ export class RestApiRouter {
   private async handlePromptsListRequest(
     req: IncomingMessage,
     res: ServerResponse,
-    requestId: string
+    requestId: string,
+    searchParams: URLSearchParams
   ): Promise<void> {
     try {
       this.logger.info('Processing prompts list request', { requestId });
 
-      const result = await handlePromptsListRequest({}, this.logger, requestId);
+      // PRD #581: ?repo= override. PRD #621 M1: ?path= / ?branch= thread into
+      // candidate.subPath / candidate.branch (absent → unchanged behavior).
+      // PRD #621 M2: X-Dot-AI-Git-Token header authenticates the override clone
+      // (inert when no ?repo= override is present).
+      // PRD #647 list-by-source: ?source= selects an already-ingested source,
+      // resolved from the in-memory upload cache with no git operation (same
+      // signal as the render path). Absent → byte-identical to today (env-var /
+      // built-in set), so the no-?source= behavior is unchanged.
+      const overrideResult = extractPromptsOverride(
+        searchParams.get('repo'),
+        searchParams.get('path'),
+        searchParams.get('branch'),
+        readGitTokenHeader(req),
+        searchParams.get('source')
+      );
+      if (!overrideResult.ok) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          overrideResult.message
+        );
+        return;
+      }
+
+      const result = await handlePromptsListRequest(
+        {},
+        this.logger,
+        requestId,
+        overrideResult.override
+      );
 
       const response: RestApiResponse = {
         success: true,
@@ -1834,6 +2125,39 @@ export class RestApiRouter {
         promptCount: result.prompts?.length || 0,
       });
     } catch (error) {
+      // A per-request override (?repo=) whose source can't be loaded is a
+      // bad-gateway condition, not a server fault: surface it (issue #575)
+      // instead of silently serving built-in prompts with HTTP 200. The
+      // message is already credential-scrubbed by the loader.
+      if (error instanceof UserPromptsOverrideError) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'PROMPTS_SOURCE_ERROR',
+          error.message
+        );
+        return;
+      }
+
+      // PRD #647 list-by-source (D2): an unknown/evicted ?source= identifier is
+      // a caller-actionable validation error — surface the re-upload guidance as
+      // a 400 (same mapping the render handler uses), NOT a generic 500 or a
+      // silent success-with-builtins. The message names POST
+      // /api/v1/prompts/sources and carries no clone/git/scheme vocabulary.
+      const listErrorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (listErrorMessage.includes('Ingested source not found')) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          listErrorMessage
+        );
+        return;
+      }
+
       this.logger.error(
         'Prompts list request failed',
         error instanceof Error ? error : new Error(String(error)),
@@ -1860,7 +2184,8 @@ export class RestApiRouter {
     res: ServerResponse,
     requestId: string,
     promptName: string,
-    body: unknown
+    body: unknown,
+    searchParams: URLSearchParams
   ): Promise<void> {
     try {
       this.logger.info('Processing prompt get request', {
@@ -1868,13 +2193,40 @@ export class RestApiRouter {
         promptName,
       });
 
+      // PRD #581: ?repo= override. PRD #621 M1: ?path= / ?branch= thread into
+      // candidate.subPath / candidate.branch (absent → unchanged behavior).
+      // PRD #621 M2: X-Dot-AI-Git-Token header authenticates the override clone
+      // (inert when no ?repo= override is present).
+      // PRD #647 D1/M3: ?source= selects an already-ingested source, resolved
+      // from the in-memory upload cache with no git operation (precedence over
+      // ?repo=). Absent → unchanged behavior, so the env-var/clone paths are
+      // byte-identical to today.
+      const overrideResult = extractPromptsOverride(
+        searchParams.get('repo'),
+        searchParams.get('path'),
+        searchParams.get('branch'),
+        readGitTokenHeader(req),
+        searchParams.get('source')
+      );
+      if (!overrideResult.ok) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          overrideResult.message
+        );
+        return;
+      }
+
       const bodyObj = body as
         | { arguments?: Record<string, string> }
         | undefined;
       const result = await handlePromptsGetRequest(
         { name: promptName, arguments: bodyObj?.arguments },
         this.logger,
-        requestId
+        requestId,
+        overrideResult.override
       );
 
       const response: RestApiResponse = {
@@ -1894,6 +2246,20 @@ export class RestApiRouter {
         promptName,
       });
     } catch (error) {
+      // A per-request override (?repo=) whose source can't be loaded is a
+      // bad-gateway condition (issue #575); surface it before the generic
+      // validation/500 mapping. The message is already credential-scrubbed.
+      if (error instanceof UserPromptsOverrideError) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'PROMPTS_SOURCE_ERROR',
+          error.message
+        );
+        return;
+      }
+
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -1905,10 +2271,13 @@ export class RestApiRouter {
         }
       );
 
-      // Check if it's a validation error (missing required arguments or prompt not found)
+      // Check if it's a validation error (missing required arguments, prompt not
+      // found, or a missing ingested ?source= identifier — PRD #647 D2, which
+      // carries re-upload guidance and must be a 400, not a 500).
       const isValidationError =
         errorMessage.includes('Missing required arguments') ||
-        errorMessage.includes('Prompt not found');
+        errorMessage.includes('Prompt not found') ||
+        errorMessage.includes('Ingested source not found');
 
       await this.sendErrorResponse(
         res,
@@ -1923,22 +2292,53 @@ export class RestApiRouter {
   }
 
   /**
-   * Handle prompts cache refresh requests (PRD #386)
+   * Handle prompts cache refresh requests (PRD #386, extended PRD #581)
    */
   private async handlePromptsCacheRefresh(
     req: IncomingMessage,
     res: ServerResponse,
-    requestId: string
+    requestId: string,
+    body: unknown
   ): Promise<void> {
     try {
       this.logger.info('Processing prompts cache refresh request', {
         requestId,
       });
 
-      const prompts = await loadAllPrompts(this.logger, undefined, true);
+      // body.repo type is checked inside extractPromptsOverride (it accepts
+      // unknown and rejects non-string values with 400 — see F2). PRD #621 M1:
+      // body `path` / `branch` thread into candidate.subPath / candidate.branch
+      // (absent → unchanged behavior); both are likewise type-checked.
+      const bodyObj = body as
+        | { repo?: unknown; path?: unknown; branch?: unknown }
+        | undefined;
+      // PRD #621 M2: the credential always travels as the X-Dot-AI-Git-Token
+      // header — never the body — and is inert without a repo override.
+      const overrideResult = extractPromptsOverride(
+        bodyObj?.repo,
+        bodyObj?.path,
+        bodyObj?.branch,
+        readGitTokenHeader(req)
+      );
+      if (!overrideResult.ok) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_REQUEST,
+          'VALIDATION_ERROR',
+          overrideResult.message
+        );
+        return;
+      }
 
-      const hasUserPromptsRepo = !!process.env.DOT_AI_USER_PROMPTS_REPO;
-      const source = hasUserPromptsRepo ? 'built-in+repository' : 'built-in';
+      const prompts = await loadAllPrompts(
+        this.logger,
+        undefined,
+        true,
+        overrideResult.override
+      );
+
+      const source = computePromptsSource(overrideResult.override);
 
       const response: RestApiResponse = {
         success: true,
@@ -1962,6 +2362,20 @@ export class RestApiRouter {
         source,
       });
     } catch (error) {
+      // A per-request override (body.repo) whose source can't be loaded is a
+      // bad-gateway condition (issue #575); surface it instead of a generic
+      // 500. The message is already credential-scrubbed by the loader.
+      if (error instanceof UserPromptsOverrideError) {
+        await this.sendErrorResponse(
+          res,
+          requestId,
+          HttpStatus.BAD_GATEWAY,
+          'PROMPTS_SOURCE_ERROR',
+          error.message
+        );
+        return;
+      }
+
       this.logger.error(
         'Prompts cache refresh failed',
         error instanceof Error ? error : new Error(String(error)),
@@ -1974,6 +2388,84 @@ export class RestApiRouter {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'PROMPTS_CACHE_REFRESH_ERROR',
         'Failed to refresh prompts cache'
+      );
+    }
+  }
+
+  /**
+   * Handle prompts source ingestion (PRD #647 M2).
+   *
+   * Accepts a JSON manifest { source, contentHash, files:[{path, content(base64),
+   * mode}] }, base64-decodes and caches the uploaded skill source keyed by its
+   * `source` identifier in the in-memory ingested cache. A later
+   * POST /api/v1/prompts/:promptName?source=<identifier> renders it through the
+   * existing render path with no git operation. The (scrubbed) source is echoed
+   * back. Bearer-gated by the same checkBearerAuth path as every non-OpenAPI
+   * request.
+   */
+  private async handlePromptsSourceIngest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+    body: unknown
+  ): Promise<void> {
+    try {
+      this.logger.info('Processing prompts source ingest request', {
+        requestId,
+      });
+
+      // All fields are untrusted; ingestPromptsSource validates and decodes
+      // them, throwing PromptsSourceValidationError (→ 400) on a malformed or
+      // unsafe manifest before anything is cached.
+      const manifest = body as
+        | { source?: unknown; contentHash?: unknown; files?: unknown }
+        | undefined;
+
+      const result = ingestPromptsSource(
+        {
+          source: manifest?.source,
+          contentHash: manifest?.contentHash,
+          files: manifest?.files,
+        },
+        this.logger
+      );
+
+      const response: RestApiResponse = {
+        success: true,
+        data: result,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+          version: this.config.version,
+        },
+      };
+
+      await this.sendJsonResponse(res, HttpStatus.OK, response);
+
+      this.logger.info('Prompts source ingest completed', {
+        requestId,
+        source: result.source,
+        fileCount: result.fileCount,
+      });
+    } catch (error) {
+      const isValidationError = error instanceof PromptsSourceValidationError;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(
+        'Prompts source ingest failed',
+        error instanceof Error ? error : new Error(String(error)),
+        { requestId }
+      );
+
+      await this.sendErrorResponse(
+        res,
+        requestId,
+        isValidationError
+          ? HttpStatus.BAD_REQUEST
+          : HttpStatus.INTERNAL_SERVER_ERROR,
+        isValidationError ? 'VALIDATION_ERROR' : 'PROMPTS_SOURCE_INGEST_ERROR',
+        isValidationError ? errorMessage : 'Failed to ingest prompts source'
       );
     }
   }
@@ -2224,7 +2716,9 @@ export class RestApiRouter {
       let isFallbackResponse = false;
       try {
         if (result.status && result.status !== 'success') {
-          throw new Error(`AI visualization generation ${result.status}: ${result.finalMessage}`);
+          throw new Error(
+            `AI visualization generation ${result.status}: ${result.finalMessage}`
+          );
         }
         const toolsUsed = [
           ...new Set(result.toolCallsExecuted.map(tc => tc.tool)),
@@ -2363,7 +2857,12 @@ export class RestApiRouter {
         0
       );
 
-      this.logger.info('Listing sessions', { requestId, status, limit, offset });
+      this.logger.info('Listing sessions', {
+        requestId,
+        status,
+        limit,
+        offset,
+      });
 
       const sessionManager = new GenericSessionManager<Record<string, unknown>>(
         'rem'
@@ -2467,12 +2966,14 @@ export class RestApiRouter {
     const headers: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
     };
 
     if (this.config.enableCors) {
       headers['Access-Control-Allow-Origin'] = '*';
-      headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
+      // R-2: use the shared allowlist (single source of truth in cors-headers.ts)
+      // so the SSE preflight includes X-Dot-AI-Git-Token like every other route.
+      headers['Access-Control-Allow-Headers'] = REST_CORS_ALLOW_HEADERS;
     }
 
     res.writeHead(HttpStatus.OK, headers);
@@ -3421,10 +3922,9 @@ export class RestApiRouter {
   private setCorsHeaders(res: ServerResponse): void {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization'
-    );
+    // PRD #621 M2 / Decision 1: advertise the X-Dot-AI-Git-Token credential
+    // header (shared with the mcp.ts allowlist via cors-headers.ts).
+    res.setHeader('Access-Control-Allow-Headers', REST_CORS_ALLOW_HEADERS);
     res.setHeader('Access-Control-Max-Age', '86400');
   }
 

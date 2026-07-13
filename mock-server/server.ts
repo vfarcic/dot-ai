@@ -12,6 +12,27 @@ import { readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
 import { matchRoute, getAllRoutes } from './routes.js';
+import {
+  applyPromptsRepoOverride,
+  coerceOverrideParam,
+  getOverridePathBranchFixture,
+  isPromptsRoutePath,
+  selectsOverridePathBranchSet,
+  validatePromptsOverride,
+} from './prompts-override.js';
+import {
+  isSingleResourceRoutePath,
+  lookupResource,
+} from './resource-lookup.js';
+import { BodyTooLargeError, readJsonBody } from './read-json-body.js';
+import {
+  IngestedSourceNotFoundError,
+  IngestValidationError,
+  PromptRenderError,
+  ingestPromptsSource,
+  listIngestedPrompts,
+  renderIngestedPrompt,
+} from './prompts-ingest.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -26,8 +47,16 @@ const FIXTURES_DIR = join(__dirname, '..', 'fixtures');
  */
 function setCorsHeaders(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS'
+  );
+  // PRD #621 M2/M5: advertise the X-Dot-AI-Git-Token credential header so the
+  // CLI's preflight succeeds, mirroring the real server's CORS allowlist.
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Dot-AI-Git-Token'
+  );
 }
 
 /**
@@ -48,9 +77,163 @@ async function loadFixture(fixturePath: string): Promise<unknown> {
 }
 
 /**
+ * Build the standard mock `meta` block.
+ */
+function buildMeta(): { timestamp: string; version: string } {
+  return { timestamp: new Date().toISOString(), version: '1.0.0' };
+}
+
+/**
+ * PRD #647 M6: handle POST /api/v1/prompts/sources — ingest a CLI-uploaded skill
+ * source into the in-memory mirror. Mirrors the real handler's response shape
+ * ({ success, data: { source, contentHash?, fileCount, status }, meta }) and its
+ * error mapping (D5 caps / zip-slip → 400 VALIDATION_ERROR; oversized body → 413).
+ */
+async function handlePromptsSourceIngest(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  let manifest: Record<string, unknown> | undefined;
+  try {
+    manifest = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      sendJson(res, 413, {
+        success: false,
+        error: { code: 'PAYLOAD_TOO_LARGE', message: error.message },
+      });
+      return;
+    }
+    throw error;
+  }
+
+  try {
+    const result = ingestPromptsSource({
+      source: manifest?.['source'],
+      contentHash: manifest?.['contentHash'],
+      files: manifest?.['files'],
+    });
+    sendJson(res, 200, { success: true, data: result, meta: buildMeta() });
+  } catch (error) {
+    if (error instanceof IngestValidationError) {
+      sendJson(res, 400, {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.message },
+      });
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendJson(res, 500, {
+      success: false,
+      error: {
+        code: 'PROMPTS_SOURCE_INGEST_ERROR',
+        message: 'Failed to ingest prompts source',
+        details: message,
+      },
+    });
+  }
+}
+
+/**
+ * PRD #647 M3/D2: handle POST /api/v1/prompts/:promptName?source=<identifier> —
+ * render a previously-ingested source from the in-memory mirror with no clone.
+ * A render-miss (never uploaded / evicted) → 400 VALIDATION_ERROR carrying
+ * re-upload guidance; a cached-but-absent skill or missing required argument →
+ * 400 VALIDATION_ERROR (mirrors the real "Prompt not found" / "Missing required
+ * arguments"). On success the `{{argument}}` placeholders are substituted.
+ */
+async function handlePromptsSourceRender(
+  req: IncomingMessage,
+  res: ServerResponse,
+  source: string,
+  promptName: string
+): Promise<void> {
+  let body: Record<string, unknown> | undefined;
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      sendJson(res, 413, {
+        success: false,
+        error: { code: 'PAYLOAD_TOO_LARGE', message: error.message },
+      });
+      return;
+    }
+    throw error;
+  }
+
+  const rawArgs = body?.['arguments'];
+  const args =
+    rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
+      ? (rawArgs as Record<string, string>)
+      : {};
+
+  try {
+    const data = renderIngestedPrompt(source, promptName, args);
+    sendJson(res, 200, { success: true, data, meta: buildMeta() });
+  } catch (error) {
+    if (
+      error instanceof IngestedSourceNotFoundError ||
+      error instanceof PromptRenderError
+    ) {
+      sendJson(res, 400, {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.message },
+      });
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendJson(res, 500, {
+      success: false,
+      error: {
+        code: 'PROMPT_GET_ERROR',
+        message: 'Failed to render prompt',
+        details: message,
+      },
+    });
+  }
+}
+
+/**
+ * PRD #647 list-by-source: handle GET /api/v1/prompts?source=<identifier> —
+ * enumerate a previously-ingested source's prompts from the in-memory mirror
+ * with no clone. Mirrors the real list response shape
+ * ({ success, data: { prompts:[{name, description, arguments}], source }, meta })
+ * with data.source echoing the scrubbed identifier. An unknown/evicted source →
+ * 400 VALIDATION_ERROR carrying the same re-upload guidance the render-miss path
+ * returns (D2), NOT a generic success-with-builtins.
+ */
+function handlePromptsSourceList(res: ServerResponse, source: string): void {
+  try {
+    const data = listIngestedPrompts(source);
+    sendJson(res, 200, { success: true, data, meta: buildMeta() });
+  } catch (error) {
+    if (error instanceof IngestedSourceNotFoundError) {
+      sendJson(res, 400, {
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.message },
+      });
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    sendJson(res, 500, {
+      success: false,
+      error: {
+        code: 'PROMPTS_LIST_ERROR',
+        message: 'Failed to list prompts',
+        details: message,
+      },
+    });
+  }
+}
+
+/**
  * Handle incoming HTTP requests
  */
-async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleRequest(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
   setCorsHeaders(res);
 
   // Handle CORS preflight
@@ -76,7 +259,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // List all available routes (for debugging)
   if (path === '/routes' && method === 'GET') {
-    const routes = getAllRoutes().map((r) => ({
+    const routes = getAllRoutes().map(r => ({
       method: r.method,
       path: r.path,
       description: r.description,
@@ -104,13 +287,73 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // Handle redirect routes (e.g., /authorize)
   if (route.redirect) {
-    const redirectUri = url.searchParams.get('redirect_uri') || 'http://localhost:3000/callback';
+    const redirectUri =
+      url.searchParams.get('redirect_uri') || 'http://localhost:3000/callback';
     const state = url.searchParams.get('state') || '';
     const redirectUrl = new URL(redirectUri);
     redirectUrl.searchParams.set('code', 'mock-authorization-code-12345');
     if (state) redirectUrl.searchParams.set('state', state);
     res.writeHead(302, { Location: redirectUrl.toString() });
     res.end();
+    return;
+  }
+
+  // PRD #647 M6: source ingestion + render-from-ingested are served dynamically
+  // from an in-memory mirror (no fixture). Handled before the fixture path so
+  // the fixture-less /sources route is not treated as 501, and so a `?source=`
+  // render resolves the uploaded source instead of the static get fixture. A
+  // plain `?repo=` render (no `?source=`) falls through to the existing
+  // fixture-based override behavior unchanged (backward-compat parity).
+  if (route.path === '/api/v1/prompts/sources' && method === 'POST') {
+    await handlePromptsSourceIngest(req, res);
+    return;
+  }
+  const sourceParam = coerceOverrideParam(url.searchParams.get('source'));
+  if (
+    route.path === '/api/v1/prompts/:promptName' &&
+    method === 'POST' &&
+    sourceParam
+  ) {
+    await handlePromptsSourceRender(req, res, sourceParam, params.promptName);
+    return;
+  }
+  // PRD #647 list-by-source: GET /api/v1/prompts?source=<id> enumerates the
+  // uploaded source from the in-memory mirror. A plain GET with no `?source=`
+  // falls through to the existing fixture-based list (backward-compat parity).
+  if (
+    route.path === '/api/v1/prompts' &&
+    method === 'GET' &&
+    sourceParam
+  ) {
+    handlePromptsSourceList(res, sourceParam);
+    return;
+  }
+
+  // Single-resource lookup: the fixture is a full-manifest collection; resolve
+  // the one object matching the kind/apiVersion/name/namespace query and return
+  // it under data.resource (404 when not found, 400 when kind/name missing).
+  if (isSingleResourceRoutePath(route.path) && route.fixture) {
+    try {
+      const collection = await loadFixture(route.fixture);
+      const result = lookupResource(collection, {
+        kind: url.searchParams.get('kind'),
+        apiVersion: url.searchParams.get('apiVersion'),
+        name: url.searchParams.get('name'),
+        namespace: url.searchParams.get('namespace'),
+      });
+      sendJson(res, result.status, result.body);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      sendJson(res, 500, {
+        success: false,
+        error: {
+          code: 'FIXTURE_LOAD_ERROR',
+          message: `Failed to load fixture: ${route.fixture}`,
+          details: errorMessage,
+        },
+      });
+    }
     return;
   }
 
@@ -133,12 +376,79 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  // Load and return fixture
+  // Load and return fixture. For prompts routes, mirror the real server's
+  // per-request override contract (PRD #581 `repo`; PRD #621 `path`/`branch`
+  // + X-Dot-AI-Git-Token header).
   try {
     const fixture = await loadFixture(route.fixture);
-    sendJson(res, 200, fixture);
+    let payload: unknown = fixture;
+    if (isPromptsRoutePath(route.path)) {
+      // Mirror the real server's override-source contract exactly:
+      //   - POST /api/v1/prompts/refresh → repo/path/branch from the JSON BODY
+      //     ONLY (the real handler reads bodyObj.repo/path/branch; query is not
+      //     consulted for /refresh).
+      //   - GET /api/v1/prompts and POST /api/v1/prompts/:name → from the QUERY.
+      let repo: string | undefined;
+      let pathParam: string | undefined;
+      let branchParam: string | undefined;
+      if (method === 'POST' && route.path === '/api/v1/prompts/refresh') {
+        const body = await readJsonBody(req);
+        repo = coerceOverrideParam(body?.['repo']);
+        pathParam = coerceOverrideParam(body?.['path']);
+        branchParam = coerceOverrideParam(body?.['branch']);
+      } else {
+        repo = coerceOverrideParam(url.searchParams.get('repo'));
+        pathParam = coerceOverrideParam(url.searchParams.get('path'));
+        branchParam = coerceOverrideParam(url.searchParams.get('branch'));
+      }
+
+      // The credential travels ONLY as the X-Dot-AI-Git-Token header. The mock
+      // advertises it via CORS and tolerates it here, but it is intentionally
+      // never read into — nor reflected by — the response, `source`, or logs.
+
+      // Invalid path/branch (only meaningful with a repo override) → 400 with
+      // credentials scrubbed, exactly as the real server.
+      const validation = validatePromptsOverride({
+        repo,
+        path: pathParam,
+        branch: branchParam,
+      });
+      if (!validation.ok) {
+        sendJson(res, 400, {
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: validation.message },
+        });
+        return;
+      }
+
+      // A repo override carrying BOTH a path and a branch resolves a DISTINCT
+      // prompt set (mirrors the real server resolving a subdir on a non-default
+      // branch). Otherwise the default (root@main) fixture is used.
+      let baseFixture: unknown = fixture;
+      if (selectsOverridePathBranchSet({ repo, path: pathParam, branch: branchParam })) {
+        const overrideFixture = getOverridePathBranchFixture(route.path);
+        if (overrideFixture) {
+          baseFixture = await loadFixture(overrideFixture);
+        }
+      }
+
+      payload = applyPromptsRepoOverride(baseFixture, repo);
+    }
+    sendJson(res, 200, payload);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // F4: oversized body → 413, not 500.
+    if (error instanceof BodyTooLargeError) {
+      sendJson(res, 413, {
+        success: false,
+        error: {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: error.message,
+        },
+      });
+      return;
+    }
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     sendJson(res, 500, {
       success: false,
       error: {
@@ -154,7 +464,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
  * Start the server
  */
 const server = createServer((req, res) => {
-  handleRequest(req, res).catch((error) => {
+  handleRequest(req, res).catch(error => {
     console.error('Unhandled error:', error);
     sendJson(res, 500, {
       success: false,

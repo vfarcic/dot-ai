@@ -410,12 +410,70 @@ The feature is designed for graceful degradation:
 
 **Changes not appearing**
 - **Cause**: Cache hasn't expired yet
-- **Solution**: Force-refresh the cache via [`dot-ai prompts refresh`](https://devopstoolkit.ai/docs/cli) (CLI) or `curl -X POST http://<your-server>/api/v1/prompts/refresh`, wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing
+- **Solution**: Force-refresh the cache via [`dot-ai prompts refresh`](https://devopstoolkit.ai/docs/cli) (CLI), wait for TTL to expire, or set `DOT_AI_USER_PROMPTS_CACHE_TTL=0` for testing. If you're building a custom HTTP client rather than using the CLI, see the [REST API reference](../api/rest-api.md#prompts-endpoints) for the refresh endpoint.
 
 **Prompt has same name as built-in**
 - **Cause**: Name collision with built-in prompt
 - **Solution**: Rename your prompt to a unique name
 - **Note**: Built-in prompts always take precedence
+
+### Multi-source skills via the per-request repo override
+
+When a single `DOT_AI_USER_PROMPTS_REPO` isn't enough — for example, you want org-wide public skills from one repository plus per-team private skills from another — run `dot-ai skills generate --repo <url>` (see the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical reference) to fetch prompts from a specified repository for that invocation only, overriding the env-var default. Run the command multiple times — typically wired up as separate agent hooks, one per source — and the CLI tags each set of generated skills with its source so subsequent runs only wipe their own slice.
+
+The override carries more than just the repo URL. A secondary source can live wherever it actually is, via three **optional, additive** qualifiers:
+
+| Qualifier | What it does | Default when omitted |
+|-----------|--------------|----------------------|
+| `path` (subdirectory) | Load prompts from a `skills/`-style subdirectory instead of the repo root — the same layout an env-var repo selects with `DOT_AI_USER_PROMPTS_PATH`. | Repo root |
+| `branch` | Pull the source from a non-default branch. | `main` |
+| Per-request credential | Authenticate the override clone with a request-supplied git token (the `X-Dot-AI-Git-Token` header), so a second repo in a **different auth realm** (another Forgejo, a private GitHub or GitLab) can be reached without sharing one server-wide token. | Server's `DOT_AI_GIT_TOKEN` |
+
+**Token precedence**: when a request supplies the credential header, it authenticates that override clone and takes precedence over the server's `DOT_AI_GIT_TOKEN` — but only for that request. Absent the header, the override clone falls back to `DOT_AI_GIT_TOKEN` exactly as before. The token always travels as a request header — never in a URL or body — and never appears in logs, error messages, or the `source` tag.
+
+Put together, a second source like *"the platform team's private skills, kept under `skills/` on the `team-skills` branch of a self-hosted Forgejo"* is reachable as a single override — a subdirectory, on a non-default branch, in a separate auth realm — alongside your org-wide public source. The CLI tags each source by its repo URL (the `source` value), which is **not** affected by `path`, `branch`, or the credential, so the per-source skill slices stay stable across runs.
+
+Under the hood, each invocation talks to the server once and the server still serves exactly one repository per request; composition lives in the CLI, not the server. The exact wire placement of each qualifier — `path`/`branch` as query params or JSON body fields, the credential as the `X-Dot-AI-Git-Token` header — is in the [REST API reference](../api/rest-api.md#per-request-path-branch-and-credential).
+
+> **Unchanged by default.** The `path`, `branch`, and credential qualifiers are all opt-in per request. A request that supplies none of them behaves byte-identically to the previous release — same clone target (repo root on `main`), same `DOT_AI_GIT_TOKEN` credential, same response. And when the override itself is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO`, or to the built-in prompts when no env-var repo is configured.
+
+**Server-side caveats** for this release (the contract is additive, so these can be lifted later without breaking changes):
+
+| Caveat | Impact |
+|--------|--------|
+| Single-slot loader cache | Sequential invocations against different repos re-clone each time. Clones are `--depth 1`, so the cost is small per call, but it's noticeable when alternating between repos within the TTL window. Token-bearing override requests are additionally isolated from the shared cache slot, so a private authenticated clone is never served to another caller. |
+| No URL allowlist | The server trusts the override URL. Don't expose this surface to untrusted callers without an upstream gate. |
+
+**When NOT to use the override**:
+
+- Inside a long-running agent loop that alternates between repos (every alternation causes a re-clone — pin to one repo for the loop and switch outside it).
+- As a substitute for `DOT_AI_USER_PROMPTS_REPO` when you only have a single source. The env var is simpler and benefits from the cache TTL.
+- From untrusted clients (no SSRF guard in this release).
+
+See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full wire contract, the `source` field semantics, validation rules, and response envelopes returned by each endpoint — useful if you're building a custom MCP/HTTP client rather than using the CLI.
+
+### CLI-uploaded skill sources (for sources the server can't reach)
+
+The per-request override above still has the **server** fetch the source. That covers any repository a server-side clone can authenticate to — but not everything. Two cases remain where the developer's laptop (running the CLI) can fetch while the server cannot:
+
+- **Sources the server can't authenticate or route to** — VPNs gated by SSO / OIDC / device attestation (no static token to hand the server), and managed/hardened clusters with no egress path the operator can open.
+- **On-disk directories** — work-in-progress skills on your filesystem, with no git remote at all (the local dev loop).
+
+For these, the CLI fetches the source **locally** and uploads it to the server, which caches it and renders it through the **same** server-side renderer — so a CLI-fetched skill renders identically to one cloned from a repo, with full argument substitution. There is still one renderer, server-side; only how the source reached it changes.
+
+**What you run** — point `dot-ai skills generate` at the source the CLI should fetch:
+
+- `dot-ai skills generate --repo-fetch <git-url>` — for a repository the server can't reach; the source is keyed by the git URL verbatim.
+- `dot-ai skills generate --repo-dir <path> --source-label <label>` — for an on-disk directory with no git remote; the source is keyed by `local:<label>`.
+
+Typically each source is wired up as its own agent hook, so the CLI re-fetches and re-uploads on every hook fire (content-hash-gated, so an unchanged source is a no-op). See the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical flags, and the [REST API reference](../api/rest-api.md#prompts-endpoints) for the wire contract — the upload and `?source=` render calls, with real captured request/response output.
+
+**Identifier conventions and a known limitation:**
+
+- The server stores the identifier exactly as sent — it does not auto-prefix or namespace per caller in this release. To avoid collisions between hosts, use a convention like `local:<user>-<label>` or `local:<host>-<label>` for `--source-label`.
+- Ingested identifiers are **global server state**: any authenticated caller can overwrite any identifier by uploading to the same one. There is no per-principal namespacing in this iteration — treat the endpoint as trusted-caller-only.
+
+**Safety:** uploads are size/count-capped (max 512 KiB raw request body → `413`; max 100 files and max 256 KiB total decoded payload → `400`) and reject path traversal and null-byte paths; credential-bearing git-URL identifiers are scrubbed in every echo, error, and log. See the [REST API reference](../api/rest-api.md#ingested-cli-uploaded-skill-sources) for the full wire format, limits, and error envelopes.
 
 ## Troubleshooting
 

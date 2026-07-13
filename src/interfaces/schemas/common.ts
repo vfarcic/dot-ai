@@ -98,6 +98,16 @@ export const MethodNotAllowedErrorSchema = ErrorResponseSchema.extend({
   }),
 });
 
+/**
+ * 413 returned when a request body exceeds a per-route raw-body cap (PRD #647:
+ * the 512 KiB prompts source ingest cap). The handler emits PAYLOAD_TOO_LARGE.
+ */
+export const PayloadTooLargeErrorSchema = ErrorResponseSchema.extend({
+  error: ErrorDetailsSchema.extend({
+    code: z.literal('PAYLOAD_TOO_LARGE'),
+  }),
+});
+
 export const ServiceUnavailableErrorSchema = ErrorResponseSchema.extend({
   error: ErrorDetailsSchema.extend({
     code: z.enum([
@@ -105,6 +115,16 @@ export const ServiceUnavailableErrorSchema = ErrorResponseSchema.extend({
       'PLUGIN_UNAVAILABLE',
       'VECTOR_DB_UNAVAILABLE',
       'SERVICE_UNAVAILABLE',
+    ]),
+  }),
+});
+
+export const BadGatewayErrorSchema = ErrorResponseSchema.extend({
+  error: ErrorDetailsSchema.extend({
+    code: z.enum([
+      // A per-request prompts-repo override (?repo=) whose source could not be
+      // cloned — bad/missing forwarded credential or unreachable host (issue #575).
+      'PROMPTS_SOURCE_ERROR',
     ]),
   }),
 });
@@ -130,6 +150,7 @@ export const InternalServerErrorSchema = ErrorResponseSchema.extend({
       'SESSION_RETRIEVAL_ERROR',
       'MIGRATION_ERROR',
       'PROMPTS_CACHE_REFRESH_ERROR',
+      'PROMPTS_SOURCE_INGEST_ERROR',
       'USER_MANAGEMENT_ERROR',
     ]),
   }),

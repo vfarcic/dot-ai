@@ -1,6 +1,6 @@
 # PRD #581: Per-Request User Prompts Repository Override
 
-**Status**: Draft
+**Status**: Implementation Complete — awaiting CLI companion PRD merge
 **Priority**: Medium
 **Related Issue**: #575 (discussion); CLI companion PRD lives in `vfarcic/dot-ai-cli`
 
@@ -139,8 +139,37 @@ For requests with no override, `source` reflects the env-var-configured repo URL
 
 ## Milestones
 
-- [ ] Loader change: `loadUserPrompts` accepts an optional override config; existing call sites pass `undefined`. New helper `getUserPromptsConfigFromOverride()` constructs a `UserPromptsConfig` from the override.
-- [ ] REST endpoints: `POST /api/v1/prompts/refresh` accepts `{ repo }`; `GET /api/v1/prompts` and `POST /api/v1/prompts/:name` accept `?repo=...`. All thread the override through to the loader. `source` field reflects the override URL when present.
-- [ ] Integration tests covering: no-override path is byte-identical; override path fetches the correct repo; invalid URL returns error without corrupting cache; logs scrub credentials in override URL.
-- [ ] Documentation update: `docs/` describes the new parameter, its defaults, and the single-token / single-cache-slot caveats. Reference the CLI companion PRD.
+- [x] Loader change: `loadUserPrompts` accepts an optional override config; existing call sites pass `undefined`. New helper `getUserPromptsConfigFromOverride()` constructs a `UserPromptsConfig` from the override.
+- [x] REST endpoints: `POST /api/v1/prompts/refresh` accepts `{ repo }`; `GET /api/v1/prompts` and `POST /api/v1/prompts/:name` accept `?repo=...`. All thread the override through to the loader. `source` field reflects the override URL when present (credentials scrubbed via `sanitizeUrlForLogging`).
+- [x] Mock-server parity: `mock-server/routes.ts` and `mock-server/fixtures/prompts/` updated so all three prompts endpoints accept the optional `repo` parameter and echo it back in `source`. Body-size cap (1 MB) added to `mock-server/read-json-body.ts`. Mock image republish via `publish-mock-server` happens at release time.
+- [x] Integration tests covering: no-override path is byte-identical; override path validation returns 400 with credentials scrubbed; logs scrub credentials in override URL. Coverage delivered across layers: 18 loader unit tests (git boundary mocked), 7 `computePromptsSource` unit tests (incl. stability + credential scrubbing), 6 REST integration tests (validation paths), 6 mock-server unit tests, 7 request-log scrubbing unit tests, 6 body-size-cap tests. Happy-path REST integration test attempted but architecturally blocked by single-slot loader cache shared across vitest fork-pool files (PRD-deferred fix); rationale documented at `tests/integration/tools/prompts.test.ts:510-530`.
+- [x] Documentation update: `docs/` describes the new parameter, its defaults, and the single-token / single-cache-slot caveats. Reference the CLI companion PRD. Landing pages: [`docs/ai-engine/api/rest-api.md` § Prompts Endpoints](../docs/ai-engine/api/rest-api.md#prompts-endpoints) and [`docs/ai-engine/tools/prompts.md` § Multi-source skills via the per-request repo override](../docs/ai-engine/tools/prompts.md#multi-source-skills-via-the-per-request-repo-override). Changelog fragment at `changelog.d/581.feature.md`.
 - [ ] CLI companion PRD merged in `vfarcic/dot-ai-cli` and linked from this PRD.
+
+## Instructions for the dot-ai-cli companion team
+
+Before this PRD's PR is merged, post these instructions to the dot-ai-cli companion team so they can wire `dot-ai skills generate --repo <url>` against the updated mock and verify their tagging logic end-to-end.
+
+### What changed in the mock-server contract
+
+The mock-server (`ghcr.io/vfarcic/dot-ai-mock-server`, image republished as part of M2b) now mirrors the production behavior for all three prompts endpoints:
+
+| Endpoint | Where `repo` is accepted |
+| --- | --- |
+| `POST /api/v1/prompts/refresh` | JSON body: `{ "repo": "<url>" }` |
+| `GET /api/v1/prompts` | Query string: `?repo=<url>` |
+| `POST /api/v1/prompts/:name` | Query string: `?repo=<url>` |
+
+When `repo` is supplied, the response includes a `source` field that echoes that URL verbatim. When `repo` is omitted, `source` reflects the env-var-configured repo URL (or `"built-in"` if no env-var repo is configured) — same value the CLI should write into the skill frontmatter.
+
+### What the CLI must verify against the new mock image
+
+1. `dot-ai skills generate --repo <url>` sends the URL on every relevant request (refresh body + list query + get query) and surfaces a clear error if the server returns 4xx/5xx.
+2. Each skill file written by the CLI carries a `source:` frontmatter field whose value is the exact `source` string the server returned for that request.
+3. A second invocation `dot-ai skills generate --repo <other-url>` does NOT wipe skills written by the first run — only those whose `source:` matches `<other-url>`.
+4. `dot-ai skills generate` (no `--repo`) writes skills tagged with the `source` value returned for the no-override case — which is `"built-in"` when no env-var repo is configured.
+5. URLs with embedded credentials are not echoed back into log output or skill frontmatter.
+
+### Mock image version pinning
+
+Pin to the mock image tag that publishes from this PRD's branch (the M2b publish step records the tag in the PR description). Older mock images don't accept the `repo` parameter and will silently ignore it — CLI tests pinned to the old tag will look like they pass while actually exercising no override behavior.

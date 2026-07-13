@@ -5,10 +5,10 @@ category: project-management
 arguments:
   - name: prdNumber
     description: PRD number to implement (e.g., 306). Required — no auto-detection.
-    required: true
+    required: false
   - name: mode
     description: Isolation strategy for this PRD's work. Must be `branch` or `worktree`. Pre-answers the branch-vs-worktree decision in `/prd-start`.
-    required: true
+    required: false
 ---
 
 # PRD Full - Autonomous PRD Implementation Through PR
