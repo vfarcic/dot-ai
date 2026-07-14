@@ -341,7 +341,7 @@ localEmbeddings:
     image: "python:3.12-slim"       # downloader image; installs huggingface_hub[hf_xet]
 ```
 
-> **When to leave it off (the default):** prefetch requires PyPI **and** HuggingFace to be reachable at pod startup and only supports **public, non-gated** models (no `HF_TOKEN` is passed). Leave it disabled for air-gapped clusters, gated/private models, a `model:` set to a local path, or a custom pre-baked TEI image — in those cases prefetch would break a setup that otherwise works.
+> ⚠️ **When to leave it off (the default):** prefetch requires PyPI **and** HuggingFace to be reachable at pod startup and only supports **public, non-gated** models (no `HF_TOKEN` is passed). Leave it disabled for air-gapped clusters, gated/private models, a `model:` set to a local path, or a custom pre-baked TEI image — in those cases prefetch would break a setup that otherwise works.
 
 To disable local embeddings (e.g., if using a cloud provider instead):
 

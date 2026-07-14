@@ -767,6 +767,10 @@ if [[ "${RUN_MIGRATION_SEED}" == "true" ]]; then
         SEED_EMBEDDINGS_API_KEY="${OPENAI_API_KEY}"
     fi
 
+    # Ensure both seeding port-forwards are torn down even if the rollout
+    # restart/status below aborts the script under `set -e`.
+    trap 'kill "${MIGSEED_QDRANT_PF_PID}" 2>/dev/null || true; [[ -n "${MIGSEED_EMBED_PF_PID}" ]] && kill "${MIGSEED_EMBED_PF_PID}" 2>/dev/null || true' EXIT
+
     sleep 3  # allow port-forwards to establish
 
     MIGSEED_OK=false
@@ -804,6 +808,7 @@ if [[ "${RUN_MIGRATION_SEED}" == "true" ]]; then
     # Tear down the seeding port-forwards regardless of outcome.
     kill "${MIGSEED_QDRANT_PF_PID}" 2>/dev/null || true
     [[ -n "${MIGSEED_EMBED_PF_PID}" ]] && kill "${MIGSEED_EMBED_PF_PID}" 2>/dev/null || true
+    trap - EXIT  # PFs are down; drop the safety-net trap for the rest of the run
 
     if [[ "${MIGSEED_OK}" != "true" ]]; then
         log_error "Migration seed/restart failed for the explicitly selected migration test — failing the job"
