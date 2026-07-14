@@ -329,9 +329,9 @@ localEmbeddings:
       memory: "512Mi"
 ```
 
-#### Model prefetch (HuggingFace Xet workaround) {#local-embeddings-prefetch}
+#### Embedding model prefetch (HuggingFace Xet workaround) {#local-embeddings-prefetch}
 
-TEI's built-in model downloader cannot fetch models whose weights are served from HuggingFace's [Xet](https://huggingface.co/docs/hub/en/storage-backends) storage backend — the pod crash-loops at startup with `Weights not found: Header content-range is missing`. If you hit this, enable `prefetch`: an init container downloads the model with a Xet-aware `huggingface_hub` client into a shared volume, and TEI then loads it locally (`HF_HUB_OFFLINE=1`) instead of using its own downloader.
+TEI's built-in downloader cannot fetch **embedding models** whose weights are served from HuggingFace's [Xet](https://huggingface.co/docs/hub/en/storage-backends) storage backend — the local-embeddings pod crash-loops at startup with `Weights not found: Header content-range is missing`. If you hit this, enable `prefetch`: an init container downloads the embedding model with a Xet-aware `huggingface_hub` client into a shared volume, and TEI then loads it locally (`HF_HUB_OFFLINE=1`) instead of using its own downloader.
 
 ```yaml
 localEmbeddings:
