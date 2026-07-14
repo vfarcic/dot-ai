@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.24.0] - 2026-07-14
+
+### Features
+
+- Organizational patterns and policies are now consolidated into a single unified knowledge base — one `knowledge` collection whose documents carry AI-assigned classification tags — replacing the separate pattern and policy vector collections. Documents are ingested, searched, and removed through the `manageKnowledge` tool, and all consumers (deployment recommendations, the operate tool, and the REST API) read from the one collection. Existing `patterns`/`policies` collections are migrated into the unified knowledge base automatically on server startup (idempotent, non-fatal, with deterministic IDs so re-runs cannot duplicate points), so upgrades need no manual data steps. The optional in-cluster local embedding service can also prefetch its model via an init container (`localEmbeddings.prefetch`) to work around HuggingFace Xet-storage download failures.
+
+  Note: as part of this change, `manageOrgData` is now capabilities-only — organizational patterns and policies are managed through `manageKnowledge` (ingest / search / deleteByUri) with automatic AI classification. The `pattern` and `policy` `dataType` values and the `create`/`analyze` operations have been removed from `manageOrgData`; calls using them now return a validation error pointing to `manageKnowledge`. ([#375-unified-knowledge-base](https://github.com/vfarcic/dot-ai/issues/375-unified-knowledge-base))
+
+### Bug Fixes
+
+- Ingesting a prompts source no longer intermittently fails with `EXDEV: cross-device link not permitted` when the staging and destination cache directories resolve to different filesystems. The cache root is now resolved once per ingest so the staging directory and its final location always share a filesystem, and the writability probe uses a unique filename to avoid a race between concurrent ingests. ([#647-prompts-ingest-cross-device](https://github.com/vfarcic/dot-ai/issues/647-prompts-ingest-cross-device))
+
+
 ## [1.23.1] - 2026-07-07
 
 ### Bug Fixes
