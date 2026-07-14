@@ -296,24 +296,6 @@ export function formatKnowledgeContext(chunks: KnowledgeSearchResultItem[]): str
 }
 
 /**
- * @deprecated Use formatKnowledgeContext() instead.
- * Kept for backward compatibility with operate-analysis.ts during transition.
- * Will be removed in a follow-up cleanup.
- */
-export function formatPatterns(_chunks: unknown[]): string {
-  return '';
-}
-
-/**
- * @deprecated Use formatKnowledgeContext() instead.
- * Kept for backward compatibility with operate-analysis.ts during transition.
- * Will be removed in a follow-up cleanup.
- */
-export function formatPolicies(_chunks: unknown[]): string {
-  return '';
-}
-
-/**
  * Format capabilities for template placeholder
  * Capabilities are already ordered by relevance from vector search
  */

@@ -119,14 +119,26 @@ export async function searchKnowledgeBase(params: {
     };
   }
 
-  // Call vector_search plugin tool
-  const searchResponse = await invokePluginTool(PLUGIN_NAME, 'vector_search', {
-    collection: KNOWLEDGE_COLLECTION,
-    embedding: queryEmbedding,
-    limit,
-    filter,
-    scoreThreshold: 0, // Return all results up to limit, let consumer filter by score
-  });
+  // Call vector_search plugin tool. Wrap in try/catch so a transport/plugin throw
+  // is returned as a structured error (matching the generateEmbedding path above)
+  // instead of escaping this function's {success, error} contract.
+  let searchResponse: Awaited<ReturnType<typeof invokePluginTool>>;
+  try {
+    searchResponse = await invokePluginTool(PLUGIN_NAME, 'vector_search', {
+      collection: KNOWLEDGE_COLLECTION,
+      embedding: queryEmbedding,
+      limit,
+      filter,
+      scoreThreshold: 0, // Return all results up to limit, let consumer filter by score
+    });
+  } catch (err) {
+    return {
+      success: false,
+      chunks: [],
+      totalMatches: 0,
+      error: `Search failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 
   if (!searchResponse.success) {
     const error = searchResponse.error as { message?: string; error?: string } | undefined;
