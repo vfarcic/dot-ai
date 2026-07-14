@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.23.0",
+    "version": "1.23.1",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -268,7 +268,7 @@
     "/api/v1/tools/manageOrgData": {
       "post": {
         "summary": "Execute manageOrgData tool",
-        "description": "Unified tool for managing cluster data: organizational patterns, policy intents, and resource capabilities. For patterns and policies: supports create, list, get, delete, deleteAll, and search operations (patterns also support step-by-step creation workflow). For capabilities: supports scan, list, get, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType parameter to specify what to manage: \"pattern\" for organizational patterns, \"policy\" for policy intents, \"capabilities\" for resource capabilities.",
+        "description": "Tool for managing cluster resource capabilities. Supports scan, list, get, search, delete, deleteAll, and progress operations for cluster resource capability discovery and management. Use dataType=\"capabilities\" to manage cluster capabilities. NOTE: Organizational patterns and policies are now managed via manageKnowledge tool (ingest documents, search, deleteByUri) with automatic AI classification.",
         "tags": [
           "Management"
         ],
@@ -280,8 +280,8 @@
                 "$ref": "#/components/schemas/manageOrgDataRequest"
               },
               "example": {
-                "dataType": "pattern",
-                "operation": "create",
+                "dataType": "capabilities",
+                "operation": "list",
                 "sessionId": "example sessionId",
                 "step": "example step",
                 "response": "example response",
@@ -2809,22 +2809,18 @@
           "dataType": {
             "type": "string",
             "enum": [
-              "pattern",
-              "policy",
               "capabilities"
             ],
-            "description": "Type of cluster data to manage: \"pattern\" for organizational patterns, \"policy\" for policy intents, \"capabilities\" for resource capabilities"
+            "description": "Type of cluster data to manage: \"capabilities\" for resource capabilities. (Note: organizational knowledge/patterns/policies are managed via manageKnowledge tool)"
           },
           "operation": {
             "type": "string",
             "enum": [
-              "create",
               "list",
               "get",
               "delete",
               "deleteAll",
               "scan",
-              "analyze",
               "progress",
               "search"
             ],
@@ -2843,7 +2839,7 @@
             "type": "string"
           },
           "id": {
-            "description": "Data item ID (required for get/delete operations) or search query (required for search operations)",
+            "description": "Capability ID (required for get/delete operations) or search query (required for search operations)",
             "type": "string"
           },
           "limit": {
