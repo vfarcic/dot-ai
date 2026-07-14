@@ -557,7 +557,7 @@ helm upgrade --install dot-ai ./charts \
     --set dex.externalUrl=http://dex.dot-ai.127.0.0.1.nip.io:8180 \
     --set qdrant.enabled=false \
     --set qdrant.external.url=http://qdrant.dot-ai.svc.cluster.local:6333 \
-    $([[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]] && echo "--set localEmbeddings.enabled=true") \
+    $([[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]] && echo "--set localEmbeddings.enabled=true --set localEmbeddings.prefetch.enabled=true") \
     --set webUI.baseUrl="https://dot-ai-ui.test.local" \
     --set dex.enabled=true \
     --set dex.existingSecret=dot-ai-dex-auth \
