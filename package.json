@@ -104,7 +104,6 @@
     "tsx": "^4.22.3",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.54.0",
-    "uuid": "^14.0.0",
     "vitest": "^4.0.0"
   },
   "dependencies": {
@@ -134,6 +133,7 @@
     "mermaid": "^11.15.0",
     "posthog-node": "^5.23.0",
     "simple-git": "^3.32.3",
+    "uuid": "^14.0.0",
     "yaml": "^2.8.0"
   },
   "overrides": {

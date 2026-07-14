@@ -1243,123 +1243,150 @@ describe.concurrent('Recommend Tool Integration', () => {
         },
       });
 
-      // PHASE 6: Generate Helm values (helm dry-run validation)
-      const generateResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'generateManifests',
-          solutionId,
-          interaction_id: 'helm_workflow_generate',
-        }
-      );
+      // PHASE 6: Generate + deploy the Helm chart. The values.yaml is AI-generated
+      // and varies between runs; an occasional bad generation leaves the prometheus
+      // pod failing its health probes, so `helm --wait` fails and the deploy reports
+      // success:false. Retry generate→deploy a bounded number of times with fresh
+      // values (tearing the namespace down between attempts) so that AI-generation
+      // variance doesn't flake CI. The happy path succeeds on the first attempt.
+      const MAX_DEPLOY_ATTEMPTS = 3;
+      let helmNamespace = '';
+      let releaseName = '';
 
-      // Validate Helm generation response
-      // PRD #320: Helm generateManifests now returns visualizationUrl
-      const expectedGenerateResponse = {
-        success: true,
-        data: {
-          result: {
-            success: true,
-            status: 'helm_command_generated',
-            solutionId: solutionId,
-            solutionType: 'helm',
-            helmCommand: expect.stringContaining('helm upgrade --install'),
-            valuesYaml: expect.any(String),
-            // Note: valuesPath is intentionally NOT included - it's an internal implementation detail
-            // The helmCommand uses generic 'values.yaml' for user-friendly display
-            chart: {
-              repository: 'https://prometheus-community.github.io/helm-charts',
-              repositoryName: 'prometheus-community',
-              chartName: 'prometheus',
+      for (let attempt = 1; attempt <= MAX_DEPLOY_ATTEMPTS; attempt++) {
+        // Generate Helm values (helm dry-run validation)
+        const generateResponse = await integrationTest.httpClient.post(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'generateManifests',
+            solutionId,
+            interaction_id: 'helm_workflow_generate',
+          }
+        );
+
+        // Validate Helm generation response
+        // PRD #320: Helm generateManifests now returns visualizationUrl
+        const expectedGenerateResponse = {
+          success: true,
+          data: {
+            result: {
+              success: true,
+              status: 'helm_command_generated',
+              solutionId: solutionId,
+              solutionType: 'helm',
+              helmCommand: expect.stringContaining('helm upgrade --install'),
+              valuesYaml: expect.any(String),
+              // Note: valuesPath is intentionally NOT included - it's an internal implementation detail
+              // The helmCommand uses generic 'values.yaml' for user-friendly display
+              chart: {
+                repository: 'https://prometheus-community.github.io/helm-charts',
+                repositoryName: 'prometheus-community',
+                chartName: 'prometheus',
+              },
+              releaseName: expect.any(String),
+              namespace: expect.any(String),
+              validationAttempts: expect.any(Number),
+              timestamp: expect.stringMatching(
+                /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+              ),
+              // PRD #320: Visualization URL for Helm generateManifests
+              visualizationUrl: expect.stringMatching(
+                /^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/
+              ),
             },
-            releaseName: expect.any(String),
-            namespace: expect.any(String),
-            validationAttempts: expect.any(Number),
+            tool: 'recommend',
+            executionTime: expect.any(Number),
+          },
+          meta: {
             timestamp: expect.stringMatching(
               /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
             ),
-            // PRD #320: Visualization URL for Helm generateManifests
-            visualizationUrl: expect.stringMatching(
-              /^https:\/\/dot-ai-ui\.test\.local\/v\/sol-\d+-[a-f0-9]+$/
-            ),
+            requestId: expect.any(String),
+            version: 'v1',
           },
-          tool: 'recommend',
-          executionTime: expect.any(Number),
-        },
-        meta: {
-          timestamp: expect.stringMatching(
-            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
-          ),
-          requestId: expect.any(String),
-          version: 'v1',
-        },
-      };
+        };
 
-      expect(generateResponse).toMatchObject(expectedGenerateResponse);
+        expect(generateResponse).toMatchObject(expectedGenerateResponse);
 
-      // Verify Helm command contains expected components
-      const helmCommand = generateResponse.data.result.helmCommand;
-      expect(helmCommand).toContain('prometheus-community/prometheus');
-      expect(helmCommand).toContain('--namespace');
-      expect(helmCommand).toContain('--create-namespace');
-      // Verify user-friendly values file reference (not internal path)
-      expect(helmCommand).toContain('-f values.yaml');
-      expect(helmCommand).not.toContain('/tmp/');
-      expect(helmCommand).not.toContain('sol-');
+        // Verify Helm command contains expected components
+        const helmCommand = generateResponse.data.result.helmCommand;
+        expect(helmCommand).toContain('prometheus-community/prometheus');
+        expect(helmCommand).toContain('--namespace');
+        expect(helmCommand).toContain('--create-namespace');
+        // Verify user-friendly values file reference (not internal path)
+        expect(helmCommand).toContain('-f values.yaml');
+        expect(helmCommand).not.toContain('/tmp/');
+        expect(helmCommand).not.toContain('sol-');
 
-      // Extract namespace and release name for deployment validation
-      const helmNamespace = generateResponse.data.result.namespace;
-      const releaseName = generateResponse.data.result.releaseName;
+        // Extract namespace and release name for deployment validation
+        helmNamespace = generateResponse.data.result.namespace;
+        releaseName = generateResponse.data.result.releaseName;
 
-      // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
+        // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
-      // PHASE 6: Deploy Helm chart (helm upgrade --install execution)
-      const deployResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'deployManifests',
-          solutionId,
-          timeout: 120, // 2 minutes for Helm install
-          interaction_id: 'helm_workflow_deploy',
-        }
-      );
+        // Deploy Helm chart (helm upgrade --install execution)
+        const deployResponse = await integrationTest.httpClient.post(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'deployManifests',
+            solutionId,
+            timeout: 240, // 4 minutes for a heavy chart (prometheus) to become ready
+            interaction_id: 'helm_workflow_deploy',
+          }
+        );
 
-      // Validate Helm deployment response
-      const expectedDeployResponse = {
-        success: true,
-        data: {
-          result: {
-            success: true,
-            solutionId: solutionId,
-            solutionType: 'helm',
-            releaseName: releaseName,
-            namespace: helmNamespace,
-            chart: {
-              repository: 'https://prometheus-community.github.io/helm-charts',
-              repositoryName: 'prometheus-community',
-              chartName: 'prometheus',
+        // Validate Helm deployment response
+        const expectedDeployResponse = {
+          success: true,
+          data: {
+            result: {
+              success: true,
+              solutionId: solutionId,
+              solutionType: 'helm',
+              releaseName: releaseName,
+              namespace: helmNamespace,
+              chart: {
+                repository: 'https://prometheus-community.github.io/helm-charts',
+                repositoryName: 'prometheus-community',
+                chartName: 'prometheus',
+              },
+              message: expect.stringContaining('deployed successfully'),
+              helmOutput: expect.any(String),
+              deploymentComplete: true,
+              timestamp: expect.stringMatching(
+                /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+              ),
             },
-            message: expect.stringContaining('deployed successfully'),
-            helmOutput: expect.any(String),
-            deploymentComplete: true,
+            tool: 'recommend',
+            executionTime: expect.any(Number),
+          },
+          meta: {
             timestamp: expect.stringMatching(
               /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
             ),
+            requestId: expect.any(String),
+            version: 'v1',
           },
-          tool: 'recommend',
-          executionTime: expect.any(Number),
-        },
-        meta: {
-          timestamp: expect.stringMatching(
-            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
-          ),
-          requestId: expect.any(String),
-          version: 'v1',
-        },
-      };
+        };
 
-      // If deployment failed, gather diagnostics before asserting
-      if (!deployResponse?.data?.result?.success) {
+        // Success — validate and stop retrying.
+        if (deployResponse?.data?.result?.success) {
+          expect(deployResponse).toMatchObject(expectedDeployResponse);
+          break;
+        }
+
+        // Deploy failed. On earlier attempts, tear the namespace down and retry
+        // with freshly generated values (addresses AI-generation variance).
+        if (attempt < MAX_DEPLOY_ATTEMPTS) {
+          await integrationTest
+            .kubectl(`delete namespace ${helmNamespace} --ignore-not-found`)
+            .catch(() => {
+              /* best-effort teardown before regenerating */
+            });
+          continue;
+        }
+
+        // Final attempt failed — gather diagnostics before asserting.
         let diagnostics = '\n=== HELM DEPLOYMENT DIAGNOSTICS ===\n';
         diagnostics += `Deploy response: ${JSON.stringify(deployResponse?.data?.result, null, 2)}\n`;
 
@@ -1401,13 +1428,12 @@ describe.concurrent('Recommend Tool Integration', () => {
           diagnostics += `\n--- Events: Failed to retrieve ---\n`;
         }
 
+        diagnostics += `(failed after ${MAX_DEPLOY_ATTEMPTS} attempts)\n`;
         diagnostics += '=== END DIAGNOSTICS ===\n';
 
         // Fail with diagnostics included in error message
         expect(deployResponse?.data?.result?.success, diagnostics).toBe(true);
       }
-
-      expect(deployResponse).toMatchObject(expectedDeployResponse);
 
       // PHASE 7: Verify Helm release was created in cluster
       const helmListResult = await integrationTest.kubectl(

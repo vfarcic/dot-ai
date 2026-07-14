@@ -34,13 +34,50 @@ spec:
         {{- $podAnnotations | nindent 8 }}
       {{- end }}
     spec:
+      {{- if .Values.localEmbeddings.prefetch.enabled }}
+      # TEI's built-in downloader cannot fetch models from HuggingFace's Xet storage
+      # backend (it fails with "Header content-range is missing"). Prefetch the model
+      # with a Xet-aware huggingface_hub client into a shared volume, then have TEI
+      # load it from that local path with HF_HUB_OFFLINE=1 — so pod startup never
+      # depends on TEI's own (incompatible) download path.
+      initContainers:
+      - name: model-prefetch
+        image: {{ .Values.localEmbeddings.prefetch.image | quote }}
+        env:
+        - name: MODEL_ID
+          value: {{ .Values.localEmbeddings.model | quote }}
+        - name: HF_HUB_DISABLE_TELEMETRY
+          value: "1"
+        command: ["sh", "-c"]
+        args:
+        - |
+          set -eu
+          pip install --quiet --no-cache-dir 'huggingface_hub[hf_xet]'
+          python - <<'PY'
+          import os
+          from huggingface_hub import snapshot_download
+          snapshot_download(os.environ["MODEL_ID"], local_dir="/models/model")
+          PY
+        volumeMounts:
+        - name: model-cache
+          mountPath: /models
+      {{- end }}
       containers:
       - name: local-embeddings
         image: "{{ .Values.localEmbeddings.image.repository }}:{{ .Values.localEmbeddings.image.tag }}"
         imagePullPolicy: IfNotPresent
+        {{- if .Values.localEmbeddings.prefetch.enabled }}
+        env:
+        - name: HF_HUB_OFFLINE
+          value: "1"
+        {{- end }}
         args:
         - "--model-id"
+        {{- if .Values.localEmbeddings.prefetch.enabled }}
+        - "/models/model"
+        {{- else }}
         - {{ .Values.localEmbeddings.model | quote }}
+        {{- end }}
         - "--port"
         - "80"
         ports:
@@ -61,10 +98,20 @@ spec:
           initialDelaySeconds: 15
           periodSeconds: 5
           timeoutSeconds: 5
+        {{- if .Values.localEmbeddings.prefetch.enabled }}
+        volumeMounts:
+        - name: model-cache
+          mountPath: /models
+        {{- end }}
         {{- with .Values.localEmbeddings.resources }}
         resources:
           {{- toYaml . | nindent 10 }}
         {{- end }}
+      {{- if .Values.localEmbeddings.prefetch.enabled }}
+      volumes:
+      - name: model-cache
+        emptyDir: {}
+      {{- end }}
       terminationGracePeriodSeconds: 30
 ---
 apiVersion: v1

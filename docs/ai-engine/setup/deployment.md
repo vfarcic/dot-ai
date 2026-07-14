@@ -329,6 +329,20 @@ localEmbeddings:
       memory: "512Mi"
 ```
 
+#### Embedding model prefetch (HuggingFace Xet workaround) {#local-embeddings-prefetch}
+
+TEI's built-in downloader cannot fetch **embedding models** whose weights are served from HuggingFace's [Xet](https://huggingface.co/docs/hub/en/storage-backends) storage backend — the local-embeddings pod crash-loops at startup with `Weights not found: Header content-range is missing`. If you hit this, enable `prefetch`: an init container downloads the embedding model with a Xet-aware `huggingface_hub` client into a shared volume, and TEI then loads it locally (`HF_HUB_OFFLINE=1`) instead of using its own downloader.
+
+```yaml
+localEmbeddings:
+  enabled: true
+  prefetch:
+    enabled: true                   # default: false
+    image: "python:3.12-slim"       # downloader image; installs huggingface_hub[hf_xet]
+```
+
+> ⚠️ **When to leave it off (the default):** prefetch requires PyPI **and** HuggingFace to be reachable at pod startup and only supports **public, non-gated** models (no `HF_TOKEN` is passed). Leave it disabled for air-gapped clusters, gated/private models, a `model:` set to a local path, or a custom pre-baked TEI image — in those cases prefetch would break a setup that otherwise works.
+
 To disable local embeddings (e.g., if using a cloud provider instead):
 
 ```yaml

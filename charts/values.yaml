@@ -293,6 +293,16 @@ localEmbeddings:
     tag: "cpu-latest"
   model: "sentence-transformers/all-MiniLM-L6-v2"  # Embedding model (384 dimensions)
   dimensions: 384                   # Must match the model's output dimensions
+  # Opt-in workaround (default off). TEI's built-in downloader cannot fetch models
+  # stored on HuggingFace's Xet backend (fails with "Header content-range is
+  # missing"). When enabled, an initContainer prefetches the model with a Xet-aware
+  # huggingface_hub client into a shared volume, and TEI loads it locally with
+  # HF_HUB_OFFLINE=1 (never using its own downloader). Requires PyPI + HuggingFace
+  # reachable at pod startup and only supports public (non-gated) models — leave it
+  # off for air-gapped, gated/private, local-path, or custom pre-baked-image setups.
+  prefetch:
+    enabled: false
+    image: "python:3.12-slim"       # Xet-aware downloader (pip installs huggingface_hub[hf_xet])
   resources:
     requests:
       cpu: "250m"

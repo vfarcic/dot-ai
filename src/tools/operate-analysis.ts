@@ -12,8 +12,7 @@ import {
   OperateSession,
   ProposedChanges,
   embedContext,
-  formatPatterns,
-  formatPolicies,
+  formatKnowledgeContext,
   formatCapabilities,
 } from './operate';
 
@@ -158,20 +157,21 @@ function loadSystemPrompt(): string {
 }
 
 /**
- * Builds dynamic user message with intent and embedded context
- * Uses template from prompts/operate-user.md and formatting functions from operate.ts
+ * Builds dynamic user message with intent and embedded context.
+ * Uses template from prompts/operate-user.md and formatting functions from operate.ts.
+ *
+ * PRD #375: Unified Knowledge Base — uses single knowledgeContext instead of
+ * separate patterns/policies sections.
  */
 function buildUserMessage(intent: string, context: EmbeddedContext): string {
   // Format context sections using shared formatting functions
-  const patternsText = formatPatterns(context.patterns);
-  const policiesText = formatPolicies(context.policies);
+  const knowledgeContextText = formatKnowledgeContext(context.knowledgeChunks);
   const capabilitiesText = formatCapabilities(context.capabilities);
 
   // Use loadPrompt with Handlebars template variables
   return loadPrompt('operate-user', {
     intent,
-    patterns: patternsText,
-    policies: policiesText,
+    knowledgeContext: knowledgeContextText,
     capabilities: capabilitiesText,
   });
 }

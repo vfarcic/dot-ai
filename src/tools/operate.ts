@@ -14,13 +14,9 @@ import { GenericSessionManager } from '../core/generic-session-manager';
 import { PluginManager } from '../core/plugin-manager';
 import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
-import { PatternVectorService } from '../core/pattern-vector-service';
-import { PolicyVectorService } from '../core/policy-vector-service';
 import { CapabilityVectorService } from '../core/capability-vector-service';
-import {
-  OrganizationalPattern,
-  PolicyIntent,
-} from '../core/organizational-types';
+import { KnowledgeSearchResultItem } from '../core/knowledge-types';
+import { searchKnowledgeBase } from '../core/knowledge-service';
 import { ResourceCapability } from '../core/capabilities';
 import { BaseVisualizationData } from '../core/visualization';
 import { buildAgentDisplayBlock } from '../core/index';
@@ -112,9 +108,15 @@ export type OperateSession = {
   data: OperateSessionData;
 };
 
+/**
+ * Embedded context for operate analysis.
+ * PRD #375: Unified Knowledge Base — patterns and policies are now unified
+ * in the knowledge-base collection. knowledgeChunks replaces separate
+ * patterns[] and policies[] fields. Chunks include tags for type identification.
+ */
 export interface EmbeddedContext {
-  patterns: OrganizationalPattern[];
-  policies: PolicyIntent[];
+  /** Knowledge chunks from unified knowledge base (includes policy, pattern, and general content) */
+  knowledgeChunks: KnowledgeSearchResultItem[];
   capabilities: ResourceCapability[];
 }
 
@@ -178,9 +180,15 @@ const sessionManager = new GenericSessionManager<OperateSessionData>('opr');
 const logger = new ConsoleLogger('OperateTool');
 
 /**
- * Embed context (patterns, policies, capabilities) for AI analysis
+ * Embed context (knowledge, capabilities) for AI analysis.
+ *
+ * PRD #375: Unified Knowledge Base — searches single knowledge-base collection
+ * instead of separate pattern/policy collections. Results include tags so the
+ * AI can distinguish policy, pattern, and general knowledge content.
+ *
  * @param intent User's operational intent
- * @returns Embedded context with patterns, policies, and capabilities
+ * @param logger Logger instance
+ * @returns Embedded context with knowledge chunks and capabilities
  * @throws Error if capabilities are not available (mandatory)
  */
 export async function embedContext(
@@ -188,39 +196,28 @@ export async function embedContext(
   logger: Logger
 ): Promise<EmbeddedContext> {
   const context: EmbeddedContext = {
-    patterns: [],
-    policies: [],
+    knowledgeChunks: [],
     capabilities: [],
   };
 
-  // Search for relevant patterns (optional - non-blocking)
+  // Search unified knowledge base (optional - non-blocking)
+  // Results include tags so AI can see which are policies, patterns, or general content
   try {
-    const patternService = new PatternVectorService();
-    const patternResults = await patternService.searchPatterns(intent, {
-      limit: 5,
-    });
-    context.patterns = patternResults.map(result => result.data);
-    logger.info(
-      `Found ${context.patterns.length} relevant organizational patterns`
-    );
+    const knowledgeResult = await searchKnowledgeBase({ query: intent, limit: 20 });
+    if (knowledgeResult.success) {
+      context.knowledgeChunks = knowledgeResult.chunks;
+      logger.info(
+        `Found ${context.knowledgeChunks.length} relevant knowledge chunks (unified knowledge base)`
+      );
+    } else {
+      logger.warn('Knowledge base search failed, continuing without organizational context', {
+        error: knowledgeResult.error,
+      });
+    }
   } catch (error) {
-    logger.warn('Pattern search failed, continuing without patterns', {
+    logger.warn('Knowledge base search failed, continuing without organizational context', {
       error,
     });
-  }
-
-  // Search for relevant policies (optional - non-blocking)
-  try {
-    const policyService = new PolicyVectorService();
-    const policyResults = await policyService.searchPolicyIntents(intent, {
-      limit: 5,
-    });
-    context.policies = policyResults.map(result => result.data);
-    logger.info(
-      `Found ${context.policies.length} relevant organizational policies`
-    );
-  } catch (error) {
-    logger.warn('Policy search failed, continuing without policies', { error });
   }
 
   // Search for relevant cluster capabilities (MANDATORY)
@@ -271,43 +268,26 @@ export async function embedContext(
 }
 
 /**
- * Format patterns for template placeholder
+ * Format knowledge chunks for template placeholder.
+ *
+ * PRD #375: Unified Knowledge Base — replaces separate formatPatterns/formatPolicies.
+ * Chunks include tags so the AI can interpret what type each result represents.
+ * Tags: "policy" = enforcement rule, "pattern" = reusable architecture, [] = general content.
  */
-export function formatPatterns(patterns: OrganizationalPattern[]): string {
-  if (patterns.length === 0) {
-    return 'No organizational patterns found matching this intent.';
+export function formatKnowledgeContext(chunks: KnowledgeSearchResultItem[]): string {
+  if (chunks.length === 0) {
+    return 'No relevant organizational knowledge found matching this intent.';
   }
 
   let formatted = '';
-  patterns.forEach((pattern, index) => {
-    formatted += `### Pattern ${index + 1}: ${pattern.description}\n\n`;
-    formatted += `**Triggers:** ${pattern.triggers.join(', ')}\n\n`;
-    formatted += `**Suggested Resources:** ${pattern.suggestedResources.join(', ')}\n\n`;
-    formatted += `**Rationale:** ${pattern.rationale}\n\n`;
-    if (index < patterns.length - 1) {
-      formatted += '---\n\n';
-    }
-  });
-
-  return formatted;
-}
-
-/**
- * Format policies for template placeholder
- */
-export function formatPolicies(policies: PolicyIntent[]): string {
-  if (policies.length === 0) {
-    return 'No organizational policies found matching this intent.';
-  }
-
-  let formatted = '';
-  policies.forEach((policy, index) => {
-    formatted += `### Policy ${index + 1}: ${policy.description}\n\n`;
-    if (policy.triggers && policy.triggers.length > 0) {
-      formatted += `**Applies to:** ${policy.triggers.join(', ')}\n\n`;
-    }
-    formatted += `**Rationale:** ${policy.rationale}\n\n`;
-    if (index < policies.length - 1) {
+  chunks.forEach((chunk, index) => {
+    const typeLabel = chunk.tags.length > 0
+      ? chunk.tags.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' + ')
+      : 'General';
+    formatted += `### Knowledge ${index + 1} [${typeLabel}]\n\n`;
+    formatted += `**Source:** ${chunk.uri}\n\n`;
+    formatted += (chunk.content.length > 300 ? chunk.content.substring(0, 300) + '...' : chunk.content) + '\n\n';
+    if (index < chunks.length - 1) {
       formatted += '---\n\n';
     }
   });

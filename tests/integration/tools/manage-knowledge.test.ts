@@ -12,7 +12,7 @@ import { IntegrationTest } from '../helpers/test-base.js';
 import { v5 as uuidv5 } from 'uuid';
 
 // Same namespace used by the plugin for deterministic chunk IDs
-const KNOWLEDGE_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+const KNOWLEDGE_NAMESPACE = uuidv5.DNS;
 
 describe.concurrent('ManageKnowledge Integration', () => {
   const integrationTest = new IntegrationTest();

@@ -16,16 +16,84 @@ import {
   PluginChunkResult,
   IngestResponse,
   KnowledgeSearchResponse,
-  KnowledgeSearchResultItem,
   DeleteByUriResponse,
 } from '../core/knowledge-types';
 import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
+import { createAIProvider } from '../core/ai-provider-factory';
+import { loadPrompt } from '../core/shared-prompt-loader';
+import {
+  searchKnowledgeBase,
+  PLUGIN_NAME,
+  KNOWLEDGE_COLLECTION,
+  DEFAULT_SEARCH_LIMIT,
+} from '../core/knowledge-service';
 
 /**
- * Collection name for knowledge base chunks in Qdrant
+ * Valid classification tags for document content
+ * PRD #375: Unified Knowledge Base
  */
-const KNOWLEDGE_COLLECTION = 'knowledge-base';
+const VALID_CLASSIFICATION_TAGS = ['policy', 'pattern'] as const;
+type ClassificationTag = (typeof VALID_CLASSIFICATION_TAGS)[number];
+
+/**
+ * Classify a document using AI to determine its content type.
+ * Returns a list of applicable tags (["policy"], ["pattern"], ["policy","pattern"], or []).
+ *
+ * Classification is done on the full document before chunking for better context.
+ * The same tags are applied to all chunks from the same document.
+ *
+ * Fails gracefully: if AI is unavailable or returns unexpected format, returns [].
+ *
+ * PRD #375: Milestone 2 - AI Classification During Ingestion
+ */
+async function classifyDocument(content: string): Promise<string[]> {
+  // Skip classification for empty content
+  if (!content || content.trim().length === 0) {
+    return [];
+  }
+
+  try {
+    const aiProvider = createAIProvider();
+    if (!aiProvider.isInitialized()) {
+      // AI not configured - gracefully skip classification
+      return [];
+    }
+
+    const prompt = loadPrompt('knowledge-classification', {
+      documentContent: content,
+    });
+
+    const response = await aiProvider.sendMessage(prompt, 'knowledge-classification');
+
+    // Parse the JSON array from AI response
+    // AI should return only a JSON array like [] or ["policy"] or ["policy","pattern"]
+    const rawContent = response.content.trim();
+
+    // Extract JSON array (handle potential extra text)
+    const jsonMatch = rawContent.match(/\[.*?\]/s);
+    if (!jsonMatch) {
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    // Filter to only valid classification tags
+    const validTags: string[] = parsed.filter(
+      (tag: unknown): tag is ClassificationTag =>
+        typeof tag === 'string' && VALID_CLASSIFICATION_TAGS.includes(tag as ClassificationTag)
+    );
+
+    return validTags;
+  } catch {
+    // Classification failure is non-blocking — return empty tags
+    return [];
+  }
+}
 
 // Tool metadata for MCP registration
 export const MANAGE_KNOWLEDGE_TOOL_NAME = 'manageKnowledge';
@@ -86,11 +154,6 @@ export interface ManageKnowledgeInput {
   uriFilter?: string;
   interaction_id?: string;
 }
-
-/**
- * Plugin name for agentic-tools
- */
-const PLUGIN_NAME = 'agentic-tools';
 
 /**
  * Create error response matching other tool patterns
@@ -163,6 +226,13 @@ async function handleIngestOperation(
         chunksDeleted: deletedCount,
       });
     }
+
+    // Step 1b: AI Classification — classify the full document before chunking
+    // Same tags are applied to all chunks from this document (document-level classification)
+    // PRD #375: Milestone 2 - AI Classification During Ingestion
+    logger.debug('Classifying document with AI', { requestId, uri });
+    const documentTags = await classifyDocument(content);
+    logger.info('Document classified', { requestId, uri, tags: documentTags });
 
     // Step 2: Chunk the document
     logger.debug('Calling knowledge_chunk plugin tool', { requestId, uri });
@@ -260,6 +330,7 @@ async function handleIngestOperation(
         ingestedAt,
         chunkIndex: chunk.chunkIndex,
         totalChunks: chunk.totalChunks,
+        tags: documentTags,  // PRD #375: Document-level AI classification tags (same for all chunks)
         extractedPolicyIds: [],
       };
 
@@ -319,158 +390,6 @@ async function handleIngestOperation(
       error: errorMessage,
     });
   }
-}
-
-/**
- * Default limit for search results
- */
-const DEFAULT_SEARCH_LIMIT = 20;
-
-/**
- * Result type for the reusable search function
- */
-export interface SearchKnowledgeBaseResult {
-  success: boolean;
-  chunks: KnowledgeSearchResultItem[];
-  totalMatches: number;
-  error?: string;
-}
-
-/**
- * Reusable knowledge base search function.
- * Can be called from MCP tool handler or HTTP endpoints.
- *
- * @param params Search parameters
- * @returns Search results with chunks or error
- */
-export async function searchKnowledgeBase(params: {
-  query: string;
-  limit?: number;
-  uriFilter?: string;
-}): Promise<SearchKnowledgeBaseResult> {
-  const { query, limit = DEFAULT_SEARCH_LIMIT, uriFilter } = params;
-
-  // Check plugin availability
-  if (!isPluginInitialized()) {
-    return {
-      success: false,
-      chunks: [],
-      totalMatches: 0,
-      error: 'Plugin system not available',
-    };
-  }
-
-  // Check embedding service availability
-  const embeddingService = new EmbeddingService();
-  if (!embeddingService.isAvailable()) {
-    const status = embeddingService.getStatus();
-    return {
-      success: false,
-      chunks: [],
-      totalMatches: 0,
-      error: `Embedding service not available: ${status.reason}`,
-    };
-  }
-
-  // Generate embedding for the search query
-  const queryEmbedding = await embeddingService.generateEmbedding(query);
-
-  // Build filter if uriFilter is provided
-  let filter: Record<string, unknown> | undefined;
-  if (uriFilter) {
-    filter = {
-      must: [
-        {
-          key: 'uri',
-          match: {
-            value: uriFilter,
-          },
-        },
-      ],
-    };
-  }
-
-  // Call vector_search plugin tool
-  const searchResponse = await invokePluginTool(PLUGIN_NAME, 'vector_search', {
-    collection: KNOWLEDGE_COLLECTION,
-    embedding: queryEmbedding,
-    limit,
-    filter,
-    scoreThreshold: 0, // Return all results up to limit, let consumer filter by score
-  });
-
-  if (!searchResponse.success) {
-    const error = searchResponse.error as { message?: string; error?: string } | undefined;
-    const errorMessage = error?.message || error?.error || 'Search failed';
-
-    // If collection doesn't exist (Not Found), return empty result (not error)
-    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-      return {
-        success: true,
-        chunks: [],
-        totalMatches: 0,
-      };
-    }
-
-    return {
-      success: false,
-      chunks: [],
-      totalMatches: 0,
-      error: errorMessage,
-    };
-  }
-
-  // Extract results from plugin response
-  const searchResult = searchResponse.result as {
-    success: boolean;
-    data?: Array<{
-      id: string;
-      score: number;
-      payload: Record<string, unknown>;
-    }>;
-    error?: string;
-    message: string;
-  };
-
-  if (!searchResult.success) {
-    const errorMessage = searchResult.error || searchResult.message;
-
-    // If collection doesn't exist, return empty result (not error)
-    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-      return {
-        success: true,
-        chunks: [],
-        totalMatches: 0,
-      };
-    }
-
-    return {
-      success: false,
-      chunks: [],
-      totalMatches: 0,
-      error: errorMessage,
-    };
-  }
-
-  // Transform results to KnowledgeSearchResultItem format
-  const results = searchResult.data || [];
-  const chunks: KnowledgeSearchResultItem[] = results.map((result) => ({
-    id: result.id,
-    content: result.payload.content as string,
-    score: result.score,
-    matchType: 'semantic' as const, // Dense vector search only (BM25 deferred)
-    uri: result.payload.uri as string,
-    metadata: (result.payload.metadata as Record<string, unknown>) || {},
-    chunkIndex: result.payload.chunkIndex as number,
-    totalChunks: result.payload.totalChunks as number,
-    extractedPolicies: undefined, // Populated by PRD #357
-  }));
-
-  return {
-    success: true,
-    chunks,
-    totalMatches: chunks.length,
-  };
 }
 
 /**

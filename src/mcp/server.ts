@@ -12,6 +12,8 @@ import { DotAI } from '../core/index.js';
 import { getTracer, shutdownTracer } from '../core/tracing/index.js';
 import { getTelemetry, shutdownTelemetry } from '../core/telemetry/index.js';
 import { initializePluginRegistry } from '../core/plugin-registry.js';
+import { runKnowledgeMigration } from '../core/knowledge-migration.js';
+
 import { initializeMcpClientRegistry } from '../core/mcp-client-registry.js';
 import { McpClientManager } from '../core/mcp-client-manager.js';
 import { readFileSync } from 'fs';
@@ -133,6 +135,11 @@ async function main() {
           process.stderr.write(`Background discovery: Plugin '${plugin.name}' now available with ${plugin.tools.length} tool(s)\n`);
           // Note: Tools are automatically registered via pluginManager's internal maps
           // The version tool will reflect the updated plugin status
+          if (plugin.tools.some((tool) => tool.name === 'vector_store')) {
+            runKnowledgeMigration(new ConsoleLogger('KnowledgeMigration')).catch((err) => {
+              process.stderr.write(`Knowledge migration (post-discovery) error: ${err instanceof Error ? err.message : String(err)}\n`);
+            });
+          }
         });
         pluginManager.startBackgroundDiscovery();
       }
@@ -144,6 +151,13 @@ async function main() {
     // This replaces scattered plugin manager passing (telemetry, vector tools, etc.)
     if (pluginConfigs.length > 0) {
       initializePluginRegistry(pluginManager);
+    }
+
+    // PRD #375: Auto-migrate legacy patterns/policies into unified knowledge-base
+    if (pluginConfigs.length > 0) {
+      const migrationLogger = new ConsoleLogger('KnowledgeMigration');
+      process.stderr.write('Checking for legacy knowledge collections to migrate...\n');
+      await runKnowledgeMigration(migrationLogger);
     }
 
     // PRD #358: Initialize MCP client for connecting to external MCP servers

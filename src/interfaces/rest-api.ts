@@ -25,7 +25,6 @@ import {
   getUserPromptsConfigFromOverride,
   ingestPromptsSource,
   PromptsSourceValidationError,
-  sanitizeUrlForLogging,
   scrubSourceUrl,
   UserPromptsOverride,
   UserPromptsOverrideError,
@@ -73,7 +72,7 @@ import { invokePluginTool, isPluginInitialized } from '../core/plugin-registry';
 import {
   searchKnowledgeBase,
   type SearchKnowledgeBaseResult,
-} from '../tools/manage-knowledge';
+} from '../core/knowledge-service';
 import type { AITool } from '../core/ai-provider.interface';
 import { createUser, listUsers, deleteUser } from './oauth/user-management';
 import { getCurrentIdentity } from './request-context';
@@ -128,13 +127,14 @@ export function sanitizeRequestUrlForLogging(
   try {
     // req.url is path-relative; provide a dummy base for URL parsing.
     const parsed = new URL(url, 'http://internal.invalid');
+    // Both `?repo=` and `?source=` are scrubbed with the deep helper (userinfo +
+    // credential-bearing query params) so a token embedded anywhere in the URL —
+    // e.g. `?repo=https://user:tok@host` or `?source=...?token=...` — never
+    // appears unscrubbed in the log.
     const repo = parsed.searchParams.get('repo');
     if (repo) {
-      parsed.searchParams.set('repo', sanitizeUrlForLogging(repo));
+      parsed.searchParams.set('repo', scrubSourceUrl(repo));
     }
-    // PRD #647 M5 (F2): `?source=` is scrubbed with the same deep helper used
-    // for the echoed `source` (userinfo + credential-bearing query params), so
-    // `?source=https://user:tok@host` never appears unscrubbed in the log.
     const source = parsed.searchParams.get('source');
     if (source) {
       parsed.searchParams.set('source', scrubSourceUrl(source));

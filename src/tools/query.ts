@@ -8,8 +8,9 @@
  */
 
 import { z } from 'zod';
-import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger } from '../core/error-handling';
+import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger, Logger } from '../core/error-handling';
 import { createAIProvider } from '../core/ai-provider-factory';
+import type { AgenticResult } from '../core/ai-provider.interface';
 import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
 import { RESOURCE_TOOLS, executeResourceTools, type SearchResourcesInput, type QueryResourcesInput } from '../core/resource-tools';
 import { PluginManager } from '../core/plugin-manager';
@@ -145,6 +146,47 @@ interface QueryToolArgs {
   interaction_id?: string;
 }
 
+/**
+ * Bounded retry for the read-only query tool loop. A non-success status is a
+ * transient, retryable AI failure (the caller flags it isRetryable), so re-run
+ * the loop up to `maxAttempts` times — with a short backoff to avoid re-hammering
+ * the provider on rate-limit/overload — before surfacing the final result.
+ *
+ * Exported for unit testing. `backoffMs` is injectable so tests run without real
+ * delays; production uses exponential backoff with jitter, capped at 2s.
+ */
+export async function runQueryLoopWithRetry(
+  run: () => Promise<AgenticResult>,
+  options: {
+    maxAttempts: number;
+    logger: Logger;
+    requestId: string;
+    backoffMs?: (attempt: number) => number;
+  }
+): Promise<AgenticResult> {
+  const { maxAttempts, logger, requestId, backoffMs } = options;
+  const delayFor = backoffMs
+    ?? ((attempt: number) => Math.min(2000, 250 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 250));
+
+  let result = await run();
+  for (
+    let attempt = 1;
+    attempt < maxAttempts && result.status && result.status !== 'success';
+    attempt++
+  ) {
+    const delay = delayFor(attempt);
+    logger.warn(
+      `Query tool loop returned status '${result.status}' — retrying in ${delay}ms (attempt ${attempt + 1}/${maxAttempts})`,
+      { requestId, finalMessage: result.finalMessage }
+    );
+    if (delay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    result = await run();
+  }
+  return result;
+}
+
 export async function handleQueryTool(
   args: QueryToolArgs,
   pluginManager?: PluginManager
@@ -237,7 +279,12 @@ export async function handleQueryTool(
       : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...mcpTools];
 
     // Execute tool loop with capability, resource, kubectl, and MCP tools
-    const result = await aiProvider.toolLoop({
+    // The query tool loop uses only read-only tools (capability/resource search,
+    // kubectl get/describe/logs/events, mermaid), so a transient AI-loop failure is
+    // safe to retry. Smaller models occasionally fail the agentic loop; retry a
+    // bounded number of times before surfacing the (already isRetryable) error below.
+    const MAX_QUERY_ATTEMPTS = 3;
+    const runQueryLoop = () => aiProvider.toolLoop({
       systemPrompt,
       userMessage: intent,
       tools,
@@ -248,6 +295,12 @@ export async function handleQueryTool(
         user_intent: intent
       },
       interaction_id: args.interaction_id
+    });
+
+    const result = await runQueryLoopWithRetry(runQueryLoop, {
+      maxAttempts: MAX_QUERY_ATTEMPTS,
+      logger,
+      requestId,
     });
 
     // Extract data from execution record (reliable, not AI self-reporting)

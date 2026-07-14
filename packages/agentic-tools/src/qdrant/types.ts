@@ -40,6 +40,8 @@ export interface ListOptions {
   limit?: number;
   /** Qdrant filter object for filtering */
   filter?: Record<string, unknown>;
+  /** Include vector embeddings in results (default: false) */
+  includeVector?: boolean;
 }
 
 /**

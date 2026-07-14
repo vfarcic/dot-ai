@@ -12,7 +12,7 @@ import { join } from 'path';
 import { z } from 'zod';
 import { Logger } from '../core/error-handling';
 import { AI_SERVICE_ERRORS } from '../core/constants';
-import { PatternVectorService, PolicyVectorService, CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
+import { CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
 import { ResourceVectorService } from '../core/resource-vector-service';
 import { getTracer } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
@@ -42,16 +42,6 @@ export interface SystemStatus {
     url: string;
     error?: string;
     collections: {
-      patterns: {
-        exists: boolean;
-        documentsCount?: number;
-        error?: string;
-      };
-      policies: {
-        exists: boolean;
-        documentsCount?: number;
-        error?: string;
-      };
       capabilities: {
         exists: boolean;
         documentsCount?: number;
@@ -145,10 +135,9 @@ export interface VersionSessionData extends BaseVisualizationData {
   system: SystemStatus;
   summary: {
     overall: 'healthy' | 'degraded';
-    patternSearch: string;
+    knowledgeSearch: string;
     capabilityScanning: string;
     kubernetesAccess: string;
-    policyIntentManagement: string;
     kyvernoPolicyGeneration: string;
     capabilities: string[];
   };
@@ -162,8 +151,6 @@ export interface VersionSessionData extends BaseVisualizationData {
  */
 function createErrorCollections(errorMessage: string): SystemStatus['vectorDB']['collections'] {
   return {
-    patterns: { exists: false, error: errorMessage },
-    policies: { exists: false, error: errorMessage },
     capabilities: { exists: false, error: errorMessage },
     resources: { exists: false, error: errorMessage },
     knowledgeBase: { exists: false, error: errorMessage },
@@ -199,18 +186,6 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
     // Test each collection separately
     const embeddingService = new EmbeddingService();
 
-    // Test patterns collection
-    const patternsStatus = await testCollectionStatus('patterns', () => {
-      const patternService = new PatternVectorService('patterns', embeddingService);
-      return patternService.getPatternsCount();
-    });
-
-    // Test policies collection
-    const policiesStatus = await testCollectionStatus('policies', () => {
-      const policyService = new PolicyVectorService(embeddingService);
-      return policyService.getDataCount();
-    });
-
     // Test capabilities collection
     const capabilitiesStatus = await testCollectionStatus('capabilities', () => {
       const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
@@ -227,8 +202,6 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
       connected: true,
       url,
       collections: {
-        patterns: patternsStatus,
-        policies: policiesStatus,
         capabilities: capabilitiesStatus,
         resources: resourcesStatus,
         knowledgeBase: knowledgeBaseStatus,
@@ -915,15 +888,20 @@ export async function handleVersionTool(
     // Build summary object
     const summary = {
       overall: (vectorDBStatus.connected && aiProviderStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded') as 'healthy' | 'degraded',
-      patternSearch: embeddingStatus.available ? 'semantic+keyword' : 'keyword-only',
+      // PRD #375: Unified knowledge base replaces separate pattern/policy search.
+      // Keep this on the same readiness rule as the `knowledge-base-search` capability
+      // below (both gate on vectorDBStatus.connected) so diagnostics never contradict.
+      knowledgeSearch: !vectorDBStatus.connected
+        ? 'unavailable'
+        : embeddingStatus.available
+          ? 'semantic+keyword'
+          : 'keyword-only',
       capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
       kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
-      policyIntentManagement: vectorDBStatus.connected && embeddingStatus.available ? 'ready' : 'not-ready',
       kyvernoPolicyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
       capabilities: [
-        vectorDBStatus.connected && vectorDBStatus.collections.patterns.exists ? 'pattern-management' : null,
-        // Policy intent management is available if Vector DB and embedding service are ready
-        vectorDBStatus.connected && embeddingStatus.available ? 'policy-intent-management' : null,
+        // PRD #375: knowledge-base-search replaces pattern-management and policy-intent-management
+        vectorDBStatus.connected ? 'knowledge-base-search' : null,
         capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
         embeddingStatus.available ? 'semantic-search' : null,
         aiProviderStatus.connected ? 'ai-recommendations' : null,
