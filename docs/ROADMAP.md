@@ -19,6 +19,7 @@ This roadmap is a living document and may change based on community feedback and
 - Use embedMany for batch embeddings - replace manual Promise.all with SDK built-in batching (PRD #453)
 - Per-request user prompts repository override - compose skills from multiple repos via CLI flags (PRD #581)
 - Per-request path, branch, and credential for the prompts repo override - multi-source/multi-realm skill composition (PRD #621)
+- AWS credential provider chain for Amazon Bedrock on EKS - secretless auth via Pod Identity and IRSA (PRD #694)
 
 ## Medium-term (3-6 Months)
 
