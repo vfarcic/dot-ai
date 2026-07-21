@@ -14,6 +14,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createXai } from '@ai-sdk/xai';
 import { createAlibaba } from '@ai-sdk/alibaba';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { AI_SERVICE_ERROR_TEMPLATES } from '../constants';
 import {
@@ -226,14 +227,22 @@ export class VercelProvider implements AIProvider {
           this.modelInstance = provider.chatModel(this.model);
           return; // Early return - model instance already set
         case 'amazon_bedrock':
-          // PRD #175: Amazon Bedrock provider
-          // AWS SDK automatically uses credential chain:
-          // 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
-          // 2. ~/.aws/credentials file
-          // 3. IAM roles (EC2 instance profiles, ECS roles, EKS service accounts)
-          // Note: Custom headers not supported - AWS SDK handles auth via credential chain
+          // PRD #694: Amazon Bedrock provider with explicit credential chain.
+          // @ai-sdk/amazon-bedrock does NOT automatically walk the standard AWS
+          // credential chain. The credentialProvider option is the only hook that
+          // enables secretless authentication (IRSA, EKS Pod Identity, IMDS, etc.).
+          // fromNodeProviderChain() is supplied explicitly and supports:
+          //   - environment credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+          //     AWS_SESSION_TOKEN);
+          //   - shared AWS configuration (~/.aws/credentials, ~/.aws/config);
+          //   - IRSA web-identity token (AWS_WEB_IDENTITY_TOKEN_FILE, AWS_ROLE_ARN);
+          //   - EKS Pod Identity / AWS_CONTAINER_CREDENTIALS_FULL_URI;
+          //   - EC2 instance metadata (IMDS).
+          // Custom headers are not supported — AWS SDK handles auth via the
+          // credential chain or bearer token.
           provider = createAmazonBedrock({
             region: process.env.AWS_REGION || 'us-east-1',
+            credentialProvider: fromNodeProviderChain(),
           });
           break;
         case 'openrouter':
