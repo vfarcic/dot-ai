@@ -138,29 +138,15 @@ describe('VercelEmbeddingProvider — Amazon Bedrock credential chain (PRD #694)
   });
 
   it('does not call fromNodeProviderChain for non-bedrock providers', () => {
-    const mockModel = createMockEmbeddingModel({ dimensions: 4 });
+    delete process.env.OPENAI_API_KEY;
 
-    // No bedrock mock setup needed — the openai path should not touch bedrock
-    const fakeOpenAI = {
-      textEmbedding: () => mockModel,
-    };
-
-    // We need to mock createOpenAI since the import is also mocked above
-    // We can use vi.mock for this, but for simplicity we can just setup
-    // the bedrock mock and ensure fromNodeProviderChain is NOT called
-    mockFromNodeProviderChain.mockReturnValue('unused');
-    mockCreateAmazonBedrock.mockReturnValue({
-      textEmbeddingModel: () => mockModel,
-    });
-
-    // Create an openai provider instead — use the bedrock mock as a sentinel
-    // to verify it was not invoked.
     const provider = new VercelEmbeddingProvider({
-      provider: 'amazon_bedrock',
+      provider: 'openai',
     });
 
     expect(provider).toBeDefined();
-    // fromNodeProviderChain should be called for bedrock
-    expect(mockFromNodeProviderChain).toHaveBeenCalledOnce();
+    expect(provider.isAvailable()).toBe(false);
+    expect(mockFromNodeProviderChain).not.toHaveBeenCalled();
+    expect(mockCreateAmazonBedrock).not.toHaveBeenCalled();
   });
 });
