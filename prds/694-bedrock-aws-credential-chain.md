@@ -98,9 +98,16 @@ Optional (general flexibility, not the headline auth story): add `extraVolumes`/
 - [ ] **M4 — Documentation.** EKS Pod Identity + IRSA setup in `docs/ai-engine/setup/deployment.md`; correct the "AWS credentials" rows to distinguish static keys vs secretless workload identity. Changelog fragment in `changelog.d/`.
 - [ ] **M5 — Validation.** Validate Bedrock generation + embeddings against real credentials (env-var path locally / via CI; secretless path validated on EKS or documented as operator-verified).
 
-## Open Questions (for the issue author / maintainer)
+## Confirmed decisions
 
 1. **Which secretless mechanism** do you target — EKS Pod Identity, IRSA, or both? (The fix covers both; this shapes what we validate and document first.)
+Both. Pod Identity is our long-term target (zero secrets, native IAM), but IRSA is the interim path we are already deploying while the fromNodeProviderChain() fix is pending. Supporting both in the same credential chain means we can transition without a second code change.
+
 2. **Do you need Bedrock embeddings** (Titan) under the same workload identity, or only the LLM? (Determines whether M-embeddings validation is required or nice-to-have.)
+Nice-to-have, not required. Our current plan uses local embeddings (HuggingFace TEI, zero-config), so the LLM path is the priority. Titan embeddings under the same workload identity would be a welcome addition but not a blocker.
+
 3. **Is secretless sufficient**, or do you also need a mounted `~/.aws/credentials`/`~/.aws/config` Secret (e.g. for a `credential_process` or SSO profile)? That's what would justify the optional `extraVolumes` work.
+Secretless is sufficient for our production deployment. However, I can see a use case where someone running dot-ai locally (e.g., on kind with a static token) would want to inject AWS credentials via a mounted Secret or environment variables. Since fromNodeProviderChain() falls back to env vars (AWS_ACCESS_KEY_ID, AWS_SESSION_TOKEN) when no Pod Identity or IRSA is present, this should work out of the box with no extra configuration — which is ideal.
+
 4. **Region**: set via existing `extraEnv` (`AWS_REGION`), or would a dedicated `ai.aws.region` chart value be preferable?
+Yes, extraEnv is perfectly fine. No need for a dedicated ai.aws.region value.
