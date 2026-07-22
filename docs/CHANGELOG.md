@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [1.25.0] - 2026-07-22
+
+### Features
+
+- ## Secretless Amazon Bedrock Authentication
+
+  Amazon Bedrock now authenticates through the standard AWS credential provider chain, so dot-ai can run on EKS with no static AWS access keys. Previously the Bedrock provider only read `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` directly from the environment, forcing operators to inject long-lived keys and rotate them manually — secretless mechanisms like EKS Pod Identity and IRSA simply did not work.
+
+  Both the LLM and the Bedrock (Titan) embeddings paths now resolve credentials via `fromNodeProviderChain()`, which walks environment variables, shared AWS config/credentials files, IRSA web-identity tokens, EKS Pod Identity / container credentials, and EC2 instance metadata (IMDS). Short-lived IRSA and Pod Identity credentials are refreshed automatically on each request, so multi-hour sessions keep working without pod restarts. Existing setups are unaffected: static environment-variable keys are still checked first, and bearer-token auth (`AWS_BEARER_TOKEN_BEDROCK`) continues to take precedence.
+
+  Set `AI_PROVIDER=amazon_bedrock` and provide a region via `AWS_REGION` (defaults to `us-east-1`). On EKS, associate an IAM role with the pod's ServiceAccount through Pod Identity or IRSA — no static credentials required. ([#694](https://github.com/vfarcic/dot-ai/issues/694))
+
+
 ## [1.24.0] - 2026-07-14
 
 ### Features
