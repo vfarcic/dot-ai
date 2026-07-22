@@ -6,6 +6,7 @@
  */
 
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { google } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { embed, embedMany, EmbeddingModel } from 'ai';
@@ -113,7 +114,9 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
         this.dimensions = config.dimensions || 768;
         break;
       case 'amazon_bedrock':
-        // AWS SDK handles credentials automatically - no API key needed
+        // PRD #694: Credentials are resolved through the explicit
+        // credentialProvider (fromNodeProviderChain), not automatically.
+        // No static API key is needed for secretless EKS auth.
         this.apiKey = 'bedrock-uses-aws-credentials';
         this.model =
           config.model ||
@@ -146,12 +149,12 @@ export class VercelEmbeddingProvider implements EmbeddingProvider {
           this.modelInstance = google.textEmbedding(this.model);
           break;
         case 'amazon_bedrock': {
-          // AWS SDK automatically uses credential chain:
-          // 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
-          // 2. ~/.aws/credentials file
-          // 3. IAM roles (EC2 instance profiles, ECS roles, EKS service accounts)
+          // PRD #694: Explicit credentialProvider enables secretless auth.
+          // fromNodeProviderChain() supports env vars, shared config, IRSA
+          // web-identity, EKS Pod Identity / container credentials, and IMDS.
           const bedrock = createAmazonBedrock({
             region: process.env.AWS_REGION || 'us-east-1',
+            credentialProvider: fromNodeProviderChain(),
           });
           this.modelInstance = bedrock.textEmbeddingModel(this.model);
           break;
