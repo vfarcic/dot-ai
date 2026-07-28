@@ -88,7 +88,12 @@ import {
   DotAIOAuthProvider,
   type UserIdentity,
 } from './oauth';
-import { requestContext, getCurrentIdentity } from './request-context';
+import {
+  requestContext,
+  getCurrentIdentity,
+  buildProgressReporter,
+  type ProgressNotificationSource,
+} from './request-context';
 import { checkToolAccess, filterAuthorizedTools } from '../core/rbac';
 import express from 'express';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
@@ -267,7 +272,10 @@ export class MCPServer {
     inputSchema: Record<string, unknown>,
     handler: ToolHandler
   ): void {
-    const mcpTracedHandler = async (args: ToolArgs) => {
+    const mcpTracedHandler = async (
+      args: ToolArgs,
+      extra: ProgressNotificationSource
+    ) => {
       // RBAC enforcement (PRD #392) — invocation-time check as second layer of defense
       const identity = getCurrentIdentity();
       if (identity) {
@@ -286,6 +294,17 @@ export class MCPServer {
           };
         }
       }
+
+      // Progress notifications (PRD #705) — no-op unless the client opted in
+      // with `_meta.progressToken`. Bound onto the request-scoped context so
+      // downstream blocking phases can emit without changing any signatures.
+      const store = requestContext.getStore();
+      if (store) {
+        store.progress = buildProgressReporter(extra, error =>
+          this.logger.debug('Progress notification failed', { tool: name, error })
+        );
+      }
+
       return await withToolTracing(name, args, handler, {
         mcpClient: session.clientInfo,
       });
