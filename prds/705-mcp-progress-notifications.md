@@ -106,9 +106,11 @@ This must be verified against the target clients before the work is called done,
 - **Abort/cancellation.** [#460](https://github.com/vfarcic/dot-ai/issues/460) wants the same ALS context and sequences naturally after this, but is separate work.
 - **Changing LB/proxy configuration.** Infrastructure concern; the point of this PRD is to stop depending on it.
 
-**Deliberately deferred (candidate follow-up)**
+**Deliberately deferred (tracked separately)**
 
-- Parallelizing the `schema.ts:857` question-generation loop with `Promise.all`. This attacks the duration rather than the silence and would cut the worst window by roughly N×. It is orthogonal to progress reporting, needs its own thinking about provider rate limits and concurrency, and should not ride along with a liveness fix.
+- Parallelizing the `schema.ts:857` question-generation loop with `Promise.all` — tracked in [#706](https://github.com/vfarcic/dot-ai/issues/706). This attacks the duration rather than the silence and would cut the worst window by roughly N×. It is orthogonal to progress reporting, needs its own thinking about provider rate limits and concurrency, and should not ride along with a liveness fix.
+
+  **Ordering note:** whichever of #705 / #706 lands second must account for the other. Scope item 3 above assumes the per-solution loop completes in order; once generation is concurrent, `progress`/`total` still reads correctly as "N of M done" but the per-solution phase *labels* lose their sequencing.
 
 ## Success Criteria
 
