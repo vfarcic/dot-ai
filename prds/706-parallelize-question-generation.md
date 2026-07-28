@@ -49,7 +49,11 @@ Replace the serial loop at `schema.ts:857-865` with concurrent generation via `P
 
 ## Design decisions to settle
 
-1. **Partial failure semantics.** Today a throw on any solution aborts the whole `recommend` — `generateQuestionsWithAI` throws on malformed input (e.g. `schema.ts:1352`, missing `resourceName`). `Promise.all` preserves that behavior exactly; `Promise.allSettled` would let the remaining solutions through with one missing its questions. Preserving current behavior is the safe default, but it should be an explicit choice rather than a side effect of which method gets used.
+1. **Partial failure semantics — mostly already settled.** `generateQuestionsWithAI` already degrades per-solution. Its catch at `schema.ts:1514` swallows generation failures — malformed LLM JSON (`'Invalid question structure from AI'`, `schema.ts:1467`), provider errors, cluster-option discovery failures — and returns a fallback question set (empty required/basic/advanced plus a generic open question). Only errors matching `'missing resourceName field'` are rethrown (`schema.ts:1516-1521`), deliberately, with the comment *"these are bugs, not generation failures"*.
+
+   So the loop at `schema.ts:857` rarely throws at all, and **`Promise.all` is the correct choice**: it preserves the intentional fail-fast on that one invariant, whereas `allSettled` would swallow a bug the code goes out of its way to surface. There is no graceful-degradation gap to close here — it is already handled one layer down.
+
+   The one genuinely new consideration parallelization introduces: under `Promise.all`, a `resourceName` rejection no longer prevents sibling generations. They are already in flight and run to completion, spending tokens whose results are discarded. Bounded at ≤4 extra generations, and only on a code bug.
 2. **Retry budget interaction.** Concurrent calls share the retry configuration in `src/core/ai-retry-config.ts`. With N ≤ 5 this should be a non-issue, but confirm a provider-side 429 on one solution doesn't cascade.
 3. **Tracing.** `withAITracing` wraps each `sendMessage`. Confirm concurrent spans nest sanely and `interaction_id` correlation still holds when the calls interleave.
 
@@ -86,12 +90,12 @@ Replace the serial loop at `schema.ts:857-865` with concurrent generation via `P
 ## Milestones
 
 - [ ] **M1 — Cap before generate.** Move the top-5 cap ahead of question generation so discarded solutions never incur an AI call.
-- [ ] **M2 — Parallelize.** Replace the serial loop with `Promise.all`; settle and document partial-failure semantics.
+- [ ] **M2 — Parallelize.** Replace the serial loop with `Promise.all`. Existing per-solution degradation (`schema.ts:1514`) and the deliberate `resourceName` fail-fast (`schema.ts:1516`) are preserved as-is.
 - [ ] **M3 — Verify tracing.** Confirm concurrent `withAITracing` spans and `interaction_id` correlation behave correctly when calls interleave.
 - [ ] **M4 — Tests.** Integration coverage for multi-solution intents: all solutions receive questions, content matches serial behavior, failure path preserved. `npm run test:integration` green.
 - [ ] **M5 — Measure.** Record before/after wall-clock on a representative multi-solution intent. Changelog fragment in `changelog.d/`.
 
 ## Open questions
 
-1. **Partial failure** — preserve today's abort-on-first-error, or degrade gracefully with `allSettled`? (Decision 1 above.)
-2. **Should the top-5 cap move into the prompt contract** as an enforced limit rather than a post-hoc slice, so the model's output shape and the response path can't drift?
+1. **Should a `resourceName` rejection cancel in-flight sibling generations?** Under `Promise.all` they continue and their tokens are wasted. Bounded at ≤4 and only reachable on a construction bug, so plausibly not worth solving until [#460](https://github.com/vfarcic/dot-ai/issues/460) lands `AbortController` plumbing that would make cancellation cheap.
+2. **Should the top-5 cap become an enforced contract** rather than a post-hoc slice? M1 moves the slice earlier, which fixes the wasted *work*. It does not validate that the model honored the 2-5 instruction at all — `extractJsonFromAIResponse` (`schema.ts:1455`) performs no count check, so a model returning 12 solutions is silently truncated to 5. Enforcing the bound in the response contract is really a case for [#454](https://github.com/vfarcic/dot-ai/issues/454) (`generateObject` + Zod schemas); worth deciding whether to wait for that or add a narrow validation here.
