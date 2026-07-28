@@ -44,7 +44,6 @@ This roadmap is a living document and may change based on community feedback and
 - smoothStream for better streaming UX (PRD #461)
 - Evaluate generateImage for architecture diagram generation (PRD #462)
 - Evaluate SDK MCP client for consuming external tool servers (PRD #463)
-- Use MockLanguageModelV1 for unit testing AI interactions (PRD #464)
 
 ## How to Contribute
 
