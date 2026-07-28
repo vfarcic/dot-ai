@@ -48,9 +48,17 @@
       "labels": ["kubernetes", "major-update"]
     },
     {
-      "matchFileNames": ["devbox.json"],
+      "matchManagers": ["devbox"],
       "groupName": "Devbox packages",
       "labels": ["devbox"]
+    },
+    {
+      "matchManagers": ["devbox", "github-actions"],
+      "matchUpdateTypes": ["digest", "pin", "patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "ignoreTests": true,
+      "description": "Automerge devbox and GitHub Actions updates below major. Major bumps stay manual. CI is skipped on Renovate PRs ([skip ci]), so there are no tests to gate on."
     }
   ],
   "vulnerabilityAlerts": {
