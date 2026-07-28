@@ -1,5 +1,7 @@
 # DevOps AI Toolkit
 
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.vfarcic%2Fdot-ai.svg)](https://mcptoplist.com/server/io.github.vfarcic%2Fdot-ai)
+
 <div align="center">
 
 <p align="center">
