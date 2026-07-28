@@ -89,3 +89,36 @@ export function buildProgressReporter(
     }).catch(error => onError?.(error));
   };
 }
+
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 20_000;
+
+/**
+ * Heartbeat interval in milliseconds, configurable via
+ * `DOT_AI_MCP_PROGRESS_INTERVAL_MS` and defaulting to ~20s — comfortably inside
+ * a typical 60s proxy/LB idle timeout (PRD #705).
+ */
+export function progressHeartbeatIntervalMs(): number {
+  const raw = Number(process.env.DOT_AI_MCP_PROGRESS_INTERVAL_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_HEARTBEAT_INTERVAL_MS;
+}
+
+/**
+ * Start a time-based liveness heartbeat that emits progress on a fixed interval
+ * until the returned stop function is called (PRD #705). Guarantees bytes flow
+ * during otherwise-silent blocking phases so an idle proxy/LB does not drop the
+ * connection. The timer is unref'd so it never keeps the process alive; callers
+ * must invoke the returned stop function in a `finally` to avoid timer leaks.
+ */
+export function startProgressHeartbeat(
+  report: ProgressReporter,
+  label: string,
+  intervalMs: number = progressHeartbeatIntervalMs()
+): () => void {
+  let ticks = 0;
+  const timer = setInterval(() => {
+    ticks += 1;
+    report(ticks, undefined, `${label} in progress…`);
+  }, intervalMs);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}

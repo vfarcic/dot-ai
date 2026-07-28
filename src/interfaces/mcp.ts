@@ -92,6 +92,7 @@ import {
   requestContext,
   getCurrentIdentity,
   buildProgressReporter,
+  startProgressHeartbeat,
   type ProgressNotificationSource,
 } from './request-context';
 import { checkToolAccess, filterAuthorizedTools } from '../core/rbac';
@@ -299,15 +300,26 @@ export class MCPServer {
       // with `_meta.progressToken`. Bound onto the request-scoped context so
       // downstream blocking phases can emit without changing any signatures.
       const store = requestContext.getStore();
+      const report = buildProgressReporter(extra, error =>
+        this.logger.debug('Progress notification failed', { tool: name, error })
+      );
       if (store) {
-        store.progress = buildProgressReporter(extra, error =>
-          this.logger.debug('Progress notification failed', { tool: name, error })
-        );
+        store.progress = report;
       }
 
-      return await withToolTracing(name, args, handler, {
-        mcpClient: session.clientInfo,
-      });
+      // Time-based heartbeat: guarantees liveness during silent blocking phases
+      // (e.g. recommend's serial question-generation loop) so an idle LB does
+      // not drop the connection. Cleared in `finally` to avoid timer leaks.
+      const stopHeartbeat = report
+        ? startProgressHeartbeat(report, name)
+        : undefined;
+      try {
+        return await withToolTracing(name, args, handler, {
+          mcpClient: session.clientInfo,
+        });
+      } finally {
+        stopHeartbeat?.();
+      }
     };
     /* eslint-disable @typescript-eslint/no-explicit-any -- MCP SDK type compatibility */
     server.registerTool(
