@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Complete
 
 ## Problem
 
@@ -123,15 +123,15 @@ This must be verified against the target clients before the work is called done,
 
 ## Milestones
 
-- [ ] **M1 — Progress plumbing.** Extend `RequestContext` with a progress emitter; capture `extra` in `registerMcpTool` and populate it; no-op when `_meta.progressToken` is absent. Emit failures logged, never thrown.
-- [ ] **M2 — Time-based heartbeat.** Interval-driven emitter started/stopped per MCP tool call with `finally` cleanup; configurable interval. Verify no timer leaks across concurrent sessions and on error paths.
-- [ ] **M3 — Semantic phases for `recommend`.** Phase labels at the `findBestSolutions` boundaries, including `progress`/`total` across the per-solution loop.
-- [ ] **M4 — Tests.** Integration coverage for both the opt-in and no-token paths; assert the no-token path is unchanged. `npm run test:integration` green.
-- [ ] **M5 — Client verification and docs.** Confirm `resetTimeoutOnProgress` behavior against the clients we care about; document required client config and the LB interaction. Changelog fragment in `changelog.d/`.
+- [x] **M1 — Progress plumbing.** Extend `RequestContext` with a progress emitter; capture `extra` in `registerMcpTool` and populate it; no-op when `_meta.progressToken` is absent. Emit failures logged, never thrown. _(`e262aea`)_
+- [x] **M2 — Time-based heartbeat.** Interval-driven emitter started/stopped per MCP tool call with `finally` cleanup; configurable interval. Verify no timer leaks across concurrent sessions and on error paths. _(`d6e9eed`)_
+- [x] **M3 — Semantic phases for `recommend`.** Phase labels at the `findBestSolutions` boundaries, including `progress`/`total` across the per-solution loop. _(`4b98c03`)_
+- [x] **M4 — Tests.** Integration coverage for both the opt-in and no-token paths; assert the no-token path is unchanged. `npm run test:integration` green. _(`2dc7c04`, `52c945b`)_
+- [x] **M5 — Client verification and docs.** Confirm `resetTimeoutOnProgress` behavior against the clients we care about; document required client config and the LB interaction. Changelog fragment in `changelog.d/`. _(`361f2f2`)_
 
 ## Open questions
 
-1. **Heartbeat interval.** ~20s (as used in the reporter's fork) is comfortably inside a 60s ALB default. Configurable, or fixed?
-2. **Heartbeat vs. phase labels when both apply.** Should a phase label reset the heartbeat timer, or do both channels emit independently?
-3. **Which clients must be verified** for `resetTimeoutOnProgress` before this is considered done?
-4. **Should the `progress`/`total` counters be meaningful** (monotonic across known phases) or is `message`-only sufficient? Meaningful counters need a phase count known up front, which the Helm branch makes conditional.
+1. **Heartbeat interval.** ~20s (as used in the reporter's fork) is comfortably inside a 60s ALB default. Configurable, or fixed? — Resolved: configurable via `DOT_AI_MCP_PROGRESS_INTERVAL_MS` (default 20000ms).
+2. **Heartbeat vs. phase labels when both apply.** Should a phase label reset the heartbeat timer, or do both channels emit independently? — Resolved: independent; neither resets the other.
+3. **Which clients must be verified** for `resetTimeoutOnProgress` before this is considered done? — Only MCP TS SDK verified by the integration test.
+4. **Should the `progress`/`total` counters be meaningful** (monotonic across known phases) or is `message`-only sufficient? Meaningful counters need a phase count known up front, which the Helm branch makes conditional. — Resolved: `findBestSolutions` emits monotonic `progress`/`total`; the heartbeat emits a tick count with no `total`.
