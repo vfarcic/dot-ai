@@ -300,18 +300,19 @@ export class MCPServer {
       // with `_meta.progressToken`. Bound onto the request-scoped context so
       // downstream blocking phases can emit without changing any signatures.
       const store = requestContext.getStore();
-      const report = buildProgressReporter(extra, error =>
+      const channel = buildProgressReporter(extra, error =>
         this.logger.warn('Progress notification failed', { tool: name, error })
       );
       if (store) {
-        store.progress = report;
+        store.progress = channel?.report;
       }
 
       // Time-based heartbeat: guarantees liveness during silent blocking phases
       // (e.g. recommend's serial question-generation loop) so an idle LB does
-      // not drop the connection. Cleared in `finally` to avoid timer leaks.
-      const stopHeartbeat = report
-        ? startProgressHeartbeat(report, name)
+      // not drop the connection. Shares one monotonic sequence with semantic
+      // updates via the channel. Cleared in `finally` to avoid timer leaks.
+      const stopHeartbeat = channel
+        ? startProgressHeartbeat(channel.heartbeat, name)
         : undefined;
       try {
         return await withToolTracing(name, args, handler, {

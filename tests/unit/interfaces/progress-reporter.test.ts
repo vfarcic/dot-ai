@@ -40,16 +40,18 @@ describe('buildProgressReporter (PRD #705 M1)', () => {
       _meta: { progressToken: 0 },
       sendNotification: vi.fn().mockResolvedValue(undefined),
     };
-    expect(buildProgressReporter(extra)).toBeInstanceOf(Function);
+    const channel = buildProgressReporter(extra);
+    expect(channel?.report).toBeInstanceOf(Function);
+    expect(channel?.heartbeat).toBeInstanceOf(Function);
   });
 
   test('emits a well-formed notifications/progress message', () => {
     const sendNotification = vi.fn().mockResolvedValue(undefined);
-    const report = buildProgressReporter({
+    const channel = buildProgressReporter({
       _meta: { progressToken: 'abc' },
       sendNotification,
     });
-    report?.(3, 5, 'Generating configuration options…');
+    channel?.report(3, 5, 'Generating configuration options…');
     expect(sendNotification).toHaveBeenCalledWith({
       method: 'notifications/progress',
       params: {
@@ -65,11 +67,11 @@ describe('buildProgressReporter (PRD #705 M1)', () => {
     const failure = new Error('socket closed');
     const sendNotification = vi.fn().mockRejectedValue(failure);
     const onError = vi.fn();
-    const report = buildProgressReporter(
+    const channel = buildProgressReporter(
       { _meta: { progressToken: 1 }, sendNotification },
       onError
     );
-    expect(() => report?.(1)).not.toThrow();
+    expect(() => channel?.report(1)).not.toThrow();
     await Promise.resolve();
     expect(onError).toHaveBeenCalledWith(failure);
   });
@@ -95,20 +97,63 @@ describe('reportProgress (PRD #705 M1)', () => {
   });
 });
 
+describe('ProgressChannel monotonicity (PRD #705, MCP progress spec)', () => {
+  test('keeps one strictly increasing sequence when heartbeats interleave with phases', () => {
+    const sent: number[] = [];
+    const channel = buildProgressReporter({
+      _meta: { progressToken: 7 },
+      sendNotification: n => {
+        sent.push(n.params.progress);
+        return Promise.resolve();
+      },
+    })!;
+
+    // Interleave semantic phase updates with liveness heartbeats, as happens
+    // when the fixed-interval timer fires mid-way through findBestSolutions.
+    channel.report(1, 4, 'Searching organizational knowledge…');
+    channel.heartbeat('recommend');
+    channel.report(2, 4, 'Searching cluster capabilities…');
+    channel.heartbeat('recommend');
+    channel.heartbeat('recommend');
+    channel.report(3, 4, 'Generating configuration options…');
+    channel.report(4, 4, 'Generating configuration questions (1/1)…');
+
+    const strictlyIncreasing = sent.every((v, i) => i === 0 || v > sent[i - 1]);
+    expect(strictlyIncreasing).toBe(true);
+    // Integer phases survive untouched: heartbeat nudges never overtake them.
+    expect(sent.filter(Number.isInteger)).toEqual([1, 2, 3, 4]);
+  });
+
+  test('a heartbeat before any phase still emits a strictly increasing value', () => {
+    const sent: number[] = [];
+    const channel = buildProgressReporter({
+      _meta: { progressToken: 8 },
+      sendNotification: n => {
+        sent.push(n.params.progress);
+        return Promise.resolve();
+      },
+    })!;
+    channel.heartbeat('recommend');
+    channel.report(1, 2, 'phase');
+    expect(sent[0]).toBeGreaterThan(0);
+    expect(sent[1]).toBeGreaterThan(sent[0]);
+  });
+});
+
 describe('startProgressHeartbeat (PRD #705 M2)', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
   test('emits on a fixed interval until stopped', () => {
-    const report = vi.fn();
-    const stop = startProgressHeartbeat(report, 'recommend', 1000);
-    expect(report).not.toHaveBeenCalled();
+    const heartbeat = vi.fn();
+    const stop = startProgressHeartbeat(heartbeat, 'recommend', 1000);
+    expect(heartbeat).not.toHaveBeenCalled();
     vi.advanceTimersByTime(2500);
-    expect(report).toHaveBeenCalledTimes(2);
-    expect(report).toHaveBeenLastCalledWith(2, undefined, 'recommend in progress…');
+    expect(heartbeat).toHaveBeenCalledTimes(2);
+    expect(heartbeat).toHaveBeenLastCalledWith('recommend');
     stop();
     vi.advanceTimersByTime(5000);
-    expect(report).toHaveBeenCalledTimes(2);
+    expect(heartbeat).toHaveBeenCalledTimes(2);
   });
 
   test('unrefs the timer so it never keeps the process alive', () => {

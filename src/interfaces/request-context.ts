@@ -67,7 +67,27 @@ export interface ProgressNotificationSource {
 }
 
 /**
- * Build a ProgressReporter from the MCP SDK's per-request `extra` (PRD #705).
+ * A single request-scoped progress sequence for one `progressToken` (PRD #705).
+ * `report` carries semantic phase updates (monotonic integers with a known
+ * `total`); `heartbeat` emits liveness-only nudges. Both share one strictly
+ * increasing `progress` value so the token never violates the MCP requirement
+ * that `progress` increase with every notification.
+ */
+export interface ProgressChannel {
+  report: ProgressReporter;
+  heartbeat: (label: string) => void;
+}
+
+/**
+ * Smallest step used to keep the sequence strictly increasing. A heartbeat nudge
+ * of this size cannot overtake the next integer phase within any realistic call
+ * duration (~1000 nudges to advance a whole phase), so the semantic `progress`
+ * value and its `total` ratio stay intact for a client progress bar.
+ */
+const MIN_PROGRESS_STEP = 0.001;
+
+/**
+ * Build a ProgressChannel from the MCP SDK's per-request `extra` (PRD #705).
  * Returns undefined when the client did not opt in with `_meta.progressToken`
  * or the transport cannot send notifications, keeping non-opt-in and REST
  * calls unaffected. Emit failures are routed to `onError` and never propagate
@@ -76,17 +96,40 @@ export interface ProgressNotificationSource {
 export function buildProgressReporter(
   extra: ProgressNotificationSource,
   onError?: (error: unknown) => void
-): ProgressReporter | undefined {
+): ProgressChannel | undefined {
   const progressToken = extra?._meta?.progressToken;
   const sendNotification = extra?.sendNotification;
   if (progressToken === undefined || progressToken === null || !sendNotification) {
     return undefined;
   }
-  return (progress, total, message) => {
+
+  // Shared state so heartbeat and semantic updates form one monotonic sequence.
+  let last = 0;
+  let total: number | undefined;
+  let message: string | undefined;
+
+  const send = (progress: number) => {
     sendNotification({
       method: 'notifications/progress',
       params: { progressToken, progress, total, message },
     }).catch(error => onError?.(error));
+  };
+
+  return {
+    report: (progress, nextTotal, nextMessage) => {
+      last = Math.max(progress, last + MIN_PROGRESS_STEP);
+      if (nextTotal !== undefined) total = nextTotal;
+      if (nextMessage !== undefined) message = nextMessage;
+      send(last);
+    },
+    heartbeat: label => {
+      // Nudge without advancing the phase, reusing the current phase message.
+      last += MIN_PROGRESS_STEP;
+      const previousMessage = message;
+      message = previousMessage ?? `${label} in progress…`;
+      send(last);
+      message = previousMessage;
+    },
   };
 }
 
@@ -110,15 +153,11 @@ export function progressHeartbeatIntervalMs(): number {
  * must invoke the returned stop function in a `finally` to avoid timer leaks.
  */
 export function startProgressHeartbeat(
-  report: ProgressReporter,
+  heartbeat: (label: string) => void,
   label: string,
   intervalMs: number = progressHeartbeatIntervalMs()
 ): () => void {
-  let ticks = 0;
-  const timer = setInterval(() => {
-    ticks += 1;
-    report(ticks, undefined, `${label} in progress…`);
-  }, intervalMs);
+  const timer = setInterval(() => heartbeat(label), intervalMs);
   timer.unref?.();
   return () => clearInterval(timer);
 }
