@@ -301,7 +301,7 @@ export class MCPServer {
       // downstream blocking phases can emit without changing any signatures.
       const store = requestContext.getStore();
       const report = buildProgressReporter(extra, error =>
-        this.logger.debug('Progress notification failed', { tool: name, error })
+        this.logger.warn('Progress notification failed', { tool: name, error })
       );
       if (store) {
         store.progress = report;
