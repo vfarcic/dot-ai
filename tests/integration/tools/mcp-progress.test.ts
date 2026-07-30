@@ -59,7 +59,7 @@ async function connectClient(): Promise<{
   return { client, transport };
 }
 
-describe.concurrent('MCP Progress Notifications (PRD #705)', () => {
+describe('MCP Progress Notifications (PRD #705)', () => {
   let client: Client;
   let transport: StreamableHTTPClientTransport;
 
