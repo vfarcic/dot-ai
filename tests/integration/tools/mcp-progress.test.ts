@@ -65,7 +65,9 @@ describe('MCP Progress Notifications (PRD #705)', () => {
 
   beforeAll(async () => {
     // Verify we're pointed at the test cluster/harness (mirrors recommend.test.ts).
-    expect(process.env.KUBECONFIG).toContain('kubeconfig-test.yaml');
+    expect({ kubeconfig: process.env.KUBECONFIG }).toMatchObject({
+      kubeconfig: expect.stringContaining('kubeconfig-test.yaml'),
+    });
     ({ client, transport } = await connectClient());
   }, 60000);
 
@@ -107,18 +109,27 @@ describe('MCP Progress Notifications (PRD #705)', () => {
       const payload = parseToolResult(result);
       expect(payload).toMatchObject({
         intent: RECOMMEND_INTENT,
+        // AI-generated solution content is non-deterministic (mirrors recommend.test.ts).
         solutions: expect.any(Array),
       });
 
-      // At least one progress notification arrived, and at least one carries a
-      // semantic phase label emitted inside findBestSolutions.
-      expect(notifications.length).toBeGreaterThan(0);
-      const messages = notifications
-        .map(n => n.message ?? '')
-        .join('\n');
-      expect(messages).toMatch(
-        /organizational knowledge|cluster capabilities|configuration options|configuration questions/i
+      // The first phase label is a deterministic, non-AI string emitted at the
+      // top of findBestSolutions, so assert it exactly via toMatchObject.
+      const knowledgePhase = notifications.find(
+        n => n.message === 'Searching organizational knowledge…'
       );
+      expect(knowledgePhase).toMatchObject({
+        progress: 1,
+        message: 'Searching organizational knowledge…',
+      });
+
+      // Every notification on one progressToken must strictly increase (MCP spec
+      // + PRD #705 option C: heartbeat and semantic updates share one sequence).
+      const progressValues = notifications.map(n => n.progress);
+      const strictlyIncreasing = progressValues.every(
+        (v, i) => i === 0 || v > progressValues[i - 1]
+      );
+      expect(strictlyIncreasing).toBe(true);
     },
     300000
   );
