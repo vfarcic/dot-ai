@@ -109,8 +109,17 @@ describe('MCP Progress Notifications (PRD #705)', () => {
       const payload = parseToolResult(result);
       expect(payload).toMatchObject({
         intent: RECOMMEND_INTENT,
-        // AI-generated solution content is non-deterministic (mirrors recommend.test.ts).
-        solutions: expect.any(Array),
+        // Solution content is AI-generated, but every solution carries the same
+        // deterministic keys (mirrors recommend.test.ts).
+        solutions: expect.arrayContaining([
+          expect.objectContaining({
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
+            type: expect.any(String),
+            score: expect.any(Number),
+            description: expect.any(String),
+            reasons: expect.any(Array),
+          }),
+        ]),
       });
 
       // The first phase label is a deterministic, non-AI string emitted at the
@@ -155,7 +164,15 @@ describe('MCP Progress Notifications (PRD #705)', () => {
       const payload = parseToolResult(result);
       expect(payload).toMatchObject({
         intent: RECOMMEND_INTENT,
-        solutions: expect.any(Array),
+        solutions: expect.arrayContaining([
+          expect.objectContaining({
+            solutionId: expect.stringMatching(/^sol-\d+-[a-f0-9]{8}$/),
+            type: expect.any(String),
+            score: expect.any(Number),
+            description: expect.any(String),
+            reasons: expect.any(Array),
+          }),
+        ]),
       });
     },
     300000
