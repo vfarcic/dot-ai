@@ -15,6 +15,7 @@
 - **Code blocks**: Always use syntax highlighting (```bash, ```yaml, ```json)
 - **Cross-references**: Link related documentation with relative paths
 - **Decision trees**: Use clear "🎯 Recommended" and alternative flow patterns
+- **Portable Markdown only**: Docs are read both as raw Markdown on GitHub and through Docusaurus, so use syntax both engines understand. For callouts use plain `>` blockquotes — never `:::info` / `:::note` / `:::tip` (Docusaurus-only; renders as literal `:::info` text on GitHub) and never `> [!NOTE]` / `> [!WARNING]` GitHub alerts (GitHub-only; renders as a blockquote with literal `[!NOTE]` text in Docusaurus)
 
 ### Command and Example Validation Rules
 
