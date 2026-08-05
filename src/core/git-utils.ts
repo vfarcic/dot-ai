@@ -21,7 +21,16 @@ import * as os from 'os';
 
 const FETCH_TIMEOUT_MS = 30000;
 const GIT_TIMEOUT_MS = 120000; // 2 minutes for git operations
-const PR_API_TIMEOUT_MS = 30000;
+
+/**
+ * Cap on how much of a GitHub API error body is echoed back to the caller. The
+ * body is a third party's response text, so it is scrubbed and bounded rather
+ * than forwarded wholesale.
+ */
+const MAX_API_ERROR_BODY_CHARS = 500;
+
+/** The only host whose pull request API this module speaks (PRD #710 decision 7). */
+const GITHUB_HOST = 'github.com';
 
 /**
  * User-Agent sent to the GitHub API when a caller of createPullRequest() does
@@ -76,18 +85,17 @@ export function getAuthenticatedUrl(repoUrl: string, token: string): string {
   return url.toString();
 }
 
+/**
+ * The single HTTP entry point for this module — the GitHub App token endpoints
+ * and the pull request POST all go through it, so there is one timeout
+ * mechanism and one default rather than two of each (CLAUDE.md rule 4).
+ */
 async function fetchWithTimeout(
   url: string,
   options: RequestInit,
   timeoutMs = FETCH_TIMEOUT_MS
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
+  return fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
 }
 
 function generateGitHubAppJWT(appId: string, privateKey: string): string {
@@ -500,6 +508,18 @@ export interface PushResult {
   commitSha: string | undefined;
   branch: string;
   filesAdded: string[];
+  /**
+   * Why nothing was committed or pushed, set whenever `commitSha` is undefined
+   * (PRD #710 M1). It exists so callers can tell the two cases apart instead of
+   * inferring both from a missing sha:
+   * - `nothing_staged` — a POSITIVE fact: `git diff --cached` came back empty,
+   *   so the files already match HEAD and there was nothing to commit.
+   * - `commit_failed` — the index DID hold staged changes but `git commit`
+   *   produced no revision (e.g. a hook that fails with empty stderr, which
+   *   simple-git resolves rather than rejects). That is a failure, not an
+   *   empty diff, and must not be reported as "no changes".
+   */
+  noCommitReason?: 'nothing_staged' | 'commit_failed';
 }
 
 export async function pushRepo(
@@ -534,7 +554,23 @@ export async function pushRepo(
     fs.writeFileSync(fullPath, file.content);
   }
 
-  await git.add(files.map(f => f.path));
+  // `--` terminates option parsing so a file named e.g. `--all` is read as a
+  // pathspec and never as a git option (same house style as the clone above).
+  await git.add(['--', ...files.map(f => f.path)]);
+
+  // Decide "nothing to commit" POSITIVELY here, rather than letting the caller
+  // infer it from a missing commit sha further down: `git commit` also yields no
+  // sha when it FAILS with empty stderr, and the two outcomes are not the same
+  // (PRD #710 M1).
+  const stagedChanges = await git.diff(['--cached', '--name-only']);
+  if (stagedChanges.trim().length === 0) {
+    return {
+      commitSha: undefined,
+      branch: (await git.status()).current || 'main',
+      filesAdded: [],
+      noCommitReason: 'nothing_staged',
+    };
+  }
 
   const gitUserName =
     opts?.author?.name || process.env.GIT_AUTHOR_NAME || 'dot-ai-bot';
@@ -551,10 +587,13 @@ export async function pushRepo(
   const commitResult = await git.commit(finalMessage);
 
   if (!commitResult.commit) {
+    // The index was not empty (checked above), so git had something to commit
+    // and produced no revision anyway — a failure, not an empty diff.
     return {
       commitSha: undefined,
       branch: (await git.status()).current || 'main',
       filesAdded: [],
+      noCommitReason: 'commit_failed',
     };
   }
 
@@ -661,6 +700,70 @@ export type CreatePullRequestResult =
     };
 
 /**
+ * Split a git remote URL into host and path, covering both forms git accepts:
+ * a real URL (`https://…`, `ssh://…`, `file://…`) and the scp-like
+ * `[user@]host:path` shorthand, which `new URL` either rejects outright
+ * (`git@github.com:o/r.git`) or silently misreads as a scheme
+ * (`github.com:o/r.git` → protocol `github.com:`, empty host).
+ */
+function splitRemoteUrl(
+  remoteUrl: string
+): { host: string; path: string } | undefined {
+  const trimmed = remoteUrl.trim();
+
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      // hostname, not host: a port is irrelevant to WHOSE host this is, and
+      // `new URL` keeps any embedded credentials out of it.
+      return { host: url.hostname, path: url.pathname };
+    } catch {
+      return undefined;
+    }
+  }
+
+  const scp = trimmed.match(/^(?:[^@/]+@)?([^@/:]+):(.+)$/);
+  if (!scp) return undefined;
+  return { host: scp[1], path: `/${scp[2]}` };
+}
+
+/** GitHub owner logins and repository names use exactly this character set. */
+const GITHUB_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * `{ owner, repo }` when `remoteUrl` points at github.com, undefined for any
+ * other host — so the caller falls into the non-GitHub branch.
+ *
+ * The host is decided by PARSING the URL and comparing the hostname exactly.
+ * Searching the string for `github.com` instead — what this replaces — also
+ * accepts `https://evil.example/github.com/victim/private.git` (→ victim/private)
+ * and `https://notgithub.com/owner/repo.git` (→ owner/repo), which would send an
+ * authenticated POST for an attacker-chosen owner/repo. The token itself cannot
+ * reach the attacker's host (the API URL is a hardcoded api.github.com template),
+ * but the API's differing answers would form an existence-and-access oracle for
+ * private repositories the server's credential can reach.
+ *
+ * Anything that is not exactly `<owner>/<repo>` on that host is rejected, which
+ * also rules out traversal segments in the owner/repo the API URL is built from.
+ */
+export function parseGitHubRemote(
+  remoteUrl: string
+): { owner: string; repo: string } | undefined {
+  const split = splitRemoteUrl(remoteUrl);
+  if (!split || split.host.toLowerCase() !== GITHUB_HOST) return undefined;
+
+  const segments = split.path.replace(/^\/+/, '').split('/');
+  if (segments.length !== 2) return undefined;
+
+  const owner = segments[0];
+  const repo = segments[1].replace(/\.git$/, '');
+  if (!GITHUB_NAME_PATTERN.test(owner) || !GITHUB_NAME_PATTERN.test(repo)) {
+    return undefined;
+  }
+  return { owner, repo };
+}
+
+/**
  * True when `ref` resolves in this repository. `rev-parse --verify --quiet`
  * exits 1 with EMPTY output for a missing ref, and simple-git resolves rather
  * than throws on that, so the output — not the absence of an exception — is
@@ -704,7 +807,14 @@ async function withAuthenticatedOrigin<T>(
   try {
     return await fn();
   } finally {
-    await git.remote(['set-url', 'origin', originalUrl]);
+    try {
+      await git.remote(['set-url', 'origin', originalUrl]);
+    } catch {
+      // Never let a failing restore REPLACE fn()'s error — that error is the one
+      // the caller needs in order to understand what went wrong. The token then
+      // stays in this checkout's .git/config, which is the lesser harm: the
+      // clone is a throwaway, and losing the real error is not recoverable.
+    }
   }
 }
 
@@ -716,6 +826,13 @@ async function withAuthenticatedOrigin<T>(
  * (`depth: 1`, no `--branch`) — contains only the default branch's ref, so a
  * plain `git checkout <non-default base>` fails. Fetching just that one ref at
  * depth 1 makes the helper independent of how the caller cloned.
+ *
+ * Three arms, in order: a local branch of that name is checked out as-is; an
+ * existing `refs/remotes/origin/<base>` is used WITHOUT being refreshed (see
+ * createPullRequest's contract note); otherwise that one ref is fetched.
+ *
+ * `baseBranch` must name a BRANCH: the fetch refspec is `+refs/heads/<base>`,
+ * so a tag or a raw SHA cannot resolve here.
  */
 async function checkoutBaseBranch(
   git: SimpleGit,
@@ -756,17 +873,33 @@ async function checkoutBaseBranch(
  *   fetched when missing (decision 10). A shallow clone is fine.
  * - Credentials come from the environment (`getGitAuthConfigFromEnv`), for both
  *   the push and the GitHub API call.
+ * - `branchName` must be a non-empty branch name different from `baseBranch`,
+ *   and is server-generated by every caller — never a client parameter.
+ *
+ * Two contract points worth knowing before adding a third caller:
+ * - When `refs/remotes/origin/<baseBranch>` is ALREADY present, it is used as of
+ *   the clone — nothing is re-fetched — so the pull request is based on however
+ *   stale that ref is. Harmless for the current callers (remediate clones fresh
+ *   at depth 1; pushToGit clones with `--branch <base>`); a caller reusing a
+ *   long-lived checkout must pull it itself.
+ * - `baseBranch` is strictly a BRANCH. A tag or SHA used to work by accident
+ *   (the old `git.checkout(<sha>)` produced a detached HEAD); it now takes the
+ *   `+refs/heads/<x>` fetch path and returns `failed`. That is deliberate:
+ *   remediate derives the base from an Argo CD `targetRevision`, which is not
+ *   always a branch, and a clean `failed` beats a confusing checkout error.
  *
  * Never throws for an expected failure — every outcome is a
  * CreatePullRequestResult, discriminated by `status`:
  * - `created` — branch pushed, PR opened.
- * - `no_changes` — the commit was empty, so nothing was pushed and no PR was
- *   opened (decision 3). Without this check the GitHub API is asked to open a
- *   PR for a head branch that never reached the remote and answers 422.
+ * - `no_changes` — there was nothing to commit, so nothing was pushed and no PR
+ *   was opened (decision 3). Without this check the GitHub API is asked to open
+ *   a PR for a head branch that never reached the remote and answers 422. It is
+ *   reported only when the index is verifiably empty, never inferred from a
+ *   commit that produced no revision — that is a `failed`.
  * - `pushed_without_pr` — non-GitHub remote: the branch IS on the remote but a
  *   PR/MR must be opened manually (decision 7).
- * - `failed` — validation, git, or GitHub API failure. Messages are scrubbed of
- *   credentials.
+ * - `failed` — validation (a missing head branch, or one equal to the base), git,
+ *   or GitHub API failure. Messages are scrubbed of credentials.
  */
 export async function createPullRequest(
   input: CreatePullRequestInput
@@ -781,6 +914,31 @@ export async function createPullRequest(
   } = input;
   const baseBranch = input.baseBranch || 'main';
 
+  // Validate the head branch BEFORE anything is checked out. pushRepo skips
+  // branch creation entirely for a falsy `branch`, and checks out an existing
+  // branch when the name already exists — so either of these would commit and
+  // push onto the base branch that checkoutBaseBranch just checked out, i.e.
+  // write the protected branch (the one thing PR mode must never do, PRD #710
+  // success criterion 1), and only THEN collect a 422 from the GitHub API for
+  // an empty or self-referencing `head`. Neither is reachable from today's
+  // callers; the guarantee should rest on a check, not on two names not
+  // coinciding.
+  if (!branchName) {
+    return {
+      status: 'failed',
+      success: false,
+      error:
+        'branchName is required: a pull request needs a head branch to push the changes to',
+    };
+  }
+  if (branchName === baseBranch) {
+    return {
+      status: 'failed',
+      success: false,
+      error: `branchName must differ from baseBranch ("${baseBranch}"): a pull request cannot be opened from a branch onto itself, and pushing to it would write the base branch directly`,
+    };
+  }
+
   try {
     const git = simpleGit(gitOptions(repoPath));
 
@@ -790,9 +948,19 @@ export async function createPullRequest(
       branch: branchName,
     });
 
-    // pushRepo returns WITHOUT pushing when the commit came out empty, so the
-    // head branch does not exist on the remote and no PR can reference it.
+    // pushRepo returns WITHOUT pushing when there was nothing to commit, so the
+    // head branch does not exist on the remote and no PR can reference it. The
+    // reason is explicit: an empty index is "no changes", a commit that failed
+    // despite a non-empty index is a failure and must not read as "no changes".
     if (!pushResult.commitSha) {
+      if (pushResult.noCommitReason === 'commit_failed') {
+        return {
+          status: 'failed',
+          success: false,
+          error:
+            'Commit produced no revision even though the changes were staged — a commit hook may have rejected it. Nothing was pushed and no pull request was created.',
+        };
+      }
       return {
         status: 'no_changes',
         success: true,
@@ -803,9 +971,6 @@ export async function createPullRequest(
       };
     }
 
-    const authConfig = getGitAuthConfigFromEnv();
-    const token = await getAuthToken(authConfig);
-
     const remotes = await git.getRemotes(true);
     const origin = remotes.find(r => r.name === 'origin');
     if (!origin?.refs?.fetch) {
@@ -815,12 +980,8 @@ export async function createPullRequest(
         error: 'Could not find origin remote URL',
       };
     }
-    const remoteUrl = scrubCredentials(origin.refs.fetch);
-
-    const repoMatch = remoteUrl.match(
-      /github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/
-    );
-    if (!repoMatch) {
+    const gitHubRepo = parseGitHubRemote(origin.refs.fetch);
+    if (!gitHubRepo) {
       return {
         status: 'pushed_without_pr',
         success: true,
@@ -831,11 +992,13 @@ export async function createPullRequest(
           'Automatic PR creation is only supported for GitHub repositories. Changes were pushed to the branch — create a PR/MR manually.',
       };
     }
-    const ownerRepo = repoMatch[1];
-    const [owner, repo] = ownerRepo.split('/');
 
-    const prResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls`,
+    // Minted only now that the remote is known to be GitHub: a GitLab remote
+    // should not mint an installation token it will never use.
+    const token = await getAuthToken(getGitAuthConfigFromEnv());
+
+    const prResponse = await fetchWithTimeout(
+      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/pulls`,
       {
         method: 'POST',
         headers: {
@@ -856,16 +1019,23 @@ export async function createPullRequest(
             draft: true,
           }),
         }),
-        signal: AbortSignal.timeout(PR_API_TIMEOUT_MS),
       }
     );
 
     if (!prResponse.ok) {
-      const errorBody = await prResponse.text();
+      // A third party's response text: scrub it like every other message this
+      // helper returns (the result type promises that) and cap it, so an
+      // unexpectedly large body is not echoed back wholesale. Scrub first, then
+      // truncate, so a credential cannot survive by straddling the cut.
+      const scrubbedBody = scrubCredentials(await prResponse.text());
+      const detail =
+        scrubbedBody.length > MAX_API_ERROR_BODY_CHARS
+          ? `${scrubbedBody.slice(0, MAX_API_ERROR_BODY_CHARS)}… (truncated)`
+          : scrubbedBody;
       return {
         status: 'failed',
         success: false,
-        error: `GitHub API error (${prResponse.status}): ${errorBody}`,
+        error: `GitHub API error (${prResponse.status}): ${detail}`,
       };
     }
 

@@ -784,6 +784,17 @@ async function executeRemediationCommands(
   let overallSuccess = true;
   let executedCommandCount = 0;
   let pullRequestInfo: RemediateOutput['pullRequest'] | undefined;
+  /**
+   * gitSource actions that succeeded WITHOUT producing a pull request (PRD #710
+   * decisions 3 and 7). They leave pullRequestInfo undefined, so without this
+   * the response falls through to the kubectl story below and reports executed
+   * commands it never ran.
+   */
+  const gitOpsWithoutPr: Array<{
+    kind: 'no_changes' | 'pushed_without_pr';
+    branch: string;
+    baseBranch: string;
+  }> = [];
 
   logger.info('Starting remediation command execution', {
     requestId,
@@ -864,6 +875,11 @@ async function executeRemediationCommands(
             output: prResult.message,
             timestamp: new Date(),
           });
+          gitOpsWithoutPr.push({
+            kind: 'no_changes',
+            branch: prResult.branch,
+            baseBranch: prResult.baseBranch,
+          });
         } else if (prResult.status === 'pushed_without_pr') {
           const filesList =
             prResult.filesChanged && prResult.filesChanged.length > 0
@@ -874,6 +890,11 @@ async function executeRemediationCommands(
             success: true,
             output: `Branch: ${prResult.branch}\nFiles changed: ${filesList}\nNote: ${prResult.error}`,
             timestamp: new Date(),
+          });
+          gitOpsWithoutPr.push({
+            kind: 'pushed_without_pr',
+            branch: prResult.branch,
+            baseBranch: prResult.baseBranch,
           });
         } else {
           overallSuccess = false;
@@ -1143,7 +1164,20 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
 
   const hasOnlyGitOps = executedCommandCount === 0 && pullRequestInfo !== undefined;
   const prInfo = pullRequestInfo;
-  
+  // PRD #710: a gitSource action can also succeed without opening a PR — the
+  // manifests already matched the base branch (decision 3) or the remote is not
+  // GitHub (decision 7). Those have no pullRequestInfo, so they need their own
+  // story instead of the "commands were executed" one, which would list an empty
+  // set of kubectl commands.
+  const pushedWithoutPr = gitOpsWithoutPr.filter(
+    g => g.kind === 'pushed_without_pr'
+  );
+  const hasOnlyGitOpsWithoutPr =
+    executedCommandCount === 0 &&
+    pullRequestInfo === undefined &&
+    gitOpsWithoutPr.length > 0 &&
+    overallSuccess;
+
   let nextSteps: string[];
   if (hasOnlyGitOps && prInfo) {
     nextSteps = [
@@ -1159,6 +1193,34 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
       '',
       `You can verify the fix by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
     ];
+  } else if (hasOnlyGitOpsWithoutPr) {
+    nextSteps =
+      pushedWithoutPr.length > 0
+        ? [
+            'Changes were pushed to a Git branch, but the pull request could not be opened automatically (the repository is not hosted on GitHub):',
+            ...pushedWithoutPr.map(
+              g => `  Branch: ${g.branch} → ${g.baseBranch}`
+            ),
+            '',
+            'Next steps:',
+            '  1. Open a pull request (or merge request) for the branch above in your Git host',
+            '  2. Review and merge it',
+            '  3. Wait for Argo CD/Flux to sync the changes',
+            '',
+            `You can verify the fix by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
+          ]
+        : [
+            'No changes were needed: the manifests in Git already match the desired state, so nothing was pushed and no pull request was created.',
+            ...gitOpsWithoutPr.map(
+              g => `  Base branch checked: ${g.baseBranch}`
+            ),
+            '',
+            'Next steps:',
+            '  1. Check whether Argo CD/Flux has actually synced that state to the cluster',
+            '  2. If the issue persists, the root cause is elsewhere — investigate again',
+            '',
+            `You can re-investigate by running: remediate("Verify that ${finalAnalysis.analysis.rootCause.toLowerCase()} has been resolved")`,
+          ];
   } else if (overallSuccess) {
     if (validationResult) {
       nextSteps = [
@@ -1209,12 +1271,16 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
     message: overallSuccess
       ? hasOnlyGitOps
         ? `Successfully created PR for ${results.length} GitOps remediation action(s)`
-        : `Successfully executed ${results.length} remediation actions`
+        : hasOnlyGitOpsWithoutPr
+          ? pushedWithoutPr.length > 0
+            ? `Pushed ${results.length} GitOps remediation action(s) to a branch — a pull request must be opened manually`
+            : 'No changes needed: the manifests in Git already match the desired state'
+          : `Successfully executed ${results.length} remediation actions`
       : `Executed ${results.length} actions with ${results.filter(r => !r.success).length} failures`,
     validation: validationResult,
     instructions: {
-      showExecutedCommands: !hasOnlyGitOps,
-      showActualKubectlCommands: !hasOnlyGitOps,
+      showExecutedCommands: !hasOnlyGitOps && !hasOnlyGitOpsWithoutPr,
+      showActualKubectlCommands: !hasOnlyGitOps && !hasOnlyGitOpsWithoutPr,
       nextSteps,
     },
     investigation: finalAnalysis.investigation,
