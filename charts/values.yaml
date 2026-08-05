@@ -249,6 +249,13 @@ gitops:
   # - Pushing to a GitLab/Bitbucket/self-hosted remote requires adding its host
   #   here. Automatic pull request creation still only supports github.com;
   #   elsewhere the branch is pushed and the PR must be opened manually.
+  # - It ALSO gates the per-request prompts override (?repo=), but there it
+  #   DEGRADES instead of refusing: the clone still happens, unauthenticated. So
+  #   public prompt repos on any host keep working, and a private one on a
+  #   non-listed host needs the X-Dot-AI-Git-Token request header instead.
+  #   DOT_AI_USER_PROMPTS_REPO is the operator's own URL and is NOT gated.
+  #
+  # Docs: https://devopstoolkit.ai/docs/ai-engine/setup/deployment#gitops-repository-host-allowlist
   allowedRepoHosts:
     - github.com
 

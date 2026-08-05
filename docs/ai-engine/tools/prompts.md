@@ -417,6 +417,30 @@ The feature is designed for graceful degradation:
 - **Solution**: Rename your prompt to a unique name
 - **Note**: Built-in prompts always take precedence
 
+**My private prompts repo returns not-found, or keeps serving stale content**
+
+Applies to a repo supplied **per request** (`?repo=` / `--repo`), not to `DOT_AI_USER_PROMPTS_REPO`, which is never gated.
+
+- **Cause**: the repo's host is not on the `gitops.allowedRepoHosts` allowlist, so the server withheld its own credential and cloned unauthenticated — and an unauthenticated request for a private repo looks exactly like a repo that does not exist.
+- **A failed clone says so itself** — no log digging needed. Git's own failure is followed by this explanation, in the error the caller receives (`502 PROMPTS_SOURCE_ERROR`) as well as in the server log:
+
+  ```text
+  The server's git credential was NOT used for this clone because repository host
+  "gitlab.example.com" is not on the "gitops.allowedRepoHosts" allowlist (currently
+  allowed: github.com), so the repository was cloned unauthenticated. If it is
+  private, send the credential with the request in the X-Dot-AI-Git-Token header,
+  or add the host to the "gitops.allowedRepoHosts" Helm value.
+  ```
+
+- **A stale refresh does not fail**, so the log is the only signal. Search it for `Withholding the server git credential` — the `pull` variant means the repository kept serving its cached copy instead of refreshing:
+
+  ```text
+  WARN [<component>] Withholding the server git credential from this pull {"url":"https://gitlab.example.com/team/prompts.git","host":"gitlab.example.com","allowedHosts":["github.com"],"reason":"the repository URL came from the request and its host is not on the \"gitops.allowedRepoHosts\" allowlist","consequence":"pulling unauthenticated; a private repository keeps serving the cached copy instead of refreshing, unless the request supplies its own credential in the X-Dot-AI-Git-Token header"}
+  ```
+
+- **Solution**: send the repo's own credential in the `X-Dot-AI-Git-Token` header (the [per-request credential](#the-server-credential-and-the-host-allowlist)), or have an operator add the host to `gitops.allowedRepoHosts`.
+- **Not the cause**: a public repo on a non-allowlisted host is unaffected — it needs no credential. If a *public* source is missing, look at the other entries in this section instead.
+
 ### Multi-source skills via the per-request repo override
 
 When a single `DOT_AI_USER_PROMPTS_REPO` isn't enough — for example, you want org-wide public skills from one repository plus per-team private skills from another — run `dot-ai skills generate --repo <url>` (see the [CLI docs](https://devopstoolkit.ai/docs/cli) for the canonical reference) to fetch prompts from a specified repository for that invocation only, overriding the env-var default. Run the command multiple times — typically wired up as separate agent hooks, one per source — and the CLI tags each set of generated skills with its source so subsequent runs only wipe their own slice.
@@ -429,26 +453,55 @@ The override carries more than just the repo URL. A secondary source can live wh
 | `branch` | Pull the source from a non-default branch. | `main` |
 | Per-request credential | Authenticate the override clone with a request-supplied git token (the `X-Dot-AI-Git-Token` header), so a second repo in a **different auth realm** (another Forgejo, a private GitHub or GitLab) can be reached without sharing one server-wide token. | Server's `DOT_AI_GIT_TOKEN` |
 
-**Token precedence**: when a request supplies the credential header, it authenticates that override clone and takes precedence over the server's `DOT_AI_GIT_TOKEN` — but only for that request. Absent the header, the override clone falls back to `DOT_AI_GIT_TOKEN` exactly as before. The token always travels as a request header — never in a URL or body — and never appears in logs, error messages, or the `source` tag.
+**Token precedence**: when a request supplies the credential header, it authenticates that override clone and takes precedence over the server's `DOT_AI_GIT_TOKEN` — but only for that request. Absent the header, the override clone falls back to `DOT_AI_GIT_TOKEN` for hosts on the [repository host allowlist](#the-server-credential-and-the-host-allowlist), and clones unauthenticated for hosts that are not. The token always travels as a request header — never in a URL or body — and never appears in logs, error messages, or the `source` tag.
+
+#### The server credential and the host allowlist
+
+The override URL comes from the caller, so the server does not hand **its own** credential to any host a request happens to name. The `gitops.allowedRepoHosts` Helm value — the same value that gates [GitOps pushes](../setup/deployment.md#gitops-repository-host-allowlist), default `["github.com"]` — decides:
+
+| Override repo host | What happens |
+|--------------------|--------------|
+| On the allowlist | Unchanged: the clone uses the server's `DOT_AI_GIT_TOKEN` exactly as before |
+| Not on the allowlist | The clone still happens, **unauthenticated** — the server's credential is withheld |
+
+The override is **degraded, never refused**, which keeps the blast radius narrow:
+
+- **Public repositories on any host are unaffected.** They need no credential, so nothing changes for them.
+- Only a **private** repository on a non-allowlisted host is affected, and the remedy is already part of this feature: send the credential with the request in the `X-Dot-AI-Git-Token` header. A request that brings its own token is never gated — for any host.
+- `DOT_AI_GIT_TOKEN` is a **GitHub** credential, so it would never have authenticated to GitLab, Bitbucket, or a self-hosted Forgejo anyway. In practice this removes nothing that worked.
+- Alternatively, an operator can add the host to `gitops.allowedRepoHosts` and keep using the server's credential for it.
+
+> **`DOT_AI_USER_PROMPTS_REPO` is not gated.** The allowlist applies only to a repository URL that arrived in a *request*. The env-var-configured repository is the operator's own choice of source, so pointing it at a private GitLab, Gitea, or Forgejo works exactly as before and needs no allowlist entry. Everything in [Configuration](#configuration) above, including the list of supported Git providers, is unchanged.
+
+The withheld credential is announced in the server log, and — because the two cases fail differently — that log line matters more for a refresh than for a first clone:
+
+| Path | Symptom | Log line |
+|------|---------|----------|
+| Clone (first fetch of that repo) | The request fails, and the error itself explains the withheld credential and how to supply one | `Withholding the server git credential from this clone` |
+| Pull (refresh after the cache TTL) | **Nothing fails.** The cached copy keeps being served, so the content silently goes stale | `Withholding the server git credential from this pull` |
+
+Both lines carry the parsed host, the allowlist as it currently reads, and the way out. See [my private prompts repo returns not-found or serves stale content](#troubleshooting-user-prompts).
+
+The stale-refresh case needs a warm cache to begin with, so it only arises when an earlier unauthenticated fetch of that repo succeeded within the same pod's lifetime — typically a source that was public when first cloned and is not any more. The cache is not persisted across restarts, so a repo that has always been private fails at the clone instead, where the error explains itself.
 
 Put together, a second source like *"the platform team's private skills, kept under `skills/` on the `team-skills` branch of a self-hosted Forgejo"* is reachable as a single override — a subdirectory, on a non-default branch, in a separate auth realm — alongside your org-wide public source. The CLI tags each source by its repo URL (the `source` value), which is **not** affected by `path`, `branch`, or the credential, so the per-source skill slices stay stable across runs.
 
 Under the hood, each invocation talks to the server once and the server still serves exactly one repository per request; composition lives in the CLI, not the server. The exact wire placement of each qualifier — `path`/`branch` as query params or JSON body fields, the credential as the `X-Dot-AI-Git-Token` header — is in the [REST API reference](../api/rest-api.md#per-request-path-branch-and-credential).
 
-> **Unchanged by default.** The `path`, `branch`, and credential qualifiers are all opt-in per request. A request that supplies none of them behaves byte-identically to the previous release — same clone target (repo root on `main`), same `DOT_AI_GIT_TOKEN` credential, same response. And when the override itself is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO`, or to the built-in prompts when no env-var repo is configured.
+> **Unchanged by default.** The `path`, `branch`, and credential qualifiers are all opt-in per request. A request that supplies none of them keeps the same clone target (repo root on `main`) and the same response shape, and still authenticates with `DOT_AI_GIT_TOKEN` for any repo on an [allowlisted host](#the-server-credential-and-the-host-allowlist) — the server's credential is withheld only for a caller-named host that is not allowlisted. And when the override itself is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO` (never gated), or to the built-in prompts when no env-var repo is configured.
 
 **Server-side caveats** for this release (the contract is additive, so these can be lifted later without breaking changes):
 
 | Caveat | Impact |
 |--------|--------|
 | Single-slot loader cache | Sequential invocations against different repos re-clone each time. Clones are `--depth 1`, so the cost is small per call, but it's noticeable when alternating between repos within the TTL window. Token-bearing override requests are additionally isolated from the shared cache slot, so a private authenticated clone is never served to another caller. |
-| No URL allowlist | The server trusts the override URL. Don't expose this surface to untrusted callers without an upstream gate. |
+| The override URL is still fetched, whatever host it names | The host allowlist governs the **credential**, not the fetch: a URL on a non-allowlisted host is cloned unauthenticated rather than rejected, so the server can still be made to issue an outbound request to a caller-named host. That is not an SSRF gate — don't expose this surface to untrusted callers without an upstream one. What the allowlist does close is credential exposure: the server's `DOT_AI_GIT_TOKEN` is never handed to a host a caller named (see [The server credential and the host allowlist](#the-server-credential-and-the-host-allowlist)). |
 
 **When NOT to use the override**:
 
 - Inside a long-running agent loop that alternates between repos (every alternation causes a re-clone — pin to one repo for the loop and switch outside it).
 - As a substitute for `DOT_AI_USER_PROMPTS_REPO` when you only have a single source. The env var is simpler and benefits from the cache TTL.
-- From untrusted clients (no SSRF guard in this release).
+- From untrusted clients. The server's credential is safe (it is withheld from any host not on the allowlist), but there is still no SSRF guard on the fetch itself.
 
 See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full wire contract, the `source` field semantics, validation rules, and response envelopes returned by each endpoint — useful if you're building a custom MCP/HTTP client rather than using the CLI.
 

@@ -256,6 +256,16 @@ RBAC: allowed by ClusterRoleBinding "<binding-name>" of ClusterRole "<role-name>
 - **What to do**: adopt pull request mode — add `pullRequest: true` to the `pushToGit` call. No binding change is needed, and agents are told to do this automatically once they see the execute-only option list above.
 - **What not to do**: granting `apply` to restore direct push **also unblocks `deployManifests`**, which is usually the opposite of what a GitOps-only deployment wants. The two cannot be separated (see the limitations below).
 
+### Upgrading: Pushing to a Non-GitHub Host Now Requires an Allowlist Entry
+
+**This is a second, independent breaking change in the same release.** The `pushToGit` stage now checks the repository's host against the `gitops.allowedRepoHosts` Helm value, which defaults to `["github.com"]`.
+
+- **Who is affected**: deployments that push to a GitLab, Bitbucket, or self-hosted Git host. Those pushes — **direct push and pull request mode alike** — stop working on upgrade until an operator adds the host. Deployments that push only to github.com are unaffected by the default.
+- **What to do**: add the host to `gitops.allowedRepoHosts`. This is an operator change; no client, binding, or credential change is involved. See [GitOps Repository Host Allowlist](deployment.md#gitops-repository-host-allowlist) for matching rules (exact hostnames, no wildcards) and the empty-list semantics.
+- **Unrelated to RBAC.** This gate is not a permission check and is not affected by `rbac.enforcement.enabled`. It applies to every caller, including static-token callers who bypass RBAC entirely, and it applies whether enforcement is on or off.
+
+**Why it is a different control from everything else in this guide.** RBAC protects your **cluster**: it decides which users may push at all and by which route. The allowlist protects the **server's Git credential**: `repoUrl` comes from the caller, and the server attaches `DOT_AI_GIT_TOKEN` (or a GitHub App installation token) to whatever URL it is given, so before this release any caller who could reach the `pushToGit` stage could name a host they control and have that credential delivered to it — and left behind in that clone's `.git/config`. Note what that means for the RBAC gate above: pull request mode requires only `execute`, so the set of users who can supply a `repoUrl` is deliberately the *wider* one. The two controls compose and neither substitutes for the other — a user with `apply` still cannot push to an unlisted host, and listing a host grants nobody permission to push.
+
 ### What Pull Request Mode Actually Guarantees
 
 Be precise about what `execute` plus pull request mode buys you: **a human must take an action** before the change reaches the cluster. It does **not** guarantee that a second human reviews it.
@@ -295,6 +305,18 @@ branch instead, which needs only 'execute'.
 ```
 
 Retrying with `pullRequest: true` is the intended resolution — see [Git Push: Direct Push or Pull Request](#git-push-direct-push-or-pull-request). Granting `apply` also grants `deployManifests`, so widen the binding only if you intend that too.
+
+### Git push fails with "Repository host … is not allowed"
+
+This is **not** an RBAC problem — no binding change will fix it, and it happens with enforcement disabled too. The repository's host is not in `gitops.allowedRepoHosts`, which defaults to `["github.com"]`:
+
+```text
+Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com.
+To allow it, add the host to the "gitops.allowedRepoHosts" Helm value
+(default: github.com) and restart the server.
+```
+
+Add the host to the value as shown in [GitOps Repository Host Allowlist](deployment.md#gitops-repository-host-allowlist). Note that both push modes are refused, so switching to `pullRequest: true` does not work around it.
 
 ### RBAC changes don't take effect in MCP client
 

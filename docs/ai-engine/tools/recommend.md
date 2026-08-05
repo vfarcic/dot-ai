@@ -411,6 +411,16 @@ After `generateManifests`, agents present three equal options: **save locally** 
 
 `pushToGit` has two modes. By default it commits straight to `branch`. With `pullRequest: true` it commits to a server-generated branch and opens a pull request against `branch` instead — see [Option: GitOps Pull Request](#option-gitops-pull-request) below. When [RBAC](../setup/authorization.md) is enabled, the two modes require different permissions: pushing directly needs `apply` on `recommend`, opening a pull request needs only `execute`, and agents are only offered the mode the user is permitted to use.
 
+**`repoUrl` must name an allowlisted host.** Because the server attaches its own Git credential to whatever repository URL the call supplies, the host is checked against the `gitops.allowedRepoHosts` Helm value — which defaults to `github.com` — **in both modes**, before anything is cloned, committed, or pushed. A host that is not listed is refused and names itself:
+
+```text
+Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com.
+To allow it, add the host to the "gitops.allowedRepoHosts" Helm value
+(default: github.com) and restart the server.
+```
+
+The fix is an operator change, not a client one: add the host to the value. Matching is on the parsed hostname — exact and case-insensitive, with no wildcards, so `github.com` does not cover `www.github.com`. See [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist) for the full rules, and note that allowlisting a non-GitHub host does **not** enable automatic pull request creation there — `pullRequest: true` against it still reports `pushed_without_pr`.
+
 Direct push:
 
 ```md
@@ -460,6 +470,8 @@ Agent: Pushing manifests to your GitOps repository...
 > **Note**: If the manifests already match the branch, nothing is committed and nothing is pushed. The response then reports `status: "no_changes"`, omits `gitPush.commitSha`, returns an empty `gitPush.filesPushed`, and sets `gitopsMessage` to `No changes to push: the manifests already match branch main.` Re-running the stage is therefore safe — it never produces an empty commit.
 
 > **Note**: GitOps push is currently supported for **raw YAML manifests and Kustomize only**. Helm chart support (generating Argo CD `Application` or Flux `HelmRelease` CRs) is planned for a future release. For Helm charts, use the `deployManifests` stage to install directly to the cluster.
+
+> **Note**: `targetPath` must stay inside the repository, and **symbolic links are refused** — both a `targetPath` that traverses a symlink committed in the GitOps repository and a manifest path that *is* one. This only affects repositories that deliberately symlink a manifest path; nothing is written when it happens. Depending on which case it is, the error reads `Path traversal detected: "<path>" attempts to write outside repository directory` or `Refusing to write "<path>": it is a symbolic link, which could redirect the write outside repository directory`. Point `targetPath` at a real directory in the repository instead.
 
 #### Option: GitOps Pull Request
 
@@ -533,6 +545,7 @@ When the request carries an authenticated OAuth identity, that identity **is** t
 **Prerequisites for pushToGit:**
 - Git authentication configured via `DOT_AI_GIT_TOKEN` or GitHub App credentials
 - Write access to the target repository — for `pullRequest: true`, the credential also needs permission to open pull requests (a GitHub App needs `Contents: write` **and** `Pull requests: write`)
+- The repository's host listed in `gitops.allowedRepoHosts` (defaults to `github.com`) — see [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist)
 - GitOps controller (Argo CD/Flux) configured to watch the repository
 
 ### Example 2: Third-Party Application Installation (Helm)

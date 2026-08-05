@@ -102,6 +102,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 - **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
 - **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../operations/observability.md) for complete configuration.
 - **User-Defined Prompts**: Load custom prompts from your git repository via `extraEnv`. See [User-Defined Prompts](../tools/prompts.md#user-defined-prompts) for configuration.
+- **GitOps push targets**: `gitops.allowedRepoHosts` lists the repository hosts the `pushToGit` stage may push to, and defaults to `["github.com"]`. Pushing to GitLab, Bitbucket, or a self-hosted host requires adding it. See [GitOps Repository Host Allowlist](#gitops-repository-host-allowlist).
 
 ### Step 4: Connect a Client
 
@@ -746,6 +747,83 @@ The response includes an `mcpServers` section showing connected servers, their e
 - **No MCP servers configured** (default): dot-ai starts normally without MCP server augmentation.
 - **MCP servers configured**: dot-ai connects to each enabled server at startup, discovers tools, and makes them available to the configured operations.
 - **MCP server unreachable**: Startup **fails fast** with a clear error message. Configured MCP servers must be reachable — there is no background retry. Fix the endpoint or disable the server entry to proceed.
+
+## GitOps Repository Host Allowlist
+
+The `pushToGit` stage of the [recommend](../tools/recommend.md#option-gitops-deployment) tool takes its repository URL **from the caller**, and the server attaches **its own** Git credential (`DOT_AI_GIT_TOKEN`, or a GitHub App installation token) to whatever URL it is given. Without a check on the host, any caller allowed to run `recommend` could name a repository on a host they control and have the server's credential delivered there — and left behind in that clone's `.git/config`.
+
+`gitops.allowedRepoHosts` is that check. It lists the repository hosts a client-supplied URL may name:
+
+```yaml
+# values.yaml
+gitops:
+  allowedRepoHosts:
+    - github.com          # the default
+    - gitlab.example.com  # add each additional host explicitly
+```
+
+Or as a flag on the install command from [Step 3](#step-3-install-the-server), alongside your other values:
+
+```bash
+  --set-json 'gitops.allowedRepoHosts=["github.com","gitlab.example.com"]'
+```
+
+> **This is not the RBAC gate.** [Authorization](authorization.md#git-push-direct-push-or-pull-request) decides *who* may push and *how* (direct push needs `apply`, pull request mode needs `execute`) — it protects your **cluster**. The allowlist decides *which hosts* the server will hand its Git credential to — it protects the **server's credential**. Both apply independently: a user with `apply` still cannot push to a host that is not listed, and listing a host grants no one permission to push.
+
+### Matching Rules
+
+| Rule | Consequence |
+|------|-------------|
+| Entries are **hostnames**, compared against the parsed host of the URL | `https://github.com@attacker.example/x.git` is checked as `attacker.example`, not `github.com` — a host cannot be smuggled in via userinfo |
+| **Exact** match, **case-insensitive** | `GitHub.com` in the value matches `https://GITHUB.com/org/repo.git` |
+| **No wildcards, no substring matching** | `github.com` does **not** cover `www.github.com` or `github.company.example` — list every host your callers actually use |
+| A `:port` suffix is accepted and **ignored**, on both sides | `gitlab.example.com:8443` in the value matches `https://gitlab.example.com/org/repo.git` and vice versa (the credential reaches the host whichever port answers) |
+| A URL whose host cannot be parsed is **not** allowed | Unparseable remotes are refused rather than guessed at. `pushToGit` expects the HTTPS clone URL, as in the [recommend examples](../tools/recommend.md#option-gitops-deployment) |
+
+**Unset vs. empty — the asymmetry is deliberate:**
+
+| Value | Meaning |
+|-------|---------|
+| Not set (a deployment predating this value, or a server started outside the chart) | Falls back to the default, `["github.com"]` — **not** "allow everything". An older deployment must not silently become wide open. |
+| `allowedRepoHosts: []` | **Deny-all**, including `github.com`. An empty list is read as an explicit decision, never as "not configured". To allow a host, name it. |
+
+### What the Allowlist Gates
+
+The same value gates two different callers, with deliberately different consequences:
+
+| Caller | Behavior on a host that is not listed |
+|--------|----------------------------------------|
+| `pushToGit` — **both** direct push and pull request mode | ❌ **Refused.** The request fails before any credential is minted, cloned with, or pushed with. |
+| The per-request prompts override (`?repo=`) — see [Shared Prompt Library](../tools/prompts.md#the-server-credential-and-the-host-allowlist) | ⚠️ **Degraded, not refused.** The clone still happens, but **unauthenticated**: the server's credential is withheld. Public repositories are unaffected; a private one needs the `X-Dot-AI-Git-Token` request header. |
+
+**Not gated** — these need no allowlist entry:
+
+- **`DOT_AI_USER_PROMPTS_REPO`** — the operator's own prompts repository. Pointing it at a private GitLab, Gitea, or Forgejo works exactly as before; the URL is the operator's choice, not a caller's.
+- **The remediate tool's Git operations** — its repository URL is derived from cluster state rather than supplied by a caller, so a GitOps repo that legitimately is not on GitHub keeps working ([remediate](../tools/remediate.md)).
+
+### When a Push Is Refused
+
+`pushToGit` names the host and the value to change:
+
+```text
+Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com.
+To allow it, add the host to the "gitops.allowedRepoHosts" Helm value
+(default: github.com) and restart the server.
+```
+
+With `allowedRepoHosts: []`, the same message reports the empty list instead:
+
+```text
+Repository host "github.com" is not allowed. The allowlist is currently empty,
+which allows no repository at all. To allow it, add the host to the
+"gitops.allowedRepoHosts" Helm value (default: github.com) and restart the server.
+```
+
+Adding a host takes effect on server restart (it is container configuration, so a Helm upgrade that changes the value rolls the pod).
+
+> **Allowlisting a host does not enable automatic pull requests there.** Automatic PR creation still supports github.com `<owner>/<repo>` remotes only. Against any other host, `pullRequest: true` pushes the branch and reports `pushed_without_pr` — you open the PR/MR manually. See [Option: GitOps Pull Request](../tools/recommend.md#option-gitops-pull-request).
+
+> **Upgrading from a release before this value existed?** Pushing to a GitLab, Bitbucket, or self-hosted remote stops working until you add its host. See [Upgrading: Pushing to a Non-GitHub Host Now Requires an Allowlist Entry](authorization.md#upgrading-pushing-to-a-non-github-host-now-requires-an-allowlist-entry).
 
 ## TLS Configuration
 
