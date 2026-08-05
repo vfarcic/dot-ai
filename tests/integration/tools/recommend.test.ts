@@ -17,7 +17,10 @@
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
+import * as k8s from '@kubernetes/client-node';
 import { IntegrationTest } from '../helpers/test-base.js';
+import { HttpRestApiClient } from '../helpers/http-client.js';
+import { signJwt } from '../../../src/interfaces/oauth/jwt.js';
 
 describe.concurrent('Recommend Tool Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -57,10 +60,12 @@ describe.concurrent('Recommend Tool Integration', () => {
   }
 
   async function getGitHubFile(
-    filePath: string
+    filePath: string,
+    ref?: string
   ): Promise<GitHubFileContent | null> {
+    const refQuery = ref ? `?ref=${encodeURIComponent(ref)}` : '';
     const response = await fetch(
-      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/contents/${filePath}`,
+      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/contents/${filePath}${refQuery}`,
       {
         headers: {
           Authorization: `token ${gitToken}`,
@@ -75,6 +80,91 @@ describe.concurrent('Recommend Tool Integration', () => {
 
     expect(response.ok).toBe(true);
     return response.json();
+  }
+
+  // ─── GitHub pull request helpers (PRD #710 M2 PR mode) ───
+
+  const gitHubApiHeaders = {
+    Authorization: `token ${gitToken}`,
+    Accept: 'application/vnd.github+json',
+  };
+
+  const gitHubRepoApi = `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}`;
+
+  interface GitHubPullRequest {
+    number: number;
+    title: string;
+    body: string | null;
+    state: 'open' | 'closed';
+    draft: boolean;
+    head: { ref: string; sha: string };
+    base: { ref: string };
+  }
+
+  interface GitHubCommit {
+    sha: string;
+    commit: {
+      message: string;
+      author: { name: string; email: string };
+    };
+  }
+
+  async function getBranchSha(branch: string): Promise<string> {
+    const response = await fetch(`${gitHubRepoApi}/git/ref/heads/${branch}`, {
+      headers: gitHubApiHeaders,
+    });
+    expect(response.ok).toBe(true);
+    const data = (await response.json()) as { object: { sha: string } };
+    return data.object.sha;
+  }
+
+  async function getPullRequest(number: number): Promise<GitHubPullRequest> {
+    const response = await fetch(`${gitHubRepoApi}/pulls/${number}`, {
+      headers: gitHubApiHeaders,
+    });
+    expect(response.ok).toBe(true);
+    return response.json() as Promise<GitHubPullRequest>;
+  }
+
+  /**
+   * Every pull request — open, closed or merged — whose head is `branch`.
+   * `state=all` is deliberate: a duplicate PR that was opened and then closed
+   * still means the re-run opened a second PR instead of updating the first.
+   */
+  async function listPullRequestsForHead(
+    branch: string
+  ): Promise<GitHubPullRequest[]> {
+    const head = encodeURIComponent(`${gitHubRepo.owner}:${branch}`);
+    const response = await fetch(
+      `${gitHubRepoApi}/pulls?state=all&head=${head}&per_page=100`,
+      { headers: gitHubApiHeaders }
+    );
+    expect(response.ok).toBe(true);
+    return response.json() as Promise<GitHubPullRequest[]>;
+  }
+
+  async function getCommit(ref: string): Promise<GitHubCommit> {
+    const response = await fetch(
+      `${gitHubRepoApi}/commits/${encodeURIComponent(ref)}`,
+      { headers: gitHubApiHeaders }
+    );
+    expect(response.ok).toBe(true);
+    return response.json() as Promise<GitHubCommit>;
+  }
+
+  async function closePullRequest(number: number): Promise<void> {
+    await fetch(`${gitHubRepoApi}/pulls/${number}`, {
+      method: 'PATCH',
+      headers: { ...gitHubApiHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: 'closed' }),
+    });
+  }
+
+  async function deleteBranch(branch: string): Promise<void> {
+    await fetch(`${gitHubRepoApi}/git/refs/heads/${branch}`, {
+      method: 'DELETE',
+      headers: gitHubApiHeaders,
+    });
   }
 
   async function deleteGitHubFile(
@@ -754,11 +844,153 @@ describe.concurrent('Recommend Tool Integration', () => {
   });
 
   describe('GitOps Push Workflow', () => {
+    /**
+     * PRD #710 decision 8 / M3: the PR-mode half of the workflow below runs as
+     * an authenticated OAuth user rather than the static token user, because two
+     * things can only be observed with an identity present:
+     *
+     * - the commit author and PR body must identify the AUTHENTICATED user, and
+     *   a client-supplied authorName/authorEmail must not override it;
+     * - PR mode must be reachable with `execute` alone. This user deliberately
+     *   holds no `apply`, which is what direct push will require after M3.
+     */
+    const prPushUser = {
+      userId: 'recommend-pr-push-test',
+      email: 'recommend-pr-push@gitops-test.local',
+      groups: [] as string[],
+    };
+
+    function prPushClient(): HttpRestApiClient {
+      const secret = process.env.DOT_AI_JWT_SECRET;
+      if (!secret) {
+        throw new Error(
+          'DOT_AI_JWT_SECRET must be set for the GitOps PR-mode test'
+        );
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const token = signJwt(
+        {
+          sub: prPushUser.userId,
+          email: prPushUser.email,
+          groups: prPushUser.groups,
+          iat: now,
+          exp: now + 3600,
+        },
+        secret
+      );
+      return new HttpRestApiClient({
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+
+    beforeAll(async () => {
+      const kc = new k8s.KubeConfig();
+      kc.loadFromDefault();
+      const rbacApi = kc.makeApiClient(k8s.RbacAuthorizationV1Api);
+
+      // Tolerate a pre-existing binding so a re-run against a surviving cluster
+      // works; anything else is a real failure and must surface.
+      const ignoreAlreadyExists = async (op: Promise<unknown>) => {
+        try {
+          await op;
+        } catch (error) {
+          const details = JSON.stringify(
+            (error as { body?: unknown }).body ?? error
+          );
+          if (
+            (error as { code?: number }).code !== 409 &&
+            !details.includes('AlreadyExists')
+          ) {
+            throw error;
+          }
+        }
+      };
+
+      await ignoreAlreadyExists(
+        rbacApi.createClusterRole({
+          body: {
+            metadata: { name: 'recommend-pr-push-execute' },
+            rules: [
+              {
+                apiGroups: ['dot-ai.devopstoolkit.ai'],
+                resources: ['tools'],
+                resourceNames: ['recommend'],
+                verbs: ['execute'],
+              },
+            ],
+          },
+        })
+      );
+
+      await ignoreAlreadyExists(
+        rbacApi.createClusterRoleBinding({
+          body: {
+            metadata: { name: 'recommend-pr-push-execute-binding' },
+            subjects: [
+              {
+                kind: 'User',
+                name: prPushUser.email,
+                apiGroup: 'rbac.authorization.k8s.io',
+              },
+            ],
+            roleRef: {
+              kind: 'ClusterRole',
+              name: 'recommend-pr-push-execute',
+              apiGroup: 'rbac.authorization.k8s.io',
+            },
+          },
+        })
+      );
+    }, 30000);
+
     test('should complete generateManifests → pushToGit against a real GitHub repository', async () => {
       const testRunId = Date.now();
       const targetPath = `integration-tests/push-to-git-${testRunId}`;
+      // PR mode writes to its own paths so the direct push (which lands on the
+      // base branch) does not make the first PR-mode push an empty diff.
+      const prTargetPath = `integration-tests/push-to-git-pr-${testRunId}`;
+      const updatedTargetPath = `integration-tests/push-to-git-pr-update-${testRunId}`;
       const cleanupMessage = `test: cleanup pushToGit integration ${testRunId}`;
-      let pushedFiles: string[] = [];
+      const prCommitMessage = `test: pushToGit PR mode integration ${testRunId}`;
+      const baseBranch = 'main';
+      const spoofedAuthorName = 'Spoofed Author';
+      const spoofedAuthorEmail = 'spoofed-author@attacker.example';
+      const pushedFiles: string[] = [];
+      const createdPrNumbers: number[] = [];
+      const createdBranches: string[] = [];
+
+      /**
+       * Collect everything a push created BEFORE asserting on it, so a failed
+       * assertion still cleans up the branch, PR and files it left behind.
+       */
+      const recordForCleanup = (response: {
+        data?: { result?: { gitPush?: Record<string, any> } };
+      }) => {
+        const gitPush = response.data?.result?.gitPush;
+        if (!gitPush) return;
+        if (Array.isArray(gitPush.filesPushed)) {
+          for (const file of gitPush.filesPushed) {
+            if (!pushedFiles.includes(file)) pushedFiles.push(file);
+          }
+        }
+        const prNumber = gitPush.pullRequest?.number;
+        if (
+          typeof prNumber === 'number' &&
+          !createdPrNumbers.includes(prNumber)
+        ) {
+          createdPrNumbers.push(prNumber);
+        }
+        const head = gitPush.pullRequest?.branch ?? gitPush.branch;
+        // Never delete the base branch — in a build where PR mode is not wired
+        // up yet, gitPush.branch IS the base branch.
+        if (
+          typeof head === 'string' &&
+          head !== baseBranch &&
+          !createdBranches.includes(head)
+        ) {
+          createdBranches.push(head);
+        }
+      };
 
       try {
         const solutionsResponse = await integrationTest.httpClient.post(
@@ -883,6 +1115,8 @@ describe.concurrent('Recommend Tool Integration', () => {
           }
         );
 
+        recordForCleanup(pushResponse);
+
         expect(pushResponse).toMatchObject({
           success: true,
           data: {
@@ -915,8 +1149,6 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        pushedFiles = [...pushResponse.data.result.gitPush.filesPushed];
-
         const sessionResponse = await integrationTest.httpClient.get(
           `/api/v1/sessions/${solutionId}`
         );
@@ -944,12 +1176,282 @@ describe.concurrent('Recommend Tool Integration', () => {
         ).toString('utf8');
         expect(pushedContent).toContain('apiVersion:');
         expect(pushedContent).toContain('kind:');
+
+        // ─────────────────────────────────────────────────────────────────
+        // PR MODE (PRD #710 M2)
+        //
+        // Same session, same manifests, `pullRequest: true`. `branch` now means
+        // the BASE branch (decision 1) and the head branch is server-generated:
+        // `dot-ai/<solutionId>-<timestamp>` (decision 2).
+        // ─────────────────────────────────────────────────────────────────
+        const prClient = prPushClient();
+        const baseShaBeforePr = await getBranchSha(baseBranch);
+
+        const prPushResponse = await prClient.post('/api/v1/tools/recommend', {
+          stage: 'pushToGit',
+          solutionId,
+          repoUrl: gitRepoUrl,
+          targetPath: prTargetPath,
+          branch: baseBranch,
+          pullRequest: true,
+          commitMessage: prCommitMessage,
+          // Decision 8: a client cannot attribute the commit to someone else —
+          // the authenticated identity wins over both of these.
+          authorName: spoofedAuthorName,
+          authorEmail: spoofedAuthorEmail,
+          // Success criterion 2: no client-supplied parameter may influence the
+          // head branch. There is deliberately no head-branch parameter, so an
+          // invented one must be ignored rather than honoured.
+          headBranch: 'client-chosen-head',
+          interaction_id: `push_to_git_pr_${testRunId}`,
+        });
+
+        recordForCleanup(prPushResponse);
+
+        const expectedPrUrl = new RegExp(
+          `^https://github\\.com/${gitHubRepo.owner}/${gitHubRepo.repo}/pull/\\d+$`
+        );
+        // Head branch: server-generated from the session id (decision 2), never
+        // the base branch and never a client-supplied name.
+        const expectedHeadBranch = new RegExp(`^dot-ai/${solutionId}-\\d+$`);
+
+        expect(prPushResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              status: 'manifests_pushed',
+              solutionId,
+              gitPush: {
+                repoUrl: gitRepoUrl,
+                path: prTargetPath,
+                branch: expect.stringMatching(expectedHeadBranch),
+                commitSha: expect.any(String),
+                // Decision 5: mirrors remediate's pullRequest shape, nested
+                // under gitPush. `status` discriminates the outcome exactly as
+                // createPullRequest() does (created | no_changes | updated).
+                pullRequest: {
+                  status: 'created',
+                  url: expect.stringMatching(expectedPrUrl),
+                  number: expect.any(Number),
+                  branch: expect.stringMatching(expectedHeadBranch),
+                  baseBranch,
+                  filesChanged: expect.arrayContaining([
+                    `${prTargetPath}/manifests.yaml`,
+                  ]),
+                },
+              },
+            },
+            tool: 'recommend',
+          },
+        });
+
+        const prInfo = prPushResponse.data.result.gitPush.pullRequest;
+        const prNumber: number = prInfo.number;
+        const prBranch: string = prInfo.branch;
+        expect(prBranch).not.toBe(baseBranch);
+        expect(prBranch).not.toBe('client-chosen-head');
+
+        // Success criterion 1: the base branch is never written in PR mode.
+        expect(await getBranchSha(baseBranch)).toBe(baseShaBeforePr);
+        expect(
+          await getGitHubFile(`${prTargetPath}/manifests.yaml`, baseBranch)
+        ).toBeNull();
+
+        // Decision 5: the session carries the PR so a re-run can find it, and
+        // `stage` stays 'pushed' — no new value in the stage enum, which
+        // dot-ai-ui consumes.
+        const prSessionResponse = await integrationTest.httpClient.get(
+          `/api/v1/sessions/${solutionId}`
+        );
+        expect(prSessionResponse).toMatchObject({
+          success: true,
+          data: {
+            sessionId: solutionId,
+            data: {
+              stage: 'pushed',
+              gitPush: {
+                repoUrl: gitRepoUrl,
+                path: prTargetPath,
+                branch: prBranch,
+                pullRequest: {
+                  url: prInfo.url,
+                  number: prNumber,
+                  branch: prBranch,
+                  baseBranch,
+                },
+              },
+            },
+          },
+        });
+
+        const createdPr = await getPullRequest(prNumber);
+        expect(createdPr).toMatchObject({
+          number: prNumber,
+          state: 'open',
+          // Integration tests set DOT_AI_GIT_CREATE_DRAFT_PRS=true so test PRs
+          // don't trigger CodeRabbit reviews.
+          draft: true,
+          // Decision 8: the PR title is the commit message.
+          title: prCommitMessage,
+          head: { ref: prBranch },
+          base: { ref: baseBranch },
+        });
+
+        // Decision 8: the body answers "who asked for this, and for what".
+        expect(createdPr.body).toContain(solutionId);
+        expect(createdPr.body).toContain('deploy nginx web server');
+        expect(createdPr.body).toContain(prTargetPath);
+        expect(createdPr.body).toContain(prPushUser.email);
+        expect(createdPr.body).not.toContain(spoofedAuthorEmail);
+
+        // Decision 8: the commit author is the authenticated user, not the
+        // client-supplied author.
+        const headCommit = await getCommit(prBranch);
+        expect(headCommit.commit.message).toContain(prCommitMessage);
+        expect(headCommit.commit.author.email).toBe(prPushUser.email);
+        expect(headCommit.commit.author.name).not.toBe(spoofedAuthorName);
+
+        const prFile = await getGitHubFile(
+          `${prTargetPath}/manifests.yaml`,
+          prBranch
+        );
+        expect(prFile).not.toBeNull();
+        const prFileContent = Buffer.from(prFile!.content!, 'base64').toString(
+          'utf8'
+        );
+        expect(prFileContent).toContain('apiVersion:');
+        expect(prFileContent).toContain('kind:');
+
+        const headShaAfterCreate = await getBranchSha(prBranch);
+
+        // ── Re-run with UNCHANGED manifests (decision 3) ──
+        // The files already match what the PR proposes, so the commit would be
+        // empty. That must be an explicit "no changes" outcome, not a GitHub 422.
+        const unchangedResponse = await prClient.post(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'pushToGit',
+            solutionId,
+            repoUrl: gitRepoUrl,
+            targetPath: prTargetPath,
+            branch: baseBranch,
+            pullRequest: true,
+            commitMessage: prCommitMessage,
+            interaction_id: `push_to_git_pr_unchanged_${testRunId}`,
+          }
+        );
+
+        recordForCleanup(unchangedResponse);
+
+        expect(unchangedResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              solutionId,
+              gitPush: {
+                pullRequest: {
+                  status: 'no_changes',
+                  url: prInfo.url,
+                  number: prNumber,
+                  branch: prBranch,
+                  baseBranch,
+                  filesChanged: [],
+                },
+              },
+            },
+          },
+        });
+
+        // Nothing was pushed and no second PR was opened.
+        expect(await getBranchSha(prBranch)).toBe(headShaAfterCreate);
+        expect(
+          (await listPullRequestsForHead(prBranch)).map(pr => pr.number)
+        ).toEqual([prNumber]);
+
+        // ── Re-run with CHANGED manifests (decision 9) ──
+        // A different target path is a deterministic content change without
+        // re-running the AI. The open PR must be updated in place by pushing to
+        // the recorded head branch, not superseded by a second PR.
+        const updateResponse = await prClient.post('/api/v1/tools/recommend', {
+          stage: 'pushToGit',
+          solutionId,
+          repoUrl: gitRepoUrl,
+          targetPath: updatedTargetPath,
+          branch: baseBranch,
+          pullRequest: true,
+          commitMessage: prCommitMessage,
+          interaction_id: `push_to_git_pr_update_${testRunId}`,
+        });
+
+        recordForCleanup(updateResponse);
+
+        expect(updateResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              status: 'manifests_pushed',
+              solutionId,
+              gitPush: {
+                path: updatedTargetPath,
+                branch: prBranch,
+                commitSha: expect.any(String),
+                pullRequest: {
+                  status: 'updated',
+                  url: prInfo.url,
+                  number: prNumber,
+                  branch: prBranch,
+                  baseBranch,
+                  filesChanged: expect.arrayContaining([
+                    `${updatedTargetPath}/manifests.yaml`,
+                  ]),
+                },
+              },
+            },
+          },
+        });
+
+        const headShaAfterUpdate = await getBranchSha(prBranch);
+        expect(headShaAfterUpdate).not.toBe(headShaAfterCreate);
+
+        const updatedPr = await getPullRequest(prNumber);
+        expect(updatedPr).toMatchObject({
+          number: prNumber,
+          state: 'open',
+          head: { ref: prBranch, sha: headShaAfterUpdate },
+          base: { ref: baseBranch },
+        });
+
+        // Exactly one PR for this head branch — the re-run updated it.
+        expect(
+          (await listPullRequestsForHead(prBranch)).map(pr => pr.number)
+        ).toEqual([prNumber]);
+
+        expect(
+          await getGitHubFile(`${updatedTargetPath}/manifests.yaml`, prBranch)
+        ).not.toBeNull();
+
+        // Still nothing on the base branch after three PR-mode pushes.
+        expect(await getBranchSha(baseBranch)).toBe(baseShaBeforePr);
+        expect(
+          await getGitHubFile(`${updatedTargetPath}/manifests.yaml`, baseBranch)
+        ).toBeNull();
       } finally {
-        for (const filePath of pushedFiles.reverse()) {
+        for (const prNumber of createdPrNumbers) {
+          await closePullRequest(prNumber);
+        }
+        for (const branch of createdBranches) {
+          await deleteBranch(branch);
+        }
+        // Files that reached the base branch (the direct push above, plus any
+        // push that landed there because PR mode was not honoured).
+        for (const filePath of [...pushedFiles].reverse()) {
           await deleteGitHubFile(filePath, cleanupMessage);
         }
       }
-    }, 900000);
+    }, 1200000);
   });
 
   describe('Helm Chart Discovery', () => {

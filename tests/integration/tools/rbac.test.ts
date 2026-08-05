@@ -780,6 +780,69 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
     }, 120000);
   });
 
+  // PRD #710 Milestone 3: the pushToGit stage has two modes with different
+  // verbs. Direct push writes the branch and is a mutation, so it needs 'apply';
+  // PR mode only proposes a change behind a human gate, so 'execute' suffices.
+  // This is what makes the workflow server-controlled rather than dependent on
+  // a client setting the flag. The RBAC check must run BEFORE the session
+  // lookup, so a dummy solutionId is enough to reach it.
+  describe('Verb Mapping - recommend pushToGit (PRD #710 Milestone 3)', () => {
+    const pushToGitArgs = {
+      stage: 'pushToGit',
+      solutionId: 'sol-0000000000000-00000000',
+      repoUrl: 'https://github.com/vfarcic/dot-ai-test-prompts.git',
+      targetPath: 'integration-tests/rbac-push-to-git',
+    };
+
+    test('should deny direct pushToGit for user with execute but not apply on recommend', async () => {
+      const client = jwtClient(recommendExecuteUser);
+
+      const pushResponse = await client.post('/api/v1/tools/recommend', {
+        ...pushToGitArgs,
+        interaction_id: `rbac_push_direct_denied_${Date.now()}`,
+      });
+
+      expect(pushResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            error: 'FORBIDDEN',
+            message: expect.stringContaining('apply'),
+          },
+        },
+      });
+    }, 120000);
+
+    test('should allow PR-mode pushToGit for user with execute but not apply on recommend', async () => {
+      const client = jwtClient(recommendExecuteUser);
+
+      // pullRequest: true needs only execute — passes RBAC and fails downstream
+      // on the dummy session instead.
+      const pushResponse = await client.post('/api/v1/tools/recommend', {
+        ...pushToGitArgs,
+        pullRequest: true,
+        interaction_id: `rbac_push_pr_allowed_${Date.now()}`,
+      });
+
+      const responseText = JSON.stringify(pushResponse);
+      expect(responseText).not.toContain('FORBIDDEN');
+      expect(responseText).not.toContain("'apply' permission");
+    }, 120000);
+
+    test('should allow direct pushToGit for user with apply verb on recommend', async () => {
+      const client = jwtClient(recommendApplyUser);
+
+      const pushResponse = await client.post('/api/v1/tools/recommend', {
+        ...pushToGitArgs,
+        interaction_id: `rbac_push_direct_allowed_${Date.now()}`,
+      });
+
+      const responseText = JSON.stringify(pushResponse);
+      expect(responseText).not.toContain('FORBIDDEN');
+      expect(responseText).not.toContain("'apply' permission");
+    }, 120000);
+  });
+
   // Milestone 2: Verb mapping tests for operate tool
   describe('Verb Mapping - operate (PRD #392 Milestone 2)', () => {
     test('should deny execution for user with execute but not apply on operate', async () => {
