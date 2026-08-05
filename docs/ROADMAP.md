@@ -20,6 +20,7 @@ This roadmap is a living document and may change based on community feedback and
 - Per-request user prompts repository override - compose skills from multiple repos via CLI flags (PRD #581)
 - Per-request path, branch, and credential for the prompts repo override - multi-source/multi-realm skill composition (PRD #621)
 - AWS credential provider chain for Amazon Bedrock on EKS - secretless auth via Pod Identity and IRSA (PRD #694)
+- Capabilities list contract for the controller - uncapped identity listing, real readiness signal, published response shape (PRD #714)
 
 ## Medium-term (3-6 Months)
 
