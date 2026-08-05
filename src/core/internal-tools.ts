@@ -22,12 +22,10 @@ import {
   cloneRepo,
   scrubCredentials,
   sanitizeRelativePath,
-  pushRepo,
-  getGitAuthConfigFromEnv,
-  getAuthToken,
+  createPullRequest,
 } from './git-utils.js';
+import type { CreatePullRequestResult } from './git-utils.js';
 import { sanitizeIntentForLabel } from './solution-utils.js';
-import simpleGit from 'simple-git';
 
 const CLONES_SUBDIR = 'gitops-clones';
 const MAX_FILE_SIZE = 100 * 1024; // 100KB
@@ -246,24 +244,21 @@ export interface GitCreatePrInput {
   baseBranch?: string;
 }
 
-export type GitCreatePrResult =
-  | {
-      success: true;
-      prUrl: string;
-      prNumber: number;
-      branch: string;
-      baseBranch: string;
-      filesChanged: string[];
-    }
-  | {
-      success: true;
-      branch: string;
-      baseBranch: string;
-      filesChanged: string[];
-      error: string;
-    }
-  | { success: false; error: string };
+/**
+ * Result of the git_create_pr tool. The PR-creation logic itself lives in
+ * git-utils.ts so pushToGit can share it (PRD #710 M1), so this is that
+ * helper's result type — discriminated by `status`, not by `success` alone.
+ */
+export type GitCreatePrResult = CreatePullRequestResult;
 
+/**
+ * git_create_pr: validate the AI-supplied repoPath stays inside the clones
+ * directory, then delegate to the shared createPullRequest() helper.
+ *
+ * The path check is deliberately NOT part of the shared helper: it scopes paths
+ * to ./tmp/gitops-clones/, which is right for the paths git_clone hands the AI
+ * during a remediate investigation and wrong for every other caller.
+ */
 async function handleGitCreatePr(
   args: Record<string, unknown>
 ): Promise<GitCreatePrResult> {
@@ -275,19 +270,24 @@ async function handleGitCreatePr(
   const baseBranch = (args.baseBranch as string) || 'main';
 
   if (!repoPath) {
-    return { success: false, error: 'repoPath is required' };
+    return { status: 'failed', success: false, error: 'repoPath is required' };
   }
   if (!files || !Array.isArray(files) || files.length === 0) {
     return {
+      status: 'failed',
       success: false,
       error: 'files array is required and must not be empty',
     };
   }
   if (!title) {
-    return { success: false, error: 'title is required' };
+    return { status: 'failed', success: false, error: 'title is required' };
   }
   if (!branchName) {
-    return { success: false, error: 'branchName is required' };
+    return {
+      status: 'failed',
+      success: false,
+      error: 'branchName is required',
+    };
   }
 
   let resolvedRepoPath: string;
@@ -295,6 +295,7 @@ async function handleGitCreatePr(
     resolvedRepoPath = validatePathWithinClones(repoPath);
   } catch (err) {
     return {
+      status: 'failed',
       success: false,
       error: `Invalid repo path: ${err instanceof Error ? err.message : String(err)}`,
     };
@@ -302,6 +303,7 @@ async function handleGitCreatePr(
 
   if (!fs.existsSync(resolvedRepoPath)) {
     return {
+      status: 'failed',
       success: false,
       error: `Repository not found at path: ${repoPath}. It may have been cleaned up.`,
     };
@@ -309,95 +311,22 @@ async function handleGitCreatePr(
 
   const stat = fs.statSync(resolvedRepoPath);
   if (!stat.isDirectory()) {
-    return { success: false, error: `Path is not a directory: ${repoPath}` };
-  }
-
-  try {
-    const git = simpleGit(resolvedRepoPath);
-
-    await git.checkout(baseBranch);
-
-    const pushResult = await pushRepo(resolvedRepoPath, files, title, {
-      branch: branchName,
-    });
-
-    const authConfig = getGitAuthConfigFromEnv();
-    const token = await getAuthToken(authConfig);
-
-    const remotes = await git.getRemotes(true);
-    const origin = remotes.find(r => r.name === 'origin');
-    if (!origin?.refs?.fetch) {
-      return { success: false, error: 'Could not find origin remote URL' };
-    }
-    const remoteUrl = scrubCredentials(origin.refs.fetch);
-
-    const repoMatch = remoteUrl.match(
-      /github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/
-    );
-    if (!repoMatch) {
-      return {
-        success: true,
-        branch: branchName,
-        baseBranch,
-        filesChanged: pushResult.filesAdded,
-        error:
-          'Automatic PR creation is only supported for GitHub repositories. Changes were pushed to the branch — create a PR/MR manually.',
-      };
-    }
-    const ownerRepo = repoMatch[1];
-    const [owner, repo] = ownerRepo.split('/');
-
-    const prResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/vnd.github+json',
-          'User-Agent': 'dot-ai-remediate',
-        },
-        body: JSON.stringify({
-          title,
-          body,
-          head: branchName,
-          base: baseBranch,
-          // Test-only switch: integration tests set this so PRs they create
-          // don't trigger CodeRabbit (which has drafts: false in .coderabbit.yaml).
-          // Production never sets this env var.
-          ...(process.env.DOT_AI_GIT_CREATE_DRAFT_PRS === 'true' && {
-            draft: true,
-          }),
-        }),
-        signal: AbortSignal.timeout(30000),
-      }
-    );
-
-    if (!prResponse.ok) {
-      const errorBody = await prResponse.text();
-      return {
-        success: false,
-        error: `GitHub API error (${prResponse.status}): ${errorBody}`,
-      };
-    }
-
-    const prData = (await prResponse.json()) as {
-      html_url: string;
-      number: number;
-    };
-
     return {
-      success: true,
-      prUrl: prData.html_url,
-      prNumber: prData.number,
-      branch: branchName,
-      baseBranch,
-      filesChanged: pushResult.filesAdded,
+      status: 'failed',
+      success: false,
+      error: `Path is not a directory: ${repoPath}`,
     };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { success: false, error: scrubCredentials(message) };
   }
+
+  return createPullRequest({
+    repoPath: resolvedRepoPath,
+    files,
+    title,
+    body,
+    branchName,
+    baseBranch,
+    userAgent: 'dot-ai-remediate',
+  });
 }
 
 // ─── Combined executor ───

@@ -837,7 +837,7 @@ async function executeRemediationCommands(
           prInput
         )) as GitCreatePrResult;
 
-        if (prResult.success && 'prUrl' in prResult) {
+        if (prResult.status === 'created') {
           const filesList =
             prResult.filesChanged && prResult.filesChanged.length > 0
               ? prResult.filesChanged.join(', ')
@@ -855,7 +855,16 @@ async function executeRemediationCommands(
             baseBranch: prResult.baseBranch,
             filesChanged: prResult.filesChanged,
           };
-        } else if (prResult.success && 'error' in prResult) {
+        } else if (prResult.status === 'no_changes') {
+          // PRD #710 decision 3: the manifests already match the base branch,
+          // so nothing was pushed and no PR exists. Not a failure.
+          results.push({
+            action: `${actionId}: ${action.description} (no changes needed)`,
+            success: true,
+            output: prResult.message,
+            timestamp: new Date(),
+          });
+        } else if (prResult.status === 'pushed_without_pr') {
           const filesList =
             prResult.filesChanged && prResult.filesChanged.length > 0
               ? prResult.filesChanged.join(', ')
