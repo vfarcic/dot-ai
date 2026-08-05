@@ -55,6 +55,8 @@ secrets:
     apiKey: ""                      # API key value (only needed if chart should create the secret)
   # GitHub App authentication for git operations (PRD #362)
   # Note: PAT token uses DOT_AI_GIT_TOKEN env var configured via extraEnv
+  # Repository permissions the App needs: Contents: write, and Pull requests:
+  # write for pushToGit with pullRequest: true (PRD #710)
   githubApp:
     enabled: false                  # Enable GitHub App authentication
     appId: ""                       # GitHub App ID
@@ -232,8 +234,12 @@ webUI:
 # Use this to add any custom environment variables to the MCP server
 # Example use cases: tracing configuration, custom integrations, Git authentication
 #
-# Git Authentication for pushToGit stage (PRD #395):
-# To enable GitOps workflows, configure one of the following:
+# Git Authentication for pushToGit stage (PRD #395, PRD #710):
+# To enable GitOps workflows, configure one of the following.
+# The same credential covers both push modes: committing to the target branch
+# directly, and (pullRequest: true) opening a pull request from a
+# server-generated branch. Pull request mode additionally needs permission to
+# open pull requests — see the permissions listed below.
 #
 # Option 1: Personal Access Token (PAT)
 # extraEnv:
@@ -251,10 +257,12 @@ webUI:
 # Option 2: GitHub App (recommended for production)
 # - Set secrets.githubApp.enabled: true
 # - Configure secrets.githubApp.appId and secrets.githubApp.privateKey
+# - Repository permissions: Contents: write (push commits)
+#                           Pull requests: write (open a PR with pullRequest: true)
 #
-# Required token scopes:
-# - repo (for private repositories)
-# - public_repo (for public repositories)
+# Required PAT scopes:
+# - repo (for private repositories — also covers opening pull requests)
+# - public_repo (for public repositories — also covers opening pull requests)
 #
 extraEnv: []
   # OpenTelemetry tracing:

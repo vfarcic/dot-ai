@@ -218,6 +218,35 @@ The response includes a `pullRequest` field with the PR URL, number, branch, bas
 - On execution, the tool writes corrected files, creates a branch, pushes, and opens a PR via the GitHub API
 - No kubectl commands are run — the GitOps controller syncs the fix after the PR is merged
 
+**When no pull request is created:**
+
+Two outcomes succeed without producing one, and the response states which happened rather than reporting a PR that does not exist.
+
+The corrected manifests already match the base branch, so nothing is pushed — the fix is already in Git and the cluster has simply not reconciled it:
+
+```text
+No changes needed: the manifests in Git already match the desired state
+
+  Base branch checked: main
+
+Next steps:
+  1. Check whether Argo CD/Flux has actually synced that state to the cluster
+  2. If the issue persists, the root cause is elsewhere — investigate again
+```
+
+The remote is not a github.com `<owner>/<repo>` URL, so the branch is pushed but the PR must be opened by hand (see the **GitHub only** note below):
+
+```text
+Pushed 1 GitOps remediation action(s) to a branch — a pull request must be opened manually
+
+  Branch: remediate/rem-1234567890-1234567890 → main
+
+Next steps:
+  1. Open a pull request (or merge request) for the branch above in your Git host
+  2. Review and merge it
+  3. Wait for Argo CD/Flux to sync the changes
+```
+
 | Aspect | Standard | GitOps-Aware |
 |--------|----------|--------------|
 | Investigation | kubectl only | kubectl + repo clone + file inspection |
@@ -225,9 +254,9 @@ The response includes a `pullRequest` field with the PR URL, number, branch, bas
 | Execution | kubectl runs directly on cluster | Branch pushed, PR created via GitHub API |
 | User action | Approve execution | Approve execution, then review and merge PR |
 
-> **GitHub only**: Automatic PR creation currently supports GitHub repositories. For non-GitHub remotes (GitLab, Bitbucket), the branch is pushed and the user is instructed to create a PR/MR manually.
+> **GitHub only**: Automatic PR creation supports remotes whose URL is a github.com repository in `<owner>/<repo>` form. Anything else — GitLab, Bitbucket, GitHub Enterprise Server, or a github.com URL in a shape the server cannot parse — falls back to the same partial outcome: the branch **is** pushed, no PR is created, and the response says so with `A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.` Open the PR/MR yourself from the pushed branch.
 
-> **Authentication**: Requires a GitHub token with PR creation permissions configured via `DOT_AI_GIT_TOKEN` environment variable or GitHub App credentials.
+> **Authentication**: Requires a GitHub token with PR creation permissions configured via `DOT_AI_GIT_TOKEN` environment variable or GitHub App credentials (a GitHub App needs `Contents: write` and `Pull requests: write`).
 
 > **Fallback**: If no GitOps controller is detected (CRDs not installed or no matching resource found), the tool returns standard kubectl-based remediation as shown above.
 
