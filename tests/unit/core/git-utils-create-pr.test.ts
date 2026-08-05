@@ -47,6 +47,7 @@ import { execFileSync } from 'node:child_process';
 import {
   createPullRequest,
   parseGitHubRemote,
+  scrubCredentials,
 } from '../../../src/core/git-utils';
 import { createInternalToolExecutor } from '../../../src/core/internal-tools';
 import type { GitCreatePrResult } from '../../../src/core/internal-tools';
@@ -131,6 +132,14 @@ function fullClone(url: string, targetDir: string): string {
  * the file:// path git actually talks to. `git remote set-url origin <auth>`,
  * which pushRepo does around the push, only rewrites the fetch URL, so the
  * pushurl survives it.
+ *
+ * ⚠️ Only the PUSH is redirected. Anything that FETCHES — checkoutBaseBranch's
+ * third arm, i.e. any `baseBranch` this clone has neither locally nor as an
+ * origin/<base> ref — would talk to the real https://github.com/<ownerRepo>,
+ * which does not exist. The bogus http proxy below turns that into an immediate
+ * connection failure instead of a network round trip, so such a test fails
+ * fast and loudly rather than hanging; a test that needs a fetched base must
+ * not use this helper.
  */
 function pretendGitHubRemote(
   clone: string,
@@ -142,6 +151,9 @@ function pretendGitHubRemote(
     ['remote', 'set-url', 'origin', `https://github.com/${ownerRepo}.git`],
     clone
   );
+  // Port 1 refuses instantly. A config key with no userinfo matches the
+  // authenticated URL withAuthenticatedOrigin writes too.
+  git(['config', 'http.proxy', 'http://127.0.0.1:1'], clone);
 }
 
 function remoteBranches(remoteRelPath: string): string[] {
@@ -667,6 +679,86 @@ describe('createPullRequest — GitHub API call', () => {
     expect(error).toContain('(truncated)');
     expect(error.length).toBeLessThan(700);
   });
+
+  test('a ~100 KB error body does not stall the server (scrub is bounded and linear)', async () => {
+    // This body is not crafted — it is the shape of an nginx / Cloudflare /
+    // corporate-egress-proxy 5xx interstitial: many `https://…` (so many `//`
+    // starts), many `:` inside style attributes, and NO `@` anywhere, which is
+    // the worst case for a `//…:…@` scrub. With the earlier regex — whose two
+    // `[^@]` runs overlapped and both crossed `/` and `:` — 110 KB of this took
+    // 64 SECONDS of synchronous CPU, freezing the whole MCP server; the 30s
+    // fetch timeout does not help because the stall is after the body is read.
+    const chunk =
+      '<a href="https://cdn.example.test/assets/app.css" style="color:#fff;margin:0;padding:0">upstream connect error</a>';
+    const body = chunk.repeat(Math.ceil(100_000 / chunk.length));
+    expect(body.length).toBeGreaterThan(100_000);
+    expect(body).not.toContain('@');
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 502, text: async () => body })
+    );
+
+    const started = performance.now();
+    const result = await createPullRequest({
+      repoPath: clone,
+      files: [{ path: MANIFEST, content: MANIFEST_CONTENT }],
+      title: 'feat: proxy interstitial',
+      branchName: 'dot-ai/head-6',
+    });
+    const elapsedMs = performance.now() - started;
+
+    expect(result).toMatchObject({ status: 'failed', success: false });
+    const error = 'error' in result ? result.error : '';
+    expect(error).toContain('GitHub API error (502)');
+    expect(error).toContain('(truncated)');
+    expect(error.length).toBeLessThan(700);
+    // Generous on purpose: the elapsed time includes a real clone/commit/push,
+    // so the budget only has to separate "milliseconds of regex" from the tens
+    // of seconds the unbounded super-linear scrub used to take.
+    expect(elapsedMs).toBeLessThan(5000);
+  });
+});
+
+describe('scrubCredentials — linear on hostile input', () => {
+  // The scrub runs on text this module never produced and does not bound: git
+  // stderr, an exception message, a third party's HTTP body. Bounding the one
+  // API-body call site is not enough on its own — the regexes themselves must
+  // not be super-linear.
+  test('200 KB of `//`-and-`:`-rich text with no `@` returns promptly', () => {
+    const chunk =
+      'see https://cdn.example.test/a/b/c.css and style="color:#fff;margin:0" ';
+    const input = chunk.repeat(Math.ceil(200_000 / chunk.length));
+    expect(input).not.toContain('@');
+
+    const started = performance.now();
+    const output = scrubCredentials(input);
+    const elapsedMs = performance.now() - started;
+
+    // Nothing to scrub, so the text is returned as-is — the point is when.
+    expect(output).toBe(input);
+    expect(elapsedMs).toBeLessThan(500);
+  });
+
+  test('still scrubs the userinfo forms it is there for', () => {
+    expect(
+      scrubCredentials('https://x-access-token:ghs_secret@github.com/acme/demo')
+    ).toBe('https://***@github.com/acme/demo');
+    expect(
+      scrubCredentials('fatal: https://user:s3cr3t@gitlab.corp/team/x.git')
+    ).toBe('fatal: https://***@gitlab.corp/team/x.git');
+    // A colon in the password half is still consumed up to the `@`.
+    expect(scrubCredentials('https://user:pa:ss@host/r')).toBe(
+      'https://***@host/r'
+    );
+    // A credential-free URL — including host:port and paths with colons — is
+    // left alone.
+    expect(scrubCredentials('https://github.com:443/acme/demo.git')).toBe(
+      'https://github.com:443/acme/demo.git'
+    );
+  });
 });
 
 describe('parseGitHubRemote — anchored host check', () => {
@@ -684,6 +776,15 @@ describe('parseGitHubRemote — anchored host check', () => {
     ['github.com:acme/demo.git', 'acme', 'demo'],
     ['https://github.com/acme/demo.git\n', 'acme', 'demo'],
     ['https://github.com/acme/dot.ai_demo-1.git', 'acme', 'dot.ai_demo-1'],
+    // github.com's own www alias: it clones fine via redirect and addresses the
+    // same repository on api.github.com, so declining it would only mean a real
+    // GitHub remote silently gets no PR.
+    ['https://www.github.com/acme/demo.git', 'acme', 'demo'],
+    ['git@www.github.com:acme/demo.git', 'acme', 'demo'],
+    // A trailing slash is the same remote, not a third (empty) path segment.
+    ['https://github.com/acme/demo.git/', 'acme', 'demo'],
+    ['https://github.com/acme/demo/', 'acme', 'demo'],
+    ['git@github.com:acme/demo.git/', 'acme', 'demo'],
   ])('%s → %s/%s', (remote, owner, repo) => {
     expect(parseGitHubRemote(remote)).toEqual({ owner, repo });
   });
@@ -708,6 +809,19 @@ describe('parseGitHubRemote — anchored host check', () => {
     'https://github.com/acme/..',
     '',
     'not a url at all',
+    // Dot segments: legal per GITHUB_NAME_PATTERN (a dot belongs in both logins
+    // and repo names) but they survive into the API URL, where fetch's own path
+    // normalization then eats a literal segment — so `..`/`evil` would POST to
+    // api.github.com/evil/pulls instead of /repos/../evil/pulls. Only the scp
+    // branch and a repo whose `.git` suffix leaves a bare dot can produce them
+    // (`new URL` normalizes the rest away).
+    'git@github.com:../evil.git',
+    'git@github.com:acme/...git',
+    'git@github.com:../..git',
+    'git@github.com:./demo.git',
+    'https://github.com/acme/..git',
+    'https://github.com/acme/...git',
+    'https://www.github.com/acme/..git',
   ])('rejects %s', remote => {
     expect(parseGitHubRemote(remote)).toBeUndefined();
   });
@@ -733,6 +847,13 @@ describe('parseGitHubRemote — anchored host check', () => {
       success: true,
       branch: 'dot-ai/lookalike',
     });
+    // The message must not claim "the repository is not hosted on GitHub": an
+    // anchored parser also declines github.com URLs in an unexpected shape, and
+    // telling a user their GitHub repo is not on GitHub reads as a bug.
+    expect('error' in result && result.error).toMatch(
+      /could not be opened automatically/
+    );
+    expect('error' in result && result.error).not.toMatch(/not hosted/i);
     expect(fetchMock).not.toHaveBeenCalled();
     // The branch IS on the remote — only the PR is missing (decision 7).
     expect(remoteBranches(remoteRel)).toContain('dot-ai/lookalike');

@@ -29,8 +29,14 @@ const GIT_TIMEOUT_MS = 120000; // 2 minutes for git operations
  */
 const MAX_API_ERROR_BODY_CHARS = 500;
 
-/** The only host whose pull request API this module speaks (PRD #710 decision 7). */
-const GITHUB_HOST = 'github.com';
+/**
+ * The only hosts whose pull request API this module speaks (PRD #710 decision
+ * 7). `www.github.com` is the same service — it clones fine via redirect and
+ * its `<owner>/<repo>` addresses the same repository on api.github.com — so
+ * rejecting it would only mean a real GitHub remote silently gets no PR.
+ * GitLab/Bitbucket/GHES remain out of scope.
+ */
+const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
 
 /**
  * User-Agent sent to the GitHub API when a caller of createPullRequest() does
@@ -72,10 +78,26 @@ interface GitHubAppToken {
 
 // ─── Auth helpers ───
 
+/**
+ * Replace `//user:password@` userinfo with `//***@` in free-text output (git
+ * stderr, an exception message, a third party's HTTP response body), so a token
+ * embedded in a URL never reaches a caller, a log, or a session file.
+ *
+ * Both patterns are LINEAR in the length of the input, which matters because
+ * every caller passes text it did not produce and does not bound. The `//…:…@`
+ * pattern used to be `/\/\/[^/:][^@]*:[^@]+@/`, whose two `[^@]` runs overlap
+ * and both cross `/` and `:` — so on a span with no `@` the engine retried
+ * every colon against every tail split, at every `//`. A 110 KB HTML error page
+ * full of `https://…` links and `style="…:…"` attributes took 64 SECONDS of
+ * synchronous CPU, freezing the whole server. Narrowing the classes so that
+ * neither can cross the delimiter that follows it removes the ambiguity: the
+ * user part stops at `:`, the password part stops at `/`, which is also what a
+ * real URL allows (unencoded `/` and `:` cannot appear in userinfo).
+ */
 export function scrubCredentials(message: string): string {
   return message
-    .replace(/\/\/x-access-token:[^@]+@/g, '//***@')
-    .replace(/\/\/[^/:][^@]*:[^@]+@/g, '//***@');
+    .replace(/\/\/x-access-token:[^@/]*@/g, '//***@')
+    .replace(/\/\/[^/:@]+:[^@/]*@/g, '//***@');
 }
 
 export function getAuthenticatedUrl(repoUrl: string, token: string): string {
@@ -680,10 +702,11 @@ export type CreatePullRequestResult =
     }
   | {
       /**
-       * The branch WAS pushed but no pull request was opened, because the
-       * remote is not github.com. GitLab/Bitbucket/GHES are out of scope
-       * (PRD #710 decision 7); the caller must surface this as an incomplete
-       * outcome needing a manual PR/MR.
+       * The branch WAS pushed but no pull request was opened, because
+       * parseGitHubRemote declined the `origin` URL — usually another host
+       * (GitLab/Bitbucket/GHES are out of scope, PRD #710 decision 7), but also
+       * any github.com URL that is not plainly `<owner>/<repo>`. The caller must
+       * surface this as an incomplete outcome needing a manual PR/MR.
        */
       status: 'pushed_without_pr';
       success: true;
@@ -734,25 +757,36 @@ const GITHUB_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
  * `{ owner, repo }` when `remoteUrl` points at github.com, undefined for any
  * other host — so the caller falls into the non-GitHub branch.
  *
- * The host is decided by PARSING the URL and comparing the hostname exactly.
- * Searching the string for `github.com` instead — what this replaces — also
- * accepts `https://evil.example/github.com/victim/private.git` (→ victim/private)
- * and `https://notgithub.com/owner/repo.git` (→ owner/repo), which would send an
- * authenticated POST for an attacker-chosen owner/repo. The token itself cannot
- * reach the attacker's host (the API URL is a hardcoded api.github.com template),
- * but the API's differing answers would form an existence-and-access oracle for
- * private repositories the server's credential can reach.
+ * The host is decided by PARSING the URL and comparing the hostname against
+ * GITHUB_HOSTS. Searching the string for `github.com` instead — what this
+ * replaces — also accepts `https://evil.example/github.com/victim/private.git`
+ * (→ victim/private) and `https://notgithub.com/owner/repo.git` (→ owner/repo),
+ * which would send an authenticated POST for an attacker-chosen owner/repo. The
+ * token itself cannot reach the attacker's host (the API URL is a hardcoded
+ * api.github.com template), but the API's differing answers would form an
+ * existence-and-access oracle for private repositories the server's credential
+ * can reach.
  *
- * Anything that is not exactly `<owner>/<repo>` on that host is rejected, which
- * also rules out traversal segments in the owner/repo the API URL is built from.
+ * Anything that is not exactly `<owner>/<repo>` on such a host is rejected, and
+ * `.`/`..` are rejected as either name: they satisfy GITHUB_NAME_PATTERN (a dot
+ * is legal in both a login and a repo name) but survive into the API URL, where
+ * fetch's own path normalization then eats a literal segment — `..`/`evil` would
+ * POST to `api.github.com/evil/pulls` rather than to `/repos/../evil/pulls`.
+ * Today that only ever 404s, but from M2 `repoUrl` is client-supplied, which
+ * turns "which endpoints are reachable" from incidental into attacker-chosen.
  */
 export function parseGitHubRemote(
   remoteUrl: string
 ): { owner: string; repo: string } | undefined {
   const split = splitRemoteUrl(remoteUrl);
-  if (!split || split.host.toLowerCase() !== GITHUB_HOST) return undefined;
+  if (!split || !GITHUB_HOSTS.has(split.host.toLowerCase())) return undefined;
 
-  const segments = split.path.replace(/^\/+/, '').split('/');
+  // Trailing slashes are dropped, not counted: `…/acme/demo.git/` is the same
+  // remote as `…/acme/demo.git`, and git clones both.
+  const segments = split.path
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '')
+    .split('/');
   if (segments.length !== 2) return undefined;
 
   const owner = segments[0];
@@ -760,7 +794,13 @@ export function parseGitHubRemote(
   if (!GITHUB_NAME_PATTERN.test(owner) || !GITHUB_NAME_PATTERN.test(repo)) {
     return undefined;
   }
+  if (isDotSegment(owner) || isDotSegment(repo)) return undefined;
   return { owner, repo };
+}
+
+/** True for the two path segments that mean "here" and "up one" to a URL parser. */
+function isDotSegment(segment: string): boolean {
+  return segment === '.' || segment === '..';
 }
 
 /**
@@ -879,9 +919,9 @@ async function checkoutBaseBranch(
  * Two contract points worth knowing before adding a third caller:
  * - When `refs/remotes/origin/<baseBranch>` is ALREADY present, it is used as of
  *   the clone — nothing is re-fetched — so the pull request is based on however
- *   stale that ref is. Harmless for the current callers (remediate clones fresh
- *   at depth 1; pushToGit clones with `--branch <base>`); a caller reusing a
- *   long-lived checkout must pull it itself.
+ *   stale that ref is. Harmless for the only current caller, remediate, which
+ *   clones fresh at depth 1; a caller reusing a long-lived checkout must pull it
+ *   itself.
  * - `baseBranch` is strictly a BRANCH. A tag or SHA used to work by accident
  *   (the old `git.checkout(<sha>)` produced a detached HEAD); it now takes the
  *   `+refs/heads/<x>` fetch path and returns `failed`. That is deliberate:
@@ -896,8 +936,8 @@ async function checkoutBaseBranch(
  *   a PR for a head branch that never reached the remote and answers 422. It is
  *   reported only when the index is verifiably empty, never inferred from a
  *   commit that produced no revision — that is a `failed`.
- * - `pushed_without_pr` — non-GitHub remote: the branch IS on the remote but a
- *   PR/MR must be opened manually (decision 7).
+ * - `pushed_without_pr` — the `origin` URL is not a github.com `<owner>/<repo>`:
+ *   the branch IS on the remote but a PR/MR must be opened manually (decision 7).
  * - `failed` — validation (a missing head branch, or one equal to the base), git,
  *   or GitHub API failure. Messages are scrubbed of credentials.
  */
@@ -988,8 +1028,11 @@ export async function createPullRequest(
         branch: branchName,
         baseBranch,
         filesChanged: pushResult.filesAdded,
+        // Not "the remote is not GitHub": an anchored parser also declines a
+        // github.com URL in an unexpected shape, and telling the user their
+        // GitHub repo is not on GitHub is worse than saying what happened.
         error:
-          'Automatic PR creation is only supported for GitHub repositories. Changes were pushed to the branch — create a PR/MR manually.',
+          'A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.',
       };
     }
 
@@ -1027,7 +1070,18 @@ export async function createPullRequest(
       // helper returns (the result type promises that) and cap it, so an
       // unexpectedly large body is not echoed back wholesale. Scrub first, then
       // truncate, so a credential cannot survive by straddling the cut.
-      const scrubbedBody = scrubCredentials(await prResponse.text());
+      //
+      // The pre-cut bounds what the scrub regexes see. They are linear now, but
+      // this is not GitHub's JSON on the failure paths that matter — a proxy or
+      // WAF interstitial can be megabytes — and scrubbing then discarding all
+      // but 500 chars of it is pure work. The cut is unobservable: everything
+      // past MAX_API_ERROR_BODY_CHARS is dropped by the cap below anyway, so a
+      // credential straddling the cut can never reach the output.
+      const raw = (await prResponse.text()).slice(
+        0,
+        MAX_API_ERROR_BODY_CHARS * 16
+      );
+      const scrubbedBody = scrubCredentials(raw);
       const detail =
         scrubbedBody.length > MAX_API_ERROR_BODY_CHARS
           ? `${scrubbedBody.slice(0, MAX_API_ERROR_BODY_CHARS)}… (truncated)`

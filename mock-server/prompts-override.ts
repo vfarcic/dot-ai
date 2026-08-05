@@ -87,8 +87,8 @@ export function scrubRepoUrl(url: string): string {
  */
 export function scrubCredentials(message: string): string {
   return message
-    .replace(/\/\/x-access-token:[^@]+@/g, '//***@')
-    .replace(/\/\/[^/:][^@]*:[^@]+@/g, '//***@');
+    .replace(/\/\/x-access-token:[^@/]*@/g, '//***@')
+    .replace(/\/\/[^/:@]+:[^@/]*@/g, '//***@');
 }
 
 /**
