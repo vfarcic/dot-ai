@@ -87,6 +87,11 @@ describe.concurrent('Recommend Tool Integration', () => {
   const gitHubApiHeaders = {
     Authorization: `token ${gitToken}`,
     Accept: 'application/vnd.github+json',
+    // GitHub answers authenticated reads with `Cache-Control: private,
+    // max-age=60`. These helpers re-read the same URL seconds apart to observe a
+    // push landing, so any cache honouring that would hand back the pre-push
+    // answer for a minute.
+    'Cache-Control': 'no-cache',
   };
 
   const gitHubRepoApi = `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}`;
@@ -116,6 +121,51 @@ describe.concurrent('Recommend Tool Integration', () => {
     expect(response.ok).toBe(true);
     const data = (await response.json()) as { object: { sha: string } };
     return data.object.sha;
+  }
+
+  /**
+   * The N most recent commit shas on `branch`, newest first.
+   */
+  async function listBranchCommitShas(
+    branch: string,
+    count: number
+  ): Promise<string[]> {
+    const response = await fetch(
+      `${gitHubRepoApi}/commits?sha=${encodeURIComponent(branch)}&per_page=${count}`,
+      { headers: gitHubApiHeaders }
+    );
+    expect(response.ok).toBe(true);
+    const commits = (await response.json()) as Array<{ sha: string }>;
+    return commits.map(commit => commit.sha);
+  }
+
+  /**
+   * Wait for `branch` to report `sha` as its tip.
+   *
+   * Reads of freshly pushed state are eventually consistent — observed on this
+   * repository: right after a push, `GET /git/ref/heads/<branch>` still answered
+   * with the PREVIOUS commit while the push had demonstrably succeeded. So a
+   * single read cannot decide whether a push landed, and worse, it makes a
+   * "nothing was pushed" assertion pass vacuously. Every check of a just-pushed
+   * tip therefore names the exact sha it expects and waits for it.
+   */
+  async function waitForBranchSha(
+    branch: string,
+    sha: string
+  ): Promise<string> {
+    const maxWaitMs = 60000;
+    const pollIntervalMs = 2000;
+
+    let current = await getBranchSha(branch);
+    for (
+      let waited = 0;
+      current !== sha && waited < maxWaitMs;
+      waited += pollIntervalMs
+    ) {
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      current = await getBranchSha(branch);
+    }
+    return current;
   }
 
   async function getPullRequest(number: number): Promise<GitHubPullRequest> {
@@ -150,6 +200,34 @@ describe.concurrent('Recommend Tool Integration', () => {
     );
     expect(response.ok).toBe(true);
     return response.json() as Promise<GitHubCommit>;
+  }
+
+  /**
+   * A pull request's `head.sha` is a denormalized copy of the branch tip that
+   * GitHub converges asynchronously: immediately after a push the git ref API
+   * already reports the new commit while the pull request object can still
+   * report the previous one. So poll for convergence instead of asserting on
+   * the first read — the guarantee ("the open PR ends up pointing at the new
+   * commit") is kept, only the race is removed. A PR that never converges still
+   * fails the assertion at the call site.
+   */
+  async function waitForPullRequestHeadSha(
+    number: number,
+    sha: string
+  ): Promise<GitHubPullRequest> {
+    const maxWaitMs = 60000;
+    const pollIntervalMs = 2000;
+
+    let pullRequest = await getPullRequest(number);
+    for (
+      let waited = 0;
+      pullRequest.head.sha !== sha && waited < maxWaitMs;
+      waited += pollIntervalMs
+    ) {
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      pullRequest = await getPullRequest(number);
+    }
+    return pullRequest;
   }
 
   async function closePullRequest(number: number): Promise<void> {
@@ -1249,8 +1327,17 @@ describe.concurrent('Recommend Tool Integration', () => {
         const prInfo = prPushResponse.data.result.gitPush.pullRequest;
         const prNumber: number = prInfo.number;
         const prBranch: string = prInfo.branch;
+        const createCommitSha: string =
+          prPushResponse.data.result.gitPush.commitSha;
         expect(prBranch).not.toBe(baseBranch);
         expect(prBranch).not.toBe('client-chosen-head');
+
+        // Let the head branch converge on the commit the push reported before
+        // reading anything off it, so the reads below cannot see a pre-push
+        // state (or a 404 for a branch that exists).
+        expect(await waitForBranchSha(prBranch, createCommitSha)).toBe(
+          createCommitSha
+        );
 
         // Success criterion 1: the base branch is never written in PR mode.
         expect(await getBranchSha(baseBranch)).toBe(baseShaBeforePr);
@@ -1307,7 +1394,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
         // Decision 8: the commit author is the authenticated user, not the
         // client-supplied author.
-        const headCommit = await getCommit(prBranch);
+        const headCommit = await getCommit(createCommitSha);
         expect(headCommit.commit.message).toContain(prCommitMessage);
         expect(headCommit.commit.author.email).toBe(prPushUser.email);
         expect(headCommit.commit.author.name).not.toBe(spoofedAuthorName);
@@ -1322,8 +1409,6 @@ describe.concurrent('Recommend Tool Integration', () => {
         );
         expect(prFileContent).toContain('apiVersion:');
         expect(prFileContent).toContain('kind:');
-
-        const headShaAfterCreate = await getBranchSha(prBranch);
 
         // ── Re-run with UNCHANGED manifests (decision 3) ──
         // The files already match what the PR proposes, so the commit would be
@@ -1364,8 +1449,11 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        // Nothing was pushed and no second PR was opened.
-        expect(await getBranchSha(prBranch)).toBe(headShaAfterCreate);
+        // Nothing was pushed and no second PR was opened. The tip is named
+        // exactly rather than compared to an earlier read — see
+        // waitForBranchSha. That this run added no commit at all is proved
+        // positively by the two-commit history check after the update below.
+        expect(await getBranchSha(prBranch)).toBe(createCommitSha);
         expect(
           (await listPullRequestsForHead(prBranch)).map(pr => pr.number)
         ).toEqual([prNumber]);
@@ -1413,14 +1501,28 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        const headShaAfterUpdate = await getBranchSha(prBranch);
-        expect(headShaAfterUpdate).not.toBe(headShaAfterCreate);
+        const updateCommitSha: string =
+          updateResponse.data.result.gitPush.commitSha;
+        expect(await waitForBranchSha(prBranch, updateCommitSha)).toBe(
+          updateCommitSha
+        );
 
-        const updatedPr = await getPullRequest(prNumber);
+        // The head branch is exactly the create commit with the update commit on
+        // top: the update added one commit to the recorded branch, and the
+        // unchanged re-run before it added none.
+        expect(await listBranchCommitShas(prBranch, 2)).toEqual([
+          updateCommitSha,
+          createCommitSha,
+        ]);
+
+        const updatedPr = await waitForPullRequestHeadSha(
+          prNumber,
+          updateCommitSha
+        );
         expect(updatedPr).toMatchObject({
           number: prNumber,
           state: 'open',
-          head: { ref: prBranch, sha: headShaAfterUpdate },
+          head: { ref: prBranch, sha: updateCommitSha },
           base: { ref: baseBranch },
         });
 
