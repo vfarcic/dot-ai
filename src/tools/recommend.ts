@@ -43,10 +43,12 @@ export const RECOMMEND_TOOL_INPUT_SCHEMA = {
   // Parameters for pushToGit stage (PRD #395)
   repoUrl: z.string().url().optional().describe('Git repository URL for pushToGit stage (HTTPS)'),
   targetPath: z.string().optional().describe('Path within repository for pushToGit stage (e.g., "apps/postgresql/")'),
-  branch: z.string().optional().describe('Git branch for pushToGit stage (default: main)'),
-  commitMessage: z.string().optional().describe('Commit message for pushToGit stage'),
-  authorName: z.string().optional().describe('Git author name for pushToGit stage'),
-  authorEmail: z.string().optional().describe('Git author email for pushToGit stage'),
+  branch: z.string().optional().describe('Git branch for pushToGit stage (default: main). With pullRequest: true this is the BASE branch the pull request targets, which is never written to'),
+  // PRD #710: mode selector for the pushToGit stage
+  pullRequest: z.boolean().optional().describe('For pushToGit stage: when true, commit to a server-generated branch and open a pull request against `branch` instead of pushing to it directly. Required for repositories with branch protection. The head branch name is chosen by the server and cannot be supplied'),
+  commitMessage: z.string().optional().describe('Commit message for pushToGit stage (also the pull request title when pullRequest: true)'),
+  authorName: z.string().optional().describe('Git author name for pushToGit stage (ignored when the request carries an authenticated user identity, which is then the commit author)'),
+  authorEmail: z.string().optional().describe('Git author email for pushToGit stage (ignored when the request carries an authenticated user identity, which is then the commit author)'),
   interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
 };
 
@@ -101,9 +103,23 @@ export interface SolutionData {
   gitPush?: {
     repoUrl: string;
     path: string;
+    /** Branch that was pushed — the head branch in PR mode (PRD #710). */
     branch: string;
     commitSha?: string;
     pushedAt?: string;
+    /**
+     * PRD #710 decision 5/9: PR-mode outcome. Recorded so a re-run can find the
+     * pull request it must update instead of opening a second one, which is also
+     * why `stage` stays 'pushed' rather than gaining a value dot-ai-ui would
+     * have to learn.
+     */
+    pullRequest?: {
+      status: 'created' | 'updated' | 'no_changes' | 'pushed_without_pr';
+      url?: string;
+      number?: number;
+      branch: string;
+      baseBranch: string;
+    };
   };
   // Workflow state tracking for UI page refresh support (dot-ai-ui feature request)
   currentQuestionStage?: 'required' | 'basic' | 'advanced' | 'open';
@@ -170,6 +186,8 @@ interface RecommendToolArgs {
   repoUrl?: string;
   targetPath?: string;
   branch?: string;
+  // PRD #710: PR mode for pushToGit
+  pullRequest?: boolean;
   commitMessage?: string;
   authorName?: string;
   authorEmail?: string;
@@ -272,6 +290,7 @@ export async function handleRecommendTool(
             repoUrl: args.repoUrl || '',
             targetPath: args.targetPath || '',
             branch: args.branch,
+            pullRequest: args.pullRequest,
             commitMessage: args.commitMessage,
             authorName: args.authorName,
             authorEmail: args.authorEmail,

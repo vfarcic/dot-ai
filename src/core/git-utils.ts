@@ -46,6 +46,18 @@ const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
 const DEFAULT_PR_USER_AGENT = 'dot-ai';
 
 /**
+ * Directory every GitOps clone lives under: `./tmp/gitops-clones/`.
+ *
+ * One definition for two callers that MUST agree on it — remediate's internal
+ * tools scope their AI-driven filesystem access to this directory
+ * (validatePathWithinClones), and from PRD #710 M2 pushToGit clones into it as
+ * well. `./tmp` rather than os.tmpdir() is the project convention (CLAUDE.md).
+ */
+export function getGitopsClonesDir(): string {
+  return path.resolve(process.cwd(), 'tmp', 'gitops-clones');
+}
+
+/**
  * Environment variable name through which a per-request override credential
  * (PRD #621 M3) is handed to the GIT_ASKPASS helper. The token travels in the
  * git child process's ENVIRONMENT — never on its argv (ps/proc) and never
@@ -603,9 +615,8 @@ export async function pushRepo(
   await git.addConfig('user.name', gitUserName);
   await git.addConfig('user.email', gitUserEmail);
 
-  const finalMessage = process.env.CI === 'true'
-    ? `${commitMessage} [skip ci]`
-    : commitMessage;
+  const finalMessage =
+    process.env.CI === 'true' ? `${commitMessage} [skip ci]` : commitMessage;
   const commitResult = await git.commit(finalMessage);
 
   if (!commitResult.commit) {
@@ -670,6 +681,12 @@ export interface CreatePullRequestInput {
   baseBranch?: string;
   /** User-Agent for the GitHub API call. Defaults to DEFAULT_PR_USER_AGENT. */
   userAgent?: string;
+  /**
+   * Commit author. Callers that know WHO asked for the change must pass it, so
+   * the commit a reviewer sees names that person rather than the server's bot
+   * default (PRD #710 decision 8). Omitted falls back to pushRepo's default.
+   */
+  author?: { name: string; email: string };
 }
 
 /**
@@ -687,6 +704,8 @@ export type CreatePullRequestResult =
       branch: string;
       baseBranch: string;
       filesChanged: string[];
+      /** Sha of the commit pushed to `branch`. */
+      commitSha: string;
     }
   | {
       /**
@@ -713,6 +732,8 @@ export type CreatePullRequestResult =
       branch: string;
       baseBranch: string;
       filesChanged: string[];
+      /** Sha of the commit pushed to `branch`. */
+      commitSha: string;
       error: string;
     }
   | {
@@ -721,6 +742,32 @@ export type CreatePullRequestResult =
       success: false;
       error: string;
     };
+
+/**
+ * `GitHub API error (<status>): <body>` for a failed response, safe to hand back
+ * to a caller.
+ *
+ * The body is a third party's response text, so it is scrubbed like every other
+ * message this module returns and capped, rather than forwarded wholesale.
+ * Scrub first, then truncate, so a credential cannot survive by straddling the
+ * cut.
+ *
+ * The pre-cut bounds what the scrub regexes see. They are linear now, but this
+ * is not GitHub's JSON on the failure paths that matter — a proxy or WAF
+ * interstitial can be megabytes — and scrubbing then discarding all but 500
+ * chars of it is pure work. The cut is unobservable: everything past
+ * MAX_API_ERROR_BODY_CHARS is dropped by the cap anyway, so a credential
+ * straddling the cut can never reach the output.
+ */
+async function describeApiError(response: Response): Promise<string> {
+  const raw = (await response.text()).slice(0, MAX_API_ERROR_BODY_CHARS * 16);
+  const scrubbedBody = scrubCredentials(raw);
+  const detail =
+    scrubbedBody.length > MAX_API_ERROR_BODY_CHARS
+      ? `${scrubbedBody.slice(0, MAX_API_ERROR_BODY_CHARS)}… (truncated)`
+      : scrubbedBody;
+  return `GitHub API error (${response.status}): ${detail}`;
+}
 
 /**
  * Split a git remote URL into host and path, covering both forms git accepts:
@@ -950,6 +997,7 @@ export async function createPullRequest(
     title,
     body = '',
     branchName,
+    author,
     userAgent = DEFAULT_PR_USER_AGENT,
   } = input;
   const baseBranch = input.baseBranch || 'main';
@@ -986,6 +1034,7 @@ export async function createPullRequest(
 
     const pushResult = await pushRepo(repoPath, files, title, {
       branch: branchName,
+      author,
     });
 
     // pushRepo returns WITHOUT pushing when there was nothing to commit, so the
@@ -1028,6 +1077,7 @@ export async function createPullRequest(
         branch: branchName,
         baseBranch,
         filesChanged: pushResult.filesAdded,
+        commitSha: pushResult.commitSha,
         // Not "the remote is not GitHub": an anchored parser also declines a
         // github.com URL in an unexpected shape, and telling the user their
         // GitHub repo is not on GitHub is worse than saying what happened.
@@ -1066,30 +1116,10 @@ export async function createPullRequest(
     );
 
     if (!prResponse.ok) {
-      // A third party's response text: scrub it like every other message this
-      // helper returns (the result type promises that) and cap it, so an
-      // unexpectedly large body is not echoed back wholesale. Scrub first, then
-      // truncate, so a credential cannot survive by straddling the cut.
-      //
-      // The pre-cut bounds what the scrub regexes see. They are linear now, but
-      // this is not GitHub's JSON on the failure paths that matter — a proxy or
-      // WAF interstitial can be megabytes — and scrubbing then discarding all
-      // but 500 chars of it is pure work. The cut is unobservable: everything
-      // past MAX_API_ERROR_BODY_CHARS is dropped by the cap below anyway, so a
-      // credential straddling the cut can never reach the output.
-      const raw = (await prResponse.text()).slice(
-        0,
-        MAX_API_ERROR_BODY_CHARS * 16
-      );
-      const scrubbedBody = scrubCredentials(raw);
-      const detail =
-        scrubbedBody.length > MAX_API_ERROR_BODY_CHARS
-          ? `${scrubbedBody.slice(0, MAX_API_ERROR_BODY_CHARS)}… (truncated)`
-          : scrubbedBody;
       return {
         status: 'failed',
         success: false,
-        error: `GitHub API error (${prResponse.status}): ${detail}`,
+        error: await describeApiError(prResponse),
       };
     }
 
@@ -1106,6 +1136,7 @@ export async function createPullRequest(
       branch: branchName,
       baseBranch,
       filesChanged: pushResult.filesAdded,
+      commitSha: pushResult.commitSha,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -1114,5 +1145,117 @@ export async function createPullRequest(
       success: false,
       error: scrubCredentials(message),
     };
+  }
+}
+
+// ─── Pull request lookup (PRD #710 M2, decision 9) ───
+
+/** What GitHub says about one pull request, reduced to what callers reuse. */
+export interface PullRequestSnapshot {
+  number: number;
+  url: string;
+  headBranch: string;
+  baseBranch: string;
+  state: 'open' | 'closed';
+  merged: boolean;
+}
+
+/**
+ * Outcome of lookupPullRequest(). The three non-`found` values are deliberately
+ * distinct because they call for different decisions: `not_found` means there is
+ * no pull request to reuse (open a new one), while `unknown` means the answer is
+ * unavailable — a caller that treats it as "not open" opens a duplicate pull
+ * request every time GitHub has a bad minute.
+ */
+export type LookupPullRequestResult =
+  | { status: 'found'; pullRequest: PullRequestSnapshot }
+  | { status: 'not_found' }
+  | { status: 'unsupported_host' }
+  | { status: 'unknown'; error: string };
+
+/**
+ * Fetch one pull request by number from `repoUrl`'s GitHub repository.
+ *
+ * Used to decide whether a previously recorded pull request can still be updated
+ * in place rather than superseded by a second one (PRD #710 decision 9).
+ *
+ * `repoUrl` goes through parseGitHubRemote, so a non-github.com or oddly shaped
+ * remote is `unsupported_host` rather than an API call. `prNumber` comes from a
+ * session file, i.e. from data this server wrote but does not re-read as trusted:
+ * anything other than a positive integer cannot reach the request URL.
+ */
+export async function lookupPullRequest(
+  repoUrl: string,
+  prNumber: number,
+  opts?: { userAgent?: string }
+): Promise<LookupPullRequestResult> {
+  if (!Number.isSafeInteger(prNumber) || prNumber <= 0) {
+    // Not a pull request number this server ever recorded — nothing to reuse.
+    return { status: 'not_found' };
+  }
+
+  const gitHubRepo = parseGitHubRemote(repoUrl);
+  if (!gitHubRepo) return { status: 'unsupported_host' };
+
+  try {
+    const token = await getAuthToken(getGitAuthConfigFromEnv());
+    const response = await fetchWithTimeout(
+      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/pulls/${prNumber}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'User-Agent': opts?.userAgent ?? DEFAULT_PR_USER_AGENT,
+        },
+      }
+    );
+
+    // 404 is also what a repository the credential cannot see answers, so this
+    // is "no pull request available to reuse" rather than "it was deleted".
+    if (response.status === 404) return { status: 'not_found' };
+    if (!response.ok) {
+      return { status: 'unknown', error: await describeApiError(response) };
+    }
+
+    const data = (await response.json()) as {
+      number?: number;
+      html_url?: string;
+      state?: string;
+      merged?: boolean;
+      head?: { ref?: string };
+      base?: { ref?: string };
+    };
+
+    if (
+      typeof data.number !== 'number' ||
+      typeof data.html_url !== 'string' ||
+      typeof data.head?.ref !== 'string' ||
+      typeof data.base?.ref !== 'string'
+    ) {
+      return {
+        status: 'unknown',
+        error:
+          'GitHub API returned a pull request without the fields needed to reuse it',
+      };
+    }
+
+    return {
+      status: 'found',
+      pullRequest: {
+        number: data.number,
+        url: data.html_url,
+        headBranch: data.head.ref,
+        baseBranch: data.base.ref,
+        // Anything that is not verbatim 'open' is treated as closed: guessing
+        // "probably still open" from an unexpected value is the error that
+        // pushes to a branch nobody is reviewing.
+        state: data.state === 'open' ? 'open' : 'closed',
+        merged: data.merged === true,
+      },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { status: 'unknown', error: scrubCredentials(message) };
   }
 }

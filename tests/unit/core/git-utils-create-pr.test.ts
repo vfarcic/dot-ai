@@ -46,6 +46,7 @@ import * as path from 'path';
 import { execFileSync } from 'node:child_process';
 import {
   createPullRequest,
+  lookupPullRequest,
   parseGitHubRemote,
   scrubCredentials,
 } from '../../../src/core/git-utils';
@@ -936,5 +937,170 @@ describe('git_create_pr wrapper — unchanged contract (PRD #710 M1)', () => {
     expect(result).toMatchObject({ status: 'no_changes', success: true });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(remoteBranches(remoteRel)).toEqual(['main']);
+  });
+});
+
+describe('createPullRequest — commit author (PRD #710 decision 8)', () => {
+  // pushToGit passes the authenticated user's identity so the commit a reviewer
+  // reads names that person rather than the server's bot default.
+  test('commits as the caller-supplied author and returns the commit sha', async () => {
+    const url = seedRemote('author/demo.git');
+    const clone = shallowClone(url, path.join(TMP_ROOT, 'author-clone'));
+    pretendGitHubRemote(clone, 'acme/demo', url);
+    stubGitHubOk();
+
+    const result = await createPullRequest({
+      repoPath: clone,
+      files: [{ path: MANIFEST, content: MANIFEST_CONTENT }],
+      title: 'feat: attributed',
+      branchName: 'dot-ai/attributed-1',
+      author: { name: 'real@example.test', email: 'real@example.test' },
+    });
+
+    expect(result).toMatchObject({ status: 'created', success: true });
+    const commitSha =
+      result.status === 'created' ? result.commitSha : undefined;
+    expect(commitSha).toMatch(/^[0-9a-f]{7,40}$/);
+
+    const author = git(
+      ['log', '-1', '--format=%an <%ae>', 'dot-ai/attributed-1'],
+      clone
+    ).trim();
+    expect(author).toBe('real@example.test <real@example.test>');
+    // The sha names the commit that was actually pushed.
+    expect(
+      git(['rev-parse', 'dot-ai/attributed-1'], clone).trim()
+    ).toBe(commitSha);
+  });
+});
+
+describe('lookupPullRequest (PRD #710 decision 9)', () => {
+  const REPO = 'https://github.com/acme/demo.git';
+
+  function stubJson(status: number, body: unknown) {
+    const mock = vi.fn().mockResolvedValue({
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    });
+    vi.stubGlobal('fetch', mock);
+    return mock;
+  }
+
+  test('returns the open pull request a re-run can update in place', async () => {
+    const mock = stubJson(200, {
+      number: 7,
+      html_url: 'https://github.com/acme/demo/pull/7',
+      state: 'open',
+      merged: false,
+      head: { ref: 'dot-ai/sol-1-aaaaaaaa-2' },
+      base: { ref: 'main' },
+    });
+
+    const result = await lookupPullRequest(REPO, 7, {
+      userAgent: 'dot-ai-pushtogit',
+    });
+
+    expect(result).toEqual({
+      status: 'found',
+      pullRequest: {
+        number: 7,
+        url: 'https://github.com/acme/demo/pull/7',
+        headBranch: 'dot-ai/sol-1-aaaaaaaa-2',
+        baseBranch: 'main',
+        state: 'open',
+        merged: false,
+      },
+    });
+    expect(String(mock.mock.calls[0][0])).toBe(
+      'https://api.github.com/repos/acme/demo/pulls/7'
+    );
+    expect(requestHeaders(mock)['User-Agent']).toBe('dot-ai-pushtogit');
+    expect(requestHeaders(mock).Authorization).toBe('Bearer unit-test-token');
+  });
+
+  test('a merged or closed pull request is reported as closed, not reusable', async () => {
+    stubJson(200, {
+      number: 7,
+      html_url: 'https://github.com/acme/demo/pull/7',
+      state: 'closed',
+      merged: true,
+      head: { ref: 'dot-ai/head' },
+      base: { ref: 'main' },
+    });
+
+    const result = await lookupPullRequest(REPO, 7);
+    expect(result).toMatchObject({
+      status: 'found',
+      pullRequest: { state: 'closed', merged: true },
+    });
+  });
+
+  test('an unexpected state value is treated as closed rather than assumed open', async () => {
+    stubJson(200, {
+      number: 7,
+      html_url: 'https://github.com/acme/demo/pull/7',
+      state: 'weird',
+      head: { ref: 'dot-ai/head' },
+      base: { ref: 'main' },
+    });
+
+    const result = await lookupPullRequest(REPO, 7);
+    expect(result).toMatchObject({ pullRequest: { state: 'closed' } });
+  });
+
+  test('404 is not_found — there is no pull request to reuse', async () => {
+    stubJson(404, { message: 'Not Found' });
+    expect(await lookupPullRequest(REPO, 7)).toEqual({ status: 'not_found' });
+  });
+
+  test('any other API failure is unknown, so a caller does not assume "not open"', async () => {
+    stubJson(502, { message: 'Bad gateway' });
+    const result = await lookupPullRequest(REPO, 7);
+    expect(result).toMatchObject({
+      status: 'unknown',
+      error: expect.stringContaining('GitHub API error (502)'),
+    });
+  });
+
+  test('a thrown request is unknown with a credential-scrubbed message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(
+        new Error('connect ECONNREFUSED https://x-access-token:ghp_secret@api.github.com')
+      )
+    );
+    const result = await lookupPullRequest(REPO, 7);
+    expect(result.status).toBe('unknown');
+    expect(result.status === 'unknown' && result.error).not.toContain(
+      'ghp_secret'
+    );
+  });
+
+  test('a non-GitHub remote never reaches the API', async () => {
+    const mock = stubJson(200, {});
+    expect(await lookupPullRequest('https://gitlab.com/acme/demo.git', 7)).toEqual(
+      { status: 'unsupported_host' }
+    );
+    expect(mock).not.toHaveBeenCalled();
+  });
+
+  test.each([0, -1, 1.5, Number.NaN])(
+    'a recorded number of %s reaches no request URL',
+    async prNumber => {
+      const mock = stubJson(200, {});
+      expect(await lookupPullRequest(REPO, prNumber)).toEqual({
+        status: 'not_found',
+      });
+      expect(mock).not.toHaveBeenCalled();
+    }
+  );
+
+  test('a response missing the fields needed to reuse it is unknown', async () => {
+    stubJson(200, { number: 7, state: 'open' });
+    expect(await lookupPullRequest(REPO, 7)).toMatchObject({
+      status: 'unknown',
+    });
   });
 });

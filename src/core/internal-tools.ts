@@ -23,18 +23,22 @@ import {
   scrubCredentials,
   sanitizeRelativePath,
   createPullRequest,
+  getGitopsClonesDir,
 } from './git-utils.js';
 import type { CreatePullRequestResult } from './git-utils.js';
 import { sanitizeIntentForLabel } from './solution-utils.js';
 
-const CLONES_SUBDIR = 'gitops-clones';
 const MAX_FILE_SIZE = 100 * 1024; // 100KB
 const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // ─── Path security ───
 
+/**
+ * PRD #710 M2: the directory itself is defined in git-utils, because pushToGit
+ * now clones into it too and the two must not drift apart.
+ */
 function getClonesDir(): string {
-  return path.resolve(process.cwd(), 'tmp', CLONES_SUBDIR);
+  return getGitopsClonesDir();
 }
 
 /**
