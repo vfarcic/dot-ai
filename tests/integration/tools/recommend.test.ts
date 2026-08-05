@@ -1540,6 +1540,104 @@ describe.concurrent('Recommend Tool Integration', () => {
         expect(
           await getGitHubFile(`${updatedTargetPath}/manifests.yaml`, baseBranch)
         ).toBeNull();
+
+        // ─────────────────────────────────────────────────────────────────
+        // REPOSITORY HOST ALLOWLIST (PRD #710)
+        //
+        // Same session and same manifests as every push above — only the host
+        // changes. `www.github.com` is the deliberate choice: allowlist entries
+        // match exactly with no wildcards, so the default `github.com` does not
+        // cover it, and unlike an unroutable host it is a remote the server
+        // really could clone and push to. So if the gate ever stops running,
+        // this push lands in the test repository and the reads below see it —
+        // which is what makes "nothing was cloned" an observation rather than
+        // an inference from the error text alone.
+        // ─────────────────────────────────────────────────────────────────
+        const deniedHost = 'www.github.com';
+        const deniedRepoUrl = `https://${deniedHost}/${gitHubRepo.owner}/${gitHubRepo.repo}.git`;
+        const deniedTargetPath = `integration-tests/push-to-git-denied-${testRunId}`;
+
+        const deniedResponse = await integrationTest.httpClient.post(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'pushToGit',
+            solutionId,
+            repoUrl: deniedRepoUrl,
+            targetPath: deniedTargetPath,
+            commitMessage: `test: pushToGit disallowed host ${testRunId}`,
+            interaction_id: `push_to_git_denied_host_${testRunId}`,
+          }
+        );
+
+        // A push that got through anyway is a failure, but clean up what it
+        // created before the assertions below report it.
+        recordForCleanup(deniedResponse);
+
+        // The refusal names the offending host and the Helm value that governs
+        // it. "Currently allowed: github.com" is load-bearing twice over: it is
+        // the operator's next step, and it is this suite's proof that the chart
+        // rendered the default list into the deployment rather than an empty
+        // one — an empty render is deny-all and would have failed every push
+        // above instead of just this one.
+        // stringContaining, not equality, for one reason only: a VALIDATION
+        // error reaches the REST layer already converted to an MCP error, so
+        // the transport prefixes the code ("MCP error -32602: "). Everything
+        // after that prefix is matched exactly.
+        expect(deniedResponse).toMatchObject({
+          success: false,
+          error: {
+            code: 'EXECUTION_ERROR',
+            message: expect.stringContaining(
+              `Repository host "${deniedHost}" is not allowed. Currently allowed: github.com. To allow it, add the host to the "gitops.allowedRepoHosts" Helm value (default: github.com) and restart the server.`
+            ),
+          },
+          meta: {
+            requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+            version: 'v1',
+          },
+        });
+
+        // Rejection happens before a credential is minted or attached, so
+        // nothing in the response can carry one — not in the message, and not
+        // in the echoed input.
+        const deniedResponseText = JSON.stringify(deniedResponse);
+        expect(deniedResponseText).not.toContain('@github.com');
+        if (gitToken) {
+          expect(deniedResponseText).not.toContain(gitToken);
+        }
+
+        // Nothing was cloned and nothing was pushed: the base branch is still
+        // where the PR-mode pushes left it, the refused path exists on neither
+        // branch, and the open PR gained no commit.
+        expect(await getBranchSha(baseBranch)).toBe(baseShaBeforePr);
+        expect(
+          await getGitHubFile(`${deniedTargetPath}/manifests.yaml`, baseBranch)
+        ).toBeNull();
+        expect(
+          await getGitHubFile(`${deniedTargetPath}/manifests.yaml`, prBranch)
+        ).toBeNull();
+        expect(await getBranchSha(prBranch)).toBe(updateCommitSha);
+
+        // The session still describes the last push that actually happened —
+        // the refused call recorded nothing.
+        const deniedSessionResponse = await integrationTest.httpClient.get(
+          `/api/v1/sessions/${solutionId}`
+        );
+        expect(deniedSessionResponse).toMatchObject({
+          success: true,
+          data: {
+            sessionId: solutionId,
+            data: {
+              stage: 'pushed',
+              gitPush: {
+                repoUrl: gitRepoUrl,
+                path: updatedTargetPath,
+                branch: prBranch,
+                commitSha: updateCommitSha,
+              },
+            },
+          },
+        });
       } finally {
         for (const prNumber of createdPrNumbers) {
           await closePullRequest(prNumber);
