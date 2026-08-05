@@ -284,6 +284,38 @@ export async function handleRecommendTool(
 
       // PRD #395: pushToGit stage for GitOps workflows
       if (stage === 'pushToGit') {
+        // PRD #710 Milestone 3: the two push modes carry different verbs.
+        // Direct push writes the target branch, which is a mutation, so it
+        // requires 'apply' — the same cluster-scoped check deployManifests
+        // makes above. PR mode only proposes a change behind a human merge
+        // gate, so tool-level 'execute' is enough. Checking here, before
+        // handlePushToGitTool, is what makes the workflow server-controlled:
+        // deny 'apply' and PR mode becomes the only reachable path, and a
+        // denied request never touches the session or the repository.
+        if (!args.pullRequest) {
+          const identity = getCurrentIdentity();
+          const rbacResult = await checkToolAccess(identity, {
+            toolName: 'recommend',
+            verb: 'apply',
+          });
+          if (!rbacResult.allowed) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    error: 'FORBIDDEN',
+                    message: `Access denied: pushing directly to a Git branch requires 'apply' permission on 'recommend'. Retry with pullRequest: true to open a pull request against the branch instead, which needs only 'execute'.`,
+                    tool: 'recommend',
+                    stage: 'pushToGit',
+                    user: identity?.email,
+                  }),
+                },
+              ],
+            };
+          }
+        }
+
         return await handlePushToGitTool(
           {
             solutionId: args.solutionId || '',
