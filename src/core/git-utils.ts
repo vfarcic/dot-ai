@@ -91,11 +91,19 @@ interface GitHubAppToken {
 // ─── Auth helpers ───
 
 /**
- * Replace `//user:password@` userinfo with `//***@` in free-text output (git
- * stderr, an exception message, a third party's HTTP response body), so a token
- * embedded in a URL never reaches a caller, a log, or a session file.
+ * Userinfo values that are never a credential, so masking them would only cost
+ * legibility. `git` is the userinfo of every ssh remote (`ssh://git@github.com`,
+ * and the scp-style `git@github.com:o/r` this does not even match). A *password*
+ * of `git` is still masked — that shape has a `:` and is a different pattern.
+ */
+const NON_SECRET_USERINFO = new Set(['git']);
+
+/**
+ * Replace `//user:password@` and `//token@` userinfo with `//***@` in free-text
+ * output (git stderr, an exception message, a third party's HTTP response body),
+ * so a token embedded in a URL never reaches a caller, a log, or a session file.
  *
- * Both patterns are LINEAR in the length of the input, which matters because
+ * All three patterns are LINEAR in the length of the input, which matters because
  * every caller passes text it did not produce and does not bound. The `//…:…@`
  * pattern used to be `/\/\/[^/:][^@]*:[^@]+@/`, whose two `[^@]` runs overlap
  * and both cross `/` and `:` — so on a span with no `@` the engine retried
@@ -113,11 +121,33 @@ interface GitHubAppToken {
  * permitted `/`; it is kept only to name the userinfo this module itself writes
  * (see getAuthenticatedUrl). Do not "restore" it believing it still carries
  * weight, and do not treat its presence as license to narrow the generic one.
+ *
+ * The THIRD pattern covers userinfo with NO colon at all — `//<token>@host`.
+ * GitHub accepts a PAT as the username with no password, so that shape is a
+ * WORKING credential, and both earlier patterns require a `:` and so left it
+ * verbatim in the log line, the session file and the response body. It is
+ * client-reachable through pushToGit's `repoUrl`.
+ *
+ * It is also linear: one run of a class that excludes `/`, `:`, `@` and
+ * whitespace, terminated by the `@` that class cannot cross — no second
+ * unbounded run to be ambiguous with.
+ *
+ * The cost of the no-colon case is that it also matches the `git` in
+ * `ssh://git@…`, which is not a secret and is genuinely useful to read in an
+ * error message. Rather than accept that (mask a legitimate remote) or narrow to
+ * known token prefixes (`ghp_`, `glpat-`, … — a scrubber that only knows
+ * GitHub's shapes is how the NEXT provider's token leaks), the default is to
+ * mask and NON_SECRET_USERINFO names the one exemption. Add to that set only for
+ * a value that can never be a credential in ANY deployment: everything else
+ * belongs on the masking side.
  */
 export function scrubCredentials(message: string): string {
   return message
     .replace(/\/\/x-access-token:[^@/]*@/g, '//***@')
-    .replace(/\/\/[^/:@]+:[^@/]*@/g, '//***@');
+    .replace(/\/\/[^/:@]+:[^@/]*@/g, '//***@')
+    .replace(/\/\/([^/:@\s]+)@/g, (match, userinfo: string) =>
+      NON_SECRET_USERINFO.has(userinfo.toLowerCase()) ? match : '//***@'
+    );
 }
 
 export function getAuthenticatedUrl(repoUrl: string, token: string): string {
@@ -268,6 +298,77 @@ export function sanitizeRelativePath(relativePath: string): string {
     throw new Error('Relative path cannot escape target directory');
   }
   return normalized;
+}
+
+/**
+ * `target` with every symlink in the part of it that ALREADY EXISTS resolved,
+ * and the not-yet-existing tail appended verbatim.
+ *
+ * `fs.realpathSync` throws ENOENT for a path that does not exist yet, which is
+ * the normal case when writing a new manifest into a new directory — so it
+ * cannot be used directly, and walking up to the deepest existing ancestor is
+ * what makes the containment check below a real one rather than a lexical one.
+ */
+function realpathOfExistingPrefix(target: string): string {
+  const missing: string[] = [];
+  let current = path.resolve(target);
+  for (;;) {
+    try {
+      const real = fs.realpathSync(current);
+      return missing.length === 0 ? real : path.join(real, ...missing);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      // Walked to the filesystem root without finding anything that exists.
+      return missing.length === 0 ? current : path.join(current, ...missing);
+    }
+    missing.unshift(path.basename(current));
+    current = parent;
+  }
+}
+
+/**
+ * Write `content` to `fullPath` WITHOUT following a symlink at the final
+ * component (`O_NOFOLLOW`), which `fs.writeFileSync` happily does — and for a
+ * DANGLING link it even creates the target.
+ *
+ * This is the half of the symlink fix that the containment check cannot cover:
+ * a dangling link has nothing to resolve, so the walk above stops at its parent
+ * and the path looks contained right up to the moment the write follows it.
+ * A link that resolves INSIDE the repository is refused here too. Writing
+ * through a symlink present in a repository this server does not control is
+ * never something a generated manifest needs, and `git add` declines such a
+ * pathspec anyway ("beyond a symbolic link").
+ *
+ * O_NOFOLLOW is POSIX; `fs.constants.O_NOFOLLOW` is absent on Windows, where the
+ * `?? 0` degrades to today's behavior (this server runs on Linux — CLAUDE.md).
+ */
+function writeFileNoFollow(fullPath: string, content: string): void {
+  const flags =
+    fs.constants.O_WRONLY |
+    fs.constants.O_CREAT |
+    fs.constants.O_TRUNC |
+    (fs.constants.O_NOFOLLOW ?? 0);
+
+  let fd: number;
+  try {
+    fd = fs.openSync(fullPath, flags);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ELOOP') {
+      throw new Error(
+        `Refusing to write "${fullPath}": it is a symbolic link, which could redirect the write outside repository directory`,
+        { cause: err }
+      );
+    }
+    throw err;
+  }
+  try {
+    fs.writeFileSync(fd, content);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 // ─── Clone ───
@@ -581,10 +682,23 @@ export async function pushRepo(
     }
   }
 
+  // Both sides RESOLVED, not just normalized. The check used to be lexical
+  // (path.resolve + startsWith), which a symlink committed in the target
+  // repository walked straight through: `targetPath: "link"` passes pushToGit's
+  // own validation (no `..`, no leading `/`, no `\`) and `<clone>/link/x.yaml`
+  // does start with `<clone>/`, so the write landed wherever `link` pointed —
+  // before the `git add` that would have complained about a path outside the
+  // work tree. Resolving the repo root as well keeps a legitimate clone reached
+  // through a symlinked ancestor (a symlinked ./tmp, /tmp → /private/tmp on
+  // macOS) from reading as an escape.
+  const repoRoot = realpathOfExistingPrefix(repoPath);
   for (const file of files) {
-    const repoRoot = path.resolve(repoPath);
     const fullPath = path.resolve(repoPath, file.path);
-    if (!fullPath.startsWith(repoRoot + path.sep) && fullPath !== repoRoot) {
+    const resolvedPath = realpathOfExistingPrefix(fullPath);
+    if (
+      !resolvedPath.startsWith(repoRoot + path.sep) &&
+      resolvedPath !== repoRoot
+    ) {
       throw new Error(
         `Path traversal detected: "${file.path}" attempts to write outside repository directory`
       );
@@ -593,7 +707,10 @@ export async function pushRepo(
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(fullPath, file.content);
+    // A residual TOCTOU window remains between the check and the open — the
+    // attacker here is a symlink COMMITTED in the repository rather than a
+    // concurrent process, and O_NOFOLLOW closes the final component regardless.
+    writeFileNoFollow(fullPath, file.content);
   }
 
   // `--` terminates option parsing so a file named e.g. `--all` is read as a
@@ -816,6 +933,106 @@ function splitRemoteUrl(
   const scp = trimmed.match(/^(?:[^@/]+@)?([^@/:]+):(.+)$/);
   if (!scp) return undefined;
   return { host: scp[1], path: `/${scp[2]}` };
+}
+
+// ─── Repository host allowlist ───
+
+/**
+ * Environment variable carrying the `gitops.allowedRepoHosts` chart value as a
+ * comma-separated list. The CHART VALUE is the user-facing contract (CLAUDE.md
+ * rule 7); this name is an internal detail and is exported only so tests and
+ * error messages do not spell it twice.
+ */
+export const ALLOWED_REPO_HOSTS_ENV = 'DOT_AI_GITOPS_ALLOWED_REPO_HOSTS';
+
+/** The chart's default, repeated here for a server started outside the chart. */
+const DEFAULT_ALLOWED_REPO_HOSTS = ['github.com'];
+
+/**
+ * Hostnames a client-supplied repository URL may name.
+ *
+ * Why this exists: getAuthenticatedUrl embeds the SERVER's credential
+ * (DOT_AI_GIT_TOKEN, or a GitHub App installation token) as HTTP basic auth into
+ * whatever URL it is given, and pushToGit's `repoUrl` comes from the client. So
+ * without an allowlist any caller with `execute` on `recommend` can name
+ * `https://attacker.example/x.git` and have the server hand its token to a host
+ * they control — and the token also lands in that clone's `.git/config`.
+ *
+ * Two deliberate semantics:
+ * - **Unset** (no chart value rendered, or a server run outside the chart) →
+ *   the default, NOT "allow everything". A deployment that predates the value
+ *   must not be the one that is wide open.
+ * - **Explicitly empty** (`allowedRepoHosts: []` → an empty env value) →
+ *   deny-all. It is the only reading that cannot be the unsafe one; an operator
+ *   who wants a host must name it.
+ *
+ * Entries are hostnames — exact, case-insensitive, no wildcards and no substring
+ * matching. A `:port` suffix on an entry is tolerated and ignored: the token
+ * reaches the HOST regardless of which port answers, so port granularity would
+ * buy no safety while silently failing an operator who wrote one.
+ */
+export function getAllowedRepoHosts(): string[] {
+  const raw = process.env[ALLOWED_REPO_HOSTS_ENV];
+  if (raw === undefined) return [...DEFAULT_ALLOWED_REPO_HOSTS];
+  return raw
+    .split(',')
+    .map(entry => entry.trim().toLowerCase().replace(/:\d+$/, ''))
+    .filter(entry => entry.length > 0);
+}
+
+/**
+ * The host `repoUrl` actually addresses, or undefined when it cannot be parsed.
+ *
+ * Shares splitRemoteUrl with parseGitHubRemote rather than parsing URLs a second
+ * way — that is the whole lesson of that function: compare `url.hostname`
+ * (userinfo and port excluded, so neither
+ * `https://github.com@attacker.example/x.git` nor a port can smuggle a host
+ * past), handle the scp-style `[user@]host:path` shorthand separately because
+ * `new URL` either rejects it or misreads it as a scheme, and never search the
+ * string for the host name.
+ */
+function getRepoHost(repoUrl: string): string | undefined {
+  const split = splitRemoteUrl(repoUrl);
+  if (!split || split.host.length === 0) return undefined;
+  return split.host.toLowerCase();
+}
+
+/**
+ * True when `repoUrl` names an allowed host. A URL whose host cannot be
+ * determined is NOT allowed — an unparseable remote is exactly the input whose
+ * destination we cannot reason about.
+ */
+export function isRepoHostAllowed(repoUrl: string): boolean {
+  const host = getRepoHost(repoUrl);
+  if (!host) return false;
+  return getAllowedRepoHosts().includes(host);
+}
+
+/**
+ * Why `repoUrl` was refused, phrased so an operator fixes it in one step: it
+ * names the offending host, the chart value to change, and what is allowed
+ * today.
+ *
+ * Only the PARSED host is echoed, never the URL, so a credential embedded in the
+ * URL cannot ride out in the message.
+ */
+export function describeDisallowedRepoHost(repoUrl: string): string {
+  // A missing URL reaches the same gate (the stage dispatch defaults it to ''),
+  // and "host … is not allowed" would send the caller to the wrong problem.
+  if (repoUrl.trim().length === 0) {
+    return 'No repository URL was supplied, so there is no host to check against the allowlist. Provide repoUrl as the HTTPS URL of a repository on an allowed host.';
+  }
+
+  const allowed = getAllowedRepoHosts();
+  const allowedText =
+    allowed.length === 0
+      ? 'The allowlist is currently empty, which allows no repository at all'
+      : `Currently allowed: ${allowed.join(', ')}`;
+  const host = getRepoHost(repoUrl);
+  const subject = host
+    ? `Repository host "${host}" is not allowed`
+    : 'The repository URL does not name a host this server can parse, so it is not allowed';
+  return `${subject}. ${allowedText}. To allow it, add the host to the "gitops.allowedRepoHosts" Helm value (default: ${DEFAULT_ALLOWED_REPO_HOSTS.join(', ')}) and restart the server.`;
 }
 
 /**

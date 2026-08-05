@@ -29,6 +29,8 @@ import {
   getGitopsClonesDir,
   scrubCredentials,
   sanitizeRelativePath,
+  isRepoHostAllowed,
+  describeDisallowedRepoHost,
 } from '../core/git-utils';
 import type { PullRequestSnapshot, PushResult } from '../core/git-utils';
 import { getVisualizationUrl } from '../core/visualization';
@@ -270,6 +272,33 @@ export async function handlePushToGitTool(
             suggestedActions: [
               'Use deployManifests stage to install Helm chart directly',
               'Wait for future release with GitOps Helm support (Argo CD Application / Flux HelmRelease)',
+            ],
+          }
+        );
+      }
+
+      // ── Repository host allowlist ──
+      // BEFORE any credential is minted or attached, and before the pull request
+      // lookup: getAuthenticatedUrl embeds the SERVER's token into whatever URL
+      // it is given, so a client naming `https://attacker.example/x.git` would
+      // otherwise have DOT_AI_GIT_TOKEN (or a GitHub App installation token)
+      // delivered to a host they control — and left behind in that clone's
+      // .git/config. Rejecting here covers every downstream use of this URL,
+      // which all derive from it: the clone, the push (whose `origin` is this URL
+      // as recorded by that clone), createPullRequest, and lookupPullRequest.
+      if (!isRepoHostAllowed(args.repoUrl)) {
+        throw ErrorHandler.createError(
+          ErrorCategory.VALIDATION,
+          ErrorSeverity.HIGH,
+          describeDisallowedRepoHost(args.repoUrl),
+          {
+            operation: 'push_to_git',
+            component: 'PushToGitTool',
+            requestId,
+            input: { repoUrl: scrubCredentials(args.repoUrl) },
+            suggestedActions: [
+              'Push to a repository on an allowed host',
+              'Ask your platform operator to add the host to the gitops.allowedRepoHosts Helm value',
             ],
           }
         );

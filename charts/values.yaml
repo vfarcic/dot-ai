@@ -230,6 +230,28 @@ webUI:
                                       # When set, query responses include visualizationUrl field
                                       # Format: {baseUrl}/v/{sessionId}
 
+# GitOps push (PRD #395, PRD #710)
+gitops:
+  # Repository hosts the pushToGit stage may push to.
+  #
+  # This is a SECURITY control, not a convenience: `repoUrl` comes from the
+  # client, and the server embeds ITS OWN credential (DOT_AI_GIT_TOKEN or a
+  # GitHub App installation token) into whatever URL it is given. Without an
+  # allowlist, any caller allowed to run the recommend tool can name a host they
+  # control and have that credential delivered to it.
+  #
+  # - Entries are hostnames: exact, case-insensitive, no wildcards, no substring
+  #   matching. A ":port" suffix is accepted and ignored (the credential reaches
+  #   the host whichever port answers). "github.com" therefore does NOT cover
+  #   "www.github.com" — add it too if clients use that form.
+  # - An EMPTY list ([]) denies every repository. It does NOT mean "allow
+  #   everything" — to allow a host, name it.
+  # - Pushing to a GitLab/Bitbucket/self-hosted remote requires adding its host
+  #   here. Automatic pull request creation still only supports github.com;
+  #   elsewhere the branch is pushed and the PR must be opened manually.
+  allowedRepoHosts:
+    - github.com
+
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server
 # Example use cases: tracing configuration, custom integrations, Git authentication

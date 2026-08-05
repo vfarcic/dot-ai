@@ -2,7 +2,7 @@
  * Unit Tests for Push to Git Tool (PRD #395, PRD #710)
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { posix as posixPath, resolve as resolvePath } from 'path';
 import { z } from 'zod';
 import {
@@ -18,7 +18,11 @@ import type { UserIdentity } from '../../../src/interfaces/oauth/types.js';
 import type { SolutionData } from '../../../src/tools/recommend.js';
 import type { Logger } from '../../../src/core/error-handling.js';
 
-vi.mock('../../../src/core/git-utils.js', () => ({
+vi.mock('../../../src/core/git-utils.js', async importOriginal => ({
+  // The repository host allowlist is NOT mocked: it is a pure function of the
+  // env var, and the point of its tests here is that the handler refuses a
+  // disallowed host before any of the mocked, credential-bearing calls below.
+  ...(await importOriginal<typeof import('../../../src/core/git-utils.js')>()),
   cloneRepo: vi.fn(),
   pushRepo: vi.fn(),
   createPullRequest: vi.fn(),
@@ -1296,6 +1300,208 @@ describe('Push to Git Tool', () => {
 
       expect(cloneRepo).not.toHaveBeenCalled();
       expect(createPullRequest).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Repository host allowlist
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('Repository host allowlist', () => {
+    const ALLOWED_HOSTS_ENV = 'DOT_AI_GITOPS_ALLOWED_REPO_HOSTS';
+    let savedAllowedHosts: string | undefined;
+
+    beforeEach(async () => {
+      savedAllowedHosts = process.env[ALLOWED_HOSTS_ENV];
+      const { getGitAuthConfigFromEnv, cloneRepo } = await import(
+        '../../../src/core/git-utils.js'
+      );
+      vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
+      vi.mocked(cloneRepo).mockResolvedValue(undefined as never);
+    });
+
+    afterEach(() => {
+      if (savedAllowedHosts === undefined) delete process.env[ALLOWED_HOSTS_ENV];
+      else process.env[ALLOWED_HOSTS_ENV] = savedAllowedHosts;
+    });
+
+    function seedSolution(): string {
+      const solutionData: SolutionData = {
+        toolName: 'recommend',
+        intent: 'deploy nginx',
+        type: 'single',
+        score: 1,
+        description: 'test',
+        reasons: [],
+        questions: {},
+        answers: {},
+        timestamp: new Date().toISOString(),
+        generatedManifests: {
+          type: 'raw',
+          files: [{ relativePath: 'manifests.yaml', content: 'kind: Service' }],
+        },
+      };
+      return sessionManager.createSession(solutionData).sessionId;
+    }
+
+    test.each([
+      ['direct push', false],
+      ['pull request mode', true],
+    ])(
+      'a disallowed host is refused in %s before ANY credential-bearing call',
+      async (_mode, pullRequest) => {
+        // The finding: getAuthenticatedUrl embeds the SERVER's token into
+        // whatever URL the client supplied, so an attacker-named host receives
+        // DOT_AI_GIT_TOKEN. Every one of these four calls would carry it (the
+        // push and createPullRequest via the clone's `origin`), so the assertion
+        // is that none of them runs at all.
+        process.env[ALLOWED_HOSTS_ENV] = 'github.com';
+        const { cloneRepo, pushRepo, createPullRequest, lookupPullRequest } =
+          await import('../../../src/core/git-utils.js');
+        const sessionId = seedSolution();
+
+        await expect(
+          handlePushToGitTool(
+            {
+              solutionId: sessionId,
+              repoUrl: 'https://attacker.example/x.git',
+              targetPath: 'apps/test/',
+              pullRequest,
+            },
+            mockDotAI,
+            mockLogger,
+            requestId
+          )
+        ).rejects.toThrow(/attacker\.example/);
+
+        expect(cloneRepo).not.toHaveBeenCalled();
+        expect(pushRepo).not.toHaveBeenCalled();
+        expect(createPullRequest).not.toHaveBeenCalled();
+        expect(lookupPullRequest).not.toHaveBeenCalled();
+      }
+    );
+
+    test('the refusal names the Helm value an operator has to change', async () => {
+      process.env[ALLOWED_HOSTS_ENV] = 'github.com';
+      const sessionId = seedSolution();
+
+      await expect(
+        handlePushToGitTool(
+          {
+            solutionId: sessionId,
+            repoUrl: 'https://gitlab.corp/team/gitops.git',
+            targetPath: 'apps/test/',
+          },
+          mockDotAI,
+          mockLogger,
+          requestId
+        )
+      ).rejects.toThrow(/gitops\.allowedRepoHosts/);
+    });
+
+    test('a host that only LOOKS like an allowed one is still refused', async () => {
+      process.env[ALLOWED_HOSTS_ENV] = 'github.com';
+      const { cloneRepo } = await import('../../../src/core/git-utils.js');
+      const sessionId = seedSolution();
+
+      await expect(
+        handlePushToGitTool(
+          {
+            solutionId: sessionId,
+            // Userinfo cannot smuggle the host past a hostname comparison.
+            repoUrl: 'https://github.com@attacker.example/x.git',
+            targetPath: 'apps/test/',
+          },
+          mockDotAI,
+          mockLogger,
+          requestId
+        )
+      ).rejects.toThrow(/attacker\.example/);
+
+      expect(cloneRepo).not.toHaveBeenCalled();
+    });
+
+    test('an allowed non-GitHub host is accepted once an operator adds it', async () => {
+      // The second breaking change of this release, and its remedy: pushing to a
+      // self-hosted remote works again as soon as the host is allowlisted.
+      process.env[ALLOWED_HOSTS_ENV] = 'github.com,gitlab.corp';
+      const { cloneRepo, pushRepo } = await import(
+        '../../../src/core/git-utils.js'
+      );
+      vi.mocked(pushRepo).mockResolvedValue({
+        branch: 'main',
+        commitSha: 'sha',
+        filesAdded: ['apps/test/manifests.yaml'],
+      });
+      const sessionId = seedSolution();
+
+      const result = await handlePushToGitTool(
+        {
+          solutionId: sessionId,
+          repoUrl: 'https://gitlab.corp/team/gitops.git',
+          targetPath: 'apps/test/',
+        },
+        mockDotAI,
+        mockLogger,
+        requestId
+      );
+
+      expect(JSON.parse(result.content[0].text).status).toBe(
+        'manifests_pushed'
+      );
+      expect(cloneRepo).toHaveBeenCalled();
+    });
+
+    test('an empty allowlist denies even github.com', async () => {
+      process.env[ALLOWED_HOSTS_ENV] = '';
+      const { cloneRepo } = await import('../../../src/core/git-utils.js');
+      const sessionId = seedSolution();
+
+      await expect(
+        handlePushToGitTool(
+          {
+            solutionId: sessionId,
+            repoUrl: 'https://github.com/acme/demo.git',
+            targetPath: 'apps/test/',
+          },
+          mockDotAI,
+          mockLogger,
+          requestId
+        )
+      ).rejects.toThrow(/github\.com/);
+
+      expect(cloneRepo).not.toHaveBeenCalled();
+    });
+
+    test('an unset allowlist still allows github.com', async () => {
+      // Absent must mean the secure DEFAULT, not "allow everything" — and not
+      // "deny everything" either, or an upgrade breaks every GitHub deployment.
+      delete process.env[ALLOWED_HOSTS_ENV];
+      const { cloneRepo, pushRepo } = await import(
+        '../../../src/core/git-utils.js'
+      );
+      vi.mocked(pushRepo).mockResolvedValue({
+        branch: 'main',
+        commitSha: 'sha',
+        filesAdded: ['apps/test/manifests.yaml'],
+      });
+      const sessionId = seedSolution();
+
+      const result = await handlePushToGitTool(
+        {
+          solutionId: sessionId,
+          repoUrl: 'https://github.com/acme/demo.git',
+          targetPath: 'apps/test/',
+        },
+        mockDotAI,
+        mockLogger,
+        requestId
+      );
+
+      expect(JSON.parse(result.content[0].text).status).toBe(
+        'manifests_pushed'
+      );
+      expect(cloneRepo).toHaveBeenCalled();
     });
   });
 
