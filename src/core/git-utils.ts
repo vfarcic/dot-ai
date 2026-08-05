@@ -384,6 +384,28 @@ export interface CloneOptions {
    * When omitted, the clone uses env auth exactly as before.
    */
   token?: string;
+  /**
+   * PRD #710: clone WITHOUT the server's own credential (DOT_AI_GIT_TOKEN or a
+   * GitHub App installation token), even when one is configured.
+   *
+   * The caller sets this when `repoUrl` is CLIENT-SUPPLIED and its host is not
+   * on the `gitops.allowedRepoHosts` allowlist: handing the server's credential
+   * to a host the client named is the leak `isRepoHostAllowed` exists to stop.
+   * The clone still PROCEEDS, unauthenticated — degrade, don't refuse — so every
+   * public repository keeps working; a private one must supply its own
+   * credential per request (`token` above / the X-Dot-AI-Git-Token header).
+   *
+   * Only the SERVER's credential is affected: `token` takes precedence and is
+   * unaffected for any host, since a client that supplies its own credential is
+   * choosing where it goes.
+   *
+   * Deliberately opt-in rather than applied inside getAuthenticatedUrl: the
+   * caller is the only one that knows whether the URL came from a client
+   * (pushToGit's `repoUrl`, a `?repo=` prompts override) or from the server's
+   * own reasoning over cluster state (remediate's git_clone, whose GitOps remote
+   * is legitimately not on GitHub).
+   */
+  withholdServerCredential?: boolean;
 }
 
 /**
@@ -577,8 +599,13 @@ export async function cloneRepo(
   }
 
   // Env/GitHub-App auth path (unchanged): credentials come from
-  // getGitAuthConfigFromEnv and are embedded in the URL as before.
-  const authConfig = getGitAuthConfigFromEnv();
+  // getGitAuthConfigFromEnv and are embedded in the URL as before — unless the
+  // caller withheld the server credential (PRD #710), in which case the env is
+  // not even READ, so a client-named host cannot make the server mint a GitHub
+  // App installation token on its behalf either.
+  const authConfig: GitAuthConfig = opts?.withholdServerCredential
+    ? {}
+    : getGitAuthConfigFromEnv();
   let cloneUrl: string;
   if (authConfig.pat || authConfig.githubApp) {
     const token = await getAuthToken(authConfig);
@@ -608,8 +635,25 @@ export async function cloneRepo(
 
 // ─── Pull ───
 
-export async function pullRepo(repoPath: string): Promise<{ branch: string }> {
-  const authConfig = getGitAuthConfigFromEnv();
+export interface PullOptions {
+  /**
+   * PRD #710: pull WITHOUT the server's own credential. Same contract, and same
+   * reason, as {@link CloneOptions.withholdServerCredential} — and it must be
+   * threaded through here too, because this function REWRITES `origin` to the
+   * authenticated URL, and `origin` of a cached clone is whatever URL the client
+   * supplied. Gating only the clone would leave the identical leak one expired
+   * cache TTL (or one `?refresh=`) away.
+   */
+  withholdServerCredential?: boolean;
+}
+
+export async function pullRepo(
+  repoPath: string,
+  opts?: PullOptions
+): Promise<{ branch: string }> {
+  const authConfig: GitAuthConfig = opts?.withholdServerCredential
+    ? {}
+    : getGitAuthConfigFromEnv();
   const hasAuth = !!(authConfig.pat || authConfig.githubApp);
 
   const git = simpleGit(gitOptions(repoPath));
@@ -990,8 +1034,12 @@ export function getAllowedRepoHosts(): string[] {
  * past), handle the scp-style `[user@]host:path` shorthand separately because
  * `new URL` either rejects it or misreads it as a scheme, and never search the
  * string for the host name.
+ *
+ * Exported so a caller that reports an allowlist decision (the prompts loader
+ * naming the host it withheld the credential from) states the SAME host this
+ * module compared, rather than parsing the URL a second way to say it.
  */
-function getRepoHost(repoUrl: string): string | undefined {
+export function getRepoHost(repoUrl: string): string | undefined {
   const split = splitRemoteUrl(repoUrl);
   if (!split || split.host.length === 0) return undefined;
   return split.host.toLowerCase();

