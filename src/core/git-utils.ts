@@ -105,6 +105,14 @@ interface GitHubAppToken {
  * neither can cross the delimiter that follows it removes the ambiguity: the
  * user part stops at `:`, the password part stops at `/`, which is also what a
  * real URL allows (unencoded `/` and `:` cannot appear in userinfo).
+ *
+ * The `x-access-token` pattern is now STRICTLY SUBSUMED by the generic one:
+ * `x-access-token` contains no `/`, `:` or `@`, so the generic pattern matches
+ * every input the specific one does, identically — removing it changes no input
+ * (verified). It was load-bearing under the old pair, whose password class
+ * permitted `/`; it is kept only to name the userinfo this module itself writes
+ * (see getAuthenticatedUrl). Do not "restore" it believing it still carries
+ * weight, and do not treat its presence as license to narrow the generic one.
  */
 export function scrubCredentials(message: string): string {
   return message
@@ -755,9 +763,22 @@ export type CreatePullRequestResult =
  * The pre-cut bounds what the scrub regexes see. They are linear now, but this
  * is not GitHub's JSON on the failure paths that matter — a proxy or WAF
  * interstitial can be megabytes — and scrubbing then discarding all but 500
- * chars of it is pure work. The cut is unobservable: everything past
- * MAX_API_ERROR_BODY_CHARS is dropped by the cap anyway, so a credential
- * straddling the cut can never reach the output.
+ * chars of it is pure work.
+ *
+ * The pre-cut is NOT unobservable, and the reason is subtler than "the cap drops
+ * everything past it anyway": it can remove the terminating `@` of a userinfo
+ * span that STARTS inside the retained 500 chars, and a span that no longer
+ * matches is echoed instead of masked.
+ *
+ *   body            : "//u:" + "S".repeat(9000) + "@github.com/a/b"
+ *   without pre-cut : "//***@github.com/a/b"
+ *   with    pre-cut : "//u:SSSSSSSS…" (first 500 chars) "… (truncated)"
+ *
+ * It is still the right trade here: a credential of ours is 40–255 chars, so its
+ * `@` survives a cut 16× the cap away, and this body is a third party's text
+ * rather than a secret we hold. A future change to MAX_API_ERROR_BODY_CHARS or
+ * its multiplier does not alter that — but do not extend "the cut is safe" to a
+ * scrub whose masked spans can be long.
  */
 async function describeApiError(response: Response): Promise<string> {
   const raw = (await response.text()).slice(0, MAX_API_ERROR_BODY_CHARS * 16);
@@ -797,7 +818,19 @@ function splitRemoteUrl(
   return { host: scp[1], path: `/${scp[2]}` };
 }
 
-/** GitHub owner logins and repository names use exactly this character set. */
+/**
+ * GitHub owner logins and repository names use exactly this character set.
+ *
+ * LOAD-BEARING beyond validation: the absence of `%` is the only thing that
+ * stops a percent-encoded dot segment from reaching the API URL. The scp branch
+ * of splitRemoteUrl does no URL parsing, so `git@github.com:%2e%2e/evil.git`
+ * arrives here as the literal names `%2e%2e` and `evil`, which isDotSegment
+ * cannot recognise — and `fetch` would then normalize `/repos/%2e%2e/evil/pulls`
+ * down to `/evil/pulls` (verified). Only the URL branch is safe by itself, where
+ * WHATWG `URL` decodes AND normalizes first (`/%2e%2e/evil.git` → `/evil.git`,
+ * one segment, rejected). Widening this class to admit `%` — or any encoding
+ * introducer — silently reopens the traversal isDotSegment exists to close.
+ */
 const GITHUB_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 /**
@@ -845,7 +878,12 @@ export function parseGitHubRemote(
   return { owner, repo };
 }
 
-/** True for the two path segments that mean "here" and "up one" to a URL parser. */
+/**
+ * True for the two path segments that mean "here" and "up one" to a URL parser.
+ *
+ * Compares literals only — an encoded `%2e%2e` is caught upstream by
+ * GITHUB_NAME_PATTERN excluding `%`, not here. See that pattern's note.
+ */
 function isDotSegment(segment: string): boolean {
   return segment === '.' || segment === '..';
 }

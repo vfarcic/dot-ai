@@ -735,12 +735,24 @@ export async function handlePushToGitTool(
             // Decision 5: `stage` stays 'pushed' (dot-ai-ui consumes it) and the
             // pull request rides here instead. Recorded even for `no_changes`,
             // so the NEXT re-run can still find the open pull request.
+            //
+            // `url`/`number` are SPREAD rather than assigned, because the session
+            // manager serializes with a replacer that turns undefined into null
+            // to preserve structure. Assigning them would write `"url": null` for
+            // `pushed_without_pr`, where no pull request exists at all — a shape
+            // the response itself never produces (plain JSON.stringify drops
+            // undefined) and one a session-file consumer such as dot-ai-ui would
+            // have to special-case. Absent means absent, in both places.
             ...(pullRequest
               ? {
                   pullRequest: {
                     status: pullRequest.status,
-                    url: pullRequest.url,
-                    number: pullRequest.number,
+                    ...(pullRequest.url !== undefined
+                      ? { url: pullRequest.url }
+                      : {}),
+                    ...(pullRequest.number !== undefined
+                      ? { number: pullRequest.number }
+                      : {}),
                     branch: pullRequest.branch,
                     baseBranch: pullRequest.baseBranch,
                   },

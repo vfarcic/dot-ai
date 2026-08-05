@@ -123,20 +123,81 @@ describe('GitOps with a pull request', () => {
     );
     expect(shape.showExecutedCommands).toBe(false);
     expect(shape.showActualKubectlCommands).toBe(false);
-    expect(shape.nextSteps).toContain(`  PR: ${PR_INFO!.url}`);
-    expect(shape.nextSteps).toContain('  Branch: remediate/abc123 → main');
-    expect(shape.nextSteps).toContain(
-      '  Files changed: manifests/app.yaml, manifests/svc.yaml'
-    );
-    expect(shape.nextSteps.join('\n')).toContain(
-      '  1. Review and merge the PR in your Git repository'
-    );
-    // The rootCause is lower-cased into the follow-up call, as it always was.
-    expect(shape.nextSteps.at(-1)).toBe(
-      `You can verify the fix by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`
-    );
-    // No kubectl ran, so no command list is offered.
+    // Pinned exactly, blank separators included: every line is a static literal
+    // or a field of the input, so ordering and spacing cost nothing to hold. The
+    // rootCause is lower-cased into the follow-up call, as it always was.
+    expect(shape.nextSteps).toEqual([
+      'Changes have been pushed to a Git branch for GitOps reconciliation:',
+      `  PR: ${PR_INFO!.url}`,
+      '  Branch: remediate/abc123 → main',
+      '  Files changed: manifests/app.yaml, manifests/svc.yaml',
+      '',
+      'Next steps:',
+      '  1. Review and merge the PR in your Git repository',
+      '  2. Wait for Argo CD/Flux to sync the changes',
+      '  3. Verify the issue is resolved after reconciliation',
+      '',
+      `You can verify the fix by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+    ]);
+    // No kubectl ran, so no command list is offered — an invariant of this
+    // branch, not just of the wording above.
     expect(shape.nextSteps.join('\n')).not.toContain('kubectl commands were');
+  });
+
+  test('a PR alongside a pushed-only branch tells only the PR story (known gap)', () => {
+    // KNOWN GAP, pinned as accepted rather than fixed — both halves predate PRD
+    // #710 and its extraction of this function deliberately preserved them:
+    //
+    //   1. hasOnlyGitOps only requires executedCommandCount === 0 and a PR, so it
+    //      wins outright. The second action's branch — pushed, still needing a
+    //      manual PR — is never mentioned in nextSteps, and the user learns about
+    //      it only from `results`.
+    //   2. `pullRequestInfo` is a single value assigned per gitSource action in
+    //      executeRemediationCommands(), so two opened PRs leave only the LAST
+    //      one here, while the message counts ALL actions ("2 ... action(s)").
+    //
+    // Fixing either means changing what the response says, which is a decision
+    // for its own PRD. Until then this test documents the behavior so a future
+    // change to it is deliberate rather than accidental.
+    const PUSHED_OTHER: GitOpsWithoutPr = {
+      kind: 'pushed_without_pr',
+      branch: 'remediate/def456',
+      baseBranch: 'release-1',
+    };
+    const shape = buildRemediationResponseShape(
+      gitOpsRun({
+        pullRequestInfo: PR_INFO,
+        gitOpsWithoutPr: [PUSHED_OTHER],
+        actions: [gitSourceAction(), gitSourceAction()],
+        results: [
+          result('action_1: patch the manifest in Git (PR created)'),
+          result('action_2: patch the manifest in Git (branch pushed)'),
+        ],
+      })
+    );
+
+    expect(shape.message).toBe(
+      'Successfully created PR for 2 GitOps remediation action(s)'
+    );
+    expect(shape.showExecutedCommands).toBe(false);
+    expect(shape.showActualKubectlCommands).toBe(false);
+    expect(shape.nextSteps).toEqual([
+      'Changes have been pushed to a Git branch for GitOps reconciliation:',
+      `  PR: ${PR_INFO!.url}`,
+      '  Branch: remediate/abc123 → main',
+      '  Files changed: manifests/app.yaml, manifests/svc.yaml',
+      '',
+      'Next steps:',
+      '  1. Review and merge the PR in your Git repository',
+      '  2. Wait for Argo CD/Flux to sync the changes',
+      '  3. Verify the issue is resolved after reconciliation',
+      '',
+      `You can verify the fix by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+    ]);
+    // Gap 1 stated as its own assertion: the pushed-only branch is absent, and no
+    // manual pull request is asked for anywhere.
+    expect(shape.nextSteps.join('\n')).not.toContain('remediate/def456');
+    expect(shape.nextSteps.join('\n')).not.toMatch(/opened manually|manually/i);
   });
 
   test('a kubectl command alongside the PR falls back to the kubectl story', () => {
@@ -166,17 +227,22 @@ describe('GitOps without a pull request (PRD #710 decisions 3 and 7)', () => {
     );
     expect(shape.showExecutedCommands).toBe(false);
     expect(shape.showActualKubectlCommands).toBe(false);
-    expect(shape.nextSteps[0]).toBe(
-      'Changes were pushed to a Git branch, but a pull request could not be opened automatically for this remote:'
-    );
+    expect(shape.nextSteps).toEqual([
+      'Changes were pushed to a Git branch, but a pull request could not be opened automatically for this remote:',
+      '  Branch: remediate/abc123 → release-1',
+      '',
+      'Next steps:',
+      '  1. Open a pull request (or merge request) for the branch above in your Git host',
+      '  2. Review and merge it',
+      '  3. Wait for Argo CD/Flux to sync the changes',
+      '',
+      `You can verify the fix by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+    ]);
     // The parser is anchored, so a github.com remote in an unexpected shape lands
     // here too — asserting the repository "is not hosted on GitHub" would then be
-    // plainly false to the user looking at their GitHub repo.
+    // plainly false to the user looking at their GitHub repo. Held as a rule so a
+    // future rewording of the list above cannot reintroduce the claim.
     expect(shape.nextSteps.join('\n')).not.toMatch(/not hosted/i);
-    expect(shape.nextSteps).toContain('  Branch: remediate/abc123 → release-1');
-    expect(shape.nextSteps.join('\n')).toContain(
-      '  1. Open a pull request (or merge request) for the branch above in your Git host'
-    );
     expect(shape.nextSteps.join('\n')).not.toContain('kubectl commands were');
   });
 
@@ -190,17 +256,18 @@ describe('GitOps without a pull request (PRD #710 decisions 3 and 7)', () => {
     );
     expect(shape.showExecutedCommands).toBe(false);
     expect(shape.showActualKubectlCommands).toBe(false);
-    expect(shape.nextSteps[0]).toBe(
-      'No changes were needed: the manifests in Git already match the desired state, so nothing was pushed and no pull request was created.'
-    );
-    expect(shape.nextSteps).toContain('  Base branch checked: main');
-    expect(shape.nextSteps.join('\n')).toContain(
-      '  1. Check whether Argo CD/Flux has actually synced that state to the cluster'
-    );
-    // This one re-investigates rather than verifying a fix — nothing was changed.
-    expect(shape.nextSteps.at(-1)).toBe(
-      `You can re-investigate by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`
-    );
+    // The last line re-investigates rather than verifying a fix — nothing was
+    // changed, so there is no fix to verify.
+    expect(shape.nextSteps).toEqual([
+      'No changes were needed: the manifests in Git already match the desired state, so nothing was pushed and no pull request was created.',
+      '  Base branch checked: main',
+      '',
+      'Next steps:',
+      '  1. Check whether Argo CD/Flux has actually synced that state to the cluster',
+      '  2. If the issue persists, the root cause is elsewhere — investigate again',
+      '',
+      `You can re-investigate by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+    ]);
   });
 
   test('a pushed branch wins over a no-changes action in the same run', () => {

@@ -782,6 +782,13 @@ describe('parseGitHubRemote — anchored host check', () => {
     // GitHub remote silently gets no PR.
     ['https://www.github.com/acme/demo.git', 'acme', 'demo'],
     ['git@www.github.com:acme/demo.git', 'acme', 'demo'],
+    // An explicit port is still github.com: splitRemoteUrl reads url.hostname,
+    // which excludes it. The ssh row is the one that would catch a switch to
+    // url.host — `https://github.com:443` collapses to a bare `github.com` there
+    // too (443 is https's default), while `ssh://…:22` keeps `github.com:22` and
+    // would stop matching GITHUB_HOSTS.
+    ['https://github.com:443/acme/demo.git', 'acme', 'demo'],
+    ['ssh://git@github.com:22/acme/demo.git', 'acme', 'demo'],
     // A trailing slash is the same remote, not a third (empty) path segment.
     ['https://github.com/acme/demo.git/', 'acme', 'demo'],
     ['https://github.com/acme/demo/', 'acme', 'demo'],
