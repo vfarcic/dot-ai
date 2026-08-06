@@ -17,7 +17,10 @@
  */
 
 import { describe, test, expect, beforeAll } from 'vitest';
+import * as k8s from '@kubernetes/client-node';
 import { IntegrationTest } from '../helpers/test-base.js';
+import { HttpRestApiClient } from '../helpers/http-client.js';
+import { signJwt } from '../../../src/interfaces/oauth/jwt.js';
 
 describe.concurrent('Recommend Tool Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -57,10 +60,12 @@ describe.concurrent('Recommend Tool Integration', () => {
   }
 
   async function getGitHubFile(
-    filePath: string
+    filePath: string,
+    ref?: string
   ): Promise<GitHubFileContent | null> {
+    const refQuery = ref ? `?ref=${encodeURIComponent(ref)}` : '';
     const response = await fetch(
-      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/contents/${filePath}`,
+      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/contents/${filePath}${refQuery}`,
       {
         headers: {
           Authorization: `token ${gitToken}`,
@@ -75,6 +80,189 @@ describe.concurrent('Recommend Tool Integration', () => {
 
     expect(response.ok).toBe(true);
     return response.json();
+  }
+
+  // ─── GitHub pull request helpers (PRD #710 M2 PR mode) ───
+
+  const gitHubApiHeaders = {
+    Authorization: `token ${gitToken}`,
+    Accept: 'application/vnd.github+json',
+    // GitHub answers authenticated reads with `Cache-Control: private,
+    // max-age=60`. These helpers re-read the same URL seconds apart to observe a
+    // push landing, so any cache honouring that would hand back the pre-push
+    // answer for a minute.
+    'Cache-Control': 'no-cache',
+  };
+
+  const gitHubRepoApi = `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}`;
+
+  interface GitHubPullRequest {
+    number: number;
+    title: string;
+    body: string | null;
+    state: 'open' | 'closed';
+    draft: boolean;
+    head: { ref: string; sha: string };
+    base: { ref: string };
+  }
+
+  interface GitHubCommit {
+    sha: string;
+    commit: {
+      message: string;
+      author: { name: string; email: string };
+    };
+  }
+
+  async function getBranchSha(branch: string): Promise<string> {
+    const response = await fetch(`${gitHubRepoApi}/git/ref/heads/${branch}`, {
+      headers: gitHubApiHeaders,
+    });
+    expect(response.ok).toBe(true);
+    const data = (await response.json()) as { object: { sha: string } };
+    return data.object.sha;
+  }
+
+  /**
+   * The N most recent commit shas on `branch`, newest first.
+   */
+  async function listBranchCommitShas(
+    branch: string,
+    count: number
+  ): Promise<string[]> {
+    const response = await fetch(
+      `${gitHubRepoApi}/commits?sha=${encodeURIComponent(branch)}&per_page=${count}`,
+      { headers: gitHubApiHeaders }
+    );
+    expect(response.ok).toBe(true);
+    const commits = (await response.json()) as Array<{ sha: string }>;
+    return commits.map(commit => commit.sha);
+  }
+
+  /**
+   * Wait for `branch` to report `sha` as its tip.
+   *
+   * Reads of freshly pushed state are eventually consistent — observed on this
+   * repository: right after a push, `GET /git/ref/heads/<branch>` still answered
+   * with the PREVIOUS commit while the push had demonstrably succeeded. So a
+   * single read cannot decide whether a push landed, and worse, it makes a
+   * "nothing was pushed" assertion pass vacuously. Every check of a just-pushed
+   * tip therefore names the exact sha it expects and waits for it.
+   */
+  async function waitForBranchSha(
+    branch: string,
+    sha: string
+  ): Promise<string> {
+    const maxWaitMs = 60000;
+    const pollIntervalMs = 2000;
+
+    let current = await getBranchSha(branch);
+    for (
+      let waited = 0;
+      current !== sha && waited < maxWaitMs;
+      waited += pollIntervalMs
+    ) {
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      current = await getBranchSha(branch);
+    }
+    return current;
+  }
+
+  async function getPullRequest(number: number): Promise<GitHubPullRequest> {
+    const response = await fetch(`${gitHubRepoApi}/pulls/${number}`, {
+      headers: gitHubApiHeaders,
+    });
+    expect(response.ok).toBe(true);
+    return response.json() as Promise<GitHubPullRequest>;
+  }
+
+  /**
+   * Every pull request — open, closed or merged — whose head is `branch`.
+   * `state=all` is deliberate: a duplicate PR that was opened and then closed
+   * still means the re-run opened a second PR instead of updating the first.
+   */
+  async function listPullRequestsForHead(
+    branch: string
+  ): Promise<GitHubPullRequest[]> {
+    const head = encodeURIComponent(`${gitHubRepo.owner}:${branch}`);
+    const response = await fetch(
+      `${gitHubRepoApi}/pulls?state=all&head=${head}&per_page=100`,
+      { headers: gitHubApiHeaders }
+    );
+    expect(response.ok).toBe(true);
+    return response.json() as Promise<GitHubPullRequest[]>;
+  }
+
+  async function getCommit(ref: string): Promise<GitHubCommit> {
+    const response = await fetch(
+      `${gitHubRepoApi}/commits/${encodeURIComponent(ref)}`,
+      { headers: gitHubApiHeaders }
+    );
+    expect(response.ok).toBe(true);
+    return response.json() as Promise<GitHubCommit>;
+  }
+
+  /**
+   * A pull request's `head.sha` is a denormalized copy of the branch tip that
+   * GitHub converges asynchronously: immediately after a push the git ref API
+   * already reports the new commit while the pull request object can still
+   * report the previous one. So poll for convergence instead of asserting on
+   * the first read — the guarantee ("the open PR ends up pointing at the new
+   * commit") is kept, only the race is removed. A PR that never converges still
+   * fails the assertion at the call site.
+   */
+  async function waitForPullRequestHeadSha(
+    number: number,
+    sha: string
+  ): Promise<GitHubPullRequest> {
+    const maxWaitMs = 60000;
+    const pollIntervalMs = 2000;
+
+    let pullRequest = await getPullRequest(number);
+    for (
+      let waited = 0;
+      pullRequest.head.sha !== sha && waited < maxWaitMs;
+      waited += pollIntervalMs
+    ) {
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      pullRequest = await getPullRequest(number);
+    }
+    return pullRequest;
+  }
+
+  /**
+   * Cleanup helpers report a refused request instead of ignoring it: this
+   * repository is shared by every run of this suite, so a close or delete that
+   * silently did nothing leaves a pull request or branch behind for all of
+   * them. The caller decides what a failure means — see the cleanup block at
+   * the end of the pushToGit test.
+   */
+  async function assertGitHubOk(
+    response: Response,
+    what: string
+  ): Promise<void> {
+    if (!response.ok) {
+      throw new Error(
+        `${what} failed: ${response.status} ${await response.text()}`
+      );
+    }
+  }
+
+  async function closePullRequest(number: number): Promise<void> {
+    const response = await fetch(`${gitHubRepoApi}/pulls/${number}`, {
+      method: 'PATCH',
+      headers: { ...gitHubApiHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: 'closed' }),
+    });
+    await assertGitHubOk(response, `Closing pull request #${number}`);
+  }
+
+  async function deleteBranch(branch: string): Promise<void> {
+    const response = await fetch(`${gitHubRepoApi}/git/refs/heads/${branch}`, {
+      method: 'DELETE',
+      headers: gitHubApiHeaders,
+    });
+    await assertGitHubOk(response, `Deleting branch ${branch}`);
   }
 
   async function deleteGitHubFile(
@@ -102,7 +290,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       }
     );
 
-    expect(response.ok).toBe(true);
+    await assertGitHubOk(response, `Deleting file ${filePath}`);
   }
 
   beforeAll(() => {
@@ -754,11 +942,155 @@ describe.concurrent('Recommend Tool Integration', () => {
   });
 
   describe('GitOps Push Workflow', () => {
+    /**
+     * PRD #710 decision 8 / M3: the PR-mode half of the workflow below runs as
+     * an authenticated OAuth user rather than the static token user, because two
+     * things can only be observed with an identity present:
+     *
+     * - the commit author and PR body must identify the AUTHENTICATED user, and
+     *   a client-supplied authorName/authorEmail must not override it;
+     * - PR mode must be reachable with `execute` alone. This user deliberately
+     *   holds no `apply`, which is what direct push will require after M3.
+     */
+    const prPushUser = {
+      userId: 'recommend-pr-push-test',
+      email: 'recommend-pr-push@gitops-test.local',
+      groups: [] as string[],
+    };
+
+    function prPushClient(): HttpRestApiClient {
+      const secret = process.env.DOT_AI_JWT_SECRET;
+      if (!secret) {
+        throw new Error(
+          'DOT_AI_JWT_SECRET must be set for the GitOps PR-mode test'
+        );
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const token = signJwt(
+        {
+          sub: prPushUser.userId,
+          email: prPushUser.email,
+          groups: prPushUser.groups,
+          iat: now,
+          exp: now + 3600,
+        },
+        secret
+      );
+      return new HttpRestApiClient({
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+
+    beforeAll(async () => {
+      const kc = new k8s.KubeConfig();
+      kc.loadFromDefault();
+      const rbacApi = kc.makeApiClient(k8s.RbacAuthorizationV1Api);
+
+      // Tolerate a pre-existing binding so a re-run against a surviving cluster
+      // works; anything else is a real failure and must surface.
+      const ignoreAlreadyExists = async (op: Promise<unknown>) => {
+        try {
+          await op;
+        } catch (error) {
+          const details = JSON.stringify(
+            (error as { body?: unknown }).body ?? error
+          );
+          if (
+            (error as { code?: number }).code !== 409 &&
+            !details.includes('AlreadyExists')
+          ) {
+            throw error;
+          }
+        }
+      };
+
+      await ignoreAlreadyExists(
+        rbacApi.createClusterRole({
+          body: {
+            metadata: { name: 'recommend-pr-push-execute' },
+            rules: [
+              {
+                apiGroups: ['dot-ai.devopstoolkit.ai'],
+                resources: ['tools'],
+                resourceNames: ['recommend'],
+                verbs: ['execute'],
+              },
+            ],
+          },
+        })
+      );
+
+      await ignoreAlreadyExists(
+        rbacApi.createClusterRoleBinding({
+          body: {
+            metadata: { name: 'recommend-pr-push-execute-binding' },
+            subjects: [
+              {
+                kind: 'User',
+                name: prPushUser.email,
+                apiGroup: 'rbac.authorization.k8s.io',
+              },
+            ],
+            roleRef: {
+              kind: 'ClusterRole',
+              name: 'recommend-pr-push-execute',
+              apiGroup: 'rbac.authorization.k8s.io',
+            },
+          },
+        })
+      );
+    }, 30000);
+
     test('should complete generateManifests → pushToGit against a real GitHub repository', async () => {
       const testRunId = Date.now();
       const targetPath = `integration-tests/push-to-git-${testRunId}`;
+      // PR mode writes to its own paths so the direct push (which lands on the
+      // base branch) does not make the first PR-mode push an empty diff.
+      const prTargetPath = `integration-tests/push-to-git-pr-${testRunId}`;
+      const updatedTargetPath = `integration-tests/push-to-git-pr-update-${testRunId}`;
       const cleanupMessage = `test: cleanup pushToGit integration ${testRunId}`;
-      let pushedFiles: string[] = [];
+      const prCommitMessage = `test: pushToGit PR mode integration ${testRunId}`;
+      const baseBranch = 'main';
+      const spoofedAuthorName = 'Spoofed Author';
+      const spoofedAuthorEmail = 'spoofed-author@attacker.example';
+      const pushedFiles: string[] = [];
+      const createdPrNumbers: number[] = [];
+      const createdBranches: string[] = [];
+
+      /**
+       * Collect everything a push created BEFORE asserting on it, so a failed
+       * assertion still cleans up the branch, PR and files it left behind.
+       */
+      const recordForCleanup = (response: {
+        data?: { result?: { gitPush?: Record<string, any> } };
+      }) => {
+        const gitPush = response.data?.result?.gitPush;
+        if (!gitPush) return;
+        if (Array.isArray(gitPush.filesPushed)) {
+          for (const file of gitPush.filesPushed) {
+            if (!pushedFiles.includes(file)) pushedFiles.push(file);
+          }
+        }
+        const prNumber = gitPush.pullRequest?.number;
+        if (
+          typeof prNumber === 'number' &&
+          !createdPrNumbers.includes(prNumber)
+        ) {
+          createdPrNumbers.push(prNumber);
+        }
+        const head = gitPush.pullRequest?.branch ?? gitPush.branch;
+        // Never delete the base branch — in a build where PR mode is not wired
+        // up yet, gitPush.branch IS the base branch.
+        if (
+          typeof head === 'string' &&
+          head !== baseBranch &&
+          !createdBranches.includes(head)
+        ) {
+          createdBranches.push(head);
+        }
+      };
+
+      let testFailure: unknown;
 
       try {
         const solutionsResponse = await integrationTest.httpClient.post(
@@ -883,6 +1215,8 @@ describe.concurrent('Recommend Tool Integration', () => {
           }
         );
 
+        recordForCleanup(pushResponse);
+
         expect(pushResponse).toMatchObject({
           success: true,
           data: {
@@ -915,8 +1249,6 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        pushedFiles = [...pushResponse.data.result.gitPush.filesPushed];
-
         const sessionResponse = await integrationTest.httpClient.get(
           `/api/v1/sessions/${solutionId}`
         );
@@ -944,12 +1276,474 @@ describe.concurrent('Recommend Tool Integration', () => {
         ).toString('utf8');
         expect(pushedContent).toContain('apiVersion:');
         expect(pushedContent).toContain('kind:');
-      } finally {
-        for (const filePath of pushedFiles.reverse()) {
-          await deleteGitHubFile(filePath, cleanupMessage);
+
+        // ─────────────────────────────────────────────────────────────────
+        // PR MODE (PRD #710 M2)
+        //
+        // Same session, same manifests, `pullRequest: true`. `branch` now means
+        // the BASE branch (decision 1) and the head branch is server-generated:
+        // `dot-ai/<solutionId>-<timestamp>` (decision 2).
+        // ─────────────────────────────────────────────────────────────────
+        const prClient = prPushClient();
+        const baseShaBeforePr = await getBranchSha(baseBranch);
+
+        const prPushResponse = await prClient.post('/api/v1/tools/recommend', {
+          stage: 'pushToGit',
+          solutionId,
+          repoUrl: gitRepoUrl,
+          targetPath: prTargetPath,
+          branch: baseBranch,
+          pullRequest: true,
+          commitMessage: prCommitMessage,
+          // Decision 8: a client cannot attribute the commit to someone else —
+          // the authenticated identity wins over both of these.
+          authorName: spoofedAuthorName,
+          authorEmail: spoofedAuthorEmail,
+          // Success criterion 2: no client-supplied parameter may influence the
+          // head branch. There is deliberately no head-branch parameter, so an
+          // invented one must be ignored rather than honoured.
+          headBranch: 'client-chosen-head',
+          interaction_id: `push_to_git_pr_${testRunId}`,
+        });
+
+        recordForCleanup(prPushResponse);
+
+        const expectedPrUrl = new RegExp(
+          `^https://github\\.com/${gitHubRepo.owner}/${gitHubRepo.repo}/pull/\\d+$`
+        );
+        // Head branch: server-generated from the session id (decision 2), never
+        // the base branch and never a client-supplied name.
+        const expectedHeadBranch = new RegExp(`^dot-ai/${solutionId}-\\d+$`);
+
+        expect(prPushResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              status: 'manifests_pushed',
+              solutionId,
+              gitPush: {
+                repoUrl: gitRepoUrl,
+                path: prTargetPath,
+                branch: expect.stringMatching(expectedHeadBranch),
+                commitSha: expect.any(String),
+                // Decision 5: mirrors remediate's pullRequest shape, nested
+                // under gitPush. `status` discriminates the outcome exactly as
+                // createPullRequest() does (created | no_changes | updated).
+                pullRequest: {
+                  status: 'created',
+                  url: expect.stringMatching(expectedPrUrl),
+                  number: expect.any(Number),
+                  branch: expect.stringMatching(expectedHeadBranch),
+                  baseBranch,
+                  filesChanged: expect.arrayContaining([
+                    `${prTargetPath}/manifests.yaml`,
+                  ]),
+                },
+              },
+            },
+            tool: 'recommend',
+          },
+        });
+
+        const prInfo = prPushResponse.data.result.gitPush.pullRequest;
+        const prNumber: number = prInfo.number;
+        const prBranch: string = prInfo.branch;
+        const createCommitSha: string =
+          prPushResponse.data.result.gitPush.commitSha;
+        expect(prBranch).not.toBe(baseBranch);
+        expect(prBranch).not.toBe('client-chosen-head');
+
+        // Let the head branch converge on the commit the push reported before
+        // reading anything off it, so the reads below cannot see a pre-push
+        // state (or a 404 for a branch that exists).
+        expect(await waitForBranchSha(prBranch, createCommitSha)).toBe(
+          createCommitSha
+        );
+
+        // Success criterion 1: the base branch is never written in PR mode.
+        expect(await getBranchSha(baseBranch)).toBe(baseShaBeforePr);
+        expect(
+          await getGitHubFile(`${prTargetPath}/manifests.yaml`, baseBranch)
+        ).toBeNull();
+
+        // Decision 5: the session carries the PR so a re-run can find it, and
+        // `stage` stays 'pushed' — no new value in the stage enum, which
+        // dot-ai-ui consumes.
+        const prSessionResponse = await integrationTest.httpClient.get(
+          `/api/v1/sessions/${solutionId}`
+        );
+        expect(prSessionResponse).toMatchObject({
+          success: true,
+          data: {
+            sessionId: solutionId,
+            data: {
+              stage: 'pushed',
+              gitPush: {
+                repoUrl: gitRepoUrl,
+                path: prTargetPath,
+                branch: prBranch,
+                pullRequest: {
+                  url: prInfo.url,
+                  number: prNumber,
+                  branch: prBranch,
+                  baseBranch,
+                },
+              },
+            },
+          },
+        });
+
+        const createdPr = await getPullRequest(prNumber);
+        expect(createdPr).toMatchObject({
+          number: prNumber,
+          state: 'open',
+          // Integration tests set DOT_AI_GIT_CREATE_DRAFT_PRS=true so test PRs
+          // don't trigger CodeRabbit reviews.
+          draft: true,
+          // Decision 8: the PR title is the commit message.
+          title: prCommitMessage,
+          head: { ref: prBranch },
+          base: { ref: baseBranch },
+        });
+
+        // Decision 8: the body answers "who asked for this, and for what".
+        expect(createdPr.body).toContain(solutionId);
+        expect(createdPr.body).toContain('deploy nginx web server');
+        expect(createdPr.body).toContain(prTargetPath);
+        expect(createdPr.body).toContain(prPushUser.email);
+        expect(createdPr.body).not.toContain(spoofedAuthorEmail);
+
+        // Decision 8: the commit author is the authenticated user, not the
+        // client-supplied author.
+        const headCommit = await getCommit(createCommitSha);
+        expect(headCommit.commit.message).toContain(prCommitMessage);
+        expect(headCommit.commit.author.email).toBe(prPushUser.email);
+        expect(headCommit.commit.author.name).not.toBe(spoofedAuthorName);
+
+        const prFile = await getGitHubFile(
+          `${prTargetPath}/manifests.yaml`,
+          prBranch
+        );
+        expect(prFile).not.toBeNull();
+        const prFileContent = Buffer.from(prFile!.content!, 'base64').toString(
+          'utf8'
+        );
+        expect(prFileContent).toContain('apiVersion:');
+        expect(prFileContent).toContain('kind:');
+
+        // ── Re-run with UNCHANGED manifests (decision 3) ──
+        // The files already match what the PR proposes, so the commit would be
+        // empty. That must be an explicit "no changes" outcome, not a GitHub 422.
+        const unchangedResponse = await prClient.post(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'pushToGit',
+            solutionId,
+            repoUrl: gitRepoUrl,
+            targetPath: prTargetPath,
+            branch: baseBranch,
+            pullRequest: true,
+            commitMessage: prCommitMessage,
+            interaction_id: `push_to_git_pr_unchanged_${testRunId}`,
+          }
+        );
+
+        recordForCleanup(unchangedResponse);
+
+        expect(unchangedResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              solutionId,
+              gitPush: {
+                pullRequest: {
+                  status: 'no_changes',
+                  url: prInfo.url,
+                  number: prNumber,
+                  branch: prBranch,
+                  baseBranch,
+                  filesChanged: [],
+                },
+              },
+            },
+          },
+        });
+
+        // Nothing was pushed and no second PR was opened. The tip is named
+        // exactly rather than compared to an earlier read — see
+        // waitForBranchSha. That this run added no commit at all is proved
+        // positively by the two-commit history check after the update below.
+        expect(await getBranchSha(prBranch)).toBe(createCommitSha);
+        expect(
+          (await listPullRequestsForHead(prBranch)).map(pr => pr.number)
+        ).toEqual([prNumber]);
+
+        // ── Re-run with CHANGED manifests (decision 9) ──
+        // A different target path is a deterministic content change without
+        // re-running the AI. The open PR must be updated in place by pushing to
+        // the recorded head branch, not superseded by a second PR.
+        const updateResponse = await prClient.post('/api/v1/tools/recommend', {
+          stage: 'pushToGit',
+          solutionId,
+          repoUrl: gitRepoUrl,
+          targetPath: updatedTargetPath,
+          branch: baseBranch,
+          pullRequest: true,
+          commitMessage: prCommitMessage,
+          interaction_id: `push_to_git_pr_update_${testRunId}`,
+        });
+
+        recordForCleanup(updateResponse);
+
+        expect(updateResponse).toMatchObject({
+          success: true,
+          data: {
+            result: {
+              success: true,
+              status: 'manifests_pushed',
+              solutionId,
+              gitPush: {
+                path: updatedTargetPath,
+                branch: prBranch,
+                commitSha: expect.any(String),
+                pullRequest: {
+                  status: 'updated',
+                  url: prInfo.url,
+                  number: prNumber,
+                  branch: prBranch,
+                  baseBranch,
+                  filesChanged: expect.arrayContaining([
+                    `${updatedTargetPath}/manifests.yaml`,
+                  ]),
+                },
+              },
+            },
+          },
+        });
+
+        const updateCommitSha: string =
+          updateResponse.data.result.gitPush.commitSha;
+        expect(await waitForBranchSha(prBranch, updateCommitSha)).toBe(
+          updateCommitSha
+        );
+
+        // The head branch is exactly the create commit with the update commit on
+        // top: the update added one commit to the recorded branch, and the
+        // unchanged re-run before it added none.
+        expect(await listBranchCommitShas(prBranch, 2)).toEqual([
+          updateCommitSha,
+          createCommitSha,
+        ]);
+
+        const updatedPr = await waitForPullRequestHeadSha(
+          prNumber,
+          updateCommitSha
+        );
+        expect(updatedPr).toMatchObject({
+          number: prNumber,
+          state: 'open',
+          head: { ref: prBranch, sha: updateCommitSha },
+          base: { ref: baseBranch },
+        });
+
+        // Exactly one PR for this head branch — the re-run updated it.
+        expect(
+          (await listPullRequestsForHead(prBranch)).map(pr => pr.number)
+        ).toEqual([prNumber]);
+
+        expect(
+          await getGitHubFile(`${updatedTargetPath}/manifests.yaml`, prBranch)
+        ).not.toBeNull();
+
+        // Still nothing on the base branch after three PR-mode pushes.
+        expect(await getBranchSha(baseBranch)).toBe(baseShaBeforePr);
+        expect(
+          await getGitHubFile(`${updatedTargetPath}/manifests.yaml`, baseBranch)
+        ).toBeNull();
+
+        // ─────────────────────────────────────────────────────────────────
+        // REPOSITORY HOST ALLOWLIST (PRD #710)
+        //
+        // Same session and same manifests as every push above — only the host
+        // changes. `gist.github.com` is the deliberate choice, and it is a
+        // tradeoff, so here is the whole of it:
+        //
+        // - It is refused for a reason that stays true. Matching is exact with
+        //   no wildcards, and gist.github.com is a DIFFERENT service —
+        //   `<owner>/<repo>` there does not address this repository. The host
+        //   this test named before, `www.github.com`, was the SAME service, so
+        //   pinning it as refused pinned a latent bug: that bug was fixed, the
+        //   host joined the default allowlist, and this assertion broke. Naming
+        //   another same-service host would only queue the same breakage up
+        //   again. `git-utils-security.test.ts` pins gist.github.com as refused
+        //   at the unit level, so both levels argue from one example.
+        // - It is real and reachable, so a gate that stopped running would make
+        //   a genuine authenticated request instead of failing instantly on DNS.
+        //   The test cannot pass merely because the host does not resolve, which
+        //   is why an unroutable host is not used here.
+        // - A regression keeps the credential inside GitHub. If the gate stops
+        //   running, the server's git token goes to a GitHub-operated host, not
+        //   to a third party such as gitlab.com whose logs we do not control. A
+        //   negative test for a credential gate should not exfiltrate the
+        //   credential when it fails.
+        //
+        // What that costs, stated plainly: gist.github.com will not serve this
+        // repository, so a gate failure surfaces as a CLONE failure rather than
+        // as a commit landing somewhere we can read back. The "nothing was
+        // pushed" reads below are therefore corroboration, not the primary
+        // detector — the detector is the exact refusal message, which a clone
+        // failure cannot produce.
+        // ─────────────────────────────────────────────────────────────────
+        const deniedHost = 'gist.github.com';
+        const deniedRepoUrl = `https://${deniedHost}/${gitHubRepo.owner}/${gitHubRepo.repo}.git`;
+        const deniedTargetPath = `integration-tests/push-to-git-denied-${testRunId}`;
+
+        const deniedResponse = await integrationTest.httpClient.post(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'pushToGit',
+            solutionId,
+            repoUrl: deniedRepoUrl,
+            targetPath: deniedTargetPath,
+            commitMessage: `test: pushToGit disallowed host ${testRunId}`,
+            interaction_id: `push_to_git_denied_host_${testRunId}`,
+          }
+        );
+
+        // A push that got through anyway is a failure, but clean up what it
+        // created before the assertions below report it.
+        recordForCleanup(deniedResponse);
+
+        // The refusal names the offending host and the Helm value that governs
+        // it. "Currently allowed: github.com, www.github.com" is load-bearing
+        // three times over: it is the operator's next step; it is this suite's
+        // proof that the chart rendered the default list into the deployment
+        // rather than an empty one — an empty render is deny-all and would have
+        // failed every push above instead of just this one; and it is the
+        // running server enumerating its own effective allowlist, which is how
+        // the allowed case for `www.github.com` is asserted here without paying
+        // for a second push (that push would exercise git's redirect-with-
+        // credentials behaviour, not this gate).
+        // stringContaining, not equality, for one reason only: a VALIDATION
+        // error reaches the REST layer already converted to an MCP error, so
+        // the transport prefixes the code ("MCP error -32602: "). Everything
+        // after that prefix is matched exactly.
+        expect(deniedResponse).toMatchObject({
+          success: false,
+          error: {
+            code: 'EXECUTION_ERROR',
+            message: expect.stringContaining(
+              `Repository host "${deniedHost}" is not allowed. Currently allowed: github.com, www.github.com. To allow it, add the host to the "gitops.allowedRepoHosts" Helm value (default: github.com, www.github.com) and restart the server.`
+            ),
+          },
+          meta: {
+            requestId: expect.stringMatching(/^rest_\d+_\d+$/),
+            version: 'v1',
+          },
+        });
+
+        // Rejection happens before a credential is minted or attached, so
+        // nothing in the response can carry one — not in the message, and not
+        // in the echoed input. A credential rides in a URL as `user:pass@host`,
+        // so both hosts in play get the authority form: the refused one, and
+        // the real repository host this session has been pushing to. The two
+        // substrings are distinct — "@gist.github.com" does not contain
+        // "@github.com".
+        const deniedResponseText = JSON.stringify(deniedResponse);
+        expect(deniedResponseText).not.toContain(`@${deniedHost}`);
+        expect(deniedResponseText).not.toContain('@github.com');
+        if (gitToken) {
+          expect(deniedResponseText).not.toContain(gitToken);
         }
+
+        // Nothing was pushed: the base branch is still where the PR-mode pushes
+        // left it, the refused path exists on neither branch, and the open PR
+        // gained no commit. Per the note above these corroborate rather than
+        // detect — a refusal replaced by a clone failure lands nothing here
+        // either — but they are what catches a HALF-working gate: one that
+        // refuses the host yet still mints a credential and writes this path to
+        // the repository it was already holding open.
+        expect(await getBranchSha(baseBranch)).toBe(baseShaBeforePr);
+        expect(
+          await getGitHubFile(`${deniedTargetPath}/manifests.yaml`, baseBranch)
+        ).toBeNull();
+        expect(
+          await getGitHubFile(`${deniedTargetPath}/manifests.yaml`, prBranch)
+        ).toBeNull();
+        expect(await getBranchSha(prBranch)).toBe(updateCommitSha);
+
+        // The session still describes the last push that actually happened —
+        // the refused call recorded nothing.
+        const deniedSessionResponse = await integrationTest.httpClient.get(
+          `/api/v1/sessions/${solutionId}`
+        );
+        expect(deniedSessionResponse).toMatchObject({
+          success: true,
+          data: {
+            sessionId: solutionId,
+            data: {
+              stage: 'pushed',
+              gitPush: {
+                repoUrl: gitRepoUrl,
+                path: updatedTargetPath,
+                branch: prBranch,
+                commitSha: updateCommitSha,
+              },
+            },
+          },
+        });
+      } catch (error) {
+        // Held, not rethrown yet: cleanup below must run to completion first,
+        // and it must not be able to replace this error with its own.
+        testFailure = error;
       }
-    }, 900000);
+
+      // Every cleanup step is independent. Collecting failures instead of
+      // throwing them is what keeps the two guarantees this block exists for:
+      // the first rejection cannot skip the steps behind it (which would leave
+      // branches, pull requests and files standing in the shared test
+      // repository), and a cleanup problem cannot stand in for the test's own
+      // assertion error and send the next reader after the wrong thing.
+      const cleanupFailures: string[] = [];
+      const cleanupStep = async (step: () => Promise<void>) => {
+        try {
+          await step();
+        } catch (error) {
+          cleanupFailures.push(
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+      };
+
+      for (const prNumber of createdPrNumbers) {
+        await cleanupStep(() => closePullRequest(prNumber));
+      }
+      for (const branch of createdBranches) {
+        await cleanupStep(() => deleteBranch(branch));
+      }
+      // Files that reached the base branch (the direct push above, plus any
+      // push that landed there because PR mode was not honoured).
+      for (const filePath of [...pushedFiles].reverse()) {
+        await cleanupStep(() => deleteGitHubFile(filePath, cleanupMessage));
+      }
+
+      if (testFailure) {
+        // Anything cleanup could not remove is reported alongside the real
+        // failure rather than in place of it.
+        if (cleanupFailures.length > 0) {
+          console.error(
+            `pushToGit cleanup left artifacts behind:\n${cleanupFailures.join('\n')}`
+          );
+        }
+        throw testFailure;
+      }
+
+      // A test that passed but leaked is still a problem for every later run
+      // against this repository, so it fails here.
+      expect(cleanupFailures).toMatchObject([]);
+    }, 1200000);
   });
 
   describe('Helm Chart Discovery', () => {
@@ -1279,7 +2073,8 @@ describe.concurrent('Recommend Tool Integration', () => {
               // Note: valuesPath is intentionally NOT included - it's an internal implementation detail
               // The helmCommand uses generic 'values.yaml' for user-friendly display
               chart: {
-                repository: 'https://prometheus-community.github.io/helm-charts',
+                repository:
+                  'https://prometheus-community.github.io/helm-charts',
                 repositoryName: 'prometheus-community',
                 chartName: 'prometheus',
               },
@@ -1346,7 +2141,8 @@ describe.concurrent('Recommend Tool Integration', () => {
               releaseName: releaseName,
               namespace: helmNamespace,
               chart: {
-                repository: 'https://prometheus-community.github.io/helm-charts',
+                repository:
+                  'https://prometheus-community.github.io/helm-charts',
                 repositoryName: 'prometheus-community',
                 chartName: 'prometheus',
               },

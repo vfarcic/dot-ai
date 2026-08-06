@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "1.24.0",
+    "version": "1.25.0",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -574,6 +574,7 @@
                 "repoUrl": "https://example.com",
                 "targetPath": "example targetPath",
                 "branch": "example branch",
+                "pullRequest": false,
                 "commitMessage": "example commitMessage",
                 "authorName": "example authorName",
                 "authorEmail": "user@example.com",
@@ -3028,19 +3029,23 @@
             "type": "string"
           },
           "branch": {
-            "description": "Git branch for pushToGit stage (default: main)",
+            "description": "Git branch for pushToGit stage (default: main). With pullRequest: true this is the BASE branch the pull request targets, which is never written to",
             "type": "string"
           },
+          "pullRequest": {
+            "description": "For pushToGit stage: when true, commit to a server-generated branch and open a pull request against `branch` instead of pushing to it directly. Required for repositories with branch protection. The head branch name is chosen by the server and cannot be supplied",
+            "type": "boolean"
+          },
           "commitMessage": {
-            "description": "Commit message for pushToGit stage",
+            "description": "Commit message for pushToGit stage (also the pull request title when pullRequest: true)",
             "type": "string"
           },
           "authorName": {
-            "description": "Git author name for pushToGit stage",
+            "description": "Git author name for pushToGit stage (ignored when the request carries an authenticated user identity, which is then the commit author)",
             "type": "string"
           },
           "authorEmail": {
-            "description": "Git author email for pushToGit stage",
+            "description": "Git author email for pushToGit stage (ignored when the request carries an authenticated user identity, which is then the commit author)",
             "type": "string"
           },
           "interaction_id": {

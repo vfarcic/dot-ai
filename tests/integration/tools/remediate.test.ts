@@ -1323,11 +1323,15 @@ EOF`);
       );
 
       // PRD #408: GitOps should create PR *instead of* kubectl — no direct cluster commands
+      // PRD #710: 'no changes needed' is a gitSource outcome too — the manifests
+      // in the base branch already match the desired state, so nothing was
+      // pushed and no PR was opened (decision 3). It is not a kubectl action.
       const kubectlResults = execResult.results.filter(
         (r: { action: string }) =>
           !r.action.includes('PR created') &&
           !r.action.includes('gitSource') &&
-          !r.action.includes('branch pushed')
+          !r.action.includes('branch pushed') &&
+          !r.action.includes('no changes needed')
       );
       expect(
         kubectlResults.length,

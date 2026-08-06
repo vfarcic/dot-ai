@@ -586,4 +586,196 @@ describe('User Prompts Loader Override', () => {
       });
     });
   });
+
+  // PRD #710: the ?repo= override validated only the SCHEME, so a caller could
+  // point the server's clone at loopback, the cloud metadata endpoint
+  // (169.254.169.254), or any cluster-internal address. That is not merely a
+  // reachability scanner: git echoes a `text/plain` error body verbatim as
+  // `remote:` lines and those reach the caller inside the 502
+  // PROMPTS_SOURCE_ERROR (10.8 KB came back untruncated in the field check), so
+  // it is a limited READ primitive against internal services.
+  //
+  // The rule is REFUSAL, not degradation (unlike the credential gate): the
+  // point is not to make the request at all, so every test here also asserts
+  // that cloneRepo was never called.
+  describe('Non-public destination denylist (PRD #710)', () => {
+    async function expectRefused(repoUrl: string, kind: string) {
+      const { logger, calls } = makeCapturingLogger();
+      const err = await loadUserPrompts(logger, false, { repoUrl }).catch(
+        e => e
+      );
+
+      expect(err).toBeInstanceOf(UserPromptsOverrideError);
+      expect(err.message).toContain(`is a ${kind} address`);
+      expect(err.message).toContain('not a public destination');
+      // The whole point: nothing was fetched.
+      expect(cloneRepo).not.toHaveBeenCalled();
+      expect(calls.some(c => c.level === 'error')).toBe(true);
+      return err as Error;
+    }
+
+    describe('IPv4 ranges', () => {
+      test.each([
+        ['loopback', 'http://127.0.0.1/x.git'],
+        ['loopback', 'http://127.255.255.254/x.git'],
+        ['link-local', 'http://169.254.169.254/latest/meta-data/'],
+        ['link-local', 'https://169.254.0.1/x.git'],
+        ['private', 'http://10.0.0.1/x.git'],
+        ['private', 'http://10.255.255.255/x.git'],
+        ['private', 'http://172.16.0.1/x.git'],
+        ['private', 'http://172.31.255.254/x.git'],
+        ['private', 'http://192.168.1.1/x.git'],
+        ['unspecified', 'http://0.0.0.0/x.git'],
+        ['broadcast', 'http://255.255.255.255/x.git'],
+      ])('refuses %s %s without fetching', async (kind, repoUrl) => {
+        await expectRefused(repoUrl, kind);
+      });
+    });
+
+    describe('IPv6 ranges', () => {
+      test.each([
+        ['loopback', 'http://[::1]/x.git'],
+        ['unspecified', 'http://[::]/x.git'],
+        ['link-local', 'http://[fe80::1]/x.git'],
+        ['link-local', 'http://[febf:ffff::1]/x.git'],
+        ['unique-local', 'http://[fc00::1]/x.git'],
+        ['unique-local', 'http://[fd12:3456:789a::1]/x.git'],
+      ])('refuses %s %s without fetching', async (kind, repoUrl) => {
+        await expectRefused(repoUrl, kind);
+      });
+
+      // IPv4-mapped IPv6 must be normalized to its v4 destination BEFORE the
+      // range check — treating it as "v6, therefore not in any v4 range" is
+      // exactly the bypass this covers.
+      test.each([
+        ['loopback', 'http://[::ffff:127.0.0.1]/x.git'],
+        ['loopback', 'http://[::ffff:7f00:1]/x.git'],
+        ['link-local', 'http://[::ffff:169.254.169.254]/x.git'],
+        ['private', 'http://[0:0:0:0:0:ffff:10.1.2.3]/x.git'],
+        // Deprecated IPv4-compatible form (::a.b.c.d) addresses v4 too.
+        ['private', 'http://[::192.168.1.1]/x.git'],
+      ])('refuses IPv4-mapped %s %s', async (kind, repoUrl) => {
+        await expectRefused(repoUrl, kind);
+      });
+    });
+
+    // Encodings that defeat a naive string check. `new URL` normalizes all of
+    // these to a canonical dotted-quad, which is precisely why the check reads
+    // URL.hostname instead of the raw input.
+    describe('alternate host encodings', () => {
+      test.each([
+        ['decimal', 'http://2130706433/x.git'],
+        ['hex', 'http://0x7f000001/x.git'],
+        ['dotted hex', 'http://0x7f.0x0.0x0.0x1/x.git'],
+        ['octal', 'http://0177.0.0.1/x.git'],
+        ['two-part shorthand', 'http://127.1/x.git'],
+        ['trailing dot', 'http://127.0.0.1./x.git'],
+        ['bare zero', 'http://0/x.git'],
+        ['explicit port', 'http://127.0.0.1:8080/x.git'],
+        ['bracketed IPv6 with port', 'http://[::1]:8080/x.git'],
+      ])('refuses %s form (%s)', async (_label, repoUrl) => {
+        const { logger } = makeCapturingLogger();
+        await expect(
+          loadUserPrompts(logger, false, { repoUrl })
+        ).rejects.toBeInstanceOf(UserPromptsOverrideError);
+        expect(cloneRepo).not.toHaveBeenCalled();
+      });
+
+      test('userinfo cannot smuggle a public host past the check', async () => {
+        const secret = 'smuggled-token-abc';
+        const { logger } = makeCapturingLogger();
+        const err = await loadUserPrompts(logger, false, {
+          repoUrl: `https://github.com:${secret}@169.254.169.254/x.git`,
+        }).catch(e => e);
+
+        expect(err).toBeInstanceOf(UserPromptsOverrideError);
+        expect(err.message).toContain('169.254.169.254');
+        // The refusal message is client-visible, so it must stay scrubbed.
+        expect(err.message).not.toContain(secret);
+        expect(cloneRepo).not.toHaveBeenCalled();
+      });
+    });
+
+    // A caller-supplied credential is NOT a reason to allow an internal
+    // destination — unlike the credential gate, which only decides whose token
+    // may be attached, this decides whether the fetch happens at all.
+    test('an X-Dot-AI-Git-Token forwarded credential does not bypass the check', async () => {
+      const { logger } = makeCapturingLogger();
+      await expect(
+        loadUserPrompts(logger, false, {
+          repoUrl: 'http://169.254.169.254/x.git',
+          gitToken: 'caller-supplied-token',
+        })
+      ).rejects.toBeInstanceOf(UserPromptsOverrideError);
+      expect(cloneRepo).not.toHaveBeenCalled();
+    });
+
+    describe('public destinations still work', () => {
+      test.each([
+        ['hostname', 'https://github.com/example-org/repo.git'],
+        ['public IPv4 literal', 'https://140.82.121.4/example-org/repo.git'],
+        ['just below 10/8', 'http://9.255.255.255/x.git'],
+        ['just above 10/8', 'http://11.0.0.1/x.git'],
+        ['just below 172.16/12', 'http://172.15.255.255/x.git'],
+        ['just above 172.16/12', 'http://172.32.0.1/x.git'],
+        ['just below 192.168/16', 'http://192.167.255.255/x.git'],
+        ['just above 192.168/16', 'http://192.169.0.1/x.git'],
+        ['just below 169.254/16', 'http://169.253.255.255/x.git'],
+        ['just above 169.254/16', 'http://169.255.0.1/x.git'],
+        ['just below 127/8', 'http://126.255.255.255/x.git'],
+        ['just above 127/8', 'http://128.0.0.1/x.git'],
+        ['public IPv6', 'http://[2606:4700::1111]/x.git'],
+        ['just below fe80::/10', 'http://[fe7f::1]/x.git'],
+        ['just above fe80::/10', 'http://[fec0::1]/x.git'],
+        ['just below fc00::/7', 'http://[fbff::1]/x.git'],
+        ['just above fc00::/7', 'http://[fe00::1]/x.git'],
+        ['IPv4-mapped public', 'http://[::ffff:140.82.121.4]/x.git'],
+      ])('allows %s (%s)', async (_label, repoUrl) => {
+        const prompts = await loadUserPrompts(makeCapturingLogger().logger, false, {
+          repoUrl,
+        });
+        expect(prompts).toMatchObject([{ name: 'prd-581-test' }]);
+        expect(cloneRepo).toHaveBeenCalledTimes(1);
+      });
+
+      // DELIBERATE GAP (documented, not a bug): this checks IP LITERALS, not
+      // DNS. A hostname that RESOLVES to an internal address still passes —
+      // closing that needs resolve-then-pin, which is a much larger change and
+      // introduces its own TOCTOU. No DNS resolution happens here.
+      test.each([
+        'http://localhost/x.git',
+        'http://kubernetes.default.svc/x.git',
+        'http://metadata.google.internal/x.git',
+      ])('does NOT resolve hostnames — %s still passes', async repoUrl => {
+        await loadUserPrompts(makeCapturingLogger().logger, false, { repoUrl });
+        expect(cloneRepo).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // The operator's DOT_AI_USER_PROMPTS_REPO is the same trust class as the
+    // allowlist itself — an operator who points prompts at an in-cluster git
+    // server chose that destination, so the denylist must not touch it.
+    describe('DOT_AI_USER_PROMPTS_REPO is unaffected', () => {
+      test.each([
+        'http://127.0.0.1/prompts.git',
+        'http://10.43.0.10/prompts.git',
+        'http://[::1]/prompts.git',
+      ])('env-var repo %s still clones', async envRepo => {
+        process.env.DOT_AI_USER_PROMPTS_REPO = envRepo;
+        const prompts = await loadUserPrompts(makeCapturingLogger().logger);
+        expect(prompts).toMatchObject([{ name: 'prd-581-test' }]);
+        expect(vi.mocked(cloneRepo).mock.calls[0][0]).toBe(envRepo);
+      });
+
+      test('an override still refused while the env-var repo names the same host', async () => {
+        process.env.DOT_AI_USER_PROMPTS_REPO = 'http://127.0.0.1/prompts.git';
+        await expect(
+          loadUserPrompts(makeCapturingLogger().logger, false, {
+            repoUrl: 'http://127.0.0.1/other.git',
+          })
+        ).rejects.toBeInstanceOf(UserPromptsOverrideError);
+        expect(cloneRepo).not.toHaveBeenCalled();
+      });
+    });
+  });
 });

@@ -81,14 +81,29 @@ export function scrubRepoUrl(url: string): string {
 }
 
 /**
+ * Userinfo values that are never a credential. Mirrors the real server's
+ * NON_SECRET_USERINFO — `git` is the userinfo of every ssh remote.
+ */
+const NON_SECRET_USERINFO = new Set(['git']);
+
+/**
  * Scrub credentials embedded in a free-text message. Mirrors the real server's
  * git-utils scrubCredentials (used on validation-error messages as
  * defense-in-depth).
+ *
+ * The third pattern covers userinfo with NO colon — `//<token>@host` — because
+ * GitHub accepts a PAT as the username with no password, so that shape is a
+ * working credential the first two patterns (both requiring a `:`) left verbatim.
+ * All three are LINEAR: every class excludes the delimiter that follows it, so
+ * none of the runs is ambiguous with another.
  */
 export function scrubCredentials(message: string): string {
   return message
-    .replace(/\/\/x-access-token:[^@]+@/g, '//***@')
-    .replace(/\/\/[^/:][^@]*:[^@]+@/g, '//***@');
+    .replace(/\/\/x-access-token:[^@/]*@/g, '//***@')
+    .replace(/\/\/[^/:@]+:[^@/]*@/g, '//***@')
+    .replace(/\/\/([^/:@\s]+)@/g, (match, userinfo: string) =>
+      NON_SECRET_USERINFO.has(userinfo.toLowerCase()) ? match : '//***@'
+    );
 }
 
 /**
