@@ -3,7 +3,7 @@
  *
  * The chart value is the user-facing contract and DOT_AI_GITOPS_ALLOWED_REPO_HOSTS
  * is the internal detail (CLAUDE.md rule 7), so what has to hold is: the value is
- * always rendered, its default is github.com, and an EMPTY list reaches the
+ * always rendered, its default is both GitHub spellings, and an EMPTY list reaches the
  * server as an explicit empty string — the server reads absent as "use the secure
  * default" and empty as "deny everything", so the two must not collapse into one.
  */
@@ -65,9 +65,13 @@ function allowedHostsEntries(setValues: string[] = []) {
 }
 
 describe('gitops.allowedRepoHosts', () => {
-  test('defaults to github.com', () => {
+  test('defaults to both GitHub spellings', () => {
+    // Matching is exact with no wildcards, so "github.com" does not cover
+    // "www.github.com" — the same service, which the PR-creation parser already
+    // accepts. The default has to name both or the gate refuses a GitHub remote
+    // the rest of the tool supports.
     expect(allowedHostsEntries()).toEqual([
-      { name: ENV_NAME, value: 'github.com' },
+      { name: ENV_NAME, value: 'github.com,www.github.com' },
     ]);
   });
 

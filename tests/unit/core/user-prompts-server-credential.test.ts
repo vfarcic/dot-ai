@@ -397,7 +397,9 @@ describe('observability', () => {
     expect(warn).toBeDefined();
     expect(warn!.data).toMatchObject({
       host: 'attacker.example',
-      allowedHosts: ['github.com'],
+      // The default allowlist, which names both GitHub spellings because
+      // matching is exact and `www.github.com` is the same service.
+      allowedHosts: ['github.com', 'www.github.com'],
     });
     expect(JSON.stringify(warn!.data)).toContain('gitops.allowedRepoHosts');
     expect(JSON.stringify(warn!.data)).toContain('X-Dot-AI-Git-Token');

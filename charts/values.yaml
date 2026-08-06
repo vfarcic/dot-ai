@@ -243,7 +243,8 @@ gitops:
   # - Entries are hostnames: exact, case-insensitive, no wildcards, no substring
   #   matching. A ":port" suffix is accepted and ignored (the credential reaches
   #   the host whichever port answers). "github.com" therefore does NOT cover
-  #   "www.github.com" — add it too if clients use that form.
+  #   "www.github.com" — which is why the default below lists both. Any other
+  #   host your callers use must be named the same way, spelling by spelling.
   # - The URL must also be https://. That is checked TOGETHER with the host, so
   #   http://, ssh://, git:// and the scp-style "host:path" shorthand are outside
   #   the allowlist even when the host is listed — an entry here does not buy the
@@ -273,9 +274,15 @@ gitops:
   #
   # DOT_AI_USER_PROMPTS_REPO is the operator's own URL and is NOT gated.
   #
+  # The default names both GitHub spellings: matching is exact with no wildcards,
+  # and "www.github.com" is the same host in practice (it clones via redirect and
+  # gets pull requests like the bare form), so listing only "github.com" would
+  # refuse a real GitHub remote written the other way.
+  #
   # Docs: https://devopstoolkit.ai/docs/ai-engine/setup/deployment#gitops-repository-host-allowlist
   allowedRepoHosts:
     - github.com
+    - www.github.com
 
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server

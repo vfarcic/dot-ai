@@ -553,12 +553,41 @@ describe('repository host allowlist (finding C)', () => {
     delete process.env[ALLOWED_REPO_HOSTS_ENV];
   });
 
-  test('defaults to github.com when the env var is absent', () => {
+  test('defaults to both GitHub spellings when the env var is absent', () => {
     // Absent is NOT "allow everything": a deployment that predates the chart
     // value, or a server started outside the chart, gets the secure default.
-    expect(getAllowedRepoHosts()).toEqual(['github.com']);
+    expect(getAllowedRepoHosts()).toEqual(['github.com', 'www.github.com']);
     expect(isRepoHostAllowed('https://github.com/acme/demo.git')).toBe(true);
     expect(isRepoHostAllowed('https://attacker.example/x.git')).toBe(false);
+  });
+
+  test('the default allows www.github.com, the same service GITHUB_HOSTS accepts', () => {
+    // Matching is exact, so the bare host does not cover the www one. Listing
+    // only `github.com` had this gate refuse — before anything is cloned — a URL
+    // the PR-creation parser was deliberately fixed to accept, which is a
+    // regression for a GitHub user who wrote the www form and upgraded.
+    expect(isRepoHostAllowed('https://www.github.com/acme/demo.git')).toBe(true);
+    expect(isRepoHostAllowed('https://WWW.GitHub.com/acme/demo.git')).toBe(true);
+    expect(isRepoHostAllowed('https://www.github.com:443/acme/demo.git')).toBe(
+      true
+    );
+  });
+
+  test('the second default entry is a literal, not subdomain matching', () => {
+    // Adding `www.github.com` must not read as "any host under github.com" or
+    // "anything containing github.com".
+    for (const url of [
+      'https://github.company.example/acme/demo.git',
+      'https://github.com.evil.test/acme/demo.git',
+      'https://www.github.com.evil.test/acme/demo.git',
+      'https://gist.github.com/acme/demo.git',
+      'https://notwww.github.com/acme/demo.git',
+      // Still only https, whichever spelling names the host.
+      'http://www.github.com/acme/demo.git',
+      'git@www.github.com:acme/demo.git',
+    ]) {
+      expect(isRepoHostAllowed(url)).toBe(false);
+    }
   });
 
   test('an explicitly EMPTY list denies everything', () => {

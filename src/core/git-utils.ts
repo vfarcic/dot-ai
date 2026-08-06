@@ -1053,8 +1053,19 @@ function splitRemoteUrl(
  */
 export const ALLOWED_REPO_HOSTS_ENV = 'DOT_AI_GITOPS_ALLOWED_REPO_HOSTS';
 
-/** The chart's default, repeated here for a server started outside the chart. */
-const DEFAULT_ALLOWED_REPO_HOSTS = ['github.com'];
+/**
+ * The chart's default, repeated here for a server started outside the chart.
+ *
+ * Both GitHub spellings are listed because matching is exact with no wildcards
+ * (see getAllowedRepoHosts): `github.com` does not cover `www.github.com`, and
+ * `www.github.com` is the same service — GITHUB_HOSTS already accepts it for PR
+ * creation for that reason. Listing only the bare host would have this gate
+ * refuse a URL the PR parser was fixed to accept, and would break a GitHub user
+ * who wrote the `www` form and upgraded into the allowlist. This is a second
+ * literal entry, NOT subdomain matching: `github.company.example` and
+ * `github.com.evil.test` are still refused.
+ */
+const DEFAULT_ALLOWED_REPO_HOSTS = ['github.com', 'www.github.com'];
 
 /**
  * Hostnames a client-supplied repository URL may name.
