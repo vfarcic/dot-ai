@@ -1,8 +1,8 @@
 # PRD #710: Pull Request Workflow for `pushToGit`
 
-## Status
-
-Ready. All four open questions were answered by the reporter on 2026-08-04 ([comment](https://github.com/vfarcic/dot-ai/issues/710#issuecomment-5175923379)) — see [Resolved questions](#resolved-questions). No configuration surface is being added, so M1 can start.
+**Status: Complete**
+**Completion Date**: 2026-08-06
+**GitHub Issue**: [#710](https://github.com/vfarcic/dot-ai/issues/710)
 
 ## Problem
 
