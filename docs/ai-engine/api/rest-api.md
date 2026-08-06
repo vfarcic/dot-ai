@@ -304,15 +304,15 @@ These three qualifiers extend a `repo` override so a secondary source can live u
 
 | Case | Credential used for the clone |
 |------|-------------------------------|
-| `X-Dot-AI-Git-Token` present | The forwarded token — for **any** host, on either scheme. Never gated. |
+| `X-Dot-AI-Git-Token` present | The forwarded token — for **any** host, on either scheme. Never gated by the allowlist (but the input-validation rejections below still apply). |
 | Header absent, `https://` `repo` on an allowlisted host | The server's `DOT_AI_GIT_TOKEN`, as before |
 | Header absent, `https://` `repo` on a host **not** allowlisted | **None** — the clone proceeds unauthenticated |
 | Header absent, `http://` `repo` — **any** host, allowlisted or not | **None** — the clone proceeds unauthenticated. `https:` is the only scheme the server's credential travels over, so an allowlist entry does not restore it here. |
 | No `repo` (env-var `DOT_AI_USER_PROMPTS_REPO`) | The server's `DOT_AI_GIT_TOKEN`. Never gated — the URL is the operator's, not a caller's. |
 
-Schemes other than `http` and `https` never reach this decision: they are rejected with `HTTP 400` by [input validation](#validation-rules-for-repo-path-and-branch) before the loader is touched.
+Two kinds of `repo` never reach this decision at all — [input validation](#validation-rules-for-repo-path-and-branch) rejects them with `HTTP 400` before the loader is touched: a scheme other than `http` or `https`, and a host that is a non-public IP literal (loopback, private, link-local, and so on). Neither is a credential decision, and the `X-Dot-AI-Git-Token` header does not change either outcome.
 
-The override is **degraded, not rejected**: an unlisted host still returns `200` for a public repository. A **private** repository on an unlisted host fails with `502 PROMPTS_SOURCE_ERROR`, and the error message names the host and both remedies — send `X-Dot-AI-Git-Token`, or add the host to the Helm value. A cache **refresh** that is gated does not fail at all; the cached copy keeps being served. See [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist) for the matching rules and [Shared Prompt Library](../tools/prompts.md#the-server-credential-and-the-host-allowlist) for the operator-facing walkthrough.
+The override is **degraded, not rejected**: an unlisted host still returns `200` for a public repository. A **private** repository on an unlisted host fails with `502 PROMPTS_SOURCE_ERROR`, and the error message names the host and both remedies — send `X-Dot-AI-Git-Token`, or add the host to the Helm value. (An `http://` URL fails with the scheme explanation instead, which offers only the `https://` remedy: the header would put the caller's own token on a cleartext request.) A cache **refresh** that is gated does not fail at all; the cached copy keeps being served. See [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist) for the matching rules and [Shared Prompt Library](../tools/prompts.md#the-server-credential-and-the-host-allowlist) for the operator-facing walkthrough.
 
 The `path` and `branch` values map onto the same layout an env-var repo uses via `DOT_AI_USER_PROMPTS_PATH` / `DOT_AI_USER_PROMPTS_BRANCH` — they are simply supplied per request instead of via deployment configuration.
 
@@ -705,6 +705,7 @@ The server validates the `repo`, `path`, and `branch` inputs before performing a
 | Rule | Behavior |
 |------|----------|
 | Scheme must be `http` or `https` | Other schemes (`file://`, `ssh://`, `git://`) are rejected: `Invalid override repoUrl scheme: ssh: (only http and https are allowed) for ssh://bad`. |
+| Host must not be a non-public IP literal | Loopback, private, link-local, unique-local, unspecified, and broadcast literals are rejected on both families, before any clone: `Invalid override repoUrl host: 169.254.169.254 is a link-local address, not a public destination this server may fetch prompts from, for http://169.254.169.254/latest/meta-data/`. Alternate spellings (decimal, hex, octal, shorthand, trailing dot, bracketed IPv6, IPv4-mapped IPv6) normalize to the same refusal, and `X-Dot-AI-Git-Token` does not bypass it. **Literals only** — a hostname is not resolved. Applies to `repo` only, never to `DOT_AI_USER_PROMPTS_REPO`. See [Shared Prompt Library § What the override fetch exposes](../tools/prompts.md#what-the-override-fetch-exposes). |
 | `path` must be a safe relative path | `..` segments, absolute paths, and null bytes are rejected (`Invalid override subPath: Relative path cannot escape target directory`, `Invalid override subPath: Relative path cannot be absolute`, `Invalid override subPath: contains null byte`). |
 | `branch` must match the git-safe character set | Only `[A-Za-z0-9_.\-/]` is allowed; other characters are rejected: `Invalid override branch name: <branch>`. |
 | Credentials in the URL | Never echoed in error messages — scrubbed via `sanitizeUrlForLogging`. |
@@ -727,6 +728,29 @@ curl -s "http://localhost:3456/api/v1/prompts?repo=ssh://bad" \
   "meta": {
     "timestamp": "2026-05-26T19:52:37.389Z",
     "requestId": "rest_1779825157389_10",
+    "version": "v1"
+  }
+}
+HTTP: 400
+```
+
+A non-public host is refused on the same seam, with the same envelope — the request never reaches the loader, so nothing is fetched:
+
+```bash
+curl -s "http://localhost:3456/api/v1/prompts?repo=http://169.254.169.254/latest/meta-data/" \
+  -w "\nHTTP: %{http_code}\n"
+```
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid override repoUrl host: 169.254.169.254 is a link-local address, not a public destination this server may fetch prompts from, for http://169.254.169.254/latest/meta-data/"
+  },
+  "meta": {
+    "timestamp": "2026-08-06T00:56:48.102Z",
+    "requestId": "rest_1785977808100_1",
     "version": "v1"
   }
 }
@@ -759,7 +783,7 @@ The `repo` parameter is the server's contract surface for composing prompts from
 
 - **Per-request credentials**: Each request may carry its own `X-Dot-AI-Git-Token`, so repos on different providers (e.g., GitHub + private GitLab) can each authenticate with their own token. The header takes precedence over `DOT_AI_GIT_TOKEN` for that request only; absent the header, the server env credential is used only for an `https://` URL on an [allowlisted host](#the-server-credential-and-the-host-allowlist), and withheld for everything else — including an `http://` URL on an allowlisted host. (This lifts the single-shared-token limitation from the previous release.)
 - **Single-slot cache**: The loader caches one repo at a time. Sequential requests against different repos re-clone each time (acceptable cost with `--depth 1` clones, but observable when alternating between repos within the TTL window). Token-bearing override requests are additionally isolated from the shared unauthenticated cache slot, so an authenticated private clone is never served to a different caller.
-- **No SSRF gate on the fetch**: the host allowlist governs which hosts the server's **credential** may be sent to, not which hosts it will fetch from — an unlisted host is cloned unauthenticated rather than rejected, so a caller can still make the server issue an outbound request to a host it names. Only the scheme is validated (`http` or `https`), with no IP or CIDR filtering, so loopback, link-local (`169.254.169.254`), and cluster-internal addresses are in range. The probe result reaches the caller: a `200` git cannot read as a repository returns `200` with zero prompts, while an error status or a refused connection returns `502 PROMPTS_SOURCE_ERROR` carrying git's message and the status code. Bodies are discarded on a `200`, but an **error**-status body served as `text/plain` is echoed verbatim into that `502`. The endpoint assumes the caller is trusted; don't expose the override surface to untrusted clients without an upstream gate. See [Shared Prompt Library § What the unguarded fetch exposes](../tools/prompts.md#what-the-unguarded-fetch-exposes).
+- **Partial SSRF gate on the fetch**: a `repo` host that is a non-public **IP literal** is refused with `HTTP 400` before anything is fetched — loopback, `10/8`, `172.16/12`, `192.168/16`, link-local `169.254/16` (including `169.254.169.254`), `0/8` and `255.255.255.255`, plus `::1`, `::`, `fe80::/10`, `fc00::/7` and IPv4-mapped forms; alternate spellings normalize to the same refusal, and `X-Dot-AI-Git-Token` does not bypass it. That is the whole of the gate. **Literals only — no DNS resolution**, so a hostname that resolves to an internal address (`localhost`, a Service DNS name) still reaches the clone; and the host allowlist governs which hosts the server's **credential** may be sent to, not which hosts it will fetch from, so an unlisted public host is cloned unauthenticated rather than rejected. For any host that passes, the probe result reaches the caller: a `200` git cannot read as a repository returns `200` with zero prompts, while an error status or a refused connection returns `502 PROMPTS_SOURCE_ERROR` carrying git's message and the status code. Bodies are discarded on a `200`, but an **error**-status body served as `text/plain` is echoed verbatim into that `502`. The endpoint still assumes the caller is trusted; don't expose the override surface to untrusted clients without an upstream gate. See [Shared Prompt Library § What the override fetch exposes](../tools/prompts.md#what-the-override-fetch-exposes).
 
 For the user-facing summary, see [Shared Prompt Library § Multi-source skills](../tools/prompts.md#multi-source-skills-via-the-per-request-repo-override).
 

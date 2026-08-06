@@ -440,6 +440,23 @@ Applies to a repo supplied **per request** (`?repo=` / `--repo`), not to `DOT_AI
 
 - **Solution**: send the repo's own credential in the `X-Dot-AI-Git-Token` header (the [per-request credential](#the-server-credential-and-the-host-allowlist)), or have an operator add the host to `gitops.allowedRepoHosts`.
 - **The other cause of the same symptom**: an `http://` override URL, whatever host it names. `https:` is the only scheme the server's credential travels over, so it is withheld exactly the same way — and no allowlist entry changes that. Re-issue the request naming the same repository with its `https://` URL; the credential header is not the fix here, since it would travel in cleartext. (A scheme that is neither `http` nor `https` never gets this far: it fails validation with `400`, not `502`.)
+
+  This case says so in its own words rather than borrowing the host wording — it names the scheme, offers the one fix that works, and explicitly rules the allowlist out, so nobody edits a Helm value that was already correct. For `http://github.com/x.git` on the default allowlist:
+
+  ```text
+  The server's git credential was NOT used for this clone because the repository URL
+  scheme "http://" cannot carry it — "https://" is the only scheme that may, since
+  http:// would send it in cleartext, so the repository was cloned unauthenticated. If
+  it is private, send the request again naming the same repository with an https://
+  URL. This is not an allowlist decision — the "gitops.allowedRepoHosts" Helm value
+  has no bearing on a URL that is not https://.
+  ```
+
+  The log line splits the same way — the `reason` field points at the scheme, not the allowlist:
+
+  ```text
+  WARN [<component>] Withholding the server git credential from this clone {"url":"http://github.com/x.git","host":"github.com","allowedHosts":["github.com"],"reason":"the repository URL came from the request and its scheme is not \"https://\", the only scheme that may carry the server credential — the \"gitops.allowedRepoHosts\" allowlist is not what refused it","consequence":"cloning unauthenticated; a private repository will fail unless the request names the repository with an https:// URL"}
+  ```
 - **Not the cause**: a public repo on a non-allowlisted host is unaffected — it needs no credential. If a *public* source is missing, look at the other entries in this section instead.
 
 ### Multi-source skills via the per-request repo override
@@ -466,12 +483,13 @@ The override URL comes from the caller, so the server does not hand **its own** 
 | `https://`, host **not** on the allowlist | The clone still happens, **unauthenticated** — the server's credential is withheld |
 | `http://`, **any** host — allowlisted or not | Withheld the same way: `https:` is the only scheme that may carry the server's credential ([matching rules](../setup/deployment.md#matching-rules)). An allowlist entry does not buy back the credential for an `http://` URL. |
 | Any other scheme — `ssh://`, `git://`, `file://` | **Rejected outright**, before the credential decision is ever reached: `HTTP 400` with `Invalid override repoUrl scheme: ssh: (only http and https are allowed) for …`. The override has always accepted `http` and `https` and nothing else — see [validation rules](../api/rest-api.md#validation-rules-for-repo-path-and-branch). |
+| Either scheme, host is a **non-public IP literal** — `127.0.0.1`, `169.254.169.254`, `10.x`, `[::1]` … | **Rejected outright** too, before anything is fetched: `HTTP 400` with `Invalid override repoUrl host: 169.254.169.254 is a link-local address, not a public destination this server may fetch prompts from, for …`. New in this release — a request-supplied `X-Dot-AI-Git-Token` does not soften it, because this decides whether the fetch happens at all rather than whose credential travels. See [what the override fetch exposes](#what-the-override-fetch-exposes) for the full list of ranges. |
 
-The **allowlist decision** is degrade-only — it never turns a clone into a failure. (The scheme rejection in the last row is a different control: input validation that predates the allowlist and rejects the request before any credential decision is made.) Degrading keeps the blast radius narrow:
+The **allowlist decision** is degrade-only — it never turns a clone into a failure. (The last two rows are a different control: input validation that rejects the request before any credential decision is made. The scheme rule predates the allowlist; the non-public-host rule is new in this release.) Degrading keeps the blast radius narrow:
 
 - **Public repositories on any host are unaffected.** They need no credential, so nothing changes for them.
 - Only a **private** repository the credential is withheld from is affected, and which remedy applies depends on which half withheld it:
-  - **A non-allowlisted host** (on `https://`): the remedy is already part of this feature — send the credential with the request in the `X-Dot-AI-Git-Token` header. A request that brings its own token is never gated, for any host. Alternatively, an operator adds the host to `gitops.allowedRepoHosts` and the server's credential keeps being used for it.
+  - **A non-allowlisted host** (on `https://`): the remedy is already part of this feature — send the credential with the request in the `X-Dot-AI-Git-Token` header. A request that brings its own token is never gated **by the allowlist**, for any host (it is still subject to the two input-validation rejections above). Alternatively, an operator adds the host to `gitops.allowedRepoHosts` and the server's credential keeps being used for it.
   - **An `http://` URL** (any host, allowlisted or not): name the same repository with its `https://` URL. No allowlist entry restores the server's credential here — and while the request header does bypass the gate, sending your own token over `http://` puts it on a cleartext request, so it is not the way out of this one.
 - **What this costs depends on what `DOT_AI_GIT_TOKEN` holds.** If it is a GitHub credential, nothing that worked is removed — `github.com` is the default allowlist entry. But the variable is not GitHub-only: the server sends it as the HTTP basic-auth **password** (under the username `x-access-token`), which is also how GitLab and Gitea/Forgejo accept a personal access token. So a GitLab or Gitea token in `DOT_AI_GIT_TOKEN` did authenticate to those hosts before this release, and if you reach one through `?repo=` for a **private** repository, that stops on upgrade until you apply either remedy above.
 
@@ -499,21 +517,56 @@ Under the hood, each invocation talks to the server once and the server still se
 | Caveat | Impact |
 |--------|--------|
 | Single-slot loader cache | Sequential invocations against different repos re-clone each time. Clones are `--depth 1`, so the cost is small per call, but it's noticeable when alternating between repos within the TTL window. Token-bearing override requests are additionally isolated from the shared cache slot, so a private authenticated clone is never served to another caller. |
-| The override URL is still fetched, whatever host it names | The host allowlist governs the **credential**, not the fetch: a URL on a non-allowlisted host is cloned unauthenticated rather than rejected, so the server can still be made to issue an outbound request to a caller-named host. That is not an SSRF gate — don't expose this surface to untrusted callers without an upstream one. What the allowlist does close is credential exposure: the server's `DOT_AI_GIT_TOKEN` is never handed to a host a caller named (see [The server credential and the host allowlist](#the-server-credential-and-the-host-allowlist)). See [what the unguarded fetch exposes](#what-the-unguarded-fetch-exposes) below for what a caller learns from it. |
+| The override URL is still fetched for any host it **names** | Two separate controls, neither of which is a full SSRF gate. A host that is a non-public **IP literal** (loopback, private, link-local, and so on) is now refused with `HTTP 400` before anything is fetched. Every other host is fetched: the allowlist governs the **credential**, not the fetch, so a URL on a non-allowlisted host is cloned unauthenticated rather than rejected — and hostnames are never resolved, so a *name* that resolves to an internal address still reaches the clone. Don't expose this surface to untrusted callers without an upstream gate. What the allowlist does close is credential exposure: the server's `DOT_AI_GIT_TOKEN` is never handed to a host a caller named (see [The server credential and the host allowlist](#the-server-credential-and-the-host-allowlist)). See [what the override fetch exposes](#what-the-override-fetch-exposes) below for the refused ranges and for what a caller still learns from a host that passes. |
 
 **When NOT to use the override**:
 
 - Inside a long-running agent loop that alternates between repos (every alternation causes a re-clone — pin to one repo for the loop and switch outside it).
 - As a substitute for `DOT_AI_USER_PROMPTS_REPO` when you only have a single source. The env var is simpler and benefits from the cache TTL.
-- From untrusted clients. The server's credential is safe (it is withheld from any host not on the allowlist), but there is no SSRF guard on the fetch itself — see [what the unguarded fetch exposes](#what-the-unguarded-fetch-exposes).
+- From untrusted clients. The server's credential is safe (it is withheld from any host not on the allowlist, and from any `http://` URL), and a non-public IP literal is refused before the fetch — but the fetch is still not fully guarded, because a hostname that resolves to an internal address is not: see [what the override fetch exposes](#what-the-override-fetch-exposes).
 
 See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full wire contract, the `source` field semantics, validation rules, and response envelopes returned by each endpoint — useful if you're building a custom MCP/HTTP client rather than using the CLI.
 
-#### What the unguarded fetch exposes
+#### What the override fetch exposes
 
-This behavior is unchanged by the allowlist — it has been the case since the override was introduced, and it is documented rather than fixed because the endpoint sits behind authentication. Know what it gives a caller who reaches it.
+The override makes the server fetch a URL the caller chose, so the destination is checked before anything is cloned. This release narrows what a caller may name — it does not reduce the surface to nothing. Know both halves.
 
-**Only the scheme is validated** — the override accepts `http` and `https` (an `http://` URL is fetched, but never receives the server's credential). There is no IP or CIDR filtering, so loopback, link-local (`169.254.169.254`), and cluster-internal service addresses are all in range. For an override URL the server has not cloned before, git issues `GET <url>/info/refs?service=git-upload-pack` against whatever host was named.
+**A non-public IP literal is refused, before anything is fetched.** The host is read after URL normalization and rejected with `HTTP 400 VALIDATION_ERROR` when it falls in a range that is never a public prompts source. This is a **refusal**, not the credential gate's degradation, and a request-supplied `X-Dot-AI-Git-Token` does not soften it — whose credential travels is a different question from whether the fetch happens:
+
+| Family | Refused ranges |
+|--------|----------------|
+| IPv4 | `127.0.0.0/8` (loopback), `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (private), `169.254.0.0/16` (link-local, including the cloud metadata endpoint `169.254.169.254`), `0.0.0.0/8` (unspecified), `255.255.255.255` (broadcast) |
+| IPv6 | `::1` (loopback), `::` (unspecified), `fe80::/10` (link-local), `fc00::/7` (unique-local), plus IPv4-mapped `::ffff:a.b.c.d` and IPv4-compatible `::a.b.c.d`, which are normalized to their IPv4 destination and then get the IPv4 rules |
+
+The refusal names the offending host and which class refused it, so a caller can tell "typo" from "that destination is not permitted":
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid override repoUrl host: 169.254.169.254 is a link-local address, not a public destination this server may fetch prompts from, for http://169.254.169.254/latest/meta-data/"
+  }
+}
+```
+
+Alternate spellings do not get past it — the check reads the host the URL parser produced, not the text that was sent, so decimal (`http://2130706433/`), hex (`http://0x7f000001/`), octal (`http://0177.0.0.1/`), two-part shorthand (`http://127.1/`), a bare `http://0/`, a trailing dot, a bracketed IPv6 literal, and an explicit port all resolve to the same refusal. The echoed host is the **normalized** one, and a public-looking userinfo cannot smuggle an internal host past the check (nor does the userinfo itself come back — the URL in the message is scrubbed):
+
+```text
+GET /api/v1/prompts?repo=http://2130706433/x.git
+  → Invalid override repoUrl host: 127.0.0.1 is a loopback address, not a public
+    destination this server may fetch prompts from, for http://127.0.0.1/x.git
+
+GET /api/v1/prompts?repo=https://github.com:s3cr3t-token@169.254.169.254/x.git
+  → Invalid override repoUrl host: 169.254.169.254 is a link-local address, not a
+    public destination this server may fetch prompts from, for https://***@169.254.169.254/x.git
+```
+
+This applies to the **caller-supplied** URL only. `DOT_AI_USER_PROMPTS_REPO` is untouched — an operator who points prompts at an in-cluster git server chose that destination, so `DOT_AI_USER_PROMPTS_REPO=http://127.0.0.1/prompts.git` still clones exactly as before.
+
+> **A hostname is still not resolved.** The check classifies IP **literals**; no DNS lookup happens. So `http://localhost/x.git`, `http://kubernetes.default.svc/x.git`, and `http://metadata.google.internal/x.git` all still reach the clone, and everything below still describes what a caller learns from them. Closing that needs resolve-then-pin, which brings its own window between the check and git's own connect, and is deliberately out of scope for this release. **The narrowed surface is still a surface: don't expose the override to untrusted clients without an upstream gate.**
+
+For an override URL the server has not cloned before — any host that passes the check above — git issues `GET <url>/info/refs?service=git-upload-pack` against whatever host was named.
 
 **The probed endpoint's HTTP status comes back to the caller**, which makes the endpoint a reachability and status-code scanner:
 
@@ -523,7 +576,7 @@ This behavior is unchanged by the allowlist — it has been the case since the o
 | Any error status | `502 PROMPTS_SOURCE_ERROR` carrying git's message and the status code — `fatal: repository '<url>' not found` for a `404`, `The requested URL returned error: 403`, and so on |
 | Nothing listening | `502 PROMPTS_SOURCE_ERROR` with `fatal: unable to access '<url>': Failed to connect to <host> port <port> ...` |
 
-**Response bodies are mostly not returned, with one exception.** On a successful (`200`) probe git discards the body, so its content is not exfiltrated. On an **error** status, a body served as `text/plain` *is* echoed verbatim — git prefixes each line with `remote:` and those lines reach the caller inside the `502` message. An error body sent as `text/html`, `application/json`, or with no `Content-Type` is discarded. So a caller can read a plaintext error page from an internal service, but not its normal `200` output.
+**Response bodies are mostly not returned, with one exception.** On a successful (`200`) probe git discards the body, so its content is not exfiltrated. On an **error** status, a body served as `text/plain` *is* echoed verbatim — git prefixes each line with `remote:` and those lines reach the caller inside the `502` message. An error body sent as `text/html`, `application/json`, or with no `Content-Type` is discarded. So for any destination a caller can still name — which, after the refusal above, means a public host or an internal one reachable by **name** — a plaintext error page is readable, but not the service's normal `200` output.
 
 ### CLI-uploaded skill sources (for sources the server can't reach)
 

@@ -801,6 +801,8 @@ The same value gates three different callers, with deliberately different conseq
 
 A URL that is not `https://` fails the same check, whatever host it names — but the consequence is only *mostly* the same. For `pushToGit` and for remediate it is identical: refused and cloned-unauthenticated respectively, on any non-`https://` scheme. For the prompts override, only `http://` reaches this decision and degrades; `ssh://`, `git://`, and `file://` are rejected with `HTTP 400` by input validation before the credential decision happens, so that caller sees a refusal rather than a degradation. See [Matching Rules](#matching-rules).
 
+The prompts override has one more refusal that is **not** this allowlist and needs no configuration: a `?repo=` host that is a non-public **IP literal** (loopback, private, link-local such as `169.254.169.254`, and so on) is rejected with `HTTP 400` before anything is cloned, on either scheme and regardless of the `X-Dot-AI-Git-Token` header. It applies only to the caller-supplied URL — never to `DOT_AI_USER_PROMPTS_REPO` — and it classifies literals, not names. See [what the override fetch exposes](../tools/prompts.md#what-the-override-fetch-exposes).
+
 **Not gated** — this needs no allowlist entry:
 
 - **`DOT_AI_USER_PROMPTS_REPO`** — the operator's own prompts repository. Pointing it at a private GitLab, Gitea, or Forgejo works exactly as before; the URL is the operator's choice, not a caller's.
