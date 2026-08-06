@@ -439,6 +439,7 @@ Applies to a repo supplied **per request** (`?repo=` / `--repo`), not to `DOT_AI
   ```
 
 - **Solution**: send the repo's own credential in the `X-Dot-AI-Git-Token` header (the [per-request credential](#the-server-credential-and-the-host-allowlist)), or have an operator add the host to `gitops.allowedRepoHosts`.
+- **The other cause of the same symptom**: an `http://` override URL, whatever host it names. `https:` is the only scheme the server's credential travels over, so it is withheld exactly the same way — and no allowlist entry changes that. Re-issue the request naming the same repository with its `https://` URL; the credential header is not the fix here, since it would travel in cleartext. (A scheme that is neither `http` nor `https` never gets this far: it fails validation with `400`, not `502`.)
 - **Not the cause**: a public repo on a non-allowlisted host is unaffected — it needs no credential. If a *public* source is missing, look at the other entries in this section instead.
 
 ### Multi-source skills via the per-request repo override
@@ -453,7 +454,7 @@ The override carries more than just the repo URL. A secondary source can live wh
 | `branch` | Pull the source from a non-default branch. | `main` |
 | Per-request credential | Authenticate the override clone with a request-supplied git token (the `X-Dot-AI-Git-Token` header), so a second repo in a **different auth realm** (another Forgejo, a private GitHub or GitLab) can be reached without sharing one server-wide token. | Server's `DOT_AI_GIT_TOKEN` |
 
-**Token precedence**: when a request supplies the credential header, it authenticates that override clone and takes precedence over the server's `DOT_AI_GIT_TOKEN` — but only for that request. Absent the header, the override clone falls back to `DOT_AI_GIT_TOKEN` for hosts on the [repository host allowlist](#the-server-credential-and-the-host-allowlist), and clones unauthenticated for hosts that are not. The token always travels as a request header — never in a URL or body — and never appears in logs, error messages, or the `source` tag.
+**Token precedence**: when a request supplies the credential header, it authenticates that override clone and takes precedence over the server's `DOT_AI_GIT_TOKEN` — but only for that request. Absent the header, the override clone falls back to `DOT_AI_GIT_TOKEN` for an `https://` URL naming a host on the [repository host allowlist](#the-server-credential-and-the-host-allowlist), and clones unauthenticated otherwise. The token always travels as a request header — never in a URL or body — and never appears in logs, error messages, or the `source` tag.
 
 #### The server credential and the host allowlist
 
@@ -462,14 +463,16 @@ The override URL comes from the caller, so the server does not hand **its own** 
 | Override repo URL | What happens |
 |-------------------|--------------|
 | `https://`, host on the allowlist | Unchanged: the clone uses the server's `DOT_AI_GIT_TOKEN` exactly as before |
-| Host not on the allowlist | The clone still happens, **unauthenticated** — the server's credential is withheld |
-| Not `https://` — `http://`, `ssh://`, `git://` — whatever the host | Withheld the same way: `https:` is the only scheme that may carry the server's credential ([matching rules](../setup/deployment.md#matching-rules)) |
+| `https://`, host **not** on the allowlist | The clone still happens, **unauthenticated** — the server's credential is withheld |
+| `http://`, **any** host — allowlisted or not | Withheld the same way: `https:` is the only scheme that may carry the server's credential ([matching rules](../setup/deployment.md#matching-rules)). An allowlist entry does not buy back the credential for an `http://` URL. |
+| Any other scheme — `ssh://`, `git://`, `file://` | **Rejected outright**, before the credential decision is ever reached: `HTTP 400` with `Invalid override repoUrl scheme: ssh: (only http and https are allowed) for …`. The override has always accepted `http` and `https` and nothing else — see [validation rules](../api/rest-api.md#validation-rules-for-repo-path-and-branch). |
 
-The override is **degraded, never refused**, which keeps the blast radius narrow:
+The **allowlist decision** is degrade-only — it never turns a clone into a failure. (The scheme rejection in the last row is a different control: input validation that predates the allowlist and rejects the request before any credential decision is made.) Degrading keeps the blast radius narrow:
 
 - **Public repositories on any host are unaffected.** They need no credential, so nothing changes for them.
-- Only a **private** repository on a non-allowlisted host is affected, and the remedy is already part of this feature: send the credential with the request in the `X-Dot-AI-Git-Token` header. A request that brings its own token is never gated — for any host.
-- Alternatively, an operator can add the host to `gitops.allowedRepoHosts` and keep using the server's credential for it.
+- Only a **private** repository the credential is withheld from is affected, and which remedy applies depends on which half withheld it:
+  - **A non-allowlisted host** (on `https://`): the remedy is already part of this feature — send the credential with the request in the `X-Dot-AI-Git-Token` header. A request that brings its own token is never gated, for any host. Alternatively, an operator adds the host to `gitops.allowedRepoHosts` and the server's credential keeps being used for it.
+  - **An `http://` URL** (any host, allowlisted or not): name the same repository with its `https://` URL. No allowlist entry restores the server's credential here — and while the request header does bypass the gate, sending your own token over `http://` puts it on a cleartext request, so it is not the way out of this one.
 - **What this costs depends on what `DOT_AI_GIT_TOKEN` holds.** If it is a GitHub credential, nothing that worked is removed — `github.com` is the default allowlist entry. But the variable is not GitHub-only: the server sends it as the HTTP basic-auth **password** (under the username `x-access-token`), which is also how GitLab and Gitea/Forgejo accept a personal access token. So a GitLab or Gitea token in `DOT_AI_GIT_TOKEN` did authenticate to those hosts before this release, and if you reach one through `?repo=` for a **private** repository, that stops on upgrade until you apply either remedy above.
 
 > **`DOT_AI_USER_PROMPTS_REPO` is not gated.** The allowlist applies only to a repository URL that arrived in a *request*. The env-var-configured repository is the operator's own choice of source, so pointing it at a private GitLab, Gitea, or Forgejo works exactly as before and needs no allowlist entry. Everything in [Configuration](#configuration) above, including the list of supported Git providers, is unchanged.
@@ -489,7 +492,7 @@ Put together, a second source like *"the platform team's private skills, kept un
 
 Under the hood, each invocation talks to the server once and the server still serves exactly one repository per request; composition lives in the CLI, not the server. The exact wire placement of each qualifier — `path`/`branch` as query params or JSON body fields, the credential as the `X-Dot-AI-Git-Token` header — is in the [REST API reference](../api/rest-api.md#per-request-path-branch-and-credential).
 
-> **Unchanged by default.** The `path`, `branch`, and credential qualifiers are all opt-in per request. A request that supplies none of them keeps the same clone target (repo root on `main`) and the same response shape, and still authenticates with `DOT_AI_GIT_TOKEN` for any repo on an [allowlisted host](#the-server-credential-and-the-host-allowlist) — the server's credential is withheld only for a caller-named host that is not allowlisted. And when the override itself is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO` (never gated), or to the built-in prompts when no env-var repo is configured.
+> **Unchanged by default.** The `path`, `branch`, and credential qualifiers are all opt-in per request. A request that supplies none of them keeps the same clone target (repo root on `main`) and the same response shape, and still authenticates with `DOT_AI_GIT_TOKEN` for any `https://` repo on an [allowlisted host](#the-server-credential-and-the-host-allowlist) — the server's credential is withheld only for a caller-named URL that is not both. And when the override itself is not used, behavior is unchanged: the server falls back to `DOT_AI_USER_PROMPTS_REPO` (never gated), or to the built-in prompts when no env-var repo is configured.
 
 **Server-side caveats** for this release (the contract is additive, so these can be lifted later without breaking changes):
 

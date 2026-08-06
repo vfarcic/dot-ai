@@ -261,7 +261,7 @@ RBAC: allowed by ClusterRoleBinding "<binding-name>" of ClusterRole "<role-name>
 **This is a second, independent breaking change in the same release.** The `pushToGit` stage now checks the repository's host against the `gitops.allowedRepoHosts` Helm value, which defaults to `["github.com"]`.
 
 - **Who is affected**: deployments that push to a GitLab, Bitbucket, or self-hosted Git host. Those pushes — **direct push and pull request mode alike** — stop working on upgrade until an operator adds the host. Deployments that push only to github.com are unaffected by the default. Also affected, on any host: a `repoUrl` that is not an `https://` URL, since `https:` is the only scheme the server will attach its credential to.
-- **What to do**: add the host to `gitops.allowedRepoHosts`, and supply `repoUrl` as the HTTPS clone URL. This is an operator change; no client, binding, or credential change is involved. See [GitOps Repository Host Allowlist](deployment.md#gitops-repository-host-allowlist) for matching rules (`https://` only, exact hostnames, no wildcards) and the empty-list semantics.
+- **What to do**: depends on which half you tripped, and the error says which. An unlisted **host** is an operator change — add it to `gitops.allowedRepoHosts`; no client, binding, or credential change is involved. A `repoUrl` that is not `https://` is a **client** change instead — re-issue the call with the repository's HTTPS clone URL; no chart value will fix it. Neither is a binding or credential change. See [GitOps Repository Host Allowlist](deployment.md#gitops-repository-host-allowlist) for matching rules (`https://` only, exact hostnames, no wildcards) and the empty-list semantics.
 - **Unrelated to RBAC.** This gate is not a permission check and is not affected by `rbac.enforcement.enabled`. It applies to every caller, including static-token callers who bypass RBAC entirely, and it applies whether enforcement is on or off.
 
 **Why it is a different control from everything else in this guide.** RBAC protects your **cluster**: it decides which users may push at all and by which route. The allowlist protects the **server's Git credential**: `repoUrl` comes from the caller, and the server attaches `DOT_AI_GIT_TOKEN` (or a GitHub App installation token) to whatever URL it is given, so before this release any caller who could reach the `pushToGit` stage could name a host they control and have that credential delivered to it — and left behind in that clone's `.git/config`. Note what that means for the RBAC gate above: pull request mode requires only `execute`, so the set of users who can supply a `repoUrl` is deliberately the *wider* one. The two controls compose and neither substitutes for the other — a user with `apply` still cannot push to an unlisted host, and listing a host grants nobody permission to push.
@@ -317,6 +317,29 @@ To allow it, add the host to the "gitops.allowedRepoHosts" Helm value
 ```
 
 Add the host to the value as shown in [GitOps Repository Host Allowlist](deployment.md#gitops-repository-host-allowlist). Note that both push modes are refused, so switching to `pullRequest: true` does not work around it.
+
+If the message names the URL's **scheme** or its shorthand form rather than its host, this is not your entry — see the next one, and do not add a host.
+
+### Git push fails with "Repository URL scheme … is not allowed"
+
+Also not an RBAC problem — and **not** an allowlist problem either, so no chart value fixes it. `repoUrl` must be the repository's `https://` clone URL, because `https:` is the only scheme the server will attach its Git credential to:
+
+```text
+Repository URL scheme "ssh://" is not allowed. Use an https:// URL: it is the only
+scheme that can carry the server's git credential safely — http sends it in
+cleartext, and ssh/git URLs would pass it as an SSH username.
+```
+
+The scp-style shorthand (`github.com:org/repo.git`) reports itself separately, with the same guidance:
+
+```text
+Repository URLs must be written in full, not in the scp-style "host:path"
+shorthand. Use an https:// URL: it is the only scheme that can carry the server's
+git credential safely — http sends it in cleartext, and ssh/git URLs would pass it
+as an SSH username.
+```
+
+Both are client-side fixes: re-issue the `pushToGit` call with the HTTPS clone URL. Adding the host to `gitops.allowedRepoHosts` changes nothing here — the message deliberately does not mention the allowlist, because the host may well be listed already.
 
 ### RBAC changes don't take effect in MCP client
 

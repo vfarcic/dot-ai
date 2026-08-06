@@ -249,7 +249,7 @@ Three REST endpoints expose the shared prompt library. Each one accepts an optio
 
 The override can additionally carry three **optional, additive** qualifiers — a subdirectory (`path`), a `branch`, and a per-request git credential (the `X-Dot-AI-Git-Token` header). They only apply to a request that already supplies `repo`, and each one defaults to today's behavior when omitted: `path` defaults to the repo root, `branch` defaults to `main`, and the credential defaults to the server's `DOT_AI_GIT_TOKEN`.
 
-> **Unchanged by default.** A request that supplies no `path`, no `branch`, and no `X-Dot-AI-Git-Token` header keeps the same clone target (repo root on `main`) and the same response shape, and still authenticates with `DOT_AI_GIT_TOKEN` — for the env-var-configured repo always, and for a `?repo=` override whose host is on the [repository host allowlist](#the-server-credential-and-the-host-allowlist) (default `github.com`). All three qualifiers remain opt-in per request.
+> **Unchanged by default.** A request that supplies no `path`, no `branch`, and no `X-Dot-AI-Git-Token` header keeps the same clone target (repo root on `main`) and the same response shape, and still authenticates with `DOT_AI_GIT_TOKEN` — for the env-var-configured repo always, and for an `https://` `?repo=` override whose host is on the [repository host allowlist](#the-server-credential-and-the-host-allowlist) (default `github.com`). An `http://` override is cloned unauthenticated whatever host it names. All three qualifiers remain opt-in per request.
 
 A fourth endpoint — `POST /api/v1/prompts/sources` — works the other way around: instead of the server fetching a repo, the **caller uploads** a skill source it fetched itself, which the server then caches and renders through the same render path. It exists for sources the server cannot reach (SSO/device-gated VPNs, hardened clusters, and on-disk `--repo-dir` dev loops). It is purely additive — deployments and callers that never upload see zero change. See [Ingested (CLI-uploaded) skill sources](#ingested-cli-uploaded-skill-sources) below.
 
@@ -292,7 +292,7 @@ These three qualifiers extend a `repo` override so a secondary source can live u
 |-----------|-----------|----------------------|
 | `path` | `?path=<subdir>` (query) or `"path"` (JSON body) | Repo root |
 | `branch` | `?branch=<branch>` (query) or `"branch"` (JSON body) | `main` |
-| Credential | `X-Dot-AI-Git-Token` request header (never query/body) | Server's `DOT_AI_GIT_TOKEN` env credential, for an allowlisted host (see below) |
+| Credential | `X-Dot-AI-Git-Token` request header (never query/body) | Server's `DOT_AI_GIT_TOKEN` env credential, for an `https://` URL on an allowlisted host (see below) |
 
 **Credential precedence.** When the `X-Dot-AI-Git-Token` header is present, the server clones the override repo with that token **for that request only**; it takes precedence over `DOT_AI_GIT_TOKEN`. When the header is absent, the override clone falls back to the server's `DOT_AI_GIT_TOKEN`. The forwarded token is scoped to the host in `repo` (it is not forwarded across a cross-host redirect) and never appears in logs, error messages, the `source` field, or the cache key.
 
@@ -300,14 +300,17 @@ These three qualifiers extend a `repo` override so a secondary source can live u
 
 #### The server credential and the host allowlist
 
-`repo` is caller-supplied, so the server's own credential is not attached to any host a request names. The `gitops.allowedRepoHosts` Helm value (default `["github.com"]`) gates that fallback:
+`repo` is caller-supplied, so the server's own credential is not attached to any host a request names. Two conditions gate that fallback: the URL must be `https://`, and its host must appear in the `gitops.allowedRepoHosts` Helm value (default `["github.com"]`). Both, not either:
 
 | Case | Credential used for the clone |
 |------|-------------------------------|
-| `X-Dot-AI-Git-Token` present | The forwarded token — for **any** host. Never gated. |
-| Header absent, `repo` host allowlisted | The server's `DOT_AI_GIT_TOKEN`, as before |
-| Header absent, `repo` host **not** allowlisted | **None** — the clone proceeds unauthenticated |
+| `X-Dot-AI-Git-Token` present | The forwarded token — for **any** host, on either scheme. Never gated. |
+| Header absent, `https://` `repo` on an allowlisted host | The server's `DOT_AI_GIT_TOKEN`, as before |
+| Header absent, `https://` `repo` on a host **not** allowlisted | **None** — the clone proceeds unauthenticated |
+| Header absent, `http://` `repo` — **any** host, allowlisted or not | **None** — the clone proceeds unauthenticated. `https:` is the only scheme the server's credential travels over, so an allowlist entry does not restore it here. |
 | No `repo` (env-var `DOT_AI_USER_PROMPTS_REPO`) | The server's `DOT_AI_GIT_TOKEN`. Never gated — the URL is the operator's, not a caller's. |
+
+Schemes other than `http` and `https` never reach this decision: they are rejected with `HTTP 400` by [input validation](#validation-rules-for-repo-path-and-branch) before the loader is touched.
 
 The override is **degraded, not rejected**: an unlisted host still returns `200` for a public repository. A **private** repository on an unlisted host fails with `502 PROMPTS_SOURCE_ERROR`, and the error message names the host and both remedies — send `X-Dot-AI-Git-Token`, or add the host to the Helm value. A cache **refresh** that is gated does not fail at all; the cached copy keeps being served. See [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist) for the matching rules and [Shared Prompt Library](../tools/prompts.md#the-server-credential-and-the-host-allowlist) for the operator-facing walkthrough.
 
@@ -754,7 +757,7 @@ A request that fails validation never touches the loader, so the env-var-configu
 
 The `repo` parameter is the server's contract surface for composing prompts from multiple repositories. Each request still serves exactly one repo; how (and whether) callers compose responses from multiple requests is the caller's concern — see the [DevOps AI Toolkit CLI docs](https://devopstoolkit.ai/docs/cli) for the CLI-side composition flow.
 
-- **Per-request credentials**: Each request may carry its own `X-Dot-AI-Git-Token`, so repos on different providers (e.g., GitHub + private GitLab) can each authenticate with their own token. The header takes precedence over `DOT_AI_GIT_TOKEN` for that request only; absent the header, the server env credential is used for [allowlisted hosts](#the-server-credential-and-the-host-allowlist) and withheld for the rest. (This lifts the single-shared-token limitation from the previous release.)
+- **Per-request credentials**: Each request may carry its own `X-Dot-AI-Git-Token`, so repos on different providers (e.g., GitHub + private GitLab) can each authenticate with their own token. The header takes precedence over `DOT_AI_GIT_TOKEN` for that request only; absent the header, the server env credential is used only for an `https://` URL on an [allowlisted host](#the-server-credential-and-the-host-allowlist), and withheld for everything else — including an `http://` URL on an allowlisted host. (This lifts the single-shared-token limitation from the previous release.)
 - **Single-slot cache**: The loader caches one repo at a time. Sequential requests against different repos re-clone each time (acceptable cost with `--depth 1` clones, but observable when alternating between repos within the TTL window). Token-bearing override requests are additionally isolated from the shared unauthenticated cache slot, so an authenticated private clone is never served to a different caller.
 - **No SSRF gate on the fetch**: the host allowlist governs which hosts the server's **credential** may be sent to, not which hosts it will fetch from — an unlisted host is cloned unauthenticated rather than rejected, so a caller can still make the server issue an outbound request to a host it names. Only the scheme is validated (`http` or `https`), with no IP or CIDR filtering, so loopback, link-local (`169.254.169.254`), and cluster-internal addresses are in range. The probe result reaches the caller: a `200` git cannot read as a repository returns `200` with zero prompts, while an error status or a refused connection returns `502 PROMPTS_SOURCE_ERROR` carrying git's message and the status code. Bodies are discarded on a `200`, but an **error**-status body served as `text/plain` is echoed verbatim into that `502`. The endpoint assumes the caller is trusted; don't expose the override surface to untrusted clients without an upstream gate. See [Shared Prompt Library § What the unguarded fetch exposes](../tools/prompts.md#what-the-unguarded-fetch-exposes).
 

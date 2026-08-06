@@ -232,10 +232,10 @@ webUI:
 
 # GitOps push (PRD #395, PRD #710)
 gitops:
-  # Repository hosts the pushToGit stage may push to.
+  # Repository hosts the server may hand its own Git credential to.
   #
-  # This is a SECURITY control, not a convenience: `repoUrl` comes from the
-  # client, and the server embeds ITS OWN credential (DOT_AI_GIT_TOKEN or a
+  # This is a SECURITY control, not a convenience: the repository URL comes from
+  # the client, and the server embeds ITS OWN credential (DOT_AI_GIT_TOKEN or a
   # GitHub App installation token) into whatever URL it is given. Without an
   # allowlist, any caller allowed to run the recommend tool can name a host they
   # control and have that credential delivered to it.
@@ -244,16 +244,34 @@ gitops:
   #   matching. A ":port" suffix is accepted and ignored (the credential reaches
   #   the host whichever port answers). "github.com" therefore does NOT cover
   #   "www.github.com" — add it too if clients use that form.
+  # - The URL must also be https://. That is checked TOGETHER with the host, so
+  #   http://, ssh://, git:// and the scp-style "host:path" shorthand are outside
+  #   the allowlist even when the host is listed — an entry here does not buy the
+  #   credential back for them. Supply the HTTPS clone URL.
   # - An EMPTY list ([]) denies every repository. It does NOT mean "allow
-  #   everything" — to allow a host, name it.
-  # - Pushing to a GitLab/Bitbucket/self-hosted remote requires adding its host
-  #   here. Automatic pull request creation still only supports github.com;
-  #   elsewhere the branch is pushed and the PR must be opened manually.
-  # - It ALSO gates the per-request prompts override (?repo=), but there it
-  #   DEGRADES instead of refusing: the clone still happens, unauthenticated. So
-  #   public prompt repos on any host keep working, and a private one on a
-  #   non-listed host needs the X-Dot-AI-Git-Token request header instead.
-  #   DOT_AI_USER_PROMPTS_REPO is the operator's own URL and is NOT gated.
+  #   everything" — to allow a host, name it. Emptying the whole block
+  #   (`gitops:` with nothing under it) is deny-all too; deleting it, or
+  #   `gitops: {}`, keeps the default below.
+  #
+  # THREE callers are gated by this one value, with deliberately different
+  # consequences:
+  # - pushToGit (recommend), direct push and pullRequest: true alike — REFUSED
+  #   before anything is cloned, committed or pushed. So pushing to a
+  #   GitLab/Bitbucket/self-hosted remote requires adding its host here.
+  #   Automatic pull request creation still only supports github.com; elsewhere
+  #   the branch is pushed and the PR must be opened manually.
+  # - The per-request prompts override (?repo=) — DEGRADED, not refused: the
+  #   clone still happens, unauthenticated. Public prompt repos on any host keep
+  #   working; a private one needs the X-Dot-AI-Git-Token request header
+  #   instead. (A scheme that is neither http nor https is rejected as invalid
+  #   input with HTTP 400 before this gate is reached.)
+  # - The remediate tool's repository clone — DEGRADED the same way, but it has
+  #   NO per-request credential header, so adding the host here is the only
+  #   remedy. It is gated because the model chooses the URL from
+  #   client-influenced context, and it fails as git's own auth error rather
+  #   than naming the allowlist.
+  #
+  # DOT_AI_USER_PROMPTS_REPO is the operator's own URL and is NOT gated.
   #
   # Docs: https://devopstoolkit.ai/docs/ai-engine/setup/deployment#gitops-repository-host-allowlist
   allowedRepoHosts:

@@ -774,7 +774,7 @@ Or as a flag on the install command from [Step 3](#step-3-install-the-server), a
 
 | Rule | Consequence |
 |------|-------------|
-| The URL must be **`https://`**, whatever the host | `https:` is the only scheme that can carry the server's credential safely, so `http://github.com/org/repo.git`, `ssh://…`, `git://…` and the scp-style `git@github.com:org/repo.git` shorthand are all outside the allowlist even though the host is listed. Write the HTTPS clone URL. |
+| The URL must be **`https://`**, whatever the host | `https:` is the only scheme that can carry the server's credential safely, so `http://github.com/org/repo.git`, `ssh://…`, `git://…` and the scp-style `github.com:org/repo.git` shorthand are all outside the allowlist even though the host is listed. Write the HTTPS clone URL. |
 | Entries are **hostnames**, compared against the parsed host of the URL | `https://github.com@attacker.example/x.git` is checked as `attacker.example`, not `github.com` — a host cannot be smuggled in via userinfo |
 | **Exact** match, **case-insensitive** | `GitHub.com` in the value matches `https://GITHUB.com/org/repo.git` |
 | **No wildcards, no substring matching** | `github.com` does **not** cover `www.github.com` or `github.company.example` — list every host your callers actually use |
@@ -787,6 +787,7 @@ Or as a flag on the install command from [Step 3](#step-3-install-the-server), a
 |-------|---------|
 | Not set (a deployment predating this value, or a server started outside the chart) | Falls back to the default, `["github.com"]` — **not** "allow everything". An older deployment must not silently become wide open. |
 | `allowedRepoHosts: []` | **Deny-all**, including `github.com`. An empty list is read as an explicit decision, never as "not configured". To allow a host, name it. |
+| `gitops: null` — the key left in your values with nothing under it (`gitops:` on a line of its own, or `--set gitops=null`) | **Deny-all**, exactly like `[]`. Helm does not merge the chart default into an explicit null, so nothing is rendered and the server reads an empty allowlist. This is the one case where "I removed my setting" and "I emptied my setting" part ways: deleting the `gitops:` block **entirely** keeps the default `["github.com"]`, and so does `gitops: {}`. |
 
 ### What the Allowlist Gates
 
@@ -798,7 +799,7 @@ The same value gates three different callers, with deliberately different conseq
 | The per-request prompts override (`?repo=`) — see [Shared Prompt Library](../tools/prompts.md#the-server-credential-and-the-host-allowlist) | ⚠️ **Degraded, not refused.** The clone still happens, but **unauthenticated**: the server's credential is withheld. Public repositories are unaffected; a private one needs the `X-Dot-AI-Git-Token` request header. |
 | The [remediate](../tools/remediate.md) tool's repository clone | ⚠️ **Degraded, not refused**, the same way. A public GitOps repository on any host keeps cloning; a **private** one on an unlisted host now fails to clone. Remediate has no per-request credential header, so adding the host is the only remedy. |
 
-Each consequence applies equally to a URL that is not `https://`, whatever host it names — see [Matching Rules](#matching-rules).
+A URL that is not `https://` fails the same check, whatever host it names — but the consequence is only *mostly* the same. For `pushToGit` and for remediate it is identical: refused and cloned-unauthenticated respectively, on any non-`https://` scheme. For the prompts override, only `http://` reaches this decision and degrades; `ssh://`, `git://`, and `file://` are rejected with `HTTP 400` by input validation before the credential decision happens, so that caller sees a refusal rather than a degradation. See [Matching Rules](#matching-rules).
 
 **Not gated** — this needs no allowlist entry:
 
