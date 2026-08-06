@@ -774,6 +774,7 @@ Or as a flag on the install command from [Step 3](#step-3-install-the-server), a
 
 | Rule | Consequence |
 |------|-------------|
+| The URL must be **`https://`**, whatever the host | `https:` is the only scheme that can carry the server's credential safely, so `http://github.com/org/repo.git`, `ssh://…`, `git://…` and the scp-style `git@github.com:org/repo.git` shorthand are all outside the allowlist even though the host is listed. Write the HTTPS clone URL. |
 | Entries are **hostnames**, compared against the parsed host of the URL | `https://github.com@attacker.example/x.git` is checked as `attacker.example`, not `github.com` — a host cannot be smuggled in via userinfo |
 | **Exact** match, **case-insensitive** | `GitHub.com` in the value matches `https://GITHUB.com/org/repo.git` |
 | **No wildcards, no substring matching** | `github.com` does **not** cover `www.github.com` or `github.company.example` — list every host your callers actually use |
@@ -796,6 +797,8 @@ The same value gates three different callers, with deliberately different conseq
 | `pushToGit` — **both** direct push and pull request mode | ❌ **Refused.** The request fails before any credential is minted, cloned with, or pushed with. |
 | The per-request prompts override (`?repo=`) — see [Shared Prompt Library](../tools/prompts.md#the-server-credential-and-the-host-allowlist) | ⚠️ **Degraded, not refused.** The clone still happens, but **unauthenticated**: the server's credential is withheld. Public repositories are unaffected; a private one needs the `X-Dot-AI-Git-Token` request header. |
 | The [remediate](../tools/remediate.md) tool's repository clone | ⚠️ **Degraded, not refused**, the same way. A public GitOps repository on any host keeps cloning; a **private** one on an unlisted host now fails to clone. Remediate has no per-request credential header, so adding the host is the only remedy. |
+
+Each consequence applies equally to a URL that is not `https://`, whatever host it names — see [Matching Rules](#matching-rules).
 
 **Not gated** — this needs no allowlist entry:
 
@@ -829,6 +832,16 @@ Repository host "github.com" is not allowed. The allowlist is currently empty,
 which allows no repository at all. To allow it, add the host to the
 "gitops.allowedRepoHosts" Helm value (default: github.com) and restart the server.
 ```
+
+A **scheme** problem is reported separately, because changing the chart value would not fix it:
+
+```text
+Repository URL scheme "ssh://" is not allowed. Use an https:// URL: it is the only
+scheme that can carry the server's git credential safely — http sends it in
+cleartext, and ssh/git URLs would pass it as an SSH username.
+```
+
+The scp-style shorthand gets its own wording — `Repository URLs must be written in full, not in the scp-style "host:path" shorthand`, followed by the same `https://` guidance.
 
 Adding a host takes effect on server restart (it is container configuration, so a Helm upgrade that changes the value rolls the pod).
 

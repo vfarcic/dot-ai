@@ -459,10 +459,11 @@ The override carries more than just the repo URL. A secondary source can live wh
 
 The override URL comes from the caller, so the server does not hand **its own** credential to any host a request happens to name. The `gitops.allowedRepoHosts` Helm value — the same value that gates [GitOps pushes](../setup/deployment.md#gitops-repository-host-allowlist), default `["github.com"]` — decides:
 
-| Override repo host | What happens |
-|--------------------|--------------|
-| On the allowlist | Unchanged: the clone uses the server's `DOT_AI_GIT_TOKEN` exactly as before |
-| Not on the allowlist | The clone still happens, **unauthenticated** — the server's credential is withheld |
+| Override repo URL | What happens |
+|-------------------|--------------|
+| `https://`, host on the allowlist | Unchanged: the clone uses the server's `DOT_AI_GIT_TOKEN` exactly as before |
+| Host not on the allowlist | The clone still happens, **unauthenticated** — the server's credential is withheld |
+| Not `https://` — `http://`, `ssh://`, `git://` — whatever the host | Withheld the same way: `https:` is the only scheme that may carry the server's credential ([matching rules](../setup/deployment.md#matching-rules)) |
 
 The override is **degraded, never refused**, which keeps the blast radius narrow:
 
@@ -509,7 +510,7 @@ See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full 
 
 This behavior is unchanged by the allowlist — it has been the case since the override was introduced, and it is documented rather than fixed because the endpoint sits behind authentication. Know what it gives a caller who reaches it.
 
-**Only the scheme is validated** (`http` or `https`). There is no IP or CIDR filtering, so loopback, link-local (`169.254.169.254`), and cluster-internal service addresses are all in range. For an override URL the server has not cloned before, git issues `GET <url>/info/refs?service=git-upload-pack` against whatever host was named.
+**Only the scheme is validated** — the override accepts `http` and `https` (an `http://` URL is fetched, but never receives the server's credential). There is no IP or CIDR filtering, so loopback, link-local (`169.254.169.254`), and cluster-internal service addresses are all in range. For an override URL the server has not cloned before, git issues `GET <url>/info/refs?service=git-upload-pack` against whatever host was named.
 
 **The probed endpoint's HTTP status comes back to the caller**, which makes the endpoint a reachability and status-code scanner:
 
