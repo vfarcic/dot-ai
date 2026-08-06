@@ -15,13 +15,16 @@ prompts override explains itself when it fails — the error names which half re
 and gives the remedy for that half — but a gated cache *refresh* does not fail at all, it keeps serving
 the cached copy, so watch the server log for `Withholding the server git credential from this pull`.
 
-For the prompts override, only an `http://` URL reaches that degradation: `ssh://`, `git://` and
-`file://` have always been rejected with `HTTP 400` by input validation and still are. And where a
-scheme is what refused the credential, the message says so rather than blaming the allowlist, because
-no chart value fixes an `http://` URL — send the repository's `https://` clone URL instead. The
-`X-Dot-AI-Git-Token` request header still bypasses the allowlist for the prompts override and is the
-right remedy for an unlisted host; it is *not* the remedy for an `http://` URL, since it would put your
-own token on a cleartext request.
+For the prompts override, two different URLs reach that degradation, and the remedy is not the same for
+both. An `https://` URL whose **host** is not on the allowlist is the ordinary case: add the host to
+`gitops.allowedRepoHosts`, or send the request's own credential in the `X-Dot-AI-Git-Token` header,
+which still bypasses the allowlist for this caller. An `http://` URL degrades too — on **any** host,
+listed or not — because it is the *scheme* that refused it, and the message says so rather than blaming
+the allowlist: no chart value fixes an `http://` URL, so send the repository's `https://` clone URL
+instead, and do not reach for `X-Dot-AI-Git-Token` here, since it would put your own token on a
+cleartext request. Those two schemes are the only ones that get as far as the credential decision:
+`ssh://`, `git://` and `file://` have always been rejected with `HTTP 400` by input validation and
+still are.
 
 Separately, and new in this release, the prompts override now **refuses a non-public destination
 outright** — `HTTP 400`, before anything is fetched — when the `?repo=` host is an IP literal in a range

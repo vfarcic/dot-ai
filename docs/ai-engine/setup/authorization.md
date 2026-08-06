@@ -179,10 +179,14 @@ This grants Alice access only to the `query` and `version` tools — all other t
 
 The `recommend` tool's `pushToGit` stage can push generated manifests to a GitOps repository in two modes, and each requires a different verb:
 
-| Mode | How it's called | Required verb | What it does |
-|------|-----------------|---------------|--------------|
-| Direct push | `pushToGit` | **`apply`** on `recommend` | Commits and pushes straight to the target branch |
-| Pull request | `pushToGit` with `pullRequest: true` | **`execute`** on `recommend` | Commits to a server-generated branch and opens a pull request against the target branch, which is never written to |
+| | Direct push | Pull request |
+|--|-------------|--------------|
+| **How it's called** | `pushToGit` | `pushToGit` with `pullRequest: true` |
+| **Required verb** | **`apply`** on `recommend` | **`execute`** on `recommend` |
+| **What it does** | Commits and pushes straight to the target branch | Commits to a server-generated branch and opens a pull request against the target branch, which is never written to |
+| **Pros** | One step — the change is on the branch the controller reconciles as soon as the push lands | Needs only `execute`, so viewers can propose changes; the target branch is never written to, so it works against a protected branch |
+| **Cons** | Needs `apply`, which also unblocks `deployManifests` — the two cannot be separated; nothing stands between the commit and the controller | Someone still has to merge it; automatic pull request creation is github.com-only, and elsewhere the branch is pushed and you open the PR/MR yourself |
+| **Best for** | Trusted operators pushing to an unprotected branch | Review-gated GitOps, protected branches, and any user who holds only `execute` |
 
 In a GitOps deployment a commit on the branch a controller reconciles *is* a cluster change, so direct push carries the same verb as `deployManifests`. Opening a pull request only proposes the change, so `execute` is enough.
 
@@ -210,19 +214,23 @@ See [Recommendation Guide - Option: GitOps Pull Request](../tools/recommend.md#o
 
 ### What This Gate Does and Does Not Enforce
 
-If you are using this gate to force a pull-request-only workflow, it depends on four conditions. Each one is an operator responsibility that the server cannot verify for you, and any one of them left unmet defeats the gate:
+If you are using this gate to force a pull-request-only workflow, it depends on four conditions. Each one is an operator responsibility that the server cannot verify for you — but they do not fail the same way, and the difference matters when you go looking for them. Three of them (1, 3, and 4) fail **open**: leave one unmet and a user you believe is restricted to pull requests still has direct push. The fourth (2) fails **closed**: it does not hand direct push back, it takes *both* modes away and looks like a broken deployment rather than a bypass. Check all four, for opposite reasons:
 
 **1. Kubernetes RBAC is additive, never subtractive.** A `dotai-viewer` binding does not *remove* `apply` — it merely fails to grant it. A user who is also bound to `dotai-operator`, `dotai-admin`, or any custom role granting `apply` anywhere in the cluster gets the union of all of them, and direct push is available to them again. Forcing pull request mode therefore requires auditing that *no* broader binding exists for that user or any of their groups, not just adding a narrow one. **This is the most likely way to believe you are protected and not be.**
 
-Don't audit by reading bindings — ask Kubernetes the same question the server asks. Create a SubjectAccessReview with no namespace (the server's check is cluster-scoped):
+Don't audit by reading bindings — ask Kubernetes the same question the server asks. Create a SubjectAccessReview with no namespace (the server's check is cluster-scoped), and **fill in the user's groups**: the server sends `user` and `groups` together on every check, so an audit that sends only the user is not asking the same question.
 
 ```yaml
 apiVersion: authorization.k8s.io/v1
 kind: SubjectAccessReview
 spec:
   user: alice@example.com
-  # Include the user's groups — a group binding grants apply just as well
-  groups: []
+  # Required — not a placeholder to leave empty. List every group the identity
+  # provider puts in the user's token (see Group-Based Bindings above). An empty
+  # list asks Kubernetes about a user who belongs to no groups at all.
+  groups:
+    - platform-team
+    - engineering
   resourceAttributes:
     group: dot-ai.devopstoolkit.ai
     resource: tools
@@ -235,14 +243,29 @@ kubectl create --filename can-push-directly.yaml \
   --output jsonpath='{.status.allowed}{"\n"}{.status.reason}{"\n"}'
 ```
 
-`false` means direct push is refused and pull request mode is the only path available to that user. `true` means they can still push directly, and the reason names the binding that allows it — which is how you find the broader binding this limit warns about:
+`true` means the user can still push directly, and the reason names the binding that allows it — which is how you find the broader binding this limit warns about. A binding to the user names her:
 
 ```text
 true
-RBAC: allowed by ClusterRoleBinding "<binding-name>" of ClusterRole "<role-name>" to User "alice@example.com"
+RBAC: allowed by ClusterRoleBinding "dot-ai-operator-users" of ClusterRole "dotai-operator" to User "alice@example.com"
 ```
 
-**2. The binding must be cluster-scoped.** The permission check carries no namespace, so a namespaced `RoleBinding` never satisfies it — permissions granted that way have no effect on tool access at all. Use `ClusterRoleBinding`, as shown in [Assigning Roles to Users](#assigning-roles-to-users).
+A binding to one of her groups names the group instead:
+
+```text
+true
+RBAC: allowed by ClusterRoleBinding "dot-ai-operator-group" of ClusterRole "dotai-operator" to Group "platform-team"
+```
+
+`false` means direct push is refused and pull request mode is the only path available to that user — **but only if you listed her groups**. Run the same check against that same group binding with `groups: []` and it answers:
+
+```text
+false
+```
+
+That is a false negative on exactly the binding this audit exists to catch, and nothing in the output hints at it: an allowed check explains itself in `reason`, a denied one comes back bare. If you cannot enumerate a user's groups — some identity providers omit them unless configured, see [Group-Based Bindings](#group-based-bindings) — treat a `false` as inconclusive rather than as a pass.
+
+**2. The binding must be cluster-scoped — and this is the one that fails closed.** The permission check carries no namespace, so a namespaced `RoleBinding` never satisfies it. It does not leave the user with direct push; it leaves them with **nothing**. `apply` and `execute` are both denied, so pull request mode is gone along with direct push and every other tool refuses too — the symptom is [User gets "Access Denied" for all tools](#user-gets-access-denied-for-all-tools), never an unexpected push. Unlike limits 1, 3, and 4, no additive binding, static token, or disabled enforcement is involved: the permission was simply never granted where the server looks for it. Use `ClusterRoleBinding`, as shown in [Assigning Roles to Users](#assigning-roles-to-users).
 
 **3. Static token users bypass RBAC entirely.** Any caller presenting `DOT_AI_AUTH_TOKEN` is allowed unconditionally and bindings are irrelevant to it. The gate covers OAuth end users only — automation, CI jobs, or UI paths authenticating with the static token retain direct push no matter how the ClusterRoleBindings are written. If pull-request-only is a requirement, the static token has to be disabled or restricted to callers you trust with direct push.
 

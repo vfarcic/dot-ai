@@ -765,8 +765,40 @@ gitops:
 Or as a flag on the install command from [Step 3](#step-3-install-the-server), alongside your other values:
 
 ```bash
-  --set-json 'gitops.allowedRepoHosts=["github.com","gitlab.example.com"]'
+helm upgrade --install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
+  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
+  --set-json 'gitops.allowedRepoHosts=["github.com","gitlab.example.com"]' \
+  --namespace dot-ai --create-namespace
 ```
+
+```text
+Release "dot-ai-mcp" does not exist. Installing it now.
+NAME: dot-ai-mcp
+LAST DEPLOYED: Thu Aug  6 01:54:51 2026
+NAMESPACE: dot-ai
+STATUS: deployed
+REVISION: 1
+NOTES:
+=== dot-ai installed ===
+
+Authentication: Legacy bearer token mode.
+  Set secrets.auth.token in values.yaml or create the Secret externally.
+  Enable dex.enabled=true for OAuth/OIDC authentication.
+```
+
+The list the server actually received is in the container's environment, which is the quickest way to confirm a value that only takes effect on restart:
+
+```bash
+kubectl get deployment dot-ai-mcp --namespace dot-ai \
+  --output jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="DOT_AI_GITOPS_ALLOWED_REPO_HOSTS")].value}{"\n"}'
+```
+
+```text
+github.com,gitlab.example.com
+```
+
+An empty line there is the deny-all case rather than "not configured" — see the unset-vs-empty table below.
 
 > **This is not the RBAC gate.** [Authorization](authorization.md#git-push-direct-push-or-pull-request) decides *who* may push and *how* (direct push needs `apply`, pull request mode needs `execute`) — it protects your **cluster**. The allowlist decides *which hosts* the server will hand its Git credential to — it protects the **server's credential**. Both apply independently: a user with `apply` still cannot push to a host that is not listed, and listing a host grants no one permission to push.
 
@@ -799,7 +831,7 @@ The same value gates three different callers, with deliberately different conseq
 | The per-request prompts override (`?repo=`) — see [Shared Prompt Library](../tools/prompts.md#the-server-credential-and-the-host-allowlist) | ⚠️ **Degraded, not refused.** The clone still happens, but **unauthenticated**: the server's credential is withheld. Public repositories are unaffected; a private one needs the `X-Dot-AI-Git-Token` request header. |
 | The [remediate](../tools/remediate.md) tool's repository clone | ⚠️ **Degraded, not refused**, the same way. A public GitOps repository on any host keeps cloning; a **private** one on an unlisted host now fails to clone. Remediate has no per-request credential header, so adding the host is the only remedy. |
 
-A URL that is not `https://` fails the same check, whatever host it names — but the consequence is only *mostly* the same. For `pushToGit` and for remediate it is identical: refused and cloned-unauthenticated respectively, on any non-`https://` scheme. For the prompts override, only `http://` reaches this decision and degrades; `ssh://`, `git://`, and `file://` are rejected with `HTTP 400` by input validation before the credential decision happens, so that caller sees a refusal rather than a degradation. See [Matching Rules](#matching-rules).
+A URL that is not `https://` fails the same check, whatever host it names — but the consequence is only *mostly* the same. For `pushToGit` and for remediate it is identical: refused and cloned-unauthenticated respectively, on any non-`https://` scheme. For the prompts override, `http://` is the only non-`https://` scheme that reaches this decision and degrades; `ssh://`, `git://`, and `file://` are rejected with `HTTP 400` by input validation before the credential decision happens, so that caller sees a refusal rather than a degradation. See [Matching Rules](#matching-rules).
 
 The prompts override has one more refusal that is **not** this allowlist and needs no configuration: a `?repo=` host that is a non-public **IP literal** (loopback, private, link-local such as `169.254.169.254`, and so on) is rejected with `HTTP 400` before anything is cloned, on either scheme and regardless of the `X-Dot-AI-Git-Token` header. It applies only to the caller-supplied URL — never to `DOT_AI_USER_PROMPTS_REPO` — and it classifies literals, not names. See [what the override fetch exposes](../tools/prompts.md#what-the-override-fetch-exposes).
 
@@ -848,9 +880,9 @@ The scp-style shorthand gets its own wording — `Repository URLs must be writte
 
 Adding a host takes effect on server restart (it is container configuration, so a Helm upgrade that changes the value rolls the pod).
 
-> **Allowlisting a host does not enable automatic pull requests there.** Automatic PR creation still supports github.com `<owner>/<repo>` remotes only. Against any other host, `pullRequest: true` pushes the branch and reports `pushed_without_pr` — you open the PR/MR manually. See [Option: GitOps Pull Request](../tools/recommend.md#option-gitops-pull-request).
+**Allowlisting a host does not enable automatic pull requests there.** Automatic PR creation still supports github.com `<owner>/<repo>` remotes only. Against any other host, `pullRequest: true` pushes the branch and reports `pushed_without_pr` — you open the PR/MR manually. See [Option: GitOps Pull Request](../tools/recommend.md#option-gitops-pull-request).
 
-> **Upgrading from a release before this value existed?** Pushing to a GitLab, Bitbucket, or self-hosted remote stops working until you add its host. See [Upgrading: Pushing to a Non-GitHub Host Now Requires an Allowlist Entry](authorization.md#upgrading-pushing-to-a-non-github-host-now-requires-an-allowlist-entry).
+**Upgrading from a release before this value existed?** Pushing to a GitLab, Bitbucket, or self-hosted remote stops working until you add its host. See [Upgrading: Pushing to a Non-GitHub Host Now Requires an Allowlist Entry](authorization.md#upgrading-pushing-to-a-non-github-host-now-requires-an-allowlist-entry).
 
 ## TLS Configuration
 
