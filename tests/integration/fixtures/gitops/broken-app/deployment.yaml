@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: app
-        image: nginx:v999-nonexistent
+        image: nginx:latest
         ports:
         - containerPort: 80
