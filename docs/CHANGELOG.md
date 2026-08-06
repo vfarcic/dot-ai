@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Breaking Changes
 
-- ## The Server's Git Credential No Longer Follows a Caller-Supplied URL
+- **The Server's Git Credential No Longer Follows a Caller-Supplied URL**
 
   **Breaking change.** `pushToGit`, the per-request prompts override (`?repo=`), and `remediate`'s
   repository clone all act on a URL that comes from — or is influenced by — the caller, and the server
