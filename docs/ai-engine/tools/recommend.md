@@ -411,15 +411,15 @@ After `generateManifests`, agents present three equal options: **save locally** 
 
 `pushToGit` has two modes. By default it commits straight to `branch`. With `pullRequest: true` it commits to a server-generated branch and opens a pull request against `branch` instead — see [Option: GitOps Pull Request](#option-gitops-pull-request) below. When [RBAC](../setup/authorization.md) is enabled, the two modes require different permissions: pushing directly needs `apply` on `recommend`, opening a pull request needs only `execute`, and agents are only offered the mode the user is permitted to use.
 
-**`repoUrl` must be an HTTPS URL naming an allowlisted host.** Because the server attaches its own Git credential to whatever repository URL the call supplies, that URL is checked **in both modes**, before anything is cloned, committed, or pushed: its host must appear in the `gitops.allowedRepoHosts` Helm value — which defaults to `github.com` — and its scheme must be `https://`. A host that is not listed is refused and names itself:
+**`repoUrl` must be an HTTPS URL naming an allowlisted host.** Because the server attaches its own Git credential to whatever repository URL the call supplies, that URL is checked **in both modes**, before anything is cloned, committed, or pushed: its host must appear in the `gitops.allowedRepoHosts` Helm value — which defaults to `github.com` and `www.github.com` — and its scheme must be `https://`. A host that is not listed is refused and names itself:
 
 ```text
-Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com.
-To allow it, add the host to the "gitops.allowedRepoHosts" Helm value
-(default: github.com) and restart the server.
+Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com,
+www.github.com. To allow it, add the host to the "gitops.allowedRepoHosts" Helm
+value (default: github.com, www.github.com) and restart the server.
 ```
 
-The fix is an operator change, not a client one: add the host to the value. Matching is on the parsed hostname — exact and case-insensitive, with no wildcards, so `github.com` does not cover `www.github.com`. A wrong **scheme** is a client fix instead, and reports itself as such rather than blaming the allowlist:
+The fix is an operator change, not a client one: add the host to the value. Matching is on the parsed hostname — exact and case-insensitive, with no wildcards, so `github.com` does not cover `github.company.example`, nor does any entry cover a subdomain of itself. That is why the default lists `github.com` and `www.github.com` as two separate entries rather than one standing in for the other. A wrong **scheme** is a client fix instead, and reports itself as such rather than blaming the allowlist:
 
 ```text
 Repository URL scheme "ssh://" is not allowed. Use an https:// URL: it is the only
@@ -555,7 +555,7 @@ When the request carries an authenticated OAuth identity, that identity **is** t
 **Prerequisites for pushToGit:**
 - Git authentication configured via `DOT_AI_GIT_TOKEN` or GitHub App credentials
 - Write access to the target repository — for `pullRequest: true`, the credential also needs permission to open pull requests (a GitHub App needs `Contents: write` **and** `Pull requests: write`)
-- An `https://` `repoUrl` whose host is listed in `gitops.allowedRepoHosts` (defaults to `github.com`) — see [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist)
+- An `https://` `repoUrl` whose host is listed in `gitops.allowedRepoHosts` (defaults to `github.com` and `www.github.com`) — see [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist)
 - GitOps controller (Argo CD/Flux) configured to watch the repository
 
 ### Example 2: Third-Party Application Installation (Helm)

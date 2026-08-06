@@ -427,15 +427,15 @@ Applies to a repo supplied **per request** (`?repo=` / `--repo`), not to `DOT_AI
   ```text
   The server's git credential was NOT used for this clone because repository host
   "gitlab.example.com" is not on the "gitops.allowedRepoHosts" allowlist (currently
-  allowed: github.com), so the repository was cloned unauthenticated. If it is
-  private, send the credential with the request in the X-Dot-AI-Git-Token header,
-  or add the host to the "gitops.allowedRepoHosts" Helm value.
+  allowed: github.com, www.github.com), so the repository was cloned unauthenticated.
+  If it is private, send the credential with the request in the X-Dot-AI-Git-Token
+  header, or add the host to the "gitops.allowedRepoHosts" Helm value.
   ```
 
 - **A stale refresh does not fail**, so the log is the only signal. Search it for `Withholding the server git credential` — the `pull` variant means the repository kept serving its cached copy instead of refreshing:
 
   ```text
-  WARN [<component>] Withholding the server git credential from this pull {"url":"https://gitlab.example.com/team/prompts.git","host":"gitlab.example.com","allowedHosts":["github.com"],"reason":"the repository URL came from the request and its host is not on the \"gitops.allowedRepoHosts\" allowlist","consequence":"pulling unauthenticated; a private repository keeps serving the cached copy instead of refreshing, unless the request supplies its own credential in the X-Dot-AI-Git-Token header"}
+  WARN [<component>] Withholding the server git credential from this pull {"url":"https://gitlab.example.com/team/prompts.git","host":"gitlab.example.com","allowedHosts":["github.com","www.github.com"],"reason":"the repository URL came from the request and its host is not on the \"gitops.allowedRepoHosts\" allowlist","consequence":"pulling unauthenticated; a private repository keeps serving the cached copy instead of refreshing, unless the request supplies its own credential in the X-Dot-AI-Git-Token header"}
   ```
 
 - **Solution**: send the repo's own credential in the `X-Dot-AI-Git-Token` header (the [per-request credential](#the-server-credential-and-the-host-allowlist)), or have an operator add the host to `gitops.allowedRepoHosts`.
@@ -455,7 +455,7 @@ Applies to a repo supplied **per request** (`?repo=` / `--repo`), not to `DOT_AI
   The log line splits the same way — the `reason` field points at the scheme, not the allowlist:
 
   ```text
-  WARN [<component>] Withholding the server git credential from this clone {"url":"http://github.com/x.git","host":"github.com","allowedHosts":["github.com"],"reason":"the repository URL came from the request and its scheme is not \"https://\", the only scheme that may carry the server credential — the \"gitops.allowedRepoHosts\" allowlist is not what refused it","consequence":"cloning unauthenticated; a private repository will fail unless the request names the repository with an https:// URL"}
+  WARN [<component>] Withholding the server git credential from this clone {"url":"http://github.com/x.git","host":"github.com","allowedHosts":["github.com","www.github.com"],"reason":"the repository URL came from the request and its scheme is not \"https://\", the only scheme that may carry the server credential — the \"gitops.allowedRepoHosts\" allowlist is not what refused it","consequence":"cloning unauthenticated; a private repository will fail unless the request names the repository with an https:// URL"}
   ```
 - **Not the cause**: a public repo on a non-allowlisted host is unaffected — it needs no credential. If a *public* source is missing, look at the other entries in this section instead.
 
@@ -475,7 +475,7 @@ The override carries more than just the repo URL. A secondary source can live wh
 
 #### The server credential and the host allowlist
 
-The override URL comes from the caller, so the server does not hand **its own** credential to any host a request happens to name. The `gitops.allowedRepoHosts` Helm value — the same value that gates [GitOps pushes](../setup/deployment.md#gitops-repository-host-allowlist), default `["github.com"]` — decides:
+The override URL comes from the caller, so the server does not hand **its own** credential to any host a request happens to name. The `gitops.allowedRepoHosts` Helm value — the same value that gates [GitOps pushes](../setup/deployment.md#gitops-repository-host-allowlist), default `["github.com", "www.github.com"]` — decides:
 
 | Override repo URL | What happens |
 |-------------------|--------------|
@@ -491,7 +491,7 @@ The **allowlist decision** is degrade-only — it never turns a clone into a fai
 - Only a **private** repository the credential is withheld from is affected, and which remedy applies depends on which half withheld it:
   - **A non-allowlisted host** (on `https://`): the remedy is already part of this feature — send the credential with the request in the `X-Dot-AI-Git-Token` header. A request that brings its own token is never gated **by the allowlist**, for any host (it is still subject to the two input-validation rejections above). Alternatively, an operator adds the host to `gitops.allowedRepoHosts` and the server's credential keeps being used for it.
   - **An `http://` URL** (any host, allowlisted or not): name the same repository with its `https://` URL. No allowlist entry restores the server's credential here — and while the request header does bypass the gate, sending your own token over `http://` puts it on a cleartext request, so it is not the way out of this one.
-- **What this costs depends on what `DOT_AI_GIT_TOKEN` holds.** If it is a GitHub credential, nothing that worked is removed — `github.com` is the default allowlist entry. But the variable is not GitHub-only: the server sends it as the HTTP basic-auth **password** (under the username `x-access-token`), which is also how GitLab and Gitea/Forgejo accept a personal access token. So a GitLab or Gitea token in `DOT_AI_GIT_TOKEN` did authenticate to those hosts before this release, and if you reach one through `?repo=` for a **private** repository, that stops on upgrade until you apply either remedy above.
+- **What this costs depends on what `DOT_AI_GIT_TOKEN` holds.** If it is a GitHub credential, nothing that worked is removed — `github.com` and `www.github.com` are the default allowlist entries. But the variable is not GitHub-only: the server sends it as the HTTP basic-auth **password** (under the username `x-access-token`), which is also how GitLab and Gitea/Forgejo accept a personal access token. So a GitLab or Gitea token in `DOT_AI_GIT_TOKEN` did authenticate to those hosts before this release, and if you reach one through `?repo=` for a **private** repository, that stops on upgrade until you apply either remedy above.
 
 > **`DOT_AI_USER_PROMPTS_REPO` is not gated.** The allowlist applies only to a repository URL that arrived in a *request*. The env-var-configured repository is the operator's own choice of source, so pointing it at a private GitLab, Gitea, or Forgejo works exactly as before and needs no allowlist entry. Everything in [Configuration](#configuration) above, including the list of supported Git providers, is unchanged.
 

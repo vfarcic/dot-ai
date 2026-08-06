@@ -5,7 +5,7 @@ repository clone all act on a URL that comes from — or is influenced by — th
 attached its own `DOT_AI_GIT_TOKEN` (or a freshly minted GitHub App installation token) to whatever URL
 it was handed. It no longer does. The credential now travels only to a repository whose URL is
 `https://` and whose host appears in the new `gitops.allowedRepoHosts` Helm value, which defaults to
-`["github.com"]`. Both conditions, not either.
+`["github.com", "www.github.com"]`. Both conditions, not either.
 
 The consequence differs per caller, deliberately. `pushToGit` **refuses** the request — direct push and
 pull request mode alike — before any credential is minted, cloned with, or pushed with. The prompts
@@ -39,13 +39,17 @@ if untrusted clients can reach it. Requests using `?repo=` against an internal I
 on upgrade; `DOT_AI_USER_PROMPTS_REPO` is unaffected, so an operator-configured in-cluster prompts
 repository on a private address keeps working exactly as before.
 
-Deployments that only ever use `https://` github.com URLs are unaffected by the default. Everyone else
-adds their hosts explicitly, for example
-`--set-json 'gitops.allowedRepoHosts=["github.com","gitlab.example.com"]'`. Note the asymmetry: an
-unset value falls back to `["github.com"]`, while an empty list — or `gitops: null` — is read as an
-explicit deny-all, never as "not configured". And `DOT_AI_GIT_TOKEN` is not a GitHub-only credential:
-the server sends it as the HTTP basic-auth password under `x-access-token`, which is how GitLab and
-Gitea/Forgejo accept a PAT, so a token for one of those hosts did authenticate before this release.
+Deployments that only ever use `https://` github.com URLs are unaffected by the default, in either the
+bare `github.com` or the `www.github.com` form — the default lists both, as two separate literal
+entries, because the allowlist has no wildcard or subdomain matching and neither host covers the other.
+Everyone else adds their hosts explicitly, for example
+`--set-json 'gitops.allowedRepoHosts=["github.com","www.github.com","gitlab.example.com"]'` — setting
+the value replaces the default outright, so re-list the entries you still want. Note the asymmetry: an
+unset value falls back to `["github.com", "www.github.com"]`, while an empty list — or `gitops: null` —
+is read as an explicit deny-all, never as "not configured". And `DOT_AI_GIT_TOKEN` is not a
+GitHub-only credential: the server sends it as the HTTP basic-auth password under `x-access-token`,
+which is how GitLab and Gitea/Forgejo accept a PAT, so a token for one of those hosts did authenticate
+before this release.
 
 See the [GitOps Repository Host Allowlist](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/deployment#gitops-repository-host-allowlist)
 for matching rules and the unset-vs-empty semantics,

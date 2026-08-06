@@ -281,9 +281,9 @@ That is a false negative on exactly the binding this audit exists to catch, and 
 
 ### Upgrading: Pushing to a Non-GitHub Host Now Requires an Allowlist Entry
 
-**This is a second, independent breaking change in the same release.** The `pushToGit` stage now checks the repository's host against the `gitops.allowedRepoHosts` Helm value, which defaults to `["github.com"]`.
+**This is a second, independent breaking change in the same release.** The `pushToGit` stage now checks the repository's host against the `gitops.allowedRepoHosts` Helm value, which defaults to `["github.com", "www.github.com"]`.
 
-- **Who is affected**: deployments that push to a GitLab, Bitbucket, or self-hosted Git host. Those pushes — **direct push and pull request mode alike** — stop working on upgrade until an operator adds the host. Deployments that push only to github.com are unaffected by the default. Also affected, on any host: a `repoUrl` that is not an `https://` URL, since `https:` is the only scheme the server will attach its credential to.
+- **Who is affected**: deployments that push to a GitLab, Bitbucket, or self-hosted Git host. Those pushes — **direct push and pull request mode alike** — stop working on upgrade until an operator adds the host. Deployments that push only to `github.com` or `www.github.com` are unaffected by the default. Also affected, on any host: a `repoUrl` that is not an `https://` URL, since `https:` is the only scheme the server will attach its credential to.
 - **What to do**: depends on which half you tripped, and the error says which. An unlisted **host** is an operator change — add it to `gitops.allowedRepoHosts`; no client, binding, or credential change is involved. A `repoUrl` that is not `https://` is a **client** change instead — re-issue the call with the repository's HTTPS clone URL; no chart value will fix it. Neither is a binding or credential change. See [GitOps Repository Host Allowlist](deployment.md#gitops-repository-host-allowlist) for matching rules (`https://` only, exact hostnames, no wildcards) and the empty-list semantics.
 - **Unrelated to RBAC.** This gate is not a permission check and is not affected by `rbac.enforcement.enabled`. It applies to every caller, including static-token callers who bypass RBAC entirely, and it applies whether enforcement is on or off.
 
@@ -331,12 +331,12 @@ Retrying with `pullRequest: true` is the intended resolution — see [Git Push: 
 
 ### Git push fails with "Repository host … is not allowed"
 
-This is **not** an RBAC problem — no binding change will fix it, and it happens with enforcement disabled too. The repository's host is not in `gitops.allowedRepoHosts`, which defaults to `["github.com"]`:
+This is **not** an RBAC problem — no binding change will fix it, and it happens with enforcement disabled too. The repository's host is not in `gitops.allowedRepoHosts`, which defaults to `["github.com", "www.github.com"]`:
 
 ```text
-Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com.
-To allow it, add the host to the "gitops.allowedRepoHosts" Helm value
-(default: github.com) and restart the server.
+Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com,
+www.github.com. To allow it, add the host to the "gitops.allowedRepoHosts" Helm
+value (default: github.com, www.github.com) and restart the server.
 ```
 
 Add the host to the value as shown in [GitOps Repository Host Allowlist](deployment.md#gitops-repository-host-allowlist). Note that both push modes are refused, so switching to `pullRequest: true` does not work around it.

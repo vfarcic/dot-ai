@@ -249,7 +249,7 @@ Three REST endpoints expose the shared prompt library. Each one accepts an optio
 
 The override can additionally carry three **optional, additive** qualifiers — a subdirectory (`path`), a `branch`, and a per-request git credential (the `X-Dot-AI-Git-Token` header). They only apply to a request that already supplies `repo`, and each one defaults to today's behavior when omitted: `path` defaults to the repo root, `branch` defaults to `main`, and the credential defaults to the server's `DOT_AI_GIT_TOKEN`.
 
-> **Unchanged by default.** A request that supplies no `path`, no `branch`, and no `X-Dot-AI-Git-Token` header keeps the same clone target (repo root on `main`) and the same response shape, and still authenticates with `DOT_AI_GIT_TOKEN` — for the env-var-configured repo always, and for an `https://` `?repo=` override whose host is on the [repository host allowlist](#the-server-credential-and-the-host-allowlist) (default `github.com`). An `http://` override is cloned unauthenticated whatever host it names. All three qualifiers remain opt-in per request.
+> **Unchanged by default.** A request that supplies no `path`, no `branch`, and no `X-Dot-AI-Git-Token` header keeps the same clone target (repo root on `main`) and the same response shape, and still authenticates with `DOT_AI_GIT_TOKEN` — for the env-var-configured repo always, and for an `https://` `?repo=` override whose host is on the [repository host allowlist](#the-server-credential-and-the-host-allowlist) (default `github.com` and `www.github.com`). An `http://` override is cloned unauthenticated whatever host it names. All three qualifiers remain opt-in per request.
 
 A fourth endpoint — `POST /api/v1/prompts/sources` — works the other way around: instead of the server fetching a repo, the **caller uploads** a skill source it fetched itself, which the server then caches and renders through the same render path. It exists for sources the server cannot reach (SSO/device-gated VPNs, hardened clusters, and on-disk `--repo-dir` dev loops). It is purely additive — deployments and callers that never upload see zero change. See [Ingested (CLI-uploaded) skill sources](#ingested-cli-uploaded-skill-sources) below.
 
@@ -300,7 +300,7 @@ These three qualifiers extend a `repo` override so a secondary source can live u
 
 #### The server credential and the host allowlist
 
-`repo` is caller-supplied, so the server's own credential is not attached to any host a request names. Two conditions gate that fallback: the URL must be `https://`, and its host must appear in the `gitops.allowedRepoHosts` Helm value (default `["github.com"]`). Both, not either:
+`repo` is caller-supplied, so the server's own credential is not attached to any host a request names. Two conditions gate that fallback: the URL must be `https://`, and its host must appear in the `gitops.allowedRepoHosts` Helm value (default `["github.com", "www.github.com"]`). Both, not either:
 
 | Case | Credential used for the clone |
 |------|-------------------------------|

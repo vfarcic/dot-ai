@@ -102,7 +102,7 @@ helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSI
 - **Custom endpoints** (OpenRouter, self-hosted): See [Custom Endpoint Configuration](#custom-endpoint-configuration) for environment variables, then use `--set` or values file with `ai.customEndpoint.enabled=true` and `ai.customEndpoint.baseURL`.
 - **Observability/Tracing**: Add tracing environment variables via `extraEnv` in your values file. See [Observability Guide](../operations/observability.md) for complete configuration.
 - **User-Defined Prompts**: Load custom prompts from your git repository via `extraEnv`. See [User-Defined Prompts](../tools/prompts.md#user-defined-prompts) for configuration.
-- **GitOps push targets**: `gitops.allowedRepoHosts` lists the repository hosts the `pushToGit` stage may push to, and defaults to `["github.com"]`. Pushing to GitLab, Bitbucket, or a self-hosted host requires adding it. See [GitOps Repository Host Allowlist](#gitops-repository-host-allowlist).
+- **GitOps push targets**: `gitops.allowedRepoHosts` lists the repository hosts the `pushToGit` stage may push to, and defaults to `["github.com", "www.github.com"]`. Pushing to GitLab, Bitbucket, or a self-hosted host requires adding it. See [GitOps Repository Host Allowlist](#gitops-repository-host-allowlist).
 
 ### Step 4: Connect a Client
 
@@ -758,14 +758,15 @@ The `pushToGit` stage of the [recommend](../tools/recommend.md#option-gitops-dep
 # values.yaml
 gitops:
   allowedRepoHosts:
-    - github.com          # the default
+    - github.com          # both defaults — setting the value replaces them,
+    - www.github.com      # so re-list the ones you still need
     - gitlab.example.com  # add each additional host explicitly
 ```
 
 Or as a flag on the [Step 3](#step-3-install-the-server) install command — add this line to it, alongside the `--set` values already there, rather than running it as a command of its own (a Helm command that omits your other values drops them):
 
 ```bash
-  --set-json 'gitops.allowedRepoHosts=["github.com","gitlab.example.com"]' \
+  --set-json 'gitops.allowedRepoHosts=["github.com","www.github.com","gitlab.example.com"]' \
 ```
 
 The list the server actually received is in the container's environment, which is the quickest way to confirm a value that only takes effect on restart:
@@ -776,7 +777,7 @@ kubectl get deployment dot-ai-mcp --namespace dot-ai \
 ```
 
 ```text
-github.com,gitlab.example.com
+github.com,www.github.com,gitlab.example.com
 ```
 
 An empty line there is the deny-all case rather than "not configured" — see the unset-vs-empty table below.
@@ -790,7 +791,7 @@ An empty line there is the deny-all case rather than "not configured" — see th
 | The URL must be **`https://`**, whatever the host | `https:` is the only scheme that can carry the server's credential safely, so `http://github.com/org/repo.git`, `ssh://…`, `git://…` and the scp-style `github.com:org/repo.git` shorthand are all outside the allowlist even though the host is listed. Write the HTTPS clone URL. |
 | Entries are **hostnames**, compared against the parsed host of the URL | `https://github.com@attacker.example/x.git` is checked as `attacker.example`, not `github.com` — a host cannot be smuggled in via userinfo |
 | **Exact** match, **case-insensitive** | `GitHub.com` in the value matches `https://GITHUB.com/org/repo.git` |
-| **No wildcards, no substring matching** | `github.com` does **not** cover `www.github.com` or `github.company.example` — list every host your callers actually use |
+| **No wildcards, no substring matching** | `github.com` does **not** cover `github.company.example`, `github.com.evil.example`, or any subdomain of a listed host — list every host your callers actually use. This is also why the default names `github.com` and `www.github.com` as two separate literal entries: neither one covers the other. |
 | A `:port` suffix is accepted and **ignored**, on both sides | `gitlab.example.com:8443` in the value matches `https://gitlab.example.com/org/repo.git` and vice versa (the credential reaches the host whichever port answers) |
 | A URL whose host cannot be parsed is **not** allowed | Unparseable remotes are refused rather than guessed at. `pushToGit` expects the HTTPS clone URL, as in the [recommend examples](../tools/recommend.md#option-gitops-deployment) |
 
@@ -798,9 +799,9 @@ An empty line there is the deny-all case rather than "not configured" — see th
 
 | Value | Meaning |
 |-------|---------|
-| Not set (a deployment predating this value, or a server started outside the chart) | Falls back to the default, `["github.com"]` — **not** "allow everything". An older deployment must not silently become wide open. |
-| `allowedRepoHosts: []` | **Deny-all**, including `github.com`. An empty list is read as an explicit decision, never as "not configured". To allow a host, name it. |
-| `gitops: null` — the key left in your values with nothing under it (`gitops:` on a line of its own, or `--set gitops=null`) | **Deny-all**, exactly like `[]`. Helm does not merge the chart default into an explicit null, so nothing is rendered and the server reads an empty allowlist. This is the one case where "I removed my setting" and "I emptied my setting" part ways: deleting the `gitops:` block **entirely** keeps the default `["github.com"]`, and so does `gitops: {}`. |
+| Not set (a deployment predating this value, or a server started outside the chart) | Falls back to the default, `["github.com", "www.github.com"]` — **not** "allow everything". An older deployment must not silently become wide open. |
+| `allowedRepoHosts: []` | **Deny-all**, including `github.com` and `www.github.com`. An empty list is read as an explicit decision, never as "not configured". To allow a host, name it. |
+| `gitops: null` — the key left in your values with nothing under it (`gitops:` on a line of its own, or `--set gitops=null`) | **Deny-all**, exactly like `[]`. Helm does not merge the chart default into an explicit null, so nothing is rendered and the server reads an empty allowlist. This is the one case where "I removed my setting" and "I emptied my setting" part ways: deleting the `gitops:` block **entirely** keeps the default `["github.com", "www.github.com"]`, and so does `gitops: {}`. |
 
 ### What the Allowlist Gates
 
@@ -836,9 +837,9 @@ Add the host to `gitops.allowedRepoHosts` and retry. Public repositories are una
 `pushToGit` names the host and the value to change:
 
 ```text
-Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com.
-To allow it, add the host to the "gitops.allowedRepoHosts" Helm value
-(default: github.com) and restart the server.
+Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com,
+www.github.com. To allow it, add the host to the "gitops.allowedRepoHosts" Helm
+value (default: github.com, www.github.com) and restart the server.
 ```
 
 With `allowedRepoHosts: []`, the same message reports the empty list instead:
@@ -846,7 +847,8 @@ With `allowedRepoHosts: []`, the same message reports the empty list instead:
 ```text
 Repository host "github.com" is not allowed. The allowlist is currently empty,
 which allows no repository at all. To allow it, add the host to the
-"gitops.allowedRepoHosts" Helm value (default: github.com) and restart the server.
+"gitops.allowedRepoHosts" Helm value (default: github.com, www.github.com) and
+restart the server.
 ```
 
 A **scheme** problem is reported separately, because changing the chart value would not fix it:
