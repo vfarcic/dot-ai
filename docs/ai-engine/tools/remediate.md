@@ -234,7 +234,7 @@ Next steps:
   2. If the issue persists, the root cause is elsewhere — investigate again
 ```
 
-The remote is not a github.com `<owner>/<repo>` URL, so the branch is pushed but the PR must be opened by hand (see the **GitHub only** note below):
+The repository cloned and the branch pushed, but its remote is not a github.com `<owner>/<repo>` URL, so the PR must be opened by hand (see the **GitHub only** note below):
 
 ```text
 Pushed 1 GitOps remediation action(s) to a branch — a pull request must be opened manually
@@ -254,7 +254,7 @@ Next steps:
 | Execution | kubectl runs directly on cluster | Branch pushed, PR created via GitHub API |
 | User action | Approve execution | Approve execution, then review and merge PR |
 
-**GitHub only**: Automatic PR creation supports remotes whose URL is a GitHub repository on `github.com`, in `<owner>/<repo>` form. Anything else — GitLab, Bitbucket, GitHub Enterprise Server, or a `github.com` URL in a shape the server cannot parse — falls back to the same partial outcome: the branch **is** pushed, no PR is created, and the response says so with `A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.` Open the PR/MR yourself from the pushed branch.
+**GitHub only**: Automatic PR creation supports remotes whose URL is a GitHub repository on `github.com`, in `<owner>/<repo>` form. Anything else — GitLab, Bitbucket, GitHub Enterprise Server, or a `github.com` URL in a shape the server cannot parse — falls back to the same partial outcome: the branch **is** pushed, no PR is created, and the response says so with `A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.` Open the PR/MR yourself from the pushed branch. This is decided only *after* the clone and the push have both succeeded, so it describes a repository the tool could reach and write to — a **private** repository it cannot authenticate to fails at the clone instead (see below), and no branch is pushed at all.
 
 **Authentication**: Requires a GitHub token with PR creation permissions configured via `DOT_AI_GIT_TOKEN` environment variable or GitHub App credentials (a GitHub App needs `Contents: write` and `Pull requests: write`).
 

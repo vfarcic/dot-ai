@@ -861,7 +861,7 @@ The scp-style shorthand gets its own wording — `Repository URLs must be writte
 
 Adding a host takes effect on server restart (it is container configuration, so a Helm upgrade that changes the value rolls the pod).
 
-**Allowlisting a host does not enable automatic pull requests there.** Automatic PR creation still supports only GitHub remotes on `github.com`, in `<owner>/<repo>` form. Against any other host, `pullRequest: true` pushes the branch and reports `pushed_without_pr` — you open the PR/MR manually. See [Option: GitOps Pull Request](../tools/recommend.md#option-gitops-pull-request).
+**Allowlisting a host does not enable automatic pull requests there.** Automatic PR creation still supports only GitHub remotes on `github.com`, in `<owner>/<repo>` form. Against any other host **you have allowlisted**, `pullRequest: true` clones, commits and pushes the branch as usual, and only then reports `pushed_without_pr` — you open the PR/MR manually. A host you have *not* allowlisted never reaches that point: the request is [refused](#when-a-push-is-refused) before anything is cloned or pushed, so no branch lands on the remote and the status is never `pushed_without_pr`. The same holds for a URL that is not `https://`, whatever host it names. See [Option: GitOps Pull Request](../tools/recommend.md#option-gitops-pull-request).
 
 **Upgrading from a release before this value existed?** Pushing to a GitLab, Bitbucket, or self-hosted remote stops working until you add its host. See [Upgrading: Pushing to a Non-GitHub Host Now Requires an Allowlist Entry](authorization.md#upgrading-pushing-to-a-non-github-host-now-requires-an-allowlist-entry).
 

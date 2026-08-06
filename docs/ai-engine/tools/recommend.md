@@ -535,7 +535,7 @@ The pull request body is written by the server and records who requested the cha
 | `created` | First pull request for this solution | Yes, new head branch | Opened — `url` and `number` are set |
 | `updated` | Re-run with changed manifests while the recorded pull request is still open | Yes, same head branch | Existing one updated in place |
 | `no_changes` | Manifests already match what the pull request proposes | No | Unchanged (or none was needed) |
-| `pushed_without_pr` | The remote is not a github.com `<owner>/<repo>` | Yes | **None** — `error` explains it and you open one manually |
+| `pushed_without_pr` | The push succeeded, but the remote is not a github.com `<owner>/<repo>` | Yes | **None** — `error` explains it and you open one manually |
 
 Never infer success from `success: true` alone — two of those four outcomes deliberately do not produce a new pull request. The session's `stage` stays `pushed` in every case, and `gitPush.pullRequest` carries the detail.
 
@@ -544,7 +544,7 @@ Never infer success from `success: true` alone — two of those four outcomes de
 - Changed manifests, recorded pull request still open → the new commit goes to the same head branch, so the pull request **updates in place** (`updated`).
 - No recorded pull request, or the recorded one is closed or merged → a new pull request is opened (`created`).
 
-**Note**: For a remote that is not a GitHub URL in the `github.com/<owner>/<repo>` form — GitLab, Bitbucket, GitHub Enterprise Server, or a `github.com` URL in a shape the server cannot parse — the branch is still pushed but no pull request is created. `status` is `pushed_without_pr` and the message reads: `A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.` The base branch is untouched either way.
+**Note**: For a remote **on an allowlisted host** that is not a GitHub URL in the `github.com/<owner>/<repo>` form — GitLab, Bitbucket, GitHub Enterprise Server, or a `github.com` URL in a shape the server cannot parse — the branch is still pushed but no pull request is created. `status` is `pushed_without_pr` and the message reads: `A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.` The base branch is untouched either way. Allowlisted is a real precondition, not a detail: this status is decided *after* the clone and the push have both succeeded, so a host missing from `gitops.allowedRepoHosts` — or a `repoUrl` that is not `https://` — is [refused](#option-gitops-deployment) before anything is cloned, nothing is pushed, and the status is never `pushed_without_pr`.
 
 **Note**: There is no auto-merge, in any form. Merging is always a deliberate human action.
 
