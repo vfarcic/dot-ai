@@ -258,6 +258,8 @@ Next steps:
 
 > **Authentication**: Requires a GitHub token with PR creation permissions configured via `DOT_AI_GIT_TOKEN` environment variable or GitHub App credentials (a GitHub App needs `Contents: write` and `Pull requests: write`).
 
+> **A private repository's host must be allowlisted.** The repository URL comes from the source the tool discovered in the cluster, so the server only sends **its own** Git credential to a host listed in [`gitops.allowedRepoHosts`](../setup/deployment.md#what-the-allowlist-gates) (default `["github.com"]`). A public repository on any host is cloned as before; a **private** one on an unlisted host is cloned unauthenticated and therefore fails, reporting git's own credential error rather than an allowlist message. Ask your operator to add the host — there is no per-request credential for this path.
+
 > **Fallback**: If no GitOps controller is detected (CRDs not installed or no matching resource found), the tool returns standard kubectl-based remediation as shown above.
 
 At this point, we have two execution paths available. We'll explore both options to show the complete workflow:

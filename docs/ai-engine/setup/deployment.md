@@ -789,17 +789,28 @@ Or as a flag on the install command from [Step 3](#step-3-install-the-server), a
 
 ### What the Allowlist Gates
 
-The same value gates two different callers, with deliberately different consequences:
+The same value gates three different callers, with deliberately different consequences:
 
 | Caller | Behavior on a host that is not listed |
 |--------|----------------------------------------|
 | `pushToGit` — **both** direct push and pull request mode | ❌ **Refused.** The request fails before any credential is minted, cloned with, or pushed with. |
 | The per-request prompts override (`?repo=`) — see [Shared Prompt Library](../tools/prompts.md#the-server-credential-and-the-host-allowlist) | ⚠️ **Degraded, not refused.** The clone still happens, but **unauthenticated**: the server's credential is withheld. Public repositories are unaffected; a private one needs the `X-Dot-AI-Git-Token` request header. |
+| The [remediate](../tools/remediate.md) tool's repository clone | ⚠️ **Degraded, not refused**, the same way. A public GitOps repository on any host keeps cloning; a **private** one on an unlisted host now fails to clone. Remediate has no per-request credential header, so adding the host is the only remedy. |
 
-**Not gated** — these need no allowlist entry:
+**Not gated** — this needs no allowlist entry:
 
 - **`DOT_AI_USER_PROMPTS_REPO`** — the operator's own prompts repository. Pointing it at a private GitLab, Gitea, or Forgejo works exactly as before; the URL is the operator's choice, not a caller's.
-- **The remediate tool's Git operations** — its repository URL is derived from cluster state rather than supplied by a caller, so a GitOps repo that legitimately is not on GitHub keeps working ([remediate](../tools/remediate.md)).
+
+> **Why remediate is gated even though no client parameter names its repository.** The URL is chosen by the model, and the model's context includes the caller's free-text issue description and cluster objects a tenant may be able to write — so it is client-*influenced*, which is enough to hand the server's credential somewhere it should not go. Unlike a push, cloning happens during investigation, which has no approval step.
+
+**If remediate stops cloning a private GitOps repository after upgrading**, check the host first: unlike the prompts override, this path does not explain the withheld credential. The clone is simply attempted unauthenticated, so what remediate reports is git's own failure, which names a credential or a missing repository but never the allowlist — for a private GitHub repository it reads:
+
+```text
+Error cloning repository: Cloning into '<clone-dir>'...
+fatal: could not read Username for 'https://github.com': No such device or address
+```
+
+Add the host to `gitops.allowedRepoHosts` and retry. Public repositories are unaffected on any host.
 
 ### When a Push Is Refused
 

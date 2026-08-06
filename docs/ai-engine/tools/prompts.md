@@ -468,8 +468,8 @@ The override is **degraded, never refused**, which keeps the blast radius narrow
 
 - **Public repositories on any host are unaffected.** They need no credential, so nothing changes for them.
 - Only a **private** repository on a non-allowlisted host is affected, and the remedy is already part of this feature: send the credential with the request in the `X-Dot-AI-Git-Token` header. A request that brings its own token is never gated — for any host.
-- `DOT_AI_GIT_TOKEN` is a **GitHub** credential, so it would never have authenticated to GitLab, Bitbucket, or a self-hosted Forgejo anyway. In practice this removes nothing that worked.
 - Alternatively, an operator can add the host to `gitops.allowedRepoHosts` and keep using the server's credential for it.
+- **What this costs depends on what `DOT_AI_GIT_TOKEN` holds.** If it is a GitHub credential, nothing that worked is removed — `github.com` is the default allowlist entry. But the variable is not GitHub-only: the server sends it as the HTTP basic-auth **password** (under the username `x-access-token`), which is also how GitLab and Gitea/Forgejo accept a personal access token. So a GitLab or Gitea token in `DOT_AI_GIT_TOKEN` did authenticate to those hosts before this release, and if you reach one through `?repo=` for a **private** repository, that stops on upgrade until you apply either remedy above.
 
 > **`DOT_AI_USER_PROMPTS_REPO` is not gated.** The allowlist applies only to a repository URL that arrived in a *request*. The env-var-configured repository is the operator's own choice of source, so pointing it at a private GitLab, Gitea, or Forgejo works exactly as before and needs no allowlist entry. Everything in [Configuration](#configuration) above, including the list of supported Git providers, is unchanged.
 
@@ -495,15 +495,31 @@ Under the hood, each invocation talks to the server once and the server still se
 | Caveat | Impact |
 |--------|--------|
 | Single-slot loader cache | Sequential invocations against different repos re-clone each time. Clones are `--depth 1`, so the cost is small per call, but it's noticeable when alternating between repos within the TTL window. Token-bearing override requests are additionally isolated from the shared cache slot, so a private authenticated clone is never served to another caller. |
-| The override URL is still fetched, whatever host it names | The host allowlist governs the **credential**, not the fetch: a URL on a non-allowlisted host is cloned unauthenticated rather than rejected, so the server can still be made to issue an outbound request to a caller-named host. That is not an SSRF gate — don't expose this surface to untrusted callers without an upstream one. What the allowlist does close is credential exposure: the server's `DOT_AI_GIT_TOKEN` is never handed to a host a caller named (see [The server credential and the host allowlist](#the-server-credential-and-the-host-allowlist)). |
+| The override URL is still fetched, whatever host it names | The host allowlist governs the **credential**, not the fetch: a URL on a non-allowlisted host is cloned unauthenticated rather than rejected, so the server can still be made to issue an outbound request to a caller-named host. That is not an SSRF gate — don't expose this surface to untrusted callers without an upstream one. What the allowlist does close is credential exposure: the server's `DOT_AI_GIT_TOKEN` is never handed to a host a caller named (see [The server credential and the host allowlist](#the-server-credential-and-the-host-allowlist)). See [what the unguarded fetch exposes](#what-the-unguarded-fetch-exposes) below for what a caller learns from it. |
 
 **When NOT to use the override**:
 
 - Inside a long-running agent loop that alternates between repos (every alternation causes a re-clone — pin to one repo for the loop and switch outside it).
 - As a substitute for `DOT_AI_USER_PROMPTS_REPO` when you only have a single source. The env var is simpler and benefits from the cache TTL.
-- From untrusted clients. The server's credential is safe (it is withheld from any host not on the allowlist), but there is still no SSRF guard on the fetch itself.
+- From untrusted clients. The server's credential is safe (it is withheld from any host not on the allowlist), but there is no SSRF guard on the fetch itself — see [what the unguarded fetch exposes](#what-the-unguarded-fetch-exposes).
 
 See the [REST API reference](../api/rest-api.md#prompts-endpoints) for the full wire contract, the `source` field semantics, validation rules, and response envelopes returned by each endpoint — useful if you're building a custom MCP/HTTP client rather than using the CLI.
+
+#### What the unguarded fetch exposes
+
+This behavior is unchanged by the allowlist — it has been the case since the override was introduced, and it is documented rather than fixed because the endpoint sits behind authentication. Know what it gives a caller who reaches it.
+
+**Only the scheme is validated** (`http` or `https`). There is no IP or CIDR filtering, so loopback, link-local (`169.254.169.254`), and cluster-internal service addresses are all in range. For an override URL the server has not cloned before, git issues `GET <url>/info/refs?service=git-upload-pack` against whatever host was named.
+
+**The probed endpoint's HTTP status comes back to the caller**, which makes the endpoint a reachability and status-code scanner:
+
+| What the probed endpoint answers | What the caller gets |
+|----------------------------------|----------------------|
+| `200` with a body git cannot read as refs | `200` with **zero prompts**. Git's dumb-HTTP fallback reports `warning: You appear to have cloned an empty repository.` and exits 0, so the request succeeds. (A body whose first line looks like a malformed ref instead fails with `fatal: <url>/info/refs not valid: is this a git repository?`, surfacing as a `502` — either way a live `200` is distinguishable from the cases below.) |
+| Any error status | `502 PROMPTS_SOURCE_ERROR` carrying git's message and the status code — `fatal: repository '<url>' not found` for a `404`, `The requested URL returned error: 403`, and so on |
+| Nothing listening | `502 PROMPTS_SOURCE_ERROR` with `fatal: unable to access '<url>': Failed to connect to <host> port <port> ...` |
+
+**Response bodies are mostly not returned, with one exception.** On a successful (`200`) probe git discards the body, so its content is not exfiltrated. On an **error** status, a body served as `text/plain` *is* echoed verbatim — git prefixes each line with `remote:` and those lines reach the caller inside the `502` message. An error body sent as `text/html`, `application/json`, or with no `Content-Type` is discarded. So a caller can read a plaintext error page from an internal service, but not its normal `200` output.
 
 ### CLI-uploaded skill sources (for sources the server can't reach)
 
