@@ -88,4 +88,16 @@ describe('gitops.allowedRepoHosts', () => {
   test('is rendered exactly once', () => {
     expect(allowedHostsEntries()).toHaveLength(1);
   });
+
+  test('a null gitops map renders deny-all instead of breaking the template', () => {
+    // `gitops: null` is a shape an umbrella chart or a trimmed values file can
+    // produce, and `.Values.gitops.allowedRepoHosts` failed `helm template`
+    // outright on it ("nil pointer evaluating interface {}.allowedRepoHosts").
+    // It failed CLOSED, so no bad install was possible — but an install that
+    // cannot render is still a bug, and the parenthesised lookup renders the same
+    // explicit deny-all an empty list does.
+    expect(allowedHostsEntries(['gitops=null'])).toEqual([
+      { name: ENV_NAME, value: '' },
+    ]);
+  });
 });

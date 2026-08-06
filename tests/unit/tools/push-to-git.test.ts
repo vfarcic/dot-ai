@@ -1421,6 +1421,36 @@ describe('Push to Git Tool', () => {
       expect(cloneRepo).not.toHaveBeenCalled();
     });
 
+    test('an allowed host over a NON-https scheme is refused too', async () => {
+      // The gate used to be host-only, and `repoUrl` is validated as any URL, so
+      // `http://github.com/...` passed it and reached getAuthenticatedUrl —
+      // which put the server's token into a cleartext request's basic auth. The
+      // schema documents HTTPS; this is what makes that true.
+      process.env[ALLOWED_HOSTS_ENV] = 'github.com';
+      const { cloneRepo } = await import('../../../src/core/git-utils.js');
+
+      for (const repoUrl of [
+        'http://github.com/acme/demo.git',
+        'ssh://github.com/acme/demo.git',
+        'git://github.com/acme/demo.git',
+      ]) {
+        const sessionId = seedSolution();
+
+        await expect(
+          handlePushToGitTool(
+            { solutionId: sessionId, repoUrl, targetPath: 'apps/test/' },
+            mockDotAI,
+            mockLogger,
+            requestId
+          )
+          // Reported as a scheme problem, not as "host github.com is not
+          // allowed", which would point at a chart value already correct.
+        ).rejects.toThrow(/is not allowed. Use an https:\/\/ URL/);
+
+        expect(cloneRepo).not.toHaveBeenCalled();
+      }
+    });
+
     test('an allowed non-GitHub host is accepted once an operator adds it', async () => {
       // The second breaking change of this release, and its remedy: pushing to a
       // self-hosted remote works again as soon as the host is allowlisted.

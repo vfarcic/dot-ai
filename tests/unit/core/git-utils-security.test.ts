@@ -1,7 +1,7 @@
 /**
- * Unit Tests: three pre-existing security findings closed before PRD #710's PR.
+ * Unit Tests: four pre-existing security findings closed before PRD #710's PR.
  *
- * None of the three is a regression from PRD #710 — all are live in v1.25.0 —
+ * None of the four is a regression from PRD #710 — all are live in v1.25.0 —
  * but PR mode makes `repoUrl` client-supplied on a second code path, so they are
  * fixed here rather than deferred.
  *
@@ -17,9 +17,13 @@
  * C. The server's token was embedded into whatever URL the client supplied, so
  *    any caller with `execute` on `recommend` could have DOT_AI_GIT_TOKEN (or a
  *    GitHub App installation token) delivered to a host they control.
+ * D. Containment alone still allowed a write into `<clone>/.git/**`, which stays
+ *    under the repository root — and `.git/config` is CODE: pushRepo's own next
+ *    `git add` reads it, so `core.fsmonitor` runs a command of the writer's
+ *    choosing as the server. See that section's header for both callers.
  *
- * Git is real here — the symlink escape only reproduces against an actual
- * checkout, which is the whole point of the finding.
+ * Git is real here — the symlink escape and the config execution only reproduce
+ * against an actual checkout, which is the whole point of the findings.
  */
 
 import {
@@ -261,6 +265,197 @@ describe('pushRepo — symlink write escape (finding A)', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────
+// Finding D — a write into `<clone>/.git/**` is command execution as the server
+//
+// Containment is not enough: `<clone>/.git/config` IS under the repository root,
+// and it is not data — git reads it on the very next command. pushRepo writes the
+// files and THEN runs `git add` / `git status`, so a `core.fsmonitor` entry lands
+// in the config a moment before git executes it, as the MCP server process (which
+// holds DOT_AI_GIT_TOKEN, the GitHub App private key and the pod's service-account
+// token). The push then completes normally and reports success — no error, no
+// warning, no log line.
+//
+// Both callers of pushRepo reach it, so the guard belongs here rather than in
+// either of them:
+// - pushToGit — `targetPath` is client-controlled and its own validation rejects
+//   ``, a leading `/`, a leading `~`, `\` and `..`, but not `.git`; the basename
+//   comes from AI-generated `relativePath`s that only pass sanitizeRelativePath,
+//   which accepts `config`.
+// - remediate's git_create_pr — the AI's `files` array is passed VERBATIM, with
+//   no path validation at all. pushRepo is the only guard, and no client
+//   parameter is needed to steer it.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('pushRepo — writes into the git directory (finding D)', () => {
+  let caseIndex = 0;
+  let sandbox: string;
+  let clone: string;
+  let remote: string;
+  let marker: string;
+  let originalConfig: string;
+
+  beforeEach(() => {
+    caseIndex += 1;
+    process.env.DOT_AI_GIT_TOKEN = 'unit-test-token';
+    sandbox = path.join(TMP_ROOT, `gitdir-${caseIndex}`);
+    clone = path.join(sandbox, 'clone');
+    remote = path.join(sandbox, 'remote.git');
+    marker = path.join(sandbox, 'COMMAND-EXECUTED');
+    fs.mkdirSync(sandbox, { recursive: true });
+    git(['init', '--bare', '-b', 'main', remote], sandbox);
+    git(['clone', '--quiet', `file://${remote}`, clone], sandbox);
+    git(['config', 'user.email', 'unit@test.local'], clone);
+    git(['config', 'user.name', 'Unit Test'], clone);
+    fs.writeFileSync(path.join(clone, 'base.txt'), 'base\n');
+    git(['add', '-A'], clone);
+    git(['commit', '-m', 'seed'], clone);
+    git(['push', '--quiet', 'origin', 'main'], clone);
+    originalConfig = fs.readFileSync(path.join(clone, '.git/config'), 'utf8');
+  });
+
+  /**
+   * A `.git/config` that runs `touch <marker>` the next time git refreshes the
+   * index, with `origin` restored so the push it hijacks still succeeds — the
+   * auditor's exact payload. `core.fsmonitor` is run by `refresh_index`, i.e. by
+   * pushRepo's own `git add`.
+   */
+  function fsmonitorPayload(): string {
+    return [
+      '[core]',
+      `\tfsmonitor = "touch ${marker}"`,
+      '[remote "origin"]',
+      `\turl = file://${remote}`,
+      '\tfetch = +refs/heads/*:refs/remotes/origin/*',
+      '',
+    ].join('\n');
+  }
+
+  async function attempt(
+    filePath: string,
+    content: string
+  ): Promise<{ error: string; commitSha?: string }> {
+    try {
+      const result = await pushRepo(
+        clone,
+        [
+          { path: 'apps/manifests.yaml', content: 'kind: ConfigMap\n' },
+          { path: filePath, content },
+        ],
+        'feat: attempt'
+      );
+      return { error: '', commitSha: result.commitSha };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /** Neither the payload nor its effect landed. */
+  function expectNothingHappened(): void {
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(fs.readFileSync(path.join(clone, '.git/config'), 'utf8')).toBe(
+      originalConfig
+    );
+    expect(fs.existsSync(path.join(clone, 'apps/manifests.yaml'))).toBe(false);
+  }
+
+  test('.git/config cannot be written, so the fsmonitor payload never executes', async () => {
+    const { error } = await attempt('.git/config', fsmonitorPayload());
+
+    // THE finding: before the fix this run reported
+    // `filesAdded: ["apps/manifests.yaml", ".git/config"]` with no error, the
+    // config was clobbered, and the marker existed — arbitrary command
+    // execution in the MCP server container.
+    expect(error).toMatch(/git directory/);
+    expectNothingHappened();
+  });
+
+  test('a symlink INSIDE the clone pointing at .git cannot reach it either', async () => {
+    // Bypasses a lexical check completely — `g/config` names no `.git` component
+    // — which is why the guard has to run on the RESOLVED path.
+    fs.symlinkSync(path.join(clone, '.git'), path.join(clone, 'g'), 'dir');
+
+    const { error } = await attempt('g/config', fsmonitorPayload());
+
+    expect(error).toMatch(/git directory/);
+    expectNothingHappened();
+  });
+
+  test('a symlinked .git ANCESTOR deeper in the tree is caught too', async () => {
+    fs.mkdirSync(path.join(clone, 'apps'), { recursive: true });
+    fs.symlinkSync(path.join(clone, '.git'), path.join(clone, 'apps/g'), 'dir');
+
+    const { error } = await attempt('apps/g/hooks/pre-commit', '#!/bin/sh\n');
+
+    expect(error).toMatch(/git directory/);
+    expect(fs.existsSync(path.join(clone, '.git/hooks/pre-commit'))).toBe(
+      false
+    );
+  });
+
+  test('the whole git directory is refused, not just config', async () => {
+    for (const target of [
+      '.git/hooks/pre-commit',
+      '.git/info/exclude',
+      '.git/HEAD',
+      '.git', // a FILE named .git — the submodule shape
+      'sub/.git/config', // a nested control directory
+    ]) {
+      const { error } = await attempt(target, 'payload\n');
+      expect(error).toMatch(/git directory/);
+    }
+    expect(fs.existsSync(path.join(clone, '.git/hooks/pre-commit'))).toBe(
+      false
+    );
+    expect(fs.readFileSync(path.join(clone, '.git/HEAD'), 'utf8')).toContain(
+      'refs/heads/main'
+    );
+  });
+
+  test('case-folded and trailing-space spellings of .git are refused', async () => {
+    // ext4 keeps these distinct, so on Linux they create a harmless new
+    // directory rather than reaching the real one. They are refused anyway: on a
+    // case-insensitive or trailing-space-stripping filesystem the same string
+    // opens git's own directory, and nothing legitimate is spelled this way.
+    for (const target of [
+      '.GIT/config',
+      '.Git/config',
+      '.git /config',
+      '.git./config',
+    ]) {
+      const { error } = await attempt(target, fsmonitorPayload());
+      expect(error).toMatch(/git directory/);
+    }
+    expectNothingHappened();
+    for (const stray of ['.GIT', '.Git', '.git ', '.git.']) {
+      expect(fs.existsSync(path.join(clone, stray))).toBe(false);
+    }
+  });
+
+  test('paths that merely LOOK like the git directory still work', async () => {
+    // The guard compares whole path components, so none of these is affected —
+    // and `.github/workflows` in particular is a thing real GitOps repos push.
+    const result = await pushRepo(
+      clone,
+      [
+        { path: '.gitignore', content: 'node_modules\n' },
+        { path: '.github/workflows/ci.yaml', content: 'name: ci\n' },
+        { path: '.gitops/apps/app.yaml', content: 'kind: ConfigMap\n' },
+        { path: 'apps/gitconfig', content: 'not a config\n' },
+        { path: 'apps/my.git.yaml', content: 'kind: ConfigMap\n' },
+      ],
+      'feat: names near the git directory'
+    );
+
+    expect(result.commitSha).toBeTruthy();
+    expect(result.filesAdded).toHaveLength(5);
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(
+      fs.readFileSync(path.join(clone, '.github/workflows/ci.yaml'), 'utf8')
+    ).toBe('name: ci\n');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
 // Finding B — a PAT used as the username was never scrubbed
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -409,9 +604,53 @@ describe('repository host allowlist (finding C)', () => {
     expect(isRepoHostAllowed('https://github.com:443/acme/demo.git')).toBe(
       true
     );
-    // scp-style shorthand, which `new URL` cannot parse at all.
-    expect(isRepoHostAllowed('git@github.com:acme/demo.git')).toBe(true);
-    expect(isRepoHostAllowed('git@attacker.example:acme/demo.git')).toBe(false);
+  });
+
+  test('only https may carry the credential, whatever the host', () => {
+    // The gate used to be host-only, so every one of these named an ALLOWED host
+    // and reached getAuthenticatedUrl, which embedded the token: `http://` made
+    // it basic-auth material on a cleartext request, and `ssh://` had git pass
+    // `x-access-token:<token>` as the SSH username. pushToGit's schema already
+    // said HTTPS — this makes that contract real.
+    process.env[ALLOWED_REPO_HOSTS_ENV] = 'github.com';
+    for (const url of [
+      'http://github.com/acme/demo.git',
+      'HTTP://github.com/acme/demo.git',
+      'ssh://github.com/acme/demo.git',
+      'git://github.com/acme/demo.git',
+      'ftp://github.com/acme/demo.git',
+      // scp-style shorthand: a real remote form, but not an https URL.
+      'git@github.com:acme/demo.git',
+      'github.com:acme/demo.git',
+      // file:// has no host to allowlist, so it was already denied — and WHATWG
+      // URL refuses userinfo on it, so it never could have carried a token.
+      'file:///tmp/unit/acme/demo.git',
+    ]) {
+      expect(isRepoHostAllowed(url)).toBe(false);
+    }
+    expect(isRepoHostAllowed('https://github.com/acme/demo.git')).toBe(true);
+    // Case in the scheme is not significant to a URL, and must not be here.
+    expect(isRepoHostAllowed('HTTPS://github.com/acme/demo.git')).toBe(true);
+  });
+
+  test('a refused SCHEME is reported as a scheme problem, not as a host one', () => {
+    // "host github.com is not allowed. Currently allowed: github.com" would send
+    // an operator to change the chart value that is already correct.
+    process.env[ALLOWED_REPO_HOSTS_ENV] = 'github.com';
+    const message = describeDisallowedRepoHost('http://github.com/acme/x.git');
+    expect(message).toContain('"http://" is not allowed');
+    expect(message).toContain('https://');
+    expect(message).not.toContain('gitops.allowedRepoHosts');
+
+    // The scp-style shorthand has no scheme to name, so it is described by shape.
+    expect(describeDisallowedRepoHost('git@github.com:acme/x.git')).toMatch(
+      /scp-style/
+    );
+
+    // A disallowed host over https is still a host problem.
+    expect(
+      describeDisallowedRepoHost('https://attacker.example/x.git')
+    ).toContain('gitops.allowedRepoHosts');
   });
 
   test('an unparseable remote is rejected, not waved through', () => {

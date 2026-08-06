@@ -330,6 +330,24 @@ function realpathOfExistingPrefix(target: string): string {
 }
 
 /**
+ * True when `component` names git's own control directory on ANY filesystem this
+ * server could run on.
+ *
+ * Exact-match `.git` is not enough for a guard: a case-insensitive filesystem
+ * opens `.GIT` onto the same directory, and one that strips trailing dots and
+ * spaces (Windows, and some SMB/CIFS mounts a container can be given) opens
+ * `.git ` and `.git.` onto it too. Comparing the folded and stripped spelling
+ * costs nothing and nothing legitimate is spelled that way — `git add` refuses
+ * every one of these pathspecs anyway ("invalid path").
+ *
+ * Whole components only, so `.gitignore`, `.github/`, `.gitops/` and a file
+ * named `my.git.yaml` are untouched.
+ */
+function namesGitDir(component: string): boolean {
+  return component.toLowerCase().replace(/[.\s]+$/, '') === '.git';
+}
+
+/**
  * Write `content` to `fullPath` WITHOUT following a symlink at the final
  * component (`O_NOFOLLOW`), which `fs.writeFileSync` happily does — and for a
  * DANGLING link it even creates the target.
@@ -677,7 +695,10 @@ export async function pullRepo(
     const status = await git.status();
     return { branch: status.current || 'main' };
   } finally {
-    // Restore original origin URL to prevent auth tokens persisting in .git/config
+    // Put back the URL this checkout was cloned with, so the token minted for
+    // THIS pull does not persist in .git/config. Not a guarantee that no token is
+    // in there: if the clone URL itself carried one, restoring writes it back —
+    // see withAuthenticatedOrigin's note.
     if (hasAuth && originalOriginUrl) {
       await git.remote(['set-url', 'origin', originalOriginUrl]);
     }
@@ -736,7 +757,13 @@ export async function pushRepo(
   // through a symlinked ancestor (a symlinked ./tmp, /tmp → /private/tmp on
   // macOS) from reading as an escape.
   const repoRoot = realpathOfExistingPrefix(repoPath);
-  for (const file of files) {
+
+  // The WHOLE batch is validated before ANY of it is written, so a rejected path
+  // cannot leave the files that preceded it in the array on disk — a refusal
+  // writes nothing at all. Our own writes cannot invalidate a decision made
+  // here: they create real directories and regular files (never symlinks), so no
+  // later path's resolution can be redirected by an earlier one.
+  const targets = files.map(file => {
     const fullPath = path.resolve(repoPath, file.path);
     const resolvedPath = realpathOfExistingPrefix(fullPath);
     if (
@@ -747,6 +774,37 @@ export async function pushRepo(
         `Path traversal detected: "${file.path}" attempts to write outside repository directory`
       );
     }
+    // Containment is NOT sufficient: `<clone>/.git/config` stays under the
+    // repository root, and it is not data — git reads it on the very next
+    // command, so a `core.fsmonitor` entry written here is executed by the
+    // `git add` below, in the MCP server process (which holds DOT_AI_GIT_TOKEN,
+    // the GitHub App private key and the pod's service-account token). The push
+    // then completes and reports success, silently.
+    //
+    // Checked on the RESOLVED path, not on `file.path`: a symlink committed in
+    // the repository that points at `.git` (`g` → `.git`, `file.path: "g/config"`)
+    // names no `.git` component of its own and walked straight past a lexical
+    // check — and, resolving INSIDE the clone, past the containment check above.
+    //
+    // Both callers of pushRepo need this, which is why it lives here rather than
+    // in either of them: pushToGit's `targetPath` is client-controlled and its
+    // own validation does not reject `.git`, and remediate's git_create_pr passes
+    // the model's `files` array through with no path validation at all.
+    if (
+      path
+        .relative(repoRoot, resolvedPath)
+        .split(path.sep)
+        .some(component => namesGitDir(component))
+    ) {
+      throw new Error(
+        `Refusing to write "${file.path}": paths inside the git directory (.git) are not writable`
+      );
+    }
+    return fullPath;
+  });
+
+  for (const [index, file] of files.entries()) {
+    const fullPath = targets[index];
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -1046,11 +1104,54 @@ export function getRepoHost(repoUrl: string): string | undefined {
 }
 
 /**
- * True when `repoUrl` names an allowed host. A URL whose host cannot be
- * determined is NOT allowed — an unparseable remote is exactly the input whose
- * destination we cannot reason about.
+ * The ONE scheme a repository URL may use to receive the server's credential.
+ *
+ * Everything else that git accepts either carries the token in the clear or
+ * carries it somewhere it was never meant to go, and `getAuthenticatedUrl`
+ * embeds it into whatever it is handed:
+ * - `http://` → HTTP basic auth material on a cleartext request;
+ * - `ssh://`  → git passes `x-access-token:<token>` as the SSH USERNAME;
+ * - `git://`  → the daemon protocol has no auth at all, and the userinfo is sent
+ *   as part of the request anyway.
+ *
+ * `file://` is not in this set either. WHATWG `URL` refuses userinfo on it, so it
+ * could never have carried a credential — but it also has no host to allowlist,
+ * so it was already denied by the host check and nothing changes for it (the unit
+ * tests that use `file://` remotes drive pushRepo/pullRepo directly and never
+ * reach this gate).
+ */
+const ALLOWED_REPO_SCHEME = 'https:';
+
+/**
+ * `https:`-style scheme of `repoUrl`, lowercased, or undefined when it has none.
+ *
+ * Deliberately the same `scheme://` shape splitRemoteUrl tests for, so the two
+ * agree on which branch a URL takes: anything without it is the scp-style
+ * `[user@]host:path` shorthand (or not a URL at all), which is not https and so
+ * fails closed here.
+ */
+function getRepoScheme(repoUrl: string): string | undefined {
+  const match = repoUrl.trim().match(/^([A-Za-z][A-Za-z0-9+.-]*):\/\//);
+  return match ? `${match[1].toLowerCase()}:` : undefined;
+}
+
+/**
+ * True when the server's own credential may be handed to `repoUrl`: an `https:`
+ * URL naming an allowed host.
+ *
+ * The name says host because the allowlist is the interesting half, but the gate
+ * checks the SCHEME too, and every caller is a credential decision rather than a
+ * question about hosts — do not split the two apart. Host-only was a hardening
+ * gap: `http://github.com/a/b.git`, `git://github.com/…` and `ssh://github.com/…`
+ * all named an allowed host and all reached getAuthenticatedUrl, which embedded
+ * the token. pushToGit's schema already documents HTTPS
+ * (`src/tools/recommend.ts`), so requiring it here makes that contract real.
+ *
+ * A URL whose host or scheme cannot be determined is NOT allowed — an unparseable
+ * remote is exactly the input whose destination we cannot reason about.
  */
 export function isRepoHostAllowed(repoUrl: string): boolean {
+  if (getRepoScheme(repoUrl) !== ALLOWED_REPO_SCHEME) return false;
   const host = getRepoHost(repoUrl);
   if (!host) return false;
   return getAllowedRepoHosts().includes(host);
@@ -1063,12 +1164,30 @@ export function isRepoHostAllowed(repoUrl: string): boolean {
  *
  * Only the PARSED host is echoed, never the URL, so a credential embedded in the
  * URL cannot ride out in the message.
+ *
+ * Three distinct refusals, because they have three different fixes: no URL at
+ * all, a URL whose SCHEME cannot carry the credential (see ALLOWED_REPO_SCHEME),
+ * and a host that is not on the allowlist. Telling someone who wrote
+ * `http://github.com/...` that "host github.com is not allowed. Currently
+ * allowed: github.com" would send them to change the chart value that is already
+ * correct.
  */
 export function describeDisallowedRepoHost(repoUrl: string): string {
   // A missing URL reaches the same gate (the stage dispatch defaults it to ''),
   // and "host … is not allowed" would send the caller to the wrong problem.
   if (repoUrl.trim().length === 0) {
     return 'No repository URL was supplied, so there is no host to check against the allowlist. Provide repoUrl as the HTTPS URL of a repository on an allowed host.';
+  }
+
+  const scheme = getRepoScheme(repoUrl);
+  // Only once a host IS parseable, so text that is not a URL at all keeps
+  // falling through to the "does not name a host" wording below rather than
+  // being reported as a scheme problem.
+  if (getRepoHost(repoUrl) && scheme !== ALLOWED_REPO_SCHEME) {
+    const subject = scheme
+      ? `Repository URL scheme "${scheme}//" is not allowed`
+      : 'Repository URLs must be written in full, not in the scp-style "host:path" shorthand';
+    return `${subject}. Use an ${ALLOWED_REPO_SCHEME}// URL: it is the only scheme that can carry the server's git credential safely — http sends it in cleartext, and ssh/git URLs would pass it as an SSH username.`;
   }
 
   const allowed = getAllowedRepoHosts();
@@ -1170,9 +1289,16 @@ async function refExists(git: SimpleGit, ref: string): Promise<boolean> {
 
 /**
  * Run `fn` with origin temporarily rewritten to an authenticated URL, then
- * restore it — the same pattern pushRepo/pullRepo use, so a token never
- * persists in .git/config. Falls through unchanged when no env credential is
- * configured or the remote URL cannot carry one (e.g. an SSH remote).
+ * restore it — the same pattern pushRepo/pullRepo use. Falls through unchanged
+ * when no env credential is configured or the remote URL cannot carry one (e.g.
+ * an SSH remote).
+ *
+ * What "restore" does and does NOT guarantee: it puts back the URL this clone was
+ * created with, so the SERVER's freshly minted token is not left behind. It is not
+ * a promise that no token ends up in `.git/config` — in pushToGit's flow the clone
+ * URL already carries one (cloneRepo embedded it), so restoring writes that one
+ * back. What keeps that safe is not this function: the clone is a throwaway,
+ * `rm -rf`'d in pushToGit's `finally`.
  */
 async function withAuthenticatedOrigin<T>(
   git: SimpleGit,

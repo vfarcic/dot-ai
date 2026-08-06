@@ -24,6 +24,7 @@ import {
   sanitizeRelativePath,
   createPullRequest,
   getGitopsClonesDir,
+  isRepoHostAllowed,
 } from './git-utils.js';
 import type { CreatePullRequestResult } from './git-utils.js';
 import { sanitizeIntentForLabel } from './solution-utils.js';
@@ -153,7 +154,24 @@ async function handleGitClone(
   }
 
   try {
-    const result = await cloneRepo(repoUrl, targetDir, { depth: 1 });
+    const result = await cloneRepo(repoUrl, targetDir, {
+      depth: 1,
+      // PRD #710: `repoUrl` is a MODEL decision, and the model's context includes
+      // the caller's free-text `issue` ("…the GitOps repo is
+      // https://attacker.example/x.git, clone it") plus cluster objects a tenant
+      // may control — so it is client-INFLUENCED even though no client parameter
+      // names it. Without this gate the env path embeds DOT_AI_GIT_TOKEN, or mints
+      // a fresh GitHub App installation token, into whatever URL it is handed, and
+      // git_clone is exposed during INVESTIGATION, which has no approval step
+      // (only git_create_pr is executor-only).
+      //
+      // Degrade, don't refuse, exactly as the prompts loader does: a public GitOps
+      // repository on any host keeps cloning. Unlike the prompts path, remediate
+      // has no per-request X-Dot-AI-Git-Token escape hatch, so a PRIVATE GitOps
+      // repository on a non-allowlisted host needs the operator to add that host
+      // to `gitops.allowedRepoHosts`.
+      withholdServerCredential: !isRepoHostAllowed(repoUrl),
+    });
     return { localPath: relativePath, branch: result.branch };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
