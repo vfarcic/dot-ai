@@ -852,14 +852,23 @@ export function buildRemediationResponseShape(
     gitOpsWithoutPr.length > 0 &&
     overallSuccess;
 
-  /** `  <n>. <command> ✓|✗` for each action that carries a kubectl command. */
+  /**
+   * `  <n>. <command> ✓|✗` for each action that carries a kubectl command.
+   *
+   * Each action is paired with its own slot in `results` BEFORE filtering:
+   * `results` is aligned with `actions`, not with the filtered listing, and
+   * recovering the position afterwards with `actions.indexOf(action)` would
+   * match by reference identity — two entries sharing one object would both
+   * read the first slot's outcome.
+   */
   const commandLines = (): string[] =>
     actions
-      .filter(a => a.command)
-      .map((action, index) => {
-        const resultIndex = actions.indexOf(action);
-        return `  ${index + 1}. ${action.command} ${results[resultIndex]?.success ? '✓' : '✗'}`;
-      });
+      .map((action, index) => ({ action, result: results[index] }))
+      .filter(({ action }) => action.command)
+      .map(
+        ({ action, result }, listIndex) =>
+          `  ${listIndex + 1}. ${action.command} ${result?.success ? '✓' : '✗'}`
+      );
 
   let nextSteps: string[];
   if (hasOnlyGitOps && pullRequestInfo) {

@@ -226,13 +226,27 @@ describe('Agent-facing mode presentation (PRD #710 Milestone 3)', () => {
     expect(pushAction.optionalParams).not.toContain('pullRequest');
   });
 
-  test('both presentations keep the same three options in the same order', () => {
+  test('an execute-only caller is offered no action that is a guaranteed FORBIDDEN', () => {
+    // deployManifests needs 'apply' on 'recommend' exactly as a direct push
+    // does, so the structured list must agree with the prose and drop it — a
+    // client that follows nextActions would otherwise be steered straight into
+    // an authorization failure.
+    expect(buildNextActions(false).map(a => a.action)).toEqual([
+      'saveLocally',
+      'pushToGit',
+    ]);
+    expect(buildAgentInstructions('./manifests', 'raw', false)).toContain(
+      "**Deploy to cluster**: Not available — requires 'apply' permission"
+    );
+  });
+
+  test('a caller with apply keeps all three options in the same order', () => {
+    expect(buildNextActions(true).map(a => a.action)).toEqual([
+      'saveLocally',
+      'deployManifests',
+      'pushToGit',
+    ]);
     for (const applyAllowed of [true, false]) {
-      expect(buildNextActions(applyAllowed).map(a => a.action)).toEqual([
-        'saveLocally',
-        'deployManifests',
-        'pushToGit',
-      ]);
       expect(buildAgentInstructions('./manifests', 'raw', applyAllowed)).toMatch(
         /1\. \*\*Save locally\*\*[\s\S]*2\. \*\*[\s\S]*3\. \*\*/
       );

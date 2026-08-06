@@ -974,10 +974,13 @@ describe('createPullRequest — commit author (PRD #710 decision 8)', () => {
       clone
     ).trim();
     expect(author).toBe('real@example.test <real@example.test>');
-    // The sha names the commit that was actually pushed.
-    expect(
-      git(['rev-parse', 'dot-ai/attributed-1'], clone).trim()
-    ).toBe(commitSha);
+    // The sha names the commit that was actually pushed. Both sides are peeled
+    // to a full object name first: `commitSha` comes from git's commit output,
+    // which abbreviates, so comparing it to a ref's 40-char sha would depend on
+    // the abbreviation length this repo and this git config happen to produce.
+    const fullSha = (rev: string) =>
+      git(['rev-parse', '--verify', `${rev}^{commit}`], clone).trim();
+    expect(fullSha(commitSha!)).toBe(fullSha('dot-ai/attributed-1'));
   });
 });
 

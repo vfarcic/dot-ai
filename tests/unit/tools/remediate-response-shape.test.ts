@@ -342,7 +342,9 @@ describe('the kubectl story', () => {
   test('numbers commands 1..n while reading outcomes by action position', () => {
     // A gitSource action carries no `command`, so it is filtered out of the
     // listing — but the ✓/✗ still comes from its own slot in `results`, which is
-    // aligned with `actions`, not with the filtered list.
+    // aligned with `actions`, not with the filtered list. The pairing happens
+    // before the filter, so that holds however the caller built `actions` —
+    // including two entries that share one object.
     const shape = buildRemediationResponseShape(
       kubectlRun({
         executedCommandCount: 1,
