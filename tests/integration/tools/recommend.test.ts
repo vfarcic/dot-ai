@@ -1567,15 +1567,36 @@ describe.concurrent('Recommend Tool Integration', () => {
         // REPOSITORY HOST ALLOWLIST (PRD #710)
         //
         // Same session and same manifests as every push above — only the host
-        // changes. `www.github.com` is the deliberate choice: allowlist entries
-        // match exactly with no wildcards, so the default `github.com` does not
-        // cover it, and unlike an unroutable host it is a remote the server
-        // really could clone and push to. So if the gate ever stops running,
-        // this push lands in the test repository and the reads below see it —
-        // which is what makes "nothing was cloned" an observation rather than
-        // an inference from the error text alone.
+        // changes. `gist.github.com` is the deliberate choice, and it is a
+        // tradeoff, so here is the whole of it:
+        //
+        // - It is refused for a reason that stays true. Matching is exact with
+        //   no wildcards, and gist.github.com is a DIFFERENT service —
+        //   `<owner>/<repo>` there does not address this repository. The host
+        //   this test named before, `www.github.com`, was the SAME service, so
+        //   pinning it as refused pinned a latent bug: that bug was fixed, the
+        //   host joined the default allowlist, and this assertion broke. Naming
+        //   another same-service host would only queue the same breakage up
+        //   again. `git-utils-security.test.ts` pins gist.github.com as refused
+        //   at the unit level, so both levels argue from one example.
+        // - It is real and reachable, so a gate that stopped running would make
+        //   a genuine authenticated request instead of failing instantly on DNS.
+        //   The test cannot pass merely because the host does not resolve, which
+        //   is why an unroutable host is not used here.
+        // - A regression keeps the credential inside GitHub. If the gate stops
+        //   running, the server's git token goes to a GitHub-operated host, not
+        //   to a third party such as gitlab.com whose logs we do not control. A
+        //   negative test for a credential gate should not exfiltrate the
+        //   credential when it fails.
+        //
+        // What that costs, stated plainly: gist.github.com will not serve this
+        // repository, so a gate failure surfaces as a CLONE failure rather than
+        // as a commit landing somewhere we can read back. The "nothing was
+        // pushed" reads below are therefore corroboration, not the primary
+        // detector — the detector is the exact refusal message, which a clone
+        // failure cannot produce.
         // ─────────────────────────────────────────────────────────────────
-        const deniedHost = 'www.github.com';
+        const deniedHost = 'gist.github.com';
         const deniedRepoUrl = `https://${deniedHost}/${gitHubRepo.owner}/${gitHubRepo.repo}.git`;
         const deniedTargetPath = `integration-tests/push-to-git-denied-${testRunId}`;
 
@@ -1596,11 +1617,15 @@ describe.concurrent('Recommend Tool Integration', () => {
         recordForCleanup(deniedResponse);
 
         // The refusal names the offending host and the Helm value that governs
-        // it. "Currently allowed: github.com" is load-bearing twice over: it is
-        // the operator's next step, and it is this suite's proof that the chart
-        // rendered the default list into the deployment rather than an empty
-        // one — an empty render is deny-all and would have failed every push
-        // above instead of just this one.
+        // it. "Currently allowed: github.com, www.github.com" is load-bearing
+        // three times over: it is the operator's next step; it is this suite's
+        // proof that the chart rendered the default list into the deployment
+        // rather than an empty one — an empty render is deny-all and would have
+        // failed every push above instead of just this one; and it is the
+        // running server enumerating its own effective allowlist, which is how
+        // the allowed case for `www.github.com` is asserted here without paying
+        // for a second push (that push would exercise git's redirect-with-
+        // credentials behaviour, not this gate).
         // stringContaining, not equality, for one reason only: a VALIDATION
         // error reaches the REST layer already converted to an MCP error, so
         // the transport prefixes the code ("MCP error -32602: "). Everything
@@ -1610,7 +1635,7 @@ describe.concurrent('Recommend Tool Integration', () => {
           error: {
             code: 'EXECUTION_ERROR',
             message: expect.stringContaining(
-              `Repository host "${deniedHost}" is not allowed. Currently allowed: github.com. To allow it, add the host to the "gitops.allowedRepoHosts" Helm value (default: github.com) and restart the server.`
+              `Repository host "${deniedHost}" is not allowed. Currently allowed: github.com, www.github.com. To allow it, add the host to the "gitops.allowedRepoHosts" Helm value (default: github.com, www.github.com) and restart the server.`
             ),
           },
           meta: {
@@ -1621,16 +1646,25 @@ describe.concurrent('Recommend Tool Integration', () => {
 
         // Rejection happens before a credential is minted or attached, so
         // nothing in the response can carry one — not in the message, and not
-        // in the echoed input.
+        // in the echoed input. A credential rides in a URL as `user:pass@host`,
+        // so both hosts in play get the authority form: the refused one, and
+        // the real repository host this session has been pushing to. The two
+        // substrings are distinct — "@gist.github.com" does not contain
+        // "@github.com".
         const deniedResponseText = JSON.stringify(deniedResponse);
+        expect(deniedResponseText).not.toContain(`@${deniedHost}`);
         expect(deniedResponseText).not.toContain('@github.com');
         if (gitToken) {
           expect(deniedResponseText).not.toContain(gitToken);
         }
 
-        // Nothing was cloned and nothing was pushed: the base branch is still
-        // where the PR-mode pushes left it, the refused path exists on neither
-        // branch, and the open PR gained no commit.
+        // Nothing was pushed: the base branch is still where the PR-mode pushes
+        // left it, the refused path exists on neither branch, and the open PR
+        // gained no commit. Per the note above these corroborate rather than
+        // detect — a refusal replaced by a clone failure lands nothing here
+        // either — but they are what catches a HALF-working gate: one that
+        // refuses the host yet still mints a credential and writes this path to
+        // the repository it was already holding open.
         expect(await getBranchSha(baseBranch)).toBe(baseShaBeforePr);
         expect(
           await getGitHubFile(`${deniedTargetPath}/manifests.yaml`, baseBranch)
@@ -2039,7 +2073,8 @@ describe.concurrent('Recommend Tool Integration', () => {
               // Note: valuesPath is intentionally NOT included - it's an internal implementation detail
               // The helmCommand uses generic 'values.yaml' for user-friendly display
               chart: {
-                repository: 'https://prometheus-community.github.io/helm-charts',
+                repository:
+                  'https://prometheus-community.github.io/helm-charts',
                 repositoryName: 'prometheus-community',
                 chartName: 'prometheus',
               },
@@ -2106,7 +2141,8 @@ describe.concurrent('Recommend Tool Integration', () => {
               releaseName: releaseName,
               namespace: helmNamespace,
               chart: {
-                repository: 'https://prometheus-community.github.io/helm-charts',
+                repository:
+                  'https://prometheus-community.github.io/helm-charts',
                 repositoryName: 'prometheus-community',
                 chartName: 'prometheus',
               },
