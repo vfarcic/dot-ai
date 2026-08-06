@@ -230,19 +230,39 @@ describe.concurrent('Recommend Tool Integration', () => {
     return pullRequest;
   }
 
+  /**
+   * Cleanup helpers report a refused request instead of ignoring it: this
+   * repository is shared by every run of this suite, so a close or delete that
+   * silently did nothing leaves a pull request or branch behind for all of
+   * them. The caller decides what a failure means — see the cleanup block at
+   * the end of the pushToGit test.
+   */
+  async function assertGitHubOk(
+    response: Response,
+    what: string
+  ): Promise<void> {
+    if (!response.ok) {
+      throw new Error(
+        `${what} failed: ${response.status} ${await response.text()}`
+      );
+    }
+  }
+
   async function closePullRequest(number: number): Promise<void> {
-    await fetch(`${gitHubRepoApi}/pulls/${number}`, {
+    const response = await fetch(`${gitHubRepoApi}/pulls/${number}`, {
       method: 'PATCH',
       headers: { ...gitHubApiHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ state: 'closed' }),
     });
+    await assertGitHubOk(response, `Closing pull request #${number}`);
   }
 
   async function deleteBranch(branch: string): Promise<void> {
-    await fetch(`${gitHubRepoApi}/git/refs/heads/${branch}`, {
+    const response = await fetch(`${gitHubRepoApi}/git/refs/heads/${branch}`, {
       method: 'DELETE',
       headers: gitHubApiHeaders,
     });
+    await assertGitHubOk(response, `Deleting branch ${branch}`);
   }
 
   async function deleteGitHubFile(
@@ -270,7 +290,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       }
     );
 
-    expect(response.ok).toBe(true);
+    await assertGitHubOk(response, `Deleting file ${filePath}`);
   }
 
   beforeAll(() => {
@@ -1070,6 +1090,8 @@ describe.concurrent('Recommend Tool Integration', () => {
         }
       };
 
+      let testFailure: unknown;
+
       try {
         const solutionsResponse = await integrationTest.httpClient.post(
           '/api/v1/tools/recommend',
@@ -1638,19 +1660,55 @@ describe.concurrent('Recommend Tool Integration', () => {
             },
           },
         });
-      } finally {
-        for (const prNumber of createdPrNumbers) {
-          await closePullRequest(prNumber);
-        }
-        for (const branch of createdBranches) {
-          await deleteBranch(branch);
-        }
-        // Files that reached the base branch (the direct push above, plus any
-        // push that landed there because PR mode was not honoured).
-        for (const filePath of [...pushedFiles].reverse()) {
-          await deleteGitHubFile(filePath, cleanupMessage);
-        }
+      } catch (error) {
+        // Held, not rethrown yet: cleanup below must run to completion first,
+        // and it must not be able to replace this error with its own.
+        testFailure = error;
       }
+
+      // Every cleanup step is independent. Collecting failures instead of
+      // throwing them is what keeps the two guarantees this block exists for:
+      // the first rejection cannot skip the steps behind it (which would leave
+      // branches, pull requests and files standing in the shared test
+      // repository), and a cleanup problem cannot stand in for the test's own
+      // assertion error and send the next reader after the wrong thing.
+      const cleanupFailures: string[] = [];
+      const cleanupStep = async (step: () => Promise<void>) => {
+        try {
+          await step();
+        } catch (error) {
+          cleanupFailures.push(
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+      };
+
+      for (const prNumber of createdPrNumbers) {
+        await cleanupStep(() => closePullRequest(prNumber));
+      }
+      for (const branch of createdBranches) {
+        await cleanupStep(() => deleteBranch(branch));
+      }
+      // Files that reached the base branch (the direct push above, plus any
+      // push that landed there because PR mode was not honoured).
+      for (const filePath of [...pushedFiles].reverse()) {
+        await cleanupStep(() => deleteGitHubFile(filePath, cleanupMessage));
+      }
+
+      if (testFailure) {
+        // Anything cleanup could not remove is reported alongside the real
+        // failure rather than in place of it.
+        if (cleanupFailures.length > 0) {
+          console.error(
+            `pushToGit cleanup left artifacts behind:\n${cleanupFailures.join('\n')}`
+          );
+        }
+        throw testFailure;
+      }
+
+      // A test that passed but leaked is still a problem for every later run
+      // against this repository, so it fails here.
+      expect(cleanupFailures).toEqual([]);
     }, 1200000);
   });
 
