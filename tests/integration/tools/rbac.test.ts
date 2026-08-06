@@ -813,6 +813,22 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
       });
     }, 120000);
 
+    // Both "allowed" cases assert what the request reached, not merely what it
+    // avoided: the session lookup is the first thing behind the verb gate, and
+    // the dummy solutionId has no session, so `Solution not found` is the
+    // response only a caller that got through the gate can receive. Asserting
+    // the absence of FORBIDDEN would also be satisfied by a request that failed
+    // earlier for an unrelated reason and never reached the handler at all.
+    const expectedPastTheGate = {
+      success: false,
+      error: {
+        code: 'EXECUTION_ERROR',
+        message: expect.stringContaining(
+          `Solution not found: ${pushToGitArgs.solutionId}`
+        ),
+      },
+    };
+
     test('should allow PR-mode pushToGit for user with execute but not apply on recommend', async () => {
       const client = jwtClient(recommendExecuteUser);
 
@@ -824,9 +840,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
         interaction_id: `rbac_push_pr_allowed_${Date.now()}`,
       });
 
-      const responseText = JSON.stringify(pushResponse);
-      expect(responseText).not.toContain('FORBIDDEN');
-      expect(responseText).not.toContain("'apply' permission");
+      expect(pushResponse).toMatchObject(expectedPastTheGate);
     }, 120000);
 
     test('should allow direct pushToGit for user with apply verb on recommend', async () => {
@@ -837,9 +851,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
         interaction_id: `rbac_push_direct_allowed_${Date.now()}`,
       });
 
-      const responseText = JSON.stringify(pushResponse);
-      expect(responseText).not.toContain('FORBIDDEN');
-      expect(responseText).not.toContain("'apply' permission");
+      expect(pushResponse).toMatchObject(expectedPastTheGate);
     }, 120000);
   });
 
