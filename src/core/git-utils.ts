@@ -406,22 +406,28 @@ export interface CloneOptions {
    * PRD #710: clone WITHOUT the server's own credential (DOT_AI_GIT_TOKEN or a
    * GitHub App installation token), even when one is configured.
    *
-   * The caller sets this when `repoUrl` is CLIENT-SUPPLIED and its host is not
-   * on the `gitops.allowedRepoHosts` allowlist: handing the server's credential
-   * to a host the client named is the leak `isRepoHostAllowed` exists to stop.
-   * The clone still PROCEEDS, unauthenticated — degrade, don't refuse — so every
-   * public repository keeps working; a private one must supply its own
-   * credential per request (`token` above / the X-Dot-AI-Git-Token header).
+   * The caller sets this when `repoUrl` is CLIENT-SUPPLIED (or
+   * client-INFLUENCED) and isRepoHostAllowed refuses it — a scheme that cannot
+   * carry the credential safely, or a host that is not on the
+   * `gitops.allowedRepoHosts` allowlist. Handing the server's credential to a
+   * URL the client chose is the leak that gate exists to stop. The clone still
+   * PROCEEDS, unauthenticated — degrade, don't refuse — so every PUBLIC
+   * repository keeps working. A PRIVATE one needs a credential the caller brings
+   * itself (`token` above), which on the prompts-override path is the
+   * X-Dot-AI-Git-Token header — remediate's git_clone has no such per-request
+   * hatch, so there the only way back is for the operator to allow the host.
    *
    * Only the SERVER's credential is affected: `token` takes precedence and is
    * unaffected for any host, since a client that supplies its own credential is
    * choosing where it goes.
    *
    * Deliberately opt-in rather than applied inside getAuthenticatedUrl: the
-   * caller is the only one that knows whether the URL came from a client
-   * (pushToGit's `repoUrl`, a `?repo=` prompts override) or from the server's
-   * own reasoning over cluster state (remediate's git_clone, whose GitOps remote
-   * is legitimately not on GitHub).
+   * caller is the only one that knows where the URL came from. All three of
+   * today's callers set it — pushToGit's `repoUrl`, a `?repo=` prompts override,
+   * and remediate's git_clone, whose URL the model derives from a free-text
+   * `issue` and cluster objects a tenant may control. What legitimately is NOT
+   * gated is the operator's own DOT_AI_USER_PROMPTS_REPO: the same trust class
+   * as the allowlist itself, so gating it would protect nothing.
    */
   withholdServerCredential?: boolean;
 }
@@ -1120,7 +1126,7 @@ export function getRepoHost(repoUrl: string): string | undefined {
  * tests that use `file://` remotes drive pushRepo/pullRepo directly and never
  * reach this gate).
  */
-const ALLOWED_REPO_SCHEME = 'https:';
+export const ALLOWED_REPO_SCHEME = 'https:';
 
 /**
  * `https:`-style scheme of `repoUrl`, lowercased, or undefined when it has none.
@@ -1133,6 +1139,57 @@ const ALLOWED_REPO_SCHEME = 'https:';
 function getRepoScheme(repoUrl: string): string | undefined {
   const match = repoUrl.trim().match(/^([A-Za-z][A-Za-z0-9+.-]*):\/\//);
   return match ? `${match[1].toLowerCase()}:` : undefined;
+}
+
+/**
+ * WHY the server's credential may not be handed to `repoUrl` — `undefined` when
+ * it may.
+ *
+ * The verdict alone is not enough to explain itself, because the gate has two
+ * halves with two different OWNERS: a scheme that cannot carry the credential is
+ * the caller's to fix (send `https://`), a host that is not on the allowlist is
+ * the operator's (add it to `gitops.allowedRepoHosts`). A message built from the
+ * verdict alone picks one of those and is wrong half the time — telling someone
+ * who wrote `http://github.com/a/b.git` that "host github.com is not on the
+ * allowlist (currently allowed: github.com)" both contradicts itself and sends
+ * them to change a value that is already correct.
+ *
+ * So the cause is classified ONCE, here, beside the gate, and every explanation
+ * of a refusal is derived from it: this module's message and suggested actions,
+ * and the prompts loader's withheld-credential warn line and client-visible
+ * clone-failure text. Deriving it independently is how the loader's two builders
+ * came to describe a scheme refusal as a host refusal after the scheme check was
+ * folded into isRepoHostAllowed — one classifier makes that drift impossible.
+ *
+ * Carries what a message needs (the offending scheme, or the parsed host) so no
+ * consumer parses the URL a second way to say it.
+ */
+export type RepoCredentialRefusal =
+  | { cause: 'no-url' }
+  | { cause: 'scheme'; scheme: string }
+  | { cause: 'shorthand' }
+  | { cause: 'host'; host: string }
+  | { cause: 'unparseable' };
+
+export function classifyRepoCredentialRefusal(
+  repoUrl: string
+): RepoCredentialRefusal | undefined {
+  // A missing URL reaches the same gate (the stage dispatch defaults it to ''),
+  // and "host … is not allowed" would point at the wrong problem.
+  if (repoUrl.trim().length === 0) return { cause: 'no-url' };
+
+  const host = getRepoHost(repoUrl);
+  const scheme = getRepoScheme(repoUrl);
+
+  // Scheme is reported only once a host IS parseable, so text that is not a URL
+  // at all keeps falling through to 'unparseable' rather than being blamed on
+  // its scheme.
+  if (host && scheme !== ALLOWED_REPO_SCHEME) {
+    return scheme ? { cause: 'scheme', scheme } : { cause: 'shorthand' };
+  }
+  if (!host) return { cause: 'unparseable' };
+  if (!getAllowedRepoHosts().includes(host)) return { cause: 'host', host };
+  return undefined;
 }
 
 /**
@@ -1149,12 +1206,13 @@ function getRepoScheme(repoUrl: string): string | undefined {
  *
  * A URL whose host or scheme cannot be determined is NOT allowed — an unparseable
  * remote is exactly the input whose destination we cannot reason about.
+ *
+ * The gate and the explanation of a refusal are ONE implementation
+ * (classifyRepoCredentialRefusal): a URL this returns false for always has a
+ * cause to name, and a URL it allows never produces one.
  */
 export function isRepoHostAllowed(repoUrl: string): boolean {
-  if (getRepoScheme(repoUrl) !== ALLOWED_REPO_SCHEME) return false;
-  const host = getRepoHost(repoUrl);
-  if (!host) return false;
-  return getAllowedRepoHosts().includes(host);
+  return classifyRepoCredentialRefusal(repoUrl) === undefined;
 }
 
 /**
@@ -1167,26 +1225,25 @@ export function isRepoHostAllowed(repoUrl: string): boolean {
  *
  * Three distinct refusals, because they have three different fixes: no URL at
  * all, a URL whose SCHEME cannot carry the credential (see ALLOWED_REPO_SCHEME),
- * and a host that is not on the allowlist. Telling someone who wrote
+ * and a host that is not on the allowlist. Which one applies comes from
+ * classifyRepoCredentialRefusal, so this message and the prompts loader's cannot
+ * disagree about the same URL. Telling someone who wrote
  * `http://github.com/...` that "host github.com is not allowed. Currently
  * allowed: github.com" would send them to change the chart value that is already
  * correct.
  */
 export function describeDisallowedRepoHost(repoUrl: string): string {
-  // A missing URL reaches the same gate (the stage dispatch defaults it to ''),
-  // and "host … is not allowed" would send the caller to the wrong problem.
-  if (repoUrl.trim().length === 0) {
+  const refusal = classifyRepoCredentialRefusal(repoUrl);
+
+  if (refusal?.cause === 'no-url') {
     return 'No repository URL was supplied, so there is no host to check against the allowlist. Provide repoUrl as the HTTPS URL of a repository on an allowed host.';
   }
 
-  const scheme = getRepoScheme(repoUrl);
-  // Only once a host IS parseable, so text that is not a URL at all keeps
-  // falling through to the "does not name a host" wording below rather than
-  // being reported as a scheme problem.
-  if (getRepoHost(repoUrl) && scheme !== ALLOWED_REPO_SCHEME) {
-    const subject = scheme
-      ? `Repository URL scheme "${scheme}//" is not allowed`
-      : 'Repository URLs must be written in full, not in the scp-style "host:path" shorthand';
+  if (refusal?.cause === 'scheme' || refusal?.cause === 'shorthand') {
+    const subject =
+      refusal.cause === 'scheme'
+        ? `Repository URL scheme "${refusal.scheme}//" is not allowed`
+        : 'Repository URLs must be written in full, not in the scp-style "host:path" shorthand';
     return `${subject}. Use an ${ALLOWED_REPO_SCHEME}// URL: it is the only scheme that can carry the server's git credential safely — http sends it in cleartext, and ssh/git URLs would pass it as an SSH username.`;
   }
 
@@ -1195,11 +1252,48 @@ export function describeDisallowedRepoHost(repoUrl: string): string {
     allowed.length === 0
       ? 'The allowlist is currently empty, which allows no repository at all'
       : `Currently allowed: ${allowed.join(', ')}`;
-  const host = getRepoHost(repoUrl);
+  const host = refusal?.cause === 'host' ? refusal.host : getRepoHost(repoUrl);
   const subject = host
     ? `Repository host "${host}" is not allowed`
     : 'The repository URL does not name a host this server can parse, so it is not allowed';
   return `${subject}. ${allowedText}. To allow it, add the host to the "gitops.allowedRepoHosts" Helm value (default: ${DEFAULT_ALLOWED_REPO_HOSTS.join(', ')}) and restart the server.`;
+}
+
+/**
+ * The structured advice that travels BESIDE describeDisallowedRepoHost (an
+ * AppError's `suggestedActions`), matched to the same cause by the same
+ * classifier.
+ *
+ * It is split for exactly the reason the message is. "Ask your platform operator
+ * to add the host to gitops.allowedRepoHosts", attached to a SCHEME refusal,
+ * advises changing a value that is already correct and hides the fix that would
+ * work — which the caller can apply themselves. Advice that contradicts the
+ * message it is attached to is worse than no advice.
+ */
+export function suggestedActionsForDisallowedRepo(repoUrl: string): string[] {
+  const refusal = classifyRepoCredentialRefusal(repoUrl);
+
+  switch (refusal?.cause) {
+    case 'no-url':
+      return [
+        `Supply repoUrl as the ${ALLOWED_REPO_SCHEME}// URL of the repository to push to`,
+      ];
+    case 'scheme':
+    case 'shorthand':
+      return [
+        `Send repoUrl as an ${ALLOWED_REPO_SCHEME}// URL for the same repository`,
+        `Do not use http://, ssh://, git:// or the scp-style "host:path" form — ${ALLOWED_REPO_SCHEME}// is the only scheme the server will attach its git credential to`,
+      ];
+    case 'unparseable':
+      return [
+        `Send repoUrl as a full ${ALLOWED_REPO_SCHEME}// URL that names the repository host`,
+      ];
+    default:
+      return [
+        'Push to a repository on an allowed host',
+        'Ask your platform operator to add the host to the gitops.allowedRepoHosts Helm value',
+      ];
+  }
 }
 
 /**

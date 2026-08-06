@@ -23,8 +23,10 @@ import {
   sanitizeRelativePath,
   scrubCredentials,
   isRepoHostAllowed,
+  classifyRepoCredentialRefusal,
   getAllowedRepoHosts,
   getRepoHost,
+  ALLOWED_REPO_SCHEME,
 } from './git-utils';
 import { Prompt, PromptFile, loadPromptFile } from '../tools/prompts';
 
@@ -724,10 +726,14 @@ export function getUserPromptsConfigFromOverride(
  * The remedy DEGRADES rather than refuses: the clone still happens, just without
  * the server's credential, so every public repository on every host keeps
  * working exactly as before. What changes is only a PRIVATE repo on a
- * non-allowlisted host — and DOT_AI_GIT_TOKEN is a GitHub credential, so it
- * would not have authenticated to GitLab or Bitbucket anyway. Such a request
- * must forward its own credential in the X-Dot-AI-Git-Token header, which is the
- * mechanism PRD #621 exists to provide.
+ * non-allowlisted host — and that IS a real loss for some deployments, not a
+ * theoretical one: getAuthenticatedUrl sends DOT_AI_GIT_TOKEN as the basic-auth
+ * PASSWORD under the username `x-access-token`, which is exactly how GitLab and
+ * Gitea/Forgejo accept a personal access token, so a non-GitHub token in that
+ * variable did authenticate to those hosts before this gate. Such a request must
+ * forward its own credential in the X-Dot-AI-Git-Token header (the mechanism PRD
+ * #621 exists to provide), or the operator must add the host to
+ * `gitops.allowedRepoHosts`.
  *
  * Two inputs, both necessary:
  * - `repoUrlIsClientSupplied` — the operator's own DOT_AI_USER_PROMPTS_REPO is
@@ -738,7 +744,11 @@ export function getUserPromptsConfigFromOverride(
  *
  * Reuses isRepoHostAllowed — the same parsed-hostname comparison and the same
  * `gitops.allowedRepoHosts` value pushToGit is gated on. No second parser, no
- * second config value.
+ * second config value. Note that gate refuses on TWO grounds, and both are live
+ * here: the scheme check bites `http://` URLs, which this path accepts (see
+ * getUserPromptsConfigFromOverride) and would otherwise hand the credential to
+ * in cleartext. Anything reporting the decision must therefore say WHICH ground
+ * — see isSchemeRefusal.
  */
 function shouldWithholdServerCredential(
   config: UserPromptsConfig,
@@ -750,10 +760,31 @@ function shouldWithholdServerCredential(
 }
 
 /**
+ * Whether the credential was withheld over the URL's SCHEME rather than its
+ * HOST — which decides both the wording of the two explanations below and whose
+ * fix it is: a scheme is the CALLER's to correct by sending an `https://` URL, a
+ * host is the OPERATOR's to add to `gitops.allowedRepoHosts` (or the caller's to
+ * bypass with the X-Dot-AI-Git-Token header).
+ *
+ * Only `http://` can reach this on this path — getUserPromptsConfigFromOverride
+ * rejects every other non-https scheme outright — but the cause is CLASSIFIED,
+ * not assumed, so it stays correct if that ever widens, and so this path and
+ * pushToGit cannot describe the same URL two different ways. Not splitting it was
+ * the bug: for `http://github.com/x.git` on the default allowlist, both builders
+ * announced that host "github.com" is not on an allowlist that reads
+ * "github.com", sending the reader to change a value that was already right.
+ */
+function isSchemeRefusal(repoUrl: string): boolean {
+  const cause = classifyRepoCredentialRefusal(repoUrl)?.cause;
+  return cause === 'scheme' || cause === 'shorthand';
+}
+
+/**
  * Announce a withheld credential — the whole point of degrading rather than
  * refusing is that the request SUCCEEDS, so the only way an operator debugging
  * "why is my private repo 404ing" learns of the decision is this line. Carries
- * the host, the allowlist as it currently reads, and the way out.
+ * the host, the allowlist as it currently reads, which of the two grounds
+ * refused this URL, and the way out for that ground.
  *
  * One function for both the clone and the pull path so they cannot drift into
  * saying different things about the same decision.
@@ -763,16 +794,23 @@ function warnServerCredentialWithheld(
   config: UserPromptsConfig,
   operation: 'clone' | 'pull'
 ): void {
+  const schemeRefusal = isSchemeRefusal(config.repoUrl);
+  // The remedy is per CAUSE, the symptom per OPERATION — so all four
+  // combinations read correctly without four hand-written strings.
+  const remedy = schemeRefusal
+    ? `the request names the repository with an ${ALLOWED_REPO_SCHEME}// URL`
+    : 'the request supplies its own credential in the X-Dot-AI-Git-Token header';
   logger.warn(`Withholding the server git credential from this ${operation}`, {
     url: sanitizeUrlForLogging(config.repoUrl),
     host: getRepoHost(config.repoUrl),
     allowedHosts: getAllowedRepoHosts(),
-    reason:
-      'the repository URL came from the request and its host is not on the "gitops.allowedRepoHosts" allowlist',
+    reason: schemeRefusal
+      ? `the repository URL came from the request and its scheme is not "${ALLOWED_REPO_SCHEME}//", the only scheme that may carry the server credential — the "gitops.allowedRepoHosts" allowlist is not what refused it`
+      : 'the repository URL came from the request and its host is not on the "gitops.allowedRepoHosts" allowlist',
     consequence:
       operation === 'clone'
-        ? 'cloning unauthenticated; a private repository will fail unless the request supplies its own credential in the X-Dot-AI-Git-Token header'
-        : 'pulling unauthenticated; a private repository keeps serving the cached copy instead of refreshing, unless the request supplies its own credential in the X-Dot-AI-Git-Token header',
+        ? `cloning unauthenticated; a private repository will fail unless ${remedy}`
+        : `pulling unauthenticated; a private repository keeps serving the cached copy instead of refreshing, unless ${remedy}`,
   });
 }
 
@@ -781,13 +819,30 @@ function warnServerCredentialWithheld(
  * failure so "why is my private repo 404ing" is answerable from the error alone
  * rather than only from the (scrubbed) warn line.
  *
- * Names the parsed host, the two ways to fix it, and nothing from the URL itself
- * — so a credential embedded in `repoUrl` cannot ride out in a message that
- * reaches the client (the override failure path returns it as
+ * Names the cause, the way(s) to fix THAT cause, and nothing from the URL itself
+ * beyond its scheme — so a credential embedded in `repoUrl` cannot ride out in a
+ * message that reaches the client (the override failure path returns it as
  * UserPromptsOverrideError).
+ *
+ * A scheme refusal deliberately does NOT offer the two host remedies: neither
+ * one works. Adding the host to the allowlist leaves the scheme refusal in place,
+ * and the X-Dot-AI-Git-Token header — which does bypass the gate for any URL —
+ * would put the caller's own credential on a cleartext request, so it is not
+ * advice worth giving for an `http://` URL.
  */
 function describeWithheldServerCredential(repoUrl: string): string {
-  const host = getRepoHost(repoUrl);
+  const refusal = classifyRepoCredentialRefusal(repoUrl);
+  const prefix = "The server's git credential was NOT used for this clone";
+
+  if (refusal?.cause === 'scheme' || refusal?.cause === 'shorthand') {
+    const subject =
+      refusal.cause === 'scheme'
+        ? `the repository URL scheme "${refusal.scheme}//" cannot carry it — "${ALLOWED_REPO_SCHEME}//" is the only scheme that may, since http:// would send it in cleartext`
+        : `the repository URL is written in the scp-style "host:path" shorthand, and "${ALLOWED_REPO_SCHEME}//" is the only form that may carry it`;
+    return `${prefix} because ${subject}, so the repository was cloned unauthenticated. If it is private, send the request again naming the same repository with an ${ALLOWED_REPO_SCHEME}// URL. This is not an allowlist decision — the "gitops.allowedRepoHosts" Helm value has no bearing on a URL that is not ${ALLOWED_REPO_SCHEME}//.`;
+  }
+
+  const host = refusal?.cause === 'host' ? refusal.host : getRepoHost(repoUrl);
   const subject = host
     ? `repository host "${host}" is not on the "gitops.allowedRepoHosts" allowlist`
     : 'the repository URL does not name a host this server can parse, so it is not on the "gitops.allowedRepoHosts" allowlist';
@@ -796,7 +851,7 @@ function describeWithheldServerCredential(repoUrl: string): string {
     allowed.length === 0
       ? 'the allowlist is currently empty'
       : `currently allowed: ${allowed.join(', ')}`;
-  return `The server's git credential was NOT used for this clone because ${subject} (${allowedText}), so the repository was cloned unauthenticated. If it is private, send the credential with the request in the X-Dot-AI-Git-Token header, or add the host to the "gitops.allowedRepoHosts" Helm value.`;
+  return `${prefix} because ${subject} (${allowedText}), so the repository was cloned unauthenticated. If it is private, send the credential with the request in the X-Dot-AI-Git-Token header, or add the host to the "gitops.allowedRepoHosts" Helm value.`;
 }
 
 /**

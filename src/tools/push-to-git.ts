@@ -31,6 +31,7 @@ import {
   sanitizeRelativePath,
   isRepoHostAllowed,
   describeDisallowedRepoHost,
+  suggestedActionsForDisallowedRepo,
 } from '../core/git-utils';
 import type { PullRequestSnapshot, PushResult } from '../core/git-utils';
 import { getVisualizationUrl } from '../core/visualization';
@@ -296,10 +297,10 @@ export async function handlePushToGitTool(
             component: 'PushToGitTool',
             requestId,
             input: { repoUrl: scrubCredentials(args.repoUrl) },
-            suggestedActions: [
-              'Push to a repository on an allowed host',
-              'Ask your platform operator to add the host to the gitops.allowedRepoHosts Helm value',
-            ],
+            // Cause-matched, from the same classifier as the message: the
+            // allowlist advice is wrong for a scheme refusal, where the fix is
+            // the caller's and the Helm value is already correct.
+            suggestedActions: suggestedActionsForDisallowedRepo(args.repoUrl),
           }
         );
       }

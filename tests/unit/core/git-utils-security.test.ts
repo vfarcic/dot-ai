@@ -43,6 +43,8 @@ import {
   getAllowedRepoHosts,
   isRepoHostAllowed,
   describeDisallowedRepoHost,
+  classifyRepoCredentialRefusal,
+  suggestedActionsForDisallowedRepo,
   ALLOWED_REPO_HOSTS_ENV,
 } from '../../../src/core/git-utils';
 
@@ -700,5 +702,82 @@ describe('repository host allowlist (finding C)', () => {
     expect(message).toContain('github.com');
     expect(message).toContain('gitops.allowedRepoHosts');
     expect(message).toMatch(/empty/i);
+  });
+
+  test('the cause classifier and the gate are the same decision', () => {
+    // Every explanation of a refusal is derived from the classifier, so a URL
+    // the gate refuses must always have a cause to name, and one it allows must
+    // never produce one. Drift here is how a scheme refusal came to be
+    // explained as a host refusal on the prompts path.
+    process.env[ALLOWED_REPO_HOSTS_ENV] = 'github.com';
+    for (const url of [
+      'https://github.com/acme/x.git',
+      'https://GitHub.com:443/acme/x.git',
+      'https://attacker.example/x.git',
+      'https://github.com@attacker.example/x.git',
+      'http://github.com/acme/x.git',
+      'ssh://github.com/acme/x.git',
+      'git@github.com:acme/x.git',
+      'file:///tmp/unit/x.git',
+      'not a url at all',
+      'https://',
+      '',
+      '   ',
+    ]) {
+      expect(classifyRepoCredentialRefusal(url) === undefined).toBe(
+        isRepoHostAllowed(url)
+      );
+    }
+  });
+
+  test('the classifier names which half refused, and what a message needs', () => {
+    process.env[ALLOWED_REPO_HOSTS_ENV] = 'github.com';
+    expect(classifyRepoCredentialRefusal('')).toEqual({ cause: 'no-url' });
+    expect(
+      classifyRepoCredentialRefusal('http://github.com/acme/x.git')
+    ).toEqual({ cause: 'scheme', scheme: 'http:' });
+    expect(classifyRepoCredentialRefusal('git@github.com:acme/x.git')).toEqual({
+      cause: 'shorthand',
+    });
+    expect(
+      classifyRepoCredentialRefusal('https://attacker.example/x.git')
+    ).toEqual({ cause: 'host', host: 'attacker.example' });
+    expect(classifyRepoCredentialRefusal('not a url at all')).toEqual({
+      cause: 'unparseable',
+    });
+    expect(
+      classifyRepoCredentialRefusal('https://github.com/acme/x.git')
+    ).toBeUndefined();
+  });
+
+  test('the suggested actions point at the fix for THAT cause', () => {
+    process.env[ALLOWED_REPO_HOSTS_ENV] = 'github.com';
+
+    // A scheme refusal is the caller's to fix, so the operator action — and the
+    // chart value that is already correct — must not appear.
+    const scheme = suggestedActionsForDisallowedRepo(
+      'http://github.com/acme/x.git'
+    ).join(' | ');
+    expect(scheme).toContain('https://');
+    expect(scheme).not.toContain('gitops.allowedRepoHosts');
+    expect(
+      suggestedActionsForDisallowedRepo('git@github.com:acme/x.git')[0]
+    ).toContain('https://');
+
+    // A host refusal keeps both of the actions it always had.
+    expect(
+      suggestedActionsForDisallowedRepo('https://attacker.example/x.git')
+    ).toEqual([
+      'Push to a repository on an allowed host',
+      'Ask your platform operator to add the host to the gitops.allowedRepoHosts Helm value',
+    ]);
+
+    // The remaining two causes are client-side input problems, not allowlist
+    // ones either.
+    for (const url of ['', 'not a url at all']) {
+      const advice = suggestedActionsForDisallowedRepo(url).join(' | ');
+      expect(advice).toContain('repoUrl');
+      expect(advice).not.toContain('gitops.allowedRepoHosts');
+    }
   });
 });

@@ -1451,6 +1451,33 @@ describe('Push to Git Tool', () => {
       }
     });
 
+    test('suggestedActions match the CAUSE, not just the refusal', async () => {
+      // The message got the scheme/host split; the structured advice beside it
+      // did not, so a scheme refusal still carried "ask your platform operator
+      // to add the host to gitops.allowedRepoHosts" — advice to change a value
+      // that is already correct, hiding the fix that does work.
+      process.env[ALLOWED_HOSTS_ENV] = 'github.com';
+
+      const adviceFor = async (repoUrl: string): Promise<string> => {
+        const error = await handlePushToGitTool(
+          { solutionId: seedSolution(), repoUrl, targetPath: 'apps/test/' },
+          mockDotAI,
+          mockLogger,
+          requestId
+        ).catch((e: unknown) => e as { suggestedActions: string[] });
+        return error.suggestedActions.join(' | ');
+      };
+
+      const schemeAdvice = await adviceFor('http://github.com/acme/demo.git');
+      expect(schemeAdvice).toContain('https://');
+      expect(schemeAdvice).not.toContain('gitops.allowedRepoHosts');
+      expect(schemeAdvice).not.toContain('allowed host');
+
+      // The host refusal keeps the operator action it always had.
+      const hostAdvice = await adviceFor('https://attacker.example/x.git');
+      expect(hostAdvice).toContain('gitops.allowedRepoHosts');
+    });
+
     test('an allowed non-GitHub host is accepted once an operator adds it', async () => {
       // The second breaking change of this release, and its remedy: pushing to a
       // self-hosted remote works again as soon as the host is allowlisted.

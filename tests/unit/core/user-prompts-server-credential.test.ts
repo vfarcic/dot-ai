@@ -89,6 +89,13 @@ const CLIENT_TOKEN = 'client-forwarded-credential-secret';
 const ALLOWED_REPO = 'https://github.com/example-org/prompts.git';
 const FOREIGN_REPO = 'https://attacker.example/x.git';
 const CORP_REPO = 'https://gitlab.corp/team/prompts.git';
+/**
+ * An ALLOWED host over a scheme that may not carry the credential — the case
+ * whose refusal a host-only message describes self-contradictorily. `http://` is
+ * the only such scheme that gets this far: getUserPromptsConfigFromOverride
+ * rejects ssh/git/file URLs outright, before any credential decision.
+ */
+const HTTP_ALLOWED_HOST_REPO = 'http://github.com/example-org/prompts.git';
 
 const SANDBOX = path.resolve(process.cwd(), 'tmp', 'unit-prompts-server-cred');
 
@@ -426,6 +433,104 @@ describe('observability', () => {
     expect(error.message).toContain('X-Dot-AI-Git-Token');
     expect(error.message).toContain('gitops.allowedRepoHosts');
     expect(error.message).not.toContain(SERVER_TOKEN);
+  });
+
+  // ── The scheme half of the gate, reported as itself ──
+  //
+  // `http://` is the one non-https scheme that reaches here (the override
+  // validator rejects the rest outright), and on the DEFAULT allowlist
+  // `http://github.com/x.git` is refused for its scheme while its host IS
+  // allowed. Both explanations used to be host-only, so they claimed host
+  // "github.com" was not on an allowlist reading "github.com" — self-
+  // contradictory, and it sent the reader to change a correct chart value.
+
+  test('a scheme refusal is logged as a scheme problem, not a host one', async () => {
+    const { logger, calls } = makeCapturingLogger();
+    await loadUserPrompts(logger, false, { repoUrl: HTTP_ALLOWED_HOST_REPO });
+
+    // The credential really is withheld — this is the gate, not just wording.
+    expect(clonedUrl()).toBe(HTTP_ALLOWED_HOST_REPO);
+    expect(clonedUrl()).not.toContain(SERVER_TOKEN);
+
+    const warn = calls.find(
+      c =>
+        c.level === 'warn' &&
+        c.message === 'Withholding the server git credential from this clone'
+    );
+    expect(warn).toBeDefined();
+    const reason = warn!.data!.reason as string;
+    expect(reason).toContain('scheme');
+    expect(reason).toContain('https://');
+    expect(reason).not.toContain('its host is not on');
+    // The remedy is the caller's, not the operator's or the header's.
+    expect(warn!.data!.consequence).toContain('https://');
+    expect(warn!.data!.consequence).not.toContain('X-Dot-AI-Git-Token');
+  });
+
+  test('a host refusal keeps saying host, on both the clone and the pull path', async () => {
+    // The wording of this branch is quoted in the docs, so it is pinned here
+    // rather than left to drift when the scheme branch was added beside it.
+    mockGetRemotes.mockResolvedValue([
+      { name: 'origin', refs: { fetch: FOREIGN_REPO } },
+    ]);
+    await loadUserPrompts(makeCapturingLogger().logger, false, {
+      repoUrl: FOREIGN_REPO,
+    });
+    const refresh = makeCapturingLogger();
+    await loadUserPrompts(refresh.logger, true, { repoUrl: FOREIGN_REPO });
+
+    const warn = refresh.calls.find(
+      c =>
+        c.level === 'warn' &&
+        c.message === 'Withholding the server git credential from this pull'
+    );
+    expect(warn!.data!.reason).toBe(
+      'the repository URL came from the request and its host is not on the "gitops.allowedRepoHosts" allowlist'
+    );
+    expect(warn!.data!.consequence).toBe(
+      'pulling unauthenticated; a private repository keeps serving the cached copy instead of refreshing, unless the request supplies its own credential in the X-Dot-AI-Git-Token header'
+    );
+  });
+
+  test('a failed clone over http blames the scheme and offers the https fix', async () => {
+    mockClone.mockReset();
+    mockClone.mockRejectedValue(
+      new Error(
+        "fatal: repository 'http://github.com/acme/private.git/' not found"
+      )
+    );
+
+    const { logger } = makeCapturingLogger();
+    const error = await loadUserPrompts(logger, false, {
+      repoUrl: HTTP_ALLOWED_HOST_REPO,
+    }).catch(e => e);
+
+    expect(error).toBeInstanceOf(UserPromptsOverrideError);
+    expect(error.message).toContain('"http://" cannot carry it');
+    expect(error.message).toContain('https://');
+    // The two host remedies are absent: neither fixes a scheme refusal, and the
+    // header one would put the caller's own token on a cleartext request.
+    expect(error.message).not.toContain(
+      'is not on the "gitops.allowedRepoHosts" allowlist'
+    );
+    expect(error.message).not.toContain('add the host');
+    expect(error.message).not.toContain('X-Dot-AI-Git-Token');
+    expect(error.message).not.toContain(SERVER_TOKEN);
+  });
+
+  test('the scheme explanation echoes only the scheme, never a credential', async () => {
+    const secret = 'tok_in_the_http_override_url';
+    mockClone.mockReset();
+    mockClone.mockRejectedValue(new Error('fatal: repository not found'));
+
+    const { logger, calls } = makeCapturingLogger();
+    const error = await loadUserPrompts(logger, false, {
+      repoUrl: `http://x-access-token:${secret}@github.com/acme/private.git`,
+    }).catch(e => e);
+
+    expect(error.message).toContain('"http://" cannot carry it');
+    expect(error.message).not.toContain(secret);
+    expect(JSON.stringify(calls)).not.toContain(secret);
   });
 
   test('a clone failure on an ALLOWED host says nothing about withholding', async () => {
