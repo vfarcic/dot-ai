@@ -1708,7 +1708,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // A test that passed but leaked is still a problem for every later run
       // against this repository, so it fails here.
-      expect(cleanupFailures).toEqual([]);
+      expect(cleanupFailures).toMatchObject([]);
     }, 1200000);
   });
 
