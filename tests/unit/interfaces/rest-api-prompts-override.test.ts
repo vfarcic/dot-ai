@@ -235,6 +235,68 @@ describe('extractPromptsOverride', () => {
         expect(result.message).toContain('branch');
       }
     });
+
+    // PRD #710: a non-public IP-literal host is refused here, on the same seam
+    // as the scheme check and with the same HTTP 400 shape — so the request is
+    // rejected before any clone rather than degraded like the credential gate.
+    describe('non-public destination denylist (PRD #710)', () => {
+      test.each([
+        ['loopback', 'http://127.0.0.1/x.git'],
+        ['link-local', 'http://169.254.169.254/x.git'],
+        ['private', 'http://10.0.0.1/x.git'],
+        ['private', 'http://172.16.5.5/x.git'],
+        ['private', 'http://192.168.0.5/x.git'],
+        ['unspecified', 'http://0.0.0.0/x.git'],
+        ['broadcast', 'http://255.255.255.255/x.git'],
+        ['loopback', 'http://[::1]/x.git'],
+        ['link-local', 'http://[fe80::1]/x.git'],
+        ['unique-local', 'http://[fc00::1]/x.git'],
+        ['loopback', 'http://[::ffff:127.0.0.1]/x.git'],
+        ['loopback', 'http://2130706433/x.git'],
+        ['loopback', 'http://0177.0.0.1/x.git'],
+        ['loopback', 'http://127.0.0.1./x.git'],
+        ['unspecified', 'http://0/x.git'],
+      ])('%s host %s → 400 naming the host', (kind, repo) => {
+        const result = extractPromptsOverride(repo);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.message).toContain(`is a ${kind} address`);
+          expect(result.message).toContain('not a public destination');
+        }
+      });
+
+      test('a forwarded credential does not buy an internal destination', () => {
+        const result = extractPromptsOverride(
+          'http://169.254.169.254/x.git',
+          undefined,
+          undefined,
+          'tok123'
+        );
+        expect(result.ok).toBe(false);
+      });
+
+      test('public hosts are unaffected', () => {
+        expect(extractPromptsOverride(REPO).ok).toBe(true);
+        expect(
+          extractPromptsOverride('https://140.82.121.4/example/repo.git').ok
+        ).toBe(true);
+        // Documented gap: literals only — a hostname is never resolved here.
+        expect(extractPromptsOverride('http://localhost/x.git').ok).toBe(true);
+      });
+
+      test('an ingested ?source= identifier never reaches the check', () => {
+        // PRD #647 D1: `source` short-circuits before any URL validation and is
+        // never cloned, so a loopback-looking identifier is not a destination.
+        const result = extractPromptsOverride(
+          REPO,
+          undefined,
+          undefined,
+          undefined,
+          'local:127.0.0.1'
+        );
+        expect(result.ok).toBe(true);
+      });
+    });
   });
 
   describe('credential header threading (PRD #621 M2)', () => {

@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
+import * as net from 'net';
 import { Logger } from './error-handling';
 import {
   cloneRepo,
@@ -640,12 +641,165 @@ export function computePromptsSource(override?: UserPromptsOverride): string {
 }
 
 /**
+ * Address classes a CLIENT-SUPPLIED prompts URL may not name (PRD #710).
+ *
+ * Kept as a classification rather than a boolean so the refusal can say WHICH
+ * class refused it — "is a link-local address" tells a caller who typed the
+ * cloud metadata endpoint something "is not allowed" does not.
+ */
+type NonPublicHostKind =
+  | 'loopback'
+  | 'link-local'
+  | 'private'
+  | 'unique-local'
+  | 'unspecified'
+  | 'broadcast';
+
+/** IPv4 rules, applied to four octets (also reached from IPv4-mapped IPv6). */
+function classifyIpv4(octets: number[]): NonPublicHostKind | undefined {
+  const [a, b] = octets;
+  if (a === 127) return 'loopback'; // 127.0.0.0/8
+  if (a === 10) return 'private'; // 10.0.0.0/8
+  if (a === 172 && b >= 16 && b <= 31) return 'private'; // 172.16.0.0/12
+  if (a === 192 && b === 168) return 'private'; // 192.168.0.0/16
+  if (a === 169 && b === 254) return 'link-local'; // 169.254.0.0/16 (metadata)
+  // The whole of 0.0.0.0/8 ("this network"), not just the unspecified address:
+  // no part of it is a routable destination, and `http://0/` — which the URL
+  // parser expands to 0.0.0.0 — is a well-worn loopback alias.
+  if (a === 0) return 'unspecified';
+  if (octets.every(octet => octet === 255)) return 'broadcast';
+  return undefined;
+}
+
+/**
+ * The 16 bytes of a VALID IPv6 address, or undefined if it cannot be read.
+ *
+ * Callers reach this only after `net.isIP` has already said "6", so the failure
+ * branches are belt-and-braces rather than live paths. Written out because the
+ * platform gives us no address→bytes primitive: `URL` hands back a compressed,
+ * lowercased serialization (`::ffff:7f00:1`) and nothing that expands it.
+ */
+function ipv6ToBytes(address: string): number[] | undefined {
+  let text = address;
+  let embeddedV4: number[] | undefined;
+
+  // A dotted tail (`::ffff:127.0.0.1`) is the last 32 bits. URL.hostname never
+  // serializes this form, but the parse is cheap and keeps the helper honest
+  // for any other caller.
+  if (text.includes('.')) {
+    const cut = text.lastIndexOf(':');
+    if (cut === -1) return undefined;
+    const dotted = text.slice(cut + 1);
+    if (!net.isIPv4(dotted)) return undefined;
+    embeddedV4 = dotted.split('.').map(octet => parseInt(octet, 10));
+    text = `${text.slice(0, cut + 1)}0:0`;
+  }
+
+  const halves = text.split('::');
+  if (halves.length > 2) return undefined;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const gap = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (gap < 0) return undefined;
+  const groups = [...head, ...Array<string>(gap).fill('0'), ...tail];
+  if (groups.length !== 8) return undefined;
+
+  const bytes: number[] = [];
+  for (const group of groups) {
+    const value = parseInt(group, 16);
+    if (!Number.isInteger(value) || value < 0 || value > 0xffff) {
+      return undefined;
+    }
+    bytes.push(value >> 8, value & 0xff);
+  }
+  if (embeddedV4) {
+    bytes.splice(12, 4, ...embeddedV4);
+  }
+  return bytes;
+}
+
+/** IPv6 rules, applied to the 16 address bytes. */
+function classifyIpv6(bytes: number[]): NonPublicHostKind | undefined {
+  const zeroPrefix = (length: number) =>
+    bytes.slice(0, length).every(byte => byte === 0);
+
+  if (zeroPrefix(15) && bytes[15] === 1) return 'loopback'; // ::1
+  if (zeroPrefix(16)) return 'unspecified'; // ::
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return 'link-local'; // fe80::/10
+  if ((bytes[0] & 0xfe) === 0xfc) return 'unique-local'; // fc00::/7
+
+  // IPv4-mapped (::ffff:a.b.c.d) and the deprecated IPv4-compatible (::a.b.c.d)
+  // both ADDRESS a v4 destination, so they get the v4 rules. Skipping this is
+  // the bypass: `::ffff:127.0.0.1` is loopback wearing a v6 shape, and a check
+  // that stops at "not in any v6 range" waves it through.
+  if (zeroPrefix(10) && bytes[10] === 0xff && bytes[11] === 0xff) {
+    return classifyIpv4(bytes.slice(12));
+  }
+  if (zeroPrefix(12)) {
+    return classifyIpv4(bytes.slice(12));
+  }
+  return undefined;
+}
+
+/**
+ * WHY `hostname` is not a destination a client-supplied prompts URL may name —
+ * `undefined` when it is fine (PRD #710).
+ *
+ * The `?repo=` override validated only the SCHEME, so a caller could aim the
+ * server's clone at loopback, at `169.254.169.254` (the cloud metadata
+ * endpoint), or at any cluster-internal address. That is worse than a
+ * reachability scanner: git echoes a `text/plain` error body VERBATIM as
+ * `remote:` lines and those reach the caller inside the 502
+ * PROMPTS_SOURCE_ERROR — 10.8 KB came back untruncated in a field check — so it
+ * is a limited read primitive against internal services.
+ *
+ * Pass `URL.hostname`, not the raw authority. The WHATWG parser has already
+ * done the normalization a hand-rolled check gets wrong: `2130706433`,
+ * `0x7f000001`, `0177.0.0.1`, `127.1` and `0` all arrive here as dotted quads,
+ * userinfo and `:port` are already stripped, and IPv6 arrives bracketed.
+ *
+ * DELIBERATE GAP: this classifies IP LITERALS ONLY. A hostname that RESOLVES to
+ * an internal address (`localhost`, a Service DNS name) still passes — closing
+ * that needs resolve-then-pin, a much larger change that brings its own TOCTOU
+ * window between the check and git's own connect. Nothing here performs DNS.
+ *
+ * Not applied to DOT_AI_USER_PROMPTS_REPO: an operator who points prompts at an
+ * in-cluster git server chose that destination, and is the same trust class as
+ * the allowlist itself. Not applied to pushToGit/remediate either — those are
+ * gated by `gitops.allowedRepoHosts`, which is strictly narrower.
+ */
+function classifyNonPublicHost(
+  hostname: string
+): NonPublicHostKind | undefined {
+  // Brackets are part of URL.hostname for IPv6; a trailing dot is a
+  // fully-qualified-name marker the IP parsers don't expect.
+  const host = hostname
+    .replace(/^\[/, '')
+    .replace(/\]$/, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
+
+  const family = net.isIP(host);
+  if (family === 4) {
+    return classifyIpv4(host.split('.').map(octet => parseInt(octet, 10)));
+  }
+  if (family === 6) {
+    const bytes = ipv6ToBytes(host);
+    return bytes ? classifyIpv6(bytes) : undefined;
+  }
+  // Not a literal — a NAME. See the deliberate gap above.
+  return undefined;
+}
+
+/**
  * Build a UserPromptsConfig from a per-request override.
  * Reuses DOT_AI_GIT_TOKEN and DOT_AI_USER_PROMPTS_CACHE_TTL from the environment;
  * branch and subPath fall back to the same defaults as the env-var path.
  *
  * Validates the override inputs before returning:
  *   - repoUrl scheme must be http or https (prevents file://, ssh://, etc.)
+ *   - repoUrl host must not be an IP literal in a non-public range (PRD #710 —
+ *     loopback, link-local, private, unique-local, unspecified, broadcast)
  *   - subPath must be a relative path inside the cache directory (no '..',
  *     no absolute, no null bytes)
  *   - branch must match the git-safe character set used elsewhere
@@ -667,6 +821,21 @@ export function getUserPromptsConfigFromOverride(
   if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
     throw new Error(
       `Invalid override repoUrl scheme: ${parsedUrl.protocol} (only http and https are allowed) for ${sanitizeUrlForLogging(override.repoUrl)}`
+    );
+  }
+
+  // F1b (PRD #710): the host must not be an IP literal in a range that is never
+  // a public prompts source. Sits beside the scheme check, so it runs before
+  // anything is cloned — a REFUSAL, not the credential gate's degradation,
+  // because there is no useful weaker outcome: the point is not to make the
+  // request at all. A caller-supplied X-Dot-AI-Git-Token does not soften it
+  // (whose credential travels is a different question from whether the fetch
+  // happens). The hostname is safe to echo — URL parsing already excluded any
+  // userinfo — while the URL itself still goes through sanitizeUrlForLogging.
+  const nonPublicKind = classifyNonPublicHost(parsedUrl.hostname);
+  if (nonPublicKind) {
+    throw new Error(
+      `Invalid override repoUrl host: ${parsedUrl.hostname} is a ${nonPublicKind} address, not a public destination this server may fetch prompts from, for ${sanitizeUrlForLogging(override.repoUrl)}`
     );
   }
 
@@ -721,7 +890,9 @@ export function getUserPromptsConfigFromOverride(
  * header reaches the env-auth path of cloneRepo, which embeds DOT_AI_GIT_TOKEN
  * (or a freshly minted GitHub App installation token) into whatever URL it was
  * given — a URL the caller chose. getUserPromptsConfigFromOverride validates the
- * SCHEME of that URL and nothing about its host.
+ * SCHEME of that URL, and refuses an IP literal in a non-public range, but it
+ * says nothing about WHICH public host may hold the credential — that is this
+ * gate's job.
  *
  * The remedy DEGRADES rather than refuses: the clone still happens, just without
  * the server's credential, so every public repository on every host keeps
