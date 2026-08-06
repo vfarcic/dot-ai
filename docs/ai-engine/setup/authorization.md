@@ -185,7 +185,7 @@ The `recommend` tool's `pushToGit` stage can push generated manifests to a GitOp
 | **Required verb** | **`apply`** on `recommend` | **`execute`** on `recommend` |
 | **What it does** | Commits and pushes straight to the target branch | Commits to a server-generated branch and opens a pull request against the target branch, which is never written to |
 | **Pros** | One step — the change is on the branch the controller reconciles as soon as the push lands | Needs only `execute`, so viewers can propose changes; the target branch is never written to, so it works against a protected branch |
-| **Cons** | Needs `apply`, which also unblocks `deployManifests` — the two cannot be separated; nothing stands between the commit and the controller | Someone still has to merge it; automatic pull request creation is github.com-only, and elsewhere the branch is pushed and you open the PR/MR yourself |
+| **Cons** | Needs `apply`, which also unblocks `deployManifests` — the two cannot be separated; nothing stands between the commit and the controller | Someone still has to merge it; automatic pull request creation is GitHub-only, and elsewhere the branch is pushed and you open the PR/MR yourself |
 | **Best for** | Trusted operators pushing to an unprotected branch | Review-gated GitOps, protected branches, and any user who holds only `execute` |
 
 In a GitOps deployment a commit on the branch a controller reconciles *is* a cluster change, so direct push carries the same verb as `deployManifests`. Opening a pull request only proposes the change, so `execute` is enough.
@@ -263,7 +263,7 @@ RBAC: allowed by ClusterRoleBinding "dot-ai-operator-group" of ClusterRole "dota
 false
 ```
 
-That is a false negative on exactly the binding this audit exists to catch, and nothing in the output hints at it: an allowed check explains itself in `reason`, a denied one comes back bare. If you cannot enumerate a user's groups — some identity providers omit them unless configured, see [Group-Based Bindings](#group-based-bindings) — treat a `false` as inconclusive rather than as a pass.
+That is a false negative on exactly the binding this audit exists to catch, and the output need not hint at it. `status.allowed` is the only field Kubernetes always sets: `status.reason` is optional on **both** outcomes, and a denial may also carry a `status.evaluationError` (which the command above does not print). A `false` can therefore come back with a reason, with an evaluation error, or — as here — with no explanation at all, and an unexplained one is not evidence that the question was asked correctly. If you cannot enumerate a user's groups — some identity providers omit them unless configured, see [Group-Based Bindings](#group-based-bindings) — treat a `false` as inconclusive rather than as a pass.
 
 **2. The binding must be cluster-scoped — and this is the one that fails closed.** The permission check carries no namespace, so a namespaced `RoleBinding` never satisfies it. It does not leave the user with direct push; it leaves them with **nothing**. `apply` and `execute` are both denied, so pull request mode is gone along with direct push and every other tool refuses too — the symptom is [User gets "Access Denied" for all tools](#user-gets-access-denied-for-all-tools), never an unexpected push. Unlike limits 1, 3, and 4, no additive binding, static token, or disabled enforcement is involved: the permission was simply never granted where the server looks for it. Use `ClusterRoleBinding`, as shown in [Assigning Roles to Users](#assigning-roles-to-users).
 

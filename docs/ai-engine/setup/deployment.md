@@ -762,29 +762,10 @@ gitops:
     - gitlab.example.com  # add each additional host explicitly
 ```
 
-Or as a flag on the install command from [Step 3](#step-3-install-the-server), alongside your other values:
+Or as a flag on the [Step 3](#step-3-install-the-server) install command — add this line to it, alongside the `--set` values already there, rather than running it as a command of its own (a Helm command that omits your other values drops them):
 
 ```bash
-helm upgrade --install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
-  --set secrets.anthropic.apiKey="$ANTHROPIC_API_KEY" \
-  --set secrets.auth.token="$DOT_AI_AUTH_TOKEN" \
   --set-json 'gitops.allowedRepoHosts=["github.com","gitlab.example.com"]' \
-  --namespace dot-ai --create-namespace
-```
-
-```text
-Release "dot-ai-mcp" does not exist. Installing it now.
-NAME: dot-ai-mcp
-LAST DEPLOYED: Thu Aug  6 01:54:51 2026
-NAMESPACE: dot-ai
-STATUS: deployed
-REVISION: 1
-NOTES:
-=== dot-ai installed ===
-
-Authentication: Legacy bearer token mode.
-  Set secrets.auth.token in values.yaml or create the Secret externally.
-  Enable dex.enabled=true for OAuth/OIDC authentication.
 ```
 
 The list the server actually received is in the container's environment, which is the quickest way to confirm a value that only takes effect on restart:
@@ -880,7 +861,7 @@ The scp-style shorthand gets its own wording — `Repository URLs must be writte
 
 Adding a host takes effect on server restart (it is container configuration, so a Helm upgrade that changes the value rolls the pod).
 
-**Allowlisting a host does not enable automatic pull requests there.** Automatic PR creation still supports github.com `<owner>/<repo>` remotes only. Against any other host, `pullRequest: true` pushes the branch and reports `pushed_without_pr` — you open the PR/MR manually. See [Option: GitOps Pull Request](../tools/recommend.md#option-gitops-pull-request).
+**Allowlisting a host does not enable automatic pull requests there.** Automatic PR creation still supports only GitHub remotes on `github.com`, in `<owner>/<repo>` form. Against any other host, `pullRequest: true` pushes the branch and reports `pushed_without_pr` — you open the PR/MR manually. See [Option: GitOps Pull Request](../tools/recommend.md#option-gitops-pull-request).
 
 **Upgrading from a release before this value existed?** Pushing to a GitLab, Bitbucket, or self-hosted remote stops working until you add its host. See [Upgrading: Pushing to a Non-GitHub Host Now Requires an Allowlist Entry](authorization.md#upgrading-pushing-to-a-non-github-host-now-requires-an-allowlist-entry).
 

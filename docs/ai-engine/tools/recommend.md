@@ -544,7 +544,7 @@ Never infer success from `success: true` alone — two of those four outcomes de
 - Changed manifests, recorded pull request still open → the new commit goes to the same head branch, so the pull request **updates in place** (`updated`).
 - No recorded pull request, or the recorded one is closed or merged → a new pull request is opened (`created`).
 
-**Note**: For a remote that is not a github.com `<owner>/<repo>` URL — GitLab, Bitbucket, GitHub Enterprise Server, or a github.com URL in a shape the server cannot parse — the branch is still pushed but no pull request is created. `status` is `pushed_without_pr` and the message reads: `A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.` The base branch is untouched either way.
+**Note**: For a remote that is not a GitHub URL in the `github.com/<owner>/<repo>` form — GitLab, Bitbucket, GitHub Enterprise Server, or a `github.com` URL in a shape the server cannot parse — the branch is still pushed but no pull request is created. `status` is `pushed_without_pr` and the message reads: `A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.` The base branch is untouched either way.
 
 **Note**: There is no auto-merge, in any form. Merging is always a deliberate human action.
 
