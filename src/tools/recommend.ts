@@ -14,7 +14,7 @@ import { handleGenerateManifestsTool } from './generate-manifests';
 import { handleDeployManifestsTool } from './deploy-manifests';
 import { handlePushToGitTool } from './push-to-git';
 import { loadPrompt } from '../core/shared-prompt-loader';
-import { getCurrentIdentity } from '../interfaces/request-context';
+import { getCurrentIdentity, reportProgress } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
 import { getVisualizationUrl } from '../core/visualization';
@@ -438,6 +438,7 @@ export async function handleRecommendTool(
           charts: chartsText
         });
 
+        reportProgress(4, undefined, 'Selecting Helm chart…');
         const aiResponse = await dotAI.ai.sendMessage(
           chartSelectionPrompt,
           'recommend-helm-chart-selection',
