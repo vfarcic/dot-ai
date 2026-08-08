@@ -12,7 +12,7 @@
  * - GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_INSTALLATION_ID: GitHub App config
  */
 
-import simpleGit, { SimpleGitOptions } from 'simple-git';
+import simpleGit, { SimpleGit, SimpleGitOptions } from 'simple-git';
 import { spawn } from 'node:child_process';
 import * as jwt from 'jsonwebtoken';
 import * as fs from 'fs';
@@ -21,6 +21,41 @@ import * as os from 'os';
 
 const FETCH_TIMEOUT_MS = 30000;
 const GIT_TIMEOUT_MS = 120000; // 2 minutes for git operations
+
+/**
+ * Cap on how much of a GitHub API error body is echoed back to the caller. The
+ * body is a third party's response text, so it is scrubbed and bounded rather
+ * than forwarded wholesale.
+ */
+const MAX_API_ERROR_BODY_CHARS = 500;
+
+/**
+ * The only hosts whose pull request API this module speaks (PRD #710 decision
+ * 7). `www.github.com` is the same service — it clones fine via redirect and
+ * its `<owner>/<repo>` addresses the same repository on api.github.com — so
+ * rejecting it would only mean a real GitHub remote silently gets no PR.
+ * GitLab/Bitbucket/GHES remain out of scope.
+ */
+const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
+
+/**
+ * User-Agent sent to the GitHub API when a caller of createPullRequest() does
+ * not supply one. Callers pass their own so the API log identifies the feature
+ * that opened the PR.
+ */
+const DEFAULT_PR_USER_AGENT = 'dot-ai';
+
+/**
+ * Directory every GitOps clone lives under: `./tmp/gitops-clones/`.
+ *
+ * One definition for two callers that MUST agree on it — remediate's internal
+ * tools scope their AI-driven filesystem access to this directory
+ * (validatePathWithinClones), and from PRD #710 M2 pushToGit clones into it as
+ * well. `./tmp` rather than os.tmpdir() is the project convention (CLAUDE.md).
+ */
+export function getGitopsClonesDir(): string {
+  return path.resolve(process.cwd(), 'tmp', 'gitops-clones');
+}
 
 /**
  * Environment variable name through which a per-request override credential
@@ -55,10 +90,64 @@ interface GitHubAppToken {
 
 // ─── Auth helpers ───
 
+/**
+ * Userinfo values that are never a credential, so masking them would only cost
+ * legibility. `git` is the userinfo of every ssh remote (`ssh://git@github.com`,
+ * and the scp-style `git@github.com:o/r` this does not even match). A *password*
+ * of `git` is still masked — that shape has a `:` and is a different pattern.
+ */
+const NON_SECRET_USERINFO = new Set(['git']);
+
+/**
+ * Replace `//user:password@` and `//token@` userinfo with `//***@` in free-text
+ * output (git stderr, an exception message, a third party's HTTP response body),
+ * so a token embedded in a URL never reaches a caller, a log, or a session file.
+ *
+ * All three patterns are LINEAR in the length of the input, which matters because
+ * every caller passes text it did not produce and does not bound. The `//…:…@`
+ * pattern used to be `/\/\/[^/:][^@]*:[^@]+@/`, whose two `[^@]` runs overlap
+ * and both cross `/` and `:` — so on a span with no `@` the engine retried
+ * every colon against every tail split, at every `//`. A 110 KB HTML error page
+ * full of `https://…` links and `style="…:…"` attributes took 64 SECONDS of
+ * synchronous CPU, freezing the whole server. Narrowing the classes so that
+ * neither can cross the delimiter that follows it removes the ambiguity: the
+ * user part stops at `:`, the password part stops at `/`, which is also what a
+ * real URL allows (unencoded `/` and `:` cannot appear in userinfo).
+ *
+ * The `x-access-token` pattern is now STRICTLY SUBSUMED by the generic one:
+ * `x-access-token` contains no `/`, `:` or `@`, so the generic pattern matches
+ * every input the specific one does, identically — removing it changes no input
+ * (verified). It was load-bearing under the old pair, whose password class
+ * permitted `/`; it is kept only to name the userinfo this module itself writes
+ * (see getAuthenticatedUrl). Do not "restore" it believing it still carries
+ * weight, and do not treat its presence as license to narrow the generic one.
+ *
+ * The THIRD pattern covers userinfo with NO colon at all — `//<token>@host`.
+ * GitHub accepts a PAT as the username with no password, so that shape is a
+ * WORKING credential, and both earlier patterns require a `:` and so left it
+ * verbatim in the log line, the session file and the response body. It is
+ * client-reachable through pushToGit's `repoUrl`.
+ *
+ * It is also linear: one run of a class that excludes `/`, `:`, `@` and
+ * whitespace, terminated by the `@` that class cannot cross — no second
+ * unbounded run to be ambiguous with.
+ *
+ * The cost of the no-colon case is that it also matches the `git` in
+ * `ssh://git@…`, which is not a secret and is genuinely useful to read in an
+ * error message. Rather than accept that (mask a legitimate remote) or narrow to
+ * known token prefixes (`ghp_`, `glpat-`, … — a scrubber that only knows
+ * GitHub's shapes is how the NEXT provider's token leaks), the default is to
+ * mask and NON_SECRET_USERINFO names the one exemption. Add to that set only for
+ * a value that can never be a credential in ANY deployment: everything else
+ * belongs on the masking side.
+ */
 export function scrubCredentials(message: string): string {
   return message
-    .replace(/\/\/x-access-token:[^@]+@/g, '//***@')
-    .replace(/\/\/[^/:][^@]*:[^@]+@/g, '//***@');
+    .replace(/\/\/x-access-token:[^@/]*@/g, '//***@')
+    .replace(/\/\/[^/:@]+:[^@/]*@/g, '//***@')
+    .replace(/\/\/([^/:@\s]+)@/g, (match, userinfo: string) =>
+      NON_SECRET_USERINFO.has(userinfo.toLowerCase()) ? match : '//***@'
+    );
 }
 
 export function getAuthenticatedUrl(repoUrl: string, token: string): string {
@@ -68,18 +157,17 @@ export function getAuthenticatedUrl(repoUrl: string, token: string): string {
   return url.toString();
 }
 
+/**
+ * The single HTTP entry point for this module — the GitHub App token endpoints
+ * and the pull request POST all go through it, so there is one timeout
+ * mechanism and one default rather than two of each (CLAUDE.md rule 4).
+ */
 async function fetchWithTimeout(
   url: string,
   options: RequestInit,
   timeoutMs = FETCH_TIMEOUT_MS
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
+  return fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
 }
 
 function generateGitHubAppJWT(appId: string, privateKey: string): string {
@@ -212,6 +300,95 @@ export function sanitizeRelativePath(relativePath: string): string {
   return normalized;
 }
 
+/**
+ * `target` with every symlink in the part of it that ALREADY EXISTS resolved,
+ * and the not-yet-existing tail appended verbatim.
+ *
+ * `fs.realpathSync` throws ENOENT for a path that does not exist yet, which is
+ * the normal case when writing a new manifest into a new directory — so it
+ * cannot be used directly, and walking up to the deepest existing ancestor is
+ * what makes the containment check below a real one rather than a lexical one.
+ */
+function realpathOfExistingPrefix(target: string): string {
+  const missing: string[] = [];
+  let current = path.resolve(target);
+  for (;;) {
+    try {
+      const real = fs.realpathSync(current);
+      return missing.length === 0 ? real : path.join(real, ...missing);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      // Walked to the filesystem root without finding anything that exists.
+      return missing.length === 0 ? current : path.join(current, ...missing);
+    }
+    missing.unshift(path.basename(current));
+    current = parent;
+  }
+}
+
+/**
+ * True when `component` names git's own control directory on ANY filesystem this
+ * server could run on.
+ *
+ * Exact-match `.git` is not enough for a guard: a case-insensitive filesystem
+ * opens `.GIT` onto the same directory, and one that strips trailing dots and
+ * spaces (Windows, and some SMB/CIFS mounts a container can be given) opens
+ * `.git ` and `.git.` onto it too. Comparing the folded and stripped spelling
+ * costs nothing and nothing legitimate is spelled that way — `git add` refuses
+ * every one of these pathspecs anyway ("invalid path").
+ *
+ * Whole components only, so `.gitignore`, `.github/`, `.gitops/` and a file
+ * named `my.git.yaml` are untouched.
+ */
+function namesGitDir(component: string): boolean {
+  return component.toLowerCase().replace(/[.\s]+$/, '') === '.git';
+}
+
+/**
+ * Write `content` to `fullPath` WITHOUT following a symlink at the final
+ * component (`O_NOFOLLOW`), which `fs.writeFileSync` happily does — and for a
+ * DANGLING link it even creates the target.
+ *
+ * This is the half of the symlink fix that the containment check cannot cover:
+ * a dangling link has nothing to resolve, so the walk above stops at its parent
+ * and the path looks contained right up to the moment the write follows it.
+ * A link that resolves INSIDE the repository is refused here too. Writing
+ * through a symlink present in a repository this server does not control is
+ * never something a generated manifest needs, and `git add` declines such a
+ * pathspec anyway ("beyond a symbolic link").
+ *
+ * O_NOFOLLOW is POSIX; `fs.constants.O_NOFOLLOW` is absent on Windows, where the
+ * `?? 0` degrades to today's behavior (this server runs on Linux — CLAUDE.md).
+ */
+function writeFileNoFollow(fullPath: string, content: string): void {
+  const flags =
+    fs.constants.O_WRONLY |
+    fs.constants.O_CREAT |
+    fs.constants.O_TRUNC |
+    (fs.constants.O_NOFOLLOW ?? 0);
+
+  let fd: number;
+  try {
+    fd = fs.openSync(fullPath, flags);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ELOOP') {
+      throw new Error(
+        `Refusing to write "${fullPath}": it is a symbolic link, which could redirect the write outside repository directory`,
+        { cause: err }
+      );
+    }
+    throw err;
+  }
+  try {
+    fs.writeFileSync(fd, content);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 // ─── Clone ───
 
 export interface CloneOptions {
@@ -225,6 +402,34 @@ export interface CloneOptions {
    * When omitted, the clone uses env auth exactly as before.
    */
   token?: string;
+  /**
+   * PRD #710: clone WITHOUT the server's own credential (DOT_AI_GIT_TOKEN or a
+   * GitHub App installation token), even when one is configured.
+   *
+   * The caller sets this when `repoUrl` is CLIENT-SUPPLIED (or
+   * client-INFLUENCED) and isRepoHostAllowed refuses it — a scheme that cannot
+   * carry the credential safely, or a host that is not on the
+   * `gitops.allowedRepoHosts` allowlist. Handing the server's credential to a
+   * URL the client chose is the leak that gate exists to stop. The clone still
+   * PROCEEDS, unauthenticated — degrade, don't refuse — so every PUBLIC
+   * repository keeps working. A PRIVATE one needs a credential the caller brings
+   * itself (`token` above), which on the prompts-override path is the
+   * X-Dot-AI-Git-Token header — remediate's git_clone has no such per-request
+   * hatch, so there the only way back is for the operator to allow the host.
+   *
+   * Only the SERVER's credential is affected: `token` takes precedence and is
+   * unaffected for any host, since a client that supplies its own credential is
+   * choosing where it goes.
+   *
+   * Deliberately opt-in rather than applied inside getAuthenticatedUrl: the
+   * caller is the only one that knows where the URL came from. All three of
+   * today's callers set it — pushToGit's `repoUrl`, a `?repo=` prompts override,
+   * and remediate's git_clone, whose URL the model derives from a free-text
+   * `issue` and cluster objects a tenant may control. What legitimately is NOT
+   * gated is the operator's own DOT_AI_USER_PROMPTS_REPO: the same trust class
+   * as the allowlist itself, so gating it would protect nothing.
+   */
+  withholdServerCredential?: boolean;
 }
 
 /**
@@ -418,8 +623,13 @@ export async function cloneRepo(
   }
 
   // Env/GitHub-App auth path (unchanged): credentials come from
-  // getGitAuthConfigFromEnv and are embedded in the URL as before.
-  const authConfig = getGitAuthConfigFromEnv();
+  // getGitAuthConfigFromEnv and are embedded in the URL as before — unless the
+  // caller withheld the server credential (PRD #710), in which case the env is
+  // not even READ, so a client-named host cannot make the server mint a GitHub
+  // App installation token on its behalf either.
+  const authConfig: GitAuthConfig = opts?.withholdServerCredential
+    ? {}
+    : getGitAuthConfigFromEnv();
   let cloneUrl: string;
   if (authConfig.pat || authConfig.githubApp) {
     const token = await getAuthToken(authConfig);
@@ -449,8 +659,25 @@ export async function cloneRepo(
 
 // ─── Pull ───
 
-export async function pullRepo(repoPath: string): Promise<{ branch: string }> {
-  const authConfig = getGitAuthConfigFromEnv();
+export interface PullOptions {
+  /**
+   * PRD #710: pull WITHOUT the server's own credential. Same contract, and same
+   * reason, as {@link CloneOptions.withholdServerCredential} — and it must be
+   * threaded through here too, because this function REWRITES `origin` to the
+   * authenticated URL, and `origin` of a cached clone is whatever URL the client
+   * supplied. Gating only the clone would leave the identical leak one expired
+   * cache TTL (or one `?refresh=`) away.
+   */
+  withholdServerCredential?: boolean;
+}
+
+export async function pullRepo(
+  repoPath: string,
+  opts?: PullOptions
+): Promise<{ branch: string }> {
+  const authConfig: GitAuthConfig = opts?.withholdServerCredential
+    ? {}
+    : getGitAuthConfigFromEnv();
   const hasAuth = !!(authConfig.pat || authConfig.githubApp);
 
   const git = simpleGit(gitOptions(repoPath));
@@ -474,7 +701,10 @@ export async function pullRepo(repoPath: string): Promise<{ branch: string }> {
     const status = await git.status();
     return { branch: status.current || 'main' };
   } finally {
-    // Restore original origin URL to prevent auth tokens persisting in .git/config
+    // Put back the URL this checkout was cloned with, so the token minted for
+    // THIS pull does not persist in .git/config. Not a guarantee that no token is
+    // in there: if the clone URL itself carried one, restoring writes it back —
+    // see withAuthenticatedOrigin's note.
     if (hasAuth && originalOriginUrl) {
       await git.remote(['set-url', 'origin', originalOriginUrl]);
     }
@@ -492,6 +722,18 @@ export interface PushResult {
   commitSha: string | undefined;
   branch: string;
   filesAdded: string[];
+  /**
+   * Why nothing was committed or pushed, set whenever `commitSha` is undefined
+   * (PRD #710 M1). It exists so callers can tell the two cases apart instead of
+   * inferring both from a missing sha:
+   * - `nothing_staged` — a POSITIVE fact: `git diff --cached` came back empty,
+   *   so the files already match HEAD and there was nothing to commit.
+   * - `commit_failed` — the index DID hold staged changes but `git commit`
+   *   produced no revision (e.g. a hook that fails with empty stderr, which
+   *   simple-git resolves rather than rejects). That is a failure, not an
+   *   empty diff, and must not be reported as "no changes".
+   */
+  noCommitReason?: 'nothing_staged' | 'commit_failed';
 }
 
 export async function pushRepo(
@@ -511,22 +753,91 @@ export async function pushRepo(
     }
   }
 
-  for (const file of files) {
-    const repoRoot = path.resolve(repoPath);
+  // Both sides RESOLVED, not just normalized. The check used to be lexical
+  // (path.resolve + startsWith), which a symlink committed in the target
+  // repository walked straight through: `targetPath: "link"` passes pushToGit's
+  // own validation (no `..`, no leading `/`, no `\`) and `<clone>/link/x.yaml`
+  // does start with `<clone>/`, so the write landed wherever `link` pointed —
+  // before the `git add` that would have complained about a path outside the
+  // work tree. Resolving the repo root as well keeps a legitimate clone reached
+  // through a symlinked ancestor (a symlinked ./tmp, /tmp → /private/tmp on
+  // macOS) from reading as an escape.
+  const repoRoot = realpathOfExistingPrefix(repoPath);
+
+  // The WHOLE batch is validated before ANY of it is written, so a rejected path
+  // cannot leave the files that preceded it in the array on disk — a refusal
+  // writes nothing at all. Our own writes cannot invalidate a decision made
+  // here: they create real directories and regular files (never symlinks), so no
+  // later path's resolution can be redirected by an earlier one.
+  const targets = files.map(file => {
     const fullPath = path.resolve(repoPath, file.path);
-    if (!fullPath.startsWith(repoRoot + path.sep) && fullPath !== repoRoot) {
+    const resolvedPath = realpathOfExistingPrefix(fullPath);
+    if (
+      !resolvedPath.startsWith(repoRoot + path.sep) &&
+      resolvedPath !== repoRoot
+    ) {
       throw new Error(
         `Path traversal detected: "${file.path}" attempts to write outside repository directory`
       );
     }
+    // Containment is NOT sufficient: `<clone>/.git/config` stays under the
+    // repository root, and it is not data — git reads it on the very next
+    // command, so a `core.fsmonitor` entry written here is executed by the
+    // `git add` below, in the MCP server process (which holds DOT_AI_GIT_TOKEN,
+    // the GitHub App private key and the pod's service-account token). The push
+    // then completes and reports success, silently.
+    //
+    // Checked on the RESOLVED path, not on `file.path`: a symlink committed in
+    // the repository that points at `.git` (`g` → `.git`, `file.path: "g/config"`)
+    // names no `.git` component of its own and walked straight past a lexical
+    // check — and, resolving INSIDE the clone, past the containment check above.
+    //
+    // Both callers of pushRepo need this, which is why it lives here rather than
+    // in either of them: pushToGit's `targetPath` is client-controlled and its
+    // own validation does not reject `.git`, and remediate's git_create_pr passes
+    // the model's `files` array through with no path validation at all.
+    if (
+      path
+        .relative(repoRoot, resolvedPath)
+        .split(path.sep)
+        .some(component => namesGitDir(component))
+    ) {
+      throw new Error(
+        `Refusing to write "${file.path}": paths inside the git directory (.git) are not writable`
+      );
+    }
+    return fullPath;
+  });
+
+  for (const [index, file] of files.entries()) {
+    const fullPath = targets[index];
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(fullPath, file.content);
+    // A residual TOCTOU window remains between the check and the open — the
+    // attacker here is a symlink COMMITTED in the repository rather than a
+    // concurrent process, and O_NOFOLLOW closes the final component regardless.
+    writeFileNoFollow(fullPath, file.content);
   }
 
-  await git.add(files.map(f => f.path));
+  // `--` terminates option parsing so a file named e.g. `--all` is read as a
+  // pathspec and never as a git option (same house style as the clone above).
+  await git.add(['--', ...files.map(f => f.path)]);
+
+  // Decide "nothing to commit" POSITIVELY here, rather than letting the caller
+  // infer it from a missing commit sha further down: `git commit` also yields no
+  // sha when it FAILS with empty stderr, and the two outcomes are not the same
+  // (PRD #710 M1).
+  const stagedChanges = await git.diff(['--cached', '--name-only']);
+  if (stagedChanges.trim().length === 0) {
+    return {
+      commitSha: undefined,
+      branch: (await git.status()).current || 'main',
+      filesAdded: [],
+      noCommitReason: 'nothing_staged',
+    };
+  }
 
   const gitUserName =
     opts?.author?.name || process.env.GIT_AUTHOR_NAME || 'dot-ai-bot';
@@ -537,16 +848,18 @@ export async function pushRepo(
   await git.addConfig('user.name', gitUserName);
   await git.addConfig('user.email', gitUserEmail);
 
-  const finalMessage = process.env.CI === 'true'
-    ? `${commitMessage} [skip ci]`
-    : commitMessage;
+  const finalMessage =
+    process.env.CI === 'true' ? `${commitMessage} [skip ci]` : commitMessage;
   const commitResult = await git.commit(finalMessage);
 
   if (!commitResult.commit) {
+    // The index was not empty (checked above), so git had something to commit
+    // and produced no revision anyway — a failure, not an empty diff.
     return {
       commitSha: undefined,
       branch: (await git.status()).current || 'main',
       filesAdded: [],
+      noCommitReason: 'commit_failed',
     };
   }
 
@@ -574,5 +887,909 @@ export async function pushRepo(
     if (origin && originalOriginUrl) {
       await git.remote(['set-url', 'origin', originalOriginUrl]);
     }
+  }
+}
+
+// ─── Pull request creation (PRD #710 M1) ───
+
+export interface CreatePullRequestInput {
+  /**
+   * Absolute path to an existing checkout of the repository. Callers that
+   * accept a client-supplied path are responsible for validating it BEFORE
+   * calling (see validatePathWithinClones in internal-tools.ts).
+   */
+  repoPath: string;
+  /** Files to write, add and commit onto the head branch. */
+  files: Array<{ path: string; content: string }>;
+  /** Commit message and pull request title. */
+  title: string;
+  /** Pull request body. Defaults to empty. */
+  body?: string;
+  /**
+   * Head branch to create the commit on. Server-generated by every caller —
+   * it must never come from a client parameter.
+   */
+  branchName: string;
+  /** Base branch the pull request targets. Defaults to 'main'. */
+  baseBranch?: string;
+  /** User-Agent for the GitHub API call. Defaults to DEFAULT_PR_USER_AGENT. */
+  userAgent?: string;
+  /**
+   * Commit author. Callers that know WHO asked for the change must pass it, so
+   * the commit a reviewer sees names that person rather than the server's bot
+   * default (PRD #710 decision 8). Omitted falls back to pushRepo's default.
+   */
+  author?: { name: string; email: string };
+}
+
+/**
+ * Outcome of createPullRequest(). `status` is the discriminator: a caller must
+ * never infer "PR created" from `success` alone, because two of the three
+ * successful outcomes deliberately do NOT produce a pull request.
+ */
+export type CreatePullRequestResult =
+  | {
+      /** Branch pushed and a pull request opened. */
+      status: 'created';
+      success: true;
+      prUrl: string;
+      prNumber: number;
+      branch: string;
+      baseBranch: string;
+      filesChanged: string[];
+      /** Sha of the commit pushed to `branch`. */
+      commitSha: string;
+    }
+  | {
+      /**
+       * The files already match the base branch, so the commit was empty.
+       * Nothing was pushed and no pull request exists (PRD #710 decision 3).
+       */
+      status: 'no_changes';
+      success: true;
+      branch: string;
+      baseBranch: string;
+      filesChanged: string[];
+      message: string;
+    }
+  | {
+      /**
+       * The branch WAS pushed but no pull request was opened, because
+       * parseGitHubRemote declined the `origin` URL — usually another host
+       * (GitLab/Bitbucket/GHES are out of scope, PRD #710 decision 7), but also
+       * any github.com URL that is not plainly `<owner>/<repo>`. The caller must
+       * surface this as an incomplete outcome needing a manual PR/MR.
+       */
+      status: 'pushed_without_pr';
+      success: true;
+      branch: string;
+      baseBranch: string;
+      filesChanged: string[];
+      /** Sha of the commit pushed to `branch`. */
+      commitSha: string;
+      error: string;
+    }
+  | {
+      /** Nothing usable happened. `error` is credential-scrubbed. */
+      status: 'failed';
+      success: false;
+      error: string;
+    };
+
+/**
+ * `GitHub API error (<status>): <body>` for a failed response, safe to hand back
+ * to a caller.
+ *
+ * The body is a third party's response text, so it is scrubbed like every other
+ * message this module returns and capped, rather than forwarded wholesale.
+ * Scrub first, then truncate, so a credential cannot survive by straddling the
+ * cut.
+ *
+ * The pre-cut bounds what the scrub regexes see. They are linear now, but this
+ * is not GitHub's JSON on the failure paths that matter — a proxy or WAF
+ * interstitial can be megabytes — and scrubbing then discarding all but 500
+ * chars of it is pure work.
+ *
+ * The pre-cut is NOT unobservable, and the reason is subtler than "the cap drops
+ * everything past it anyway": it can remove the terminating `@` of a userinfo
+ * span that STARTS inside the retained 500 chars, and a span that no longer
+ * matches is echoed instead of masked.
+ *
+ *   body            : "//u:" + "S".repeat(9000) + "@github.com/a/b"
+ *   without pre-cut : "//***@github.com/a/b"
+ *   with    pre-cut : "//u:SSSSSSSS…" (first 500 chars) "… (truncated)"
+ *
+ * It is still the right trade here: a credential of ours is 40–255 chars, so its
+ * `@` survives a cut 16× the cap away, and this body is a third party's text
+ * rather than a secret we hold. A future change to MAX_API_ERROR_BODY_CHARS or
+ * its multiplier does not alter that — but do not extend "the cut is safe" to a
+ * scrub whose masked spans can be long.
+ */
+async function describeApiError(response: Response): Promise<string> {
+  const raw = (await response.text()).slice(0, MAX_API_ERROR_BODY_CHARS * 16);
+  const scrubbedBody = scrubCredentials(raw);
+  const detail =
+    scrubbedBody.length > MAX_API_ERROR_BODY_CHARS
+      ? `${scrubbedBody.slice(0, MAX_API_ERROR_BODY_CHARS)}… (truncated)`
+      : scrubbedBody;
+  return `GitHub API error (${response.status}): ${detail}`;
+}
+
+/**
+ * Split a git remote URL into host and path, covering both forms git accepts:
+ * a real URL (`https://…`, `ssh://…`, `file://…`) and the scp-like
+ * `[user@]host:path` shorthand, which `new URL` either rejects outright
+ * (`git@github.com:o/r.git`) or silently misreads as a scheme
+ * (`github.com:o/r.git` → protocol `github.com:`, empty host).
+ */
+function splitRemoteUrl(
+  remoteUrl: string
+): { host: string; path: string } | undefined {
+  const trimmed = remoteUrl.trim();
+
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      // hostname, not host: a port is irrelevant to WHOSE host this is, and
+      // `new URL` keeps any embedded credentials out of it.
+      return { host: url.hostname, path: url.pathname };
+    } catch {
+      return undefined;
+    }
+  }
+
+  const scp = trimmed.match(/^(?:[^@/]+@)?([^@/:]+):(.+)$/);
+  if (!scp) return undefined;
+  return { host: scp[1], path: `/${scp[2]}` };
+}
+
+// ─── Repository host allowlist ───
+
+/**
+ * Environment variable carrying the `gitops.allowedRepoHosts` chart value as a
+ * comma-separated list. The CHART VALUE is the user-facing contract (CLAUDE.md
+ * rule 7); this name is an internal detail and is exported only so tests and
+ * error messages do not spell it twice.
+ */
+export const ALLOWED_REPO_HOSTS_ENV = 'DOT_AI_GITOPS_ALLOWED_REPO_HOSTS';
+
+/**
+ * The chart's default, repeated here for a server started outside the chart.
+ *
+ * Both GitHub spellings are listed because matching is exact with no wildcards
+ * (see getAllowedRepoHosts): `github.com` does not cover `www.github.com`, and
+ * `www.github.com` is the same service — GITHUB_HOSTS already accepts it for PR
+ * creation for that reason. Listing only the bare host would have this gate
+ * refuse a URL the PR parser was fixed to accept, and would break a GitHub user
+ * who wrote the `www` form and upgraded into the allowlist. This is a second
+ * literal entry, NOT subdomain matching: `github.company.example` and
+ * `github.com.evil.test` are still refused.
+ */
+const DEFAULT_ALLOWED_REPO_HOSTS = ['github.com', 'www.github.com'];
+
+/**
+ * Hostnames a client-supplied repository URL may name.
+ *
+ * Why this exists: getAuthenticatedUrl embeds the SERVER's credential
+ * (DOT_AI_GIT_TOKEN, or a GitHub App installation token) as HTTP basic auth into
+ * whatever URL it is given, and pushToGit's `repoUrl` comes from the client. So
+ * without an allowlist any caller with `execute` on `recommend` can name
+ * `https://attacker.example/x.git` and have the server hand its token to a host
+ * they control — and the token also lands in that clone's `.git/config`.
+ *
+ * Two deliberate semantics:
+ * - **Unset** (no chart value rendered, or a server run outside the chart) →
+ *   the default, NOT "allow everything". A deployment that predates the value
+ *   must not be the one that is wide open.
+ * - **Explicitly empty** (`allowedRepoHosts: []` → an empty env value) →
+ *   deny-all. It is the only reading that cannot be the unsafe one; an operator
+ *   who wants a host must name it.
+ *
+ * Entries are hostnames — exact, case-insensitive, no wildcards and no substring
+ * matching. A `:port` suffix on an entry is tolerated and ignored: the token
+ * reaches the HOST regardless of which port answers, so port granularity would
+ * buy no safety while silently failing an operator who wrote one.
+ */
+export function getAllowedRepoHosts(): string[] {
+  const raw = process.env[ALLOWED_REPO_HOSTS_ENV];
+  if (raw === undefined) return [...DEFAULT_ALLOWED_REPO_HOSTS];
+  return raw
+    .split(',')
+    .map(entry => entry.trim().toLowerCase().replace(/:\d+$/, ''))
+    .filter(entry => entry.length > 0);
+}
+
+/**
+ * The host `repoUrl` actually addresses, or undefined when it cannot be parsed.
+ *
+ * Shares splitRemoteUrl with parseGitHubRemote rather than parsing URLs a second
+ * way — that is the whole lesson of that function: compare `url.hostname`
+ * (userinfo and port excluded, so neither
+ * `https://github.com@attacker.example/x.git` nor a port can smuggle a host
+ * past), handle the scp-style `[user@]host:path` shorthand separately because
+ * `new URL` either rejects it or misreads it as a scheme, and never search the
+ * string for the host name.
+ *
+ * Exported so a caller that reports an allowlist decision (the prompts loader
+ * naming the host it withheld the credential from) states the SAME host this
+ * module compared, rather than parsing the URL a second way to say it.
+ */
+export function getRepoHost(repoUrl: string): string | undefined {
+  const split = splitRemoteUrl(repoUrl);
+  if (!split || split.host.length === 0) return undefined;
+  return split.host.toLowerCase();
+}
+
+/**
+ * The ONE scheme a repository URL may use to receive the server's credential.
+ *
+ * Everything else that git accepts either carries the token in the clear or
+ * carries it somewhere it was never meant to go, and `getAuthenticatedUrl`
+ * embeds it into whatever it is handed:
+ * - `http://` → HTTP basic auth material on a cleartext request;
+ * - `ssh://`  → git passes `x-access-token:<token>` as the SSH USERNAME;
+ * - `git://`  → the daemon protocol has no auth at all, and the userinfo is sent
+ *   as part of the request anyway.
+ *
+ * `file://` is not in this set either. WHATWG `URL` refuses userinfo on it, so it
+ * could never have carried a credential — but it also has no host to allowlist,
+ * so it was already denied by the host check and nothing changes for it (the unit
+ * tests that use `file://` remotes drive pushRepo/pullRepo directly and never
+ * reach this gate).
+ */
+export const ALLOWED_REPO_SCHEME = 'https:';
+
+/**
+ * `https:`-style scheme of `repoUrl`, lowercased, or undefined when it has none.
+ *
+ * Deliberately the same `scheme://` shape splitRemoteUrl tests for, so the two
+ * agree on which branch a URL takes: anything without it is the scp-style
+ * `[user@]host:path` shorthand (or not a URL at all), which is not https and so
+ * fails closed here.
+ */
+function getRepoScheme(repoUrl: string): string | undefined {
+  const match = repoUrl.trim().match(/^([A-Za-z][A-Za-z0-9+.-]*):\/\//);
+  return match ? `${match[1].toLowerCase()}:` : undefined;
+}
+
+/**
+ * WHY the server's credential may not be handed to `repoUrl` — `undefined` when
+ * it may.
+ *
+ * The verdict alone is not enough to explain itself, because the gate has two
+ * halves with two different OWNERS: a scheme that cannot carry the credential is
+ * the caller's to fix (send `https://`), a host that is not on the allowlist is
+ * the operator's (add it to `gitops.allowedRepoHosts`). A message built from the
+ * verdict alone picks one of those and is wrong half the time — telling someone
+ * who wrote `http://github.com/a/b.git` that "host github.com is not on the
+ * allowlist (currently allowed: github.com)" both contradicts itself and sends
+ * them to change a value that is already correct.
+ *
+ * So the cause is classified ONCE, here, beside the gate, and every explanation
+ * of a refusal is derived from it: this module's message and suggested actions,
+ * and the prompts loader's withheld-credential warn line and client-visible
+ * clone-failure text. Deriving it independently is how the loader's two builders
+ * came to describe a scheme refusal as a host refusal after the scheme check was
+ * folded into isRepoHostAllowed — one classifier makes that drift impossible.
+ *
+ * Carries what a message needs (the offending scheme, or the parsed host) so no
+ * consumer parses the URL a second way to say it.
+ */
+export type RepoCredentialRefusal =
+  | { cause: 'no-url' }
+  | { cause: 'scheme'; scheme: string }
+  | { cause: 'shorthand' }
+  | { cause: 'host'; host: string }
+  | { cause: 'unparseable' };
+
+export function classifyRepoCredentialRefusal(
+  repoUrl: string
+): RepoCredentialRefusal | undefined {
+  // A missing URL reaches the same gate (the stage dispatch defaults it to ''),
+  // and "host … is not allowed" would point at the wrong problem.
+  if (repoUrl.trim().length === 0) return { cause: 'no-url' };
+
+  const host = getRepoHost(repoUrl);
+  const scheme = getRepoScheme(repoUrl);
+
+  // Scheme is reported only once a host IS parseable, so text that is not a URL
+  // at all keeps falling through to 'unparseable' rather than being blamed on
+  // its scheme.
+  if (host && scheme !== ALLOWED_REPO_SCHEME) {
+    return scheme ? { cause: 'scheme', scheme } : { cause: 'shorthand' };
+  }
+  if (!host) return { cause: 'unparseable' };
+  if (!getAllowedRepoHosts().includes(host)) return { cause: 'host', host };
+  return undefined;
+}
+
+/**
+ * True when the server's own credential may be handed to `repoUrl`: an `https:`
+ * URL naming an allowed host.
+ *
+ * The name says host because the allowlist is the interesting half, but the gate
+ * checks the SCHEME too, and every caller is a credential decision rather than a
+ * question about hosts — do not split the two apart. Host-only was a hardening
+ * gap: `http://github.com/a/b.git`, `git://github.com/…` and `ssh://github.com/…`
+ * all named an allowed host and all reached getAuthenticatedUrl, which embedded
+ * the token. pushToGit's schema already documents HTTPS
+ * (`src/tools/recommend.ts`), so requiring it here makes that contract real.
+ *
+ * A URL whose host or scheme cannot be determined is NOT allowed — an unparseable
+ * remote is exactly the input whose destination we cannot reason about.
+ *
+ * The gate and the explanation of a refusal are ONE implementation
+ * (classifyRepoCredentialRefusal): a URL this returns false for always has a
+ * cause to name, and a URL it allows never produces one.
+ */
+export function isRepoHostAllowed(repoUrl: string): boolean {
+  return classifyRepoCredentialRefusal(repoUrl) === undefined;
+}
+
+/**
+ * Why `repoUrl` was refused, phrased so an operator fixes it in one step: it
+ * names the offending host, the chart value to change, and what is allowed
+ * today.
+ *
+ * Only the PARSED host is echoed, never the URL, so a credential embedded in the
+ * URL cannot ride out in the message.
+ *
+ * Three distinct refusals, because they have three different fixes: no URL at
+ * all, a URL whose SCHEME cannot carry the credential (see ALLOWED_REPO_SCHEME),
+ * and a host that is not on the allowlist. Which one applies comes from
+ * classifyRepoCredentialRefusal, so this message and the prompts loader's cannot
+ * disagree about the same URL. Telling someone who wrote
+ * `http://github.com/...` that "host github.com is not allowed. Currently
+ * allowed: github.com" would send them to change the chart value that is already
+ * correct.
+ */
+export function describeDisallowedRepoHost(repoUrl: string): string {
+  const refusal = classifyRepoCredentialRefusal(repoUrl);
+
+  if (refusal?.cause === 'no-url') {
+    return 'No repository URL was supplied, so there is no host to check against the allowlist. Provide repoUrl as the HTTPS URL of a repository on an allowed host.';
+  }
+
+  if (refusal?.cause === 'scheme' || refusal?.cause === 'shorthand') {
+    const subject =
+      refusal.cause === 'scheme'
+        ? `Repository URL scheme "${refusal.scheme}//" is not allowed`
+        : 'Repository URLs must be written in full, not in the scp-style "host:path" shorthand';
+    return `${subject}. Use an ${ALLOWED_REPO_SCHEME}// URL: it is the only scheme that can carry the server's git credential safely — http sends it in cleartext, and ssh/git URLs would pass it as an SSH username.`;
+  }
+
+  const allowed = getAllowedRepoHosts();
+  const allowedText =
+    allowed.length === 0
+      ? 'The allowlist is currently empty, which allows no repository at all'
+      : `Currently allowed: ${allowed.join(', ')}`;
+  const host = refusal?.cause === 'host' ? refusal.host : getRepoHost(repoUrl);
+  const subject = host
+    ? `Repository host "${host}" is not allowed`
+    : 'The repository URL does not name a host this server can parse, so it is not allowed';
+  return `${subject}. ${allowedText}. To allow it, add the host to the "gitops.allowedRepoHosts" Helm value (default: ${DEFAULT_ALLOWED_REPO_HOSTS.join(', ')}) and restart the server.`;
+}
+
+/**
+ * The structured advice that travels BESIDE describeDisallowedRepoHost (an
+ * AppError's `suggestedActions`), matched to the same cause by the same
+ * classifier.
+ *
+ * It is split for exactly the reason the message is. "Ask your platform operator
+ * to add the host to gitops.allowedRepoHosts", attached to a SCHEME refusal,
+ * advises changing a value that is already correct and hides the fix that would
+ * work — which the caller can apply themselves. Advice that contradicts the
+ * message it is attached to is worse than no advice.
+ */
+export function suggestedActionsForDisallowedRepo(repoUrl: string): string[] {
+  const refusal = classifyRepoCredentialRefusal(repoUrl);
+
+  switch (refusal?.cause) {
+    case 'no-url':
+      return [
+        `Supply repoUrl as the ${ALLOWED_REPO_SCHEME}// URL of the repository to push to`,
+      ];
+    case 'scheme':
+    case 'shorthand':
+      return [
+        `Send repoUrl as an ${ALLOWED_REPO_SCHEME}// URL for the same repository`,
+        `Do not use http://, ssh://, git:// or the scp-style "host:path" form — ${ALLOWED_REPO_SCHEME}// is the only scheme the server will attach its git credential to`,
+      ];
+    case 'unparseable':
+      return [
+        `Send repoUrl as a full ${ALLOWED_REPO_SCHEME}// URL that names the repository host`,
+      ];
+    default:
+      return [
+        'Push to a repository on an allowed host',
+        'Ask your platform operator to add the host to the gitops.allowedRepoHosts Helm value',
+      ];
+  }
+}
+
+/**
+ * GitHub owner logins and repository names use exactly this character set.
+ *
+ * LOAD-BEARING beyond validation: the absence of `%` is the only thing that
+ * stops a percent-encoded dot segment from reaching the API URL. The scp branch
+ * of splitRemoteUrl does no URL parsing, so `git@github.com:%2e%2e/evil.git`
+ * arrives here as the literal names `%2e%2e` and `evil`, which isDotSegment
+ * cannot recognise — and `fetch` would then normalize `/repos/%2e%2e/evil/pulls`
+ * down to `/evil/pulls` (verified). Only the URL branch is safe by itself, where
+ * WHATWG `URL` decodes AND normalizes first (`/%2e%2e/evil.git` → `/evil.git`,
+ * one segment, rejected). Widening this class to admit `%` — or any encoding
+ * introducer — silently reopens the traversal isDotSegment exists to close.
+ */
+const GITHUB_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * `{ owner, repo }` when `remoteUrl` points at github.com, undefined for any
+ * other host — so the caller falls into the non-GitHub branch.
+ *
+ * The host is decided by PARSING the URL and comparing the hostname against
+ * GITHUB_HOSTS. Searching the string for `github.com` instead — what this
+ * replaces — also accepts `https://evil.example/github.com/victim/private.git`
+ * (→ victim/private) and `https://notgithub.com/owner/repo.git` (→ owner/repo),
+ * which would send an authenticated POST for an attacker-chosen owner/repo. The
+ * token itself cannot reach the attacker's host (the API URL is a hardcoded
+ * api.github.com template), but the API's differing answers would form an
+ * existence-and-access oracle for private repositories the server's credential
+ * can reach.
+ *
+ * Anything that is not exactly `<owner>/<repo>` on such a host is rejected, and
+ * `.`/`..` are rejected as either name: they satisfy GITHUB_NAME_PATTERN (a dot
+ * is legal in both a login and a repo name) but survive into the API URL, where
+ * fetch's own path normalization then eats a literal segment — `..`/`evil` would
+ * POST to `api.github.com/evil/pulls` rather than to `/repos/../evil/pulls`.
+ * Today that only ever 404s, but from M2 `repoUrl` is client-supplied, which
+ * turns "which endpoints are reachable" from incidental into attacker-chosen.
+ */
+export function parseGitHubRemote(
+  remoteUrl: string
+): { owner: string; repo: string } | undefined {
+  const split = splitRemoteUrl(remoteUrl);
+  if (!split || !GITHUB_HOSTS.has(split.host.toLowerCase())) return undefined;
+
+  // Trailing slashes are dropped, not counted: `…/acme/demo.git/` is the same
+  // remote as `…/acme/demo.git`, and git clones both.
+  const segments = split.path
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '')
+    .split('/');
+  if (segments.length !== 2) return undefined;
+
+  const owner = segments[0];
+  const repo = segments[1].replace(/\.git$/, '');
+  if (!GITHUB_NAME_PATTERN.test(owner) || !GITHUB_NAME_PATTERN.test(repo)) {
+    return undefined;
+  }
+  if (isDotSegment(owner) || isDotSegment(repo)) return undefined;
+  return { owner, repo };
+}
+
+/**
+ * True for the two path segments that mean "here" and "up one" to a URL parser.
+ *
+ * Compares literals only — an encoded `%2e%2e` is caught upstream by
+ * GITHUB_NAME_PATTERN excluding `%`, not here. See that pattern's note.
+ */
+function isDotSegment(segment: string): boolean {
+  return segment === '.' || segment === '..';
+}
+
+/**
+ * True when `ref` resolves in this repository. `rev-parse --verify --quiet`
+ * exits 1 with EMPTY output for a missing ref, and simple-git resolves rather
+ * than throws on that, so the output — not the absence of an exception — is
+ * what decides.
+ */
+async function refExists(git: SimpleGit, ref: string): Promise<boolean> {
+  try {
+    const sha = await git.raw(['rev-parse', '--verify', '--quiet', ref]);
+    return sha.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Run `fn` with origin temporarily rewritten to an authenticated URL, then
+ * restore it — the same pattern pushRepo/pullRepo use. Falls through unchanged
+ * when no env credential is configured or the remote URL cannot carry one (e.g.
+ * an SSH remote).
+ *
+ * What "restore" does and does NOT guarantee: it puts back the URL this clone was
+ * created with, so the SERVER's freshly minted token is not left behind. It is not
+ * a promise that no token ends up in `.git/config` — in pushToGit's flow the clone
+ * URL already carries one (cloneRepo embedded it), so restoring writes that one
+ * back. What keeps that safe is not this function: the clone is a throwaway,
+ * `rm -rf`'d in pushToGit's `finally`.
+ */
+async function withAuthenticatedOrigin<T>(
+  git: SimpleGit,
+  fn: () => Promise<T>
+): Promise<T> {
+  const authConfig = getGitAuthConfigFromEnv();
+  if (!authConfig.pat && !authConfig.githubApp) return fn();
+
+  const remotes = await git.getRemotes(true);
+  const originalUrl = remotes.find(r => r.name === 'origin')?.refs.fetch;
+  if (!originalUrl) return fn();
+
+  let authUrl: string;
+  try {
+    const token = await getAuthToken(authConfig);
+    authUrl = getAuthenticatedUrl(originalUrl, token);
+  } catch {
+    return fn();
+  }
+
+  await git.remote(['set-url', 'origin', authUrl]);
+  try {
+    return await fn();
+  } finally {
+    try {
+      await git.remote(['set-url', 'origin', originalUrl]);
+    } catch {
+      // Never let a failing restore REPLACE fn()'s error — that error is the one
+      // the caller needs in order to understand what went wrong. The token then
+      // stays in this checkout's .git/config, which is the lesser harm: the
+      // clone is a throwaway, and losing the real error is not recoverable.
+    }
+  }
+}
+
+/**
+ * Check out `baseBranch`, fetching it from origin when this clone does not have
+ * it (PRD #710 decision 10).
+ *
+ * A shallow single-branch clone — what remediate's git_clone produces
+ * (`depth: 1`, no `--branch`) — contains only the default branch's ref, so a
+ * plain `git checkout <non-default base>` fails. Fetching just that one ref at
+ * depth 1 makes the helper independent of how the caller cloned.
+ *
+ * Three arms, in order: a local branch of that name is checked out as-is; an
+ * existing `refs/remotes/origin/<base>` is used WITHOUT being refreshed (see
+ * createPullRequest's contract note); otherwise that one ref is fetched.
+ *
+ * `baseBranch` must name a BRANCH: the fetch refspec is `+refs/heads/<base>`,
+ * so a tag or a raw SHA cannot resolve here.
+ */
+async function checkoutBaseBranch(
+  git: SimpleGit,
+  baseBranch: string
+): Promise<void> {
+  const local = await git.branchLocal();
+  if (local.all.includes(baseBranch)) {
+    await git.checkout(baseBranch);
+    return;
+  }
+
+  const remoteRef = `refs/remotes/origin/${baseBranch}`;
+  if (!(await refExists(git, remoteRef))) {
+    await withAuthenticatedOrigin(git, () =>
+      git.fetch([
+        '--depth',
+        '1',
+        'origin',
+        `+refs/heads/${baseBranch}:${remoteRef}`,
+      ])
+    );
+  }
+  await git.checkout(['-B', baseBranch, remoteRef]);
+}
+
+/**
+ * Create a pull request from a set of file changes.
+ *
+ * Shared by remediate's `git_create_pr` internal tool and (from PRD #710 M2)
+ * `pushToGit`'s PR mode. The steps are: check out the base branch → write,
+ * commit and push the files onto `branchName` → resolve the `origin` remote →
+ * `POST /repos/{owner}/{repo}/pulls`.
+ *
+ * Assumptions about the checkout:
+ * - `repoPath` is an existing clone with an `origin` remote. Path validation is
+ *   the caller's job — this helper applies none.
+ * - The base branch does NOT need to be present locally or checked out; it is
+ *   fetched when missing (decision 10). A shallow clone is fine.
+ * - Credentials come from the environment (`getGitAuthConfigFromEnv`), for both
+ *   the push and the GitHub API call.
+ * - `branchName` must be a non-empty branch name different from `baseBranch`,
+ *   and is server-generated by every caller — never a client parameter.
+ *
+ * Two contract points worth knowing before adding a third caller:
+ * - When `refs/remotes/origin/<baseBranch>` is ALREADY present, it is used as of
+ *   the clone — nothing is re-fetched — so the pull request is based on however
+ *   stale that ref is. Harmless for the only current caller, remediate, which
+ *   clones fresh at depth 1; a caller reusing a long-lived checkout must pull it
+ *   itself.
+ * - `baseBranch` is strictly a BRANCH. A tag or SHA used to work by accident
+ *   (the old `git.checkout(<sha>)` produced a detached HEAD); it now takes the
+ *   `+refs/heads/<x>` fetch path and returns `failed`. That is deliberate:
+ *   remediate derives the base from an Argo CD `targetRevision`, which is not
+ *   always a branch, and a clean `failed` beats a confusing checkout error.
+ *
+ * Never throws for an expected failure — every outcome is a
+ * CreatePullRequestResult, discriminated by `status`:
+ * - `created` — branch pushed, PR opened.
+ * - `no_changes` — there was nothing to commit, so nothing was pushed and no PR
+ *   was opened (decision 3). Without this check the GitHub API is asked to open
+ *   a PR for a head branch that never reached the remote and answers 422. It is
+ *   reported only when the index is verifiably empty, never inferred from a
+ *   commit that produced no revision — that is a `failed`.
+ * - `pushed_without_pr` — the `origin` URL is not a github.com `<owner>/<repo>`:
+ *   the branch IS on the remote but a PR/MR must be opened manually (decision 7).
+ * - `failed` — validation (a missing head branch, or one equal to the base), git,
+ *   or GitHub API failure. Messages are scrubbed of credentials.
+ */
+export async function createPullRequest(
+  input: CreatePullRequestInput
+): Promise<CreatePullRequestResult> {
+  const {
+    repoPath,
+    files,
+    title,
+    body = '',
+    branchName,
+    author,
+    userAgent = DEFAULT_PR_USER_AGENT,
+  } = input;
+  const baseBranch = input.baseBranch || 'main';
+
+  // Validate the head branch BEFORE anything is checked out. pushRepo skips
+  // branch creation entirely for a falsy `branch`, and checks out an existing
+  // branch when the name already exists — so either of these would commit and
+  // push onto the base branch that checkoutBaseBranch just checked out, i.e.
+  // write the protected branch (the one thing PR mode must never do, PRD #710
+  // success criterion 1), and only THEN collect a 422 from the GitHub API for
+  // an empty or self-referencing `head`. Neither is reachable from today's
+  // callers; the guarantee should rest on a check, not on two names not
+  // coinciding.
+  if (!branchName) {
+    return {
+      status: 'failed',
+      success: false,
+      error:
+        'branchName is required: a pull request needs a head branch to push the changes to',
+    };
+  }
+  if (branchName === baseBranch) {
+    return {
+      status: 'failed',
+      success: false,
+      error: `branchName must differ from baseBranch ("${baseBranch}"): a pull request cannot be opened from a branch onto itself, and pushing to it would write the base branch directly`,
+    };
+  }
+
+  try {
+    const git = simpleGit(gitOptions(repoPath));
+
+    await checkoutBaseBranch(git, baseBranch);
+
+    const pushResult = await pushRepo(repoPath, files, title, {
+      branch: branchName,
+      author,
+    });
+
+    // pushRepo returns WITHOUT pushing when there was nothing to commit, so the
+    // head branch does not exist on the remote and no PR can reference it. The
+    // reason is explicit: an empty index is "no changes", a commit that failed
+    // despite a non-empty index is a failure and must not read as "no changes".
+    if (!pushResult.commitSha) {
+      if (pushResult.noCommitReason === 'commit_failed') {
+        return {
+          status: 'failed',
+          success: false,
+          error:
+            'Commit produced no revision even though the changes were staged — a commit hook may have rejected it. Nothing was pushed and no pull request was created.',
+        };
+      }
+      return {
+        status: 'no_changes',
+        success: true,
+        branch: branchName,
+        baseBranch,
+        filesChanged: [],
+        message: `No changes to propose: the files already match ${baseBranch}. Nothing was pushed and no pull request was created.`,
+      };
+    }
+
+    const remotes = await git.getRemotes(true);
+    const origin = remotes.find(r => r.name === 'origin');
+    if (!origin?.refs?.fetch) {
+      return {
+        status: 'failed',
+        success: false,
+        error: 'Could not find origin remote URL',
+      };
+    }
+    const gitHubRepo = parseGitHubRemote(origin.refs.fetch);
+    if (!gitHubRepo) {
+      return {
+        status: 'pushed_without_pr',
+        success: true,
+        branch: branchName,
+        baseBranch,
+        filesChanged: pushResult.filesAdded,
+        commitSha: pushResult.commitSha,
+        // Not "the remote is not GitHub": an anchored parser also declines a
+        // github.com URL in an unexpected shape, and telling the user their
+        // GitHub repo is not on GitHub is worse than saying what happened.
+        error:
+          'A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.',
+      };
+    }
+
+    // Minted only now that the remote is known to be GitHub: a GitLab remote
+    // should not mint an installation token it will never use.
+    const token = await getAuthToken(getGitAuthConfigFromEnv());
+
+    const prResponse = await fetchWithTimeout(
+      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/pulls`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.github+json',
+          'User-Agent': userAgent,
+        },
+        body: JSON.stringify({
+          title,
+          body,
+          head: branchName,
+          base: baseBranch,
+          // Test-only switch: integration tests set this so PRs they create
+          // don't trigger CodeRabbit (which has drafts: false in .coderabbit.yaml).
+          // Production never sets this env var.
+          ...(process.env.DOT_AI_GIT_CREATE_DRAFT_PRS === 'true' && {
+            draft: true,
+          }),
+        }),
+      }
+    );
+
+    if (!prResponse.ok) {
+      return {
+        status: 'failed',
+        success: false,
+        error: await describeApiError(prResponse),
+      };
+    }
+
+    const prData = (await prResponse.json()) as {
+      html_url: string;
+      number: number;
+    };
+
+    return {
+      status: 'created',
+      success: true,
+      prUrl: prData.html_url,
+      prNumber: prData.number,
+      branch: branchName,
+      baseBranch,
+      filesChanged: pushResult.filesAdded,
+      commitSha: pushResult.commitSha,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      status: 'failed',
+      success: false,
+      error: scrubCredentials(message),
+    };
+  }
+}
+
+// ─── Pull request lookup (PRD #710 M2, decision 9) ───
+
+/** What GitHub says about one pull request, reduced to what callers reuse. */
+export interface PullRequestSnapshot {
+  number: number;
+  url: string;
+  headBranch: string;
+  baseBranch: string;
+  state: 'open' | 'closed';
+  merged: boolean;
+}
+
+/**
+ * Outcome of lookupPullRequest(). The three non-`found` values are deliberately
+ * distinct because they call for different decisions: `not_found` means there is
+ * no pull request to reuse (open a new one), while `unknown` means the answer is
+ * unavailable — a caller that treats it as "not open" opens a duplicate pull
+ * request every time GitHub has a bad minute.
+ */
+export type LookupPullRequestResult =
+  | { status: 'found'; pullRequest: PullRequestSnapshot }
+  | { status: 'not_found' }
+  | { status: 'unsupported_host' }
+  | { status: 'unknown'; error: string };
+
+/**
+ * Fetch one pull request by number from `repoUrl`'s GitHub repository.
+ *
+ * Used to decide whether a previously recorded pull request can still be updated
+ * in place rather than superseded by a second one (PRD #710 decision 9).
+ *
+ * `repoUrl` goes through parseGitHubRemote, so a non-github.com or oddly shaped
+ * remote is `unsupported_host` rather than an API call. `prNumber` comes from a
+ * session file, i.e. from data this server wrote but does not re-read as trusted:
+ * anything other than a positive integer cannot reach the request URL.
+ */
+export async function lookupPullRequest(
+  repoUrl: string,
+  prNumber: number,
+  opts?: { userAgent?: string }
+): Promise<LookupPullRequestResult> {
+  if (!Number.isSafeInteger(prNumber) || prNumber <= 0) {
+    // Not a pull request number this server ever recorded — nothing to reuse.
+    return { status: 'not_found' };
+  }
+
+  const gitHubRepo = parseGitHubRemote(repoUrl);
+  if (!gitHubRepo) return { status: 'unsupported_host' };
+
+  try {
+    const token = await getAuthToken(getGitAuthConfigFromEnv());
+    const response = await fetchWithTimeout(
+      `https://api.github.com/repos/${gitHubRepo.owner}/${gitHubRepo.repo}/pulls/${prNumber}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'User-Agent': opts?.userAgent ?? DEFAULT_PR_USER_AGENT,
+        },
+      }
+    );
+
+    // 404 is also what a repository the credential cannot see answers, so this
+    // is "no pull request available to reuse" rather than "it was deleted".
+    if (response.status === 404) return { status: 'not_found' };
+    if (!response.ok) {
+      return { status: 'unknown', error: await describeApiError(response) };
+    }
+
+    const data = (await response.json()) as {
+      number?: number;
+      html_url?: string;
+      state?: string;
+      merged?: boolean;
+      head?: { ref?: string };
+      base?: { ref?: string };
+    };
+
+    if (
+      typeof data.number !== 'number' ||
+      typeof data.html_url !== 'string' ||
+      typeof data.head?.ref !== 'string' ||
+      typeof data.base?.ref !== 'string'
+    ) {
+      return {
+        status: 'unknown',
+        error:
+          'GitHub API returned a pull request without the fields needed to reuse it',
+      };
+    }
+
+    return {
+      status: 'found',
+      pullRequest: {
+        number: data.number,
+        url: data.html_url,
+        headBranch: data.head.ref,
+        baseBranch: data.base.ref,
+        // Anything that is not verbatim 'open' is treated as closed: guessing
+        // "probably still open" from an unexpected value is the error that
+        // pushes to a branch nobody is reviewing.
+        state: data.state === 'open' ? 'open' : 'closed',
+        merged: data.merged === true,
+      },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { status: 'unknown', error: scrubCredentials(message) };
   }
 }

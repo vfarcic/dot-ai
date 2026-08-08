@@ -655,6 +655,63 @@ describe('Prompts Integration', () => {
       expect(response).toMatchObject({ success: false });
       expect(JSON.stringify(response)).not.toContain(secret);
     });
+
+    // PRD #710 F1b: an override naming a non-public IP literal is REFUSED
+    // outright — the control that stops ?repo= from being pointed at the cloud
+    // metadata endpoint. What makes the response evidence that NOTHING was
+    // fetched is the failure mode: a refusal before the clone is a 400
+    // VALIDATION_ERROR, whereas a clone that is attempted and fails comes back
+    // as a 502 PROMPTS_SOURCE_ERROR (asserted for an unreachable host in the
+    // issue #575 test later in this file). The message names the address and
+    // the range it falls in, so the refusal is attributable to the IP gate
+    // rather than to the scheme check sitting beside it — hence http:// here,
+    // which the override path otherwise accepts.
+    test('GET /api/v1/prompts?repo=<link-local IP> is refused before any fetch, and a credential header does not bypass it (PRD #710 F1b)', async () => {
+      const metadataRepo = 'http://169.254.169.254/latest/meta-data/';
+      const probeToken = 'ghp_prd710_metadata_probe_token';
+
+      const response = await integrationTest.httpClient.get(
+        `/api/v1/prompts?repo=${encodeURIComponent(metadataRepo)}`
+      );
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: expect.stringContaining(
+            '169.254.169.254 is a link-local address'
+          ),
+        },
+      });
+
+      // Whether the fetch happens at all is a different question from whose
+      // credential travels, so supplying a git token changes nothing — and the
+      // token must not come back in the refusal.
+      const withCredential = await integrationTest.httpClient.get(
+        `/api/v1/prompts?repo=${encodeURIComponent(metadataRepo)}`,
+        { 'X-Dot-AI-Git-Token': probeToken }
+      );
+      expect(withCredential).toMatchObject({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: expect.stringContaining(
+            '169.254.169.254 is a link-local address'
+          ),
+        },
+      });
+      expect(JSON.stringify(withCredential)).not.toContain(probeToken);
+
+      // The env-var path is untouched: a refused override neither clears nor
+      // replaces the prompts the server already loaded.
+      const afterward = await integrationTest.httpClient.get('/api/v1/prompts');
+      expect(afterward).toMatchObject({
+        success: true,
+        data: {
+          prompts: expect.any(Array),
+          source: expect.stringMatching(/^https?:\/\//),
+        },
+      });
+    });
   });
 
   // PRD #621 M1: the override must also carry a subdirectory (?path= / body

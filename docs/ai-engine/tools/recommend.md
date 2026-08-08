@@ -407,7 +407,29 @@ kubectl get ingress -n a-team
 
 #### Option: GitOps Deployment
 
-After `generateManifests`, agents present three equal options: **save locally** (write files from the response), **deploy to cluster** (`deployManifests` stage), or **push to Git** (`pushToGit` stage). For GitOps workflows with Argo CD or Flux, use `pushToGit`:
+After `generateManifests`, agents present three equal options: **save locally** (write files from the response), **deploy to cluster** (`deployManifests` stage), or **push to Git** (`pushToGit` stage). For GitOps workflows with Argo CD or Flux, use `pushToGit`.
+
+`pushToGit` has two modes. By default it commits straight to `branch`. With `pullRequest: true` it commits to a server-generated branch and opens a pull request against `branch` instead — see [Option: GitOps Pull Request](#option-gitops-pull-request) below. When [RBAC](../setup/authorization.md) is enabled, the two modes require different permissions: pushing directly needs `apply` on `recommend`, opening a pull request needs only `execute`, and agents are only offered the mode the user is permitted to use.
+
+**`repoUrl` must be an HTTPS URL naming an allowlisted host.** Because the server attaches its own Git credential to whatever repository URL the call supplies, that URL is checked **in both modes**, before anything is cloned, committed, or pushed: its host must appear in the `gitops.allowedRepoHosts` Helm value — which defaults to `github.com` and `www.github.com` — and its scheme must be `https://`. A host that is not listed is refused and names itself:
+
+```text
+Repository host "gitlab.example.com" is not allowed. Currently allowed: github.com,
+www.github.com. To allow it, add the host to the "gitops.allowedRepoHosts" Helm
+value (default: github.com, www.github.com) and restart the server.
+```
+
+The fix is an operator change, not a client one: add the host to the value. Matching is on the parsed hostname — exact and case-insensitive, with no wildcards, so `github.com` does not cover `github.company.example`, nor does any entry cover a subdomain of itself. That is why the default lists `github.com` and `www.github.com` as two separate entries rather than one standing in for the other. A wrong **scheme** is a client fix instead, and reports itself as such rather than blaming the allowlist:
+
+```text
+Repository URL scheme "ssh://" is not allowed. Use an https:// URL: it is the only
+scheme that can carry the server's git credential safely — http sends it in
+cleartext, and ssh/git URLs would pass it as an SSH username.
+```
+
+See [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist) for the full rules, and note that allowlisting a non-GitHub host does **not** enable automatic pull request creation there — `pullRequest: true` against it still reports `pushed_without_pr`.
+
+Direct push:
 
 ```md
 User: Push to GitOps repo instead
@@ -448,15 +470,92 @@ Agent: Pushing manifests to your GitOps repository...
 - recommend tool with stage 'pushToGit' cloned the GitOps repository
 - Generated manifests were written to the specified target path
 - Changes committed with message "Add my-app manifests"
+- Commit authored by the authenticated user (see [Commit and pull request attribution](#commit-and-pull-request-attribution))
 - Pushed to the specified branch (default: main)
 - Session updated with gitPush state for tracking
 - GitOps controller will sync automatically based on its configuration
 
-> **Note**: GitOps push is currently supported for **raw YAML manifests and Kustomize only**. Helm chart support (generating Argo CD `Application` or Flux `HelmRelease` CRs) is planned for a future release. For Helm charts, use the `deployManifests` stage to install directly to the cluster.
+**Note**: If the manifests already match the branch, nothing is committed and nothing is pushed. The response then reports `status: "no_changes"`, omits `gitPush.commitSha`, returns an empty `gitPush.filesPushed`, and sets `gitopsMessage` to `No changes to push: the manifests already match branch main.` Re-running the stage is therefore safe — it never produces an empty commit.
+
+**Note**: GitOps push is currently supported for **raw YAML manifests and Kustomize only**. Helm chart support (generating Argo CD `Application` or Flux `HelmRelease` CRs) is planned for a future release. For Helm charts, use the `deployManifests` stage to install directly to the cluster.
+
+**Note**: `targetPath` must stay inside the repository, and **symbolic links are refused** — both a `targetPath` that traverses a symlink committed in the GitOps repository and a manifest path that *is* one. This only affects repositories that deliberately symlink a manifest path. Depending on which case it is, the error reads `Path traversal detected: "<path>" attempts to write outside repository directory` or `Refusing to write "<path>": it is a symbolic link, which could redirect the write outside repository directory`. The two are caught at different moments: containment is validated across the whole batch before anything is written, so it writes no files at all, while the symlink is caught at the write itself, so in a multi-file push the files ahead of the offending one are already in the clone. Either way nothing is committed and nothing is pushed — the clone is a throwaway, so your repository is untouched. Point `targetPath` at a real directory in the repository instead.
+
+**Note**: git's own control directory is not writable either. A `targetPath` that resolves into `.git` — directly, or through a symlink committed in the repository that points there — is refused with `Refusing to write "<path>": paths inside the git directory (.git) are not writable`, and the whole batch is validated before anything is written, so a refusal writes no files at all. Ordinary paths that merely start with the same letters, such as `.github/workflows/`, are unaffected.
+
+#### Option: GitOps Pull Request
+
+Pass `pullRequest: true` to the same `pushToGit` stage and the manifests are proposed rather than applied: they are committed to a branch the server generates and a pull request is opened against `branch`, which is never written to.
+
+🎯 **Use pull request mode when**:
+- The GitOps branch is protected and direct pushes are rejected
+- Every change to the repository must go through review before it reaches the cluster
+- The user holds only `execute` on `recommend` — direct push requires `apply` (see [Authorization](../setup/authorization.md#git-push-direct-push-or-pull-request))
+
+```md
+User: Open a pull request against main instead — main is protected
+```
+
+```md
+Agent: Opening a pull request with your manifests...
+
+[Uses mcp__dot-ai__recommend with stage: 'pushToGit', solutionId, repoUrl: 'https://github.com/org/gitops-repo.git', targetPath: 'apps/my-app/', branch: 'main', pullRequest: true]
+
+✅ **Pull request opened** — nothing was written to main:
+
+**Pull request**: https://github.com/org/gitops-repo/pull/42
+**Head branch**: dot-ai/sol-1785966929370-663bf6ee-1785966929941
+**Base branch**: main
+**Path**: apps/my-app/
+
+**Files changed:**
+- apps/my-app/manifests.yaml
+
+**Next steps:**
+1. Review and merge the pull request
+2. Argo CD/Flux will detect the merged manifests and sync automatically
+3. Once synced, resources will be created in the a-team namespace
+```
+
+**What `pullRequest: true` changes:**
+
+| Parameter | Direct push | Pull request mode |
+|-----------|-------------|-------------------|
+| `branch` | The branch that is committed and pushed | The **base** branch the pull request targets — never written to |
+| Head branch | Not applicable | Generated by the server as `dot-ai/<solutionId>-<timestamp>`. There is no head-branch parameter, and no client-supplied value can influence it |
+| `commitMessage` | Commit message | Commit message **and** pull request title |
+| Required permission | `apply` on `recommend` | `execute` on `recommend` |
+
+The pull request body is written by the server and records who requested the change — the authenticated user's email, or a note that the caller used the server token and has no user identity — along with the solution intent, the `solutionId`, the target path, and the base branch, so a reviewer looking at generated manifests can tell who asked for them and why.
+
+**Response**: the `gitPush` object gains a `pullRequest` field — `url`, `number`, `branch` (the head branch), `baseBranch`, `filesChanged`, and a `status` that says what actually happened:
+
+| `status` | What happened | Branch pushed | Pull request |
+|----------|---------------|---------------|--------------|
+| `created` | First pull request for this solution | Yes, new head branch | Opened — `url` and `number` are set |
+| `updated` | Re-run with changed manifests while the recorded pull request is still open | Yes, same head branch | Existing one updated in place |
+| `no_changes` | Manifests already match what the pull request proposes | No | Unchanged (or none was needed) |
+| `pushed_without_pr` | The push succeeded, but the remote is not a github.com `<owner>/<repo>` | Yes | **None** — `error` explains it and you open one manually |
+
+Never infer success from `success: true` alone — two of those four outcomes deliberately do not produce a new pull request. The session's `stage` stays `pushed` in every case, and `gitPush.pullRequest` carries the detail.
+
+**Re-running the stage** (revised answers, regenerated manifests) does not accumulate pull requests:
+- Unchanged manifests → `no_changes`. Nothing is pushed and no second pull request is opened.
+- Changed manifests, recorded pull request still open → the new commit goes to the same head branch, so the pull request **updates in place** (`updated`).
+- No recorded pull request, or the recorded one is closed or merged → a new pull request is opened (`created`).
+
+**Note**: For a remote **on an allowlisted host** that is not a GitHub URL in the `github.com/<owner>/<repo>` form — GitLab, Bitbucket, GitHub Enterprise Server, or a `github.com` URL in a shape the server cannot parse — the branch is still pushed but no pull request is created. `status` is `pushed_without_pr` and the message reads: `A pull request could not be opened automatically for this remote (automatic PR creation supports github.com remotes in <owner>/<repo> form). Changes were pushed to the branch — create a PR/MR manually.` The base branch is untouched either way. Allowlisted is a real precondition, not a detail: this status is decided *after* the clone and the push have both succeeded, so a host missing from `gitops.allowedRepoHosts` — or a `repoUrl` that is not `https://` — is [refused](#option-gitops-deployment) before anything is cloned, nothing is pushed, and the status is never `pushed_without_pr`.
+
+**Note**: There is no auto-merge, in any form. Merging is always a deliberate human action.
+
+#### Commit and pull request attribution
+
+When the request carries an authenticated OAuth identity, that identity **is** the git author in both modes, and the `authorName` / `authorEmail` parameters are ignored — a client cannot attribute a generated commit to someone else. With no OAuth identity (static token authentication, or authentication disabled) there is no identity to defend and the client-supplied `authorName` / `authorEmail` are used as before.
 
 **Prerequisites for pushToGit:**
 - Git authentication configured via `DOT_AI_GIT_TOKEN` or GitHub App credentials
-- Write access to the target repository
+- Write access to the target repository — for `pullRequest: true`, the credential also needs permission to open pull requests (a GitHub App needs `Contents: write` **and** `Pull requests: write`)
+- An `https://` `repoUrl` whose host is listed in `gitops.allowedRepoHosts` (defaults to `github.com` and `www.github.com`) — see [GitOps Repository Host Allowlist](../setup/deployment.md#gitops-repository-host-allowlist)
 - GitOps controller (Argo CD/Flux) configured to watch the repository
 
 ### Example 2: Third-Party Application Installation (Helm)

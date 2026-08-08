@@ -199,6 +199,15 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
 {{- end }}
+        # GitOps repository host allowlist (PRD #710)
+        # Always rendered: an ABSENT value falls back to the server's secure
+        # default (github.com), and an EMPTY list must reach the server as an
+        # explicit deny-all rather than as "not configured".
+        # Parenthesised so a `gitops: null` map — which an umbrella chart or a
+        # trimmed values file can produce — renders as the empty deny-all list
+        # instead of failing `helm template` with a nil pointer.
+        - name: DOT_AI_GITOPS_ALLOWED_REPO_HOSTS
+          value: {{ (.Values.gitops).allowedRepoHosts | default list | join "," | quote }}
         # Git authentication (PRD #362: Git Operations)
         # Note: DOT_AI_GIT_TOKEN is configured via extraEnv - reused from user-prompts feature
         - name: GITHUB_APP_ENABLED

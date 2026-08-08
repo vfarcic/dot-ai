@@ -16,12 +16,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
+import * as net from 'net';
 import { Logger } from './error-handling';
 import {
   cloneRepo,
   pullRepo,
   sanitizeRelativePath,
   scrubCredentials,
+  isRepoHostAllowed,
+  classifyRepoCredentialRefusal,
+  getAllowedRepoHosts,
+  getRepoHost,
+  ALLOWED_REPO_SCHEME,
 } from './git-utils';
 import { Prompt, PromptFile, loadPromptFile } from '../tools/prompts';
 
@@ -34,6 +40,19 @@ export interface UserPromptsConfig {
   subPath: string;
   gitToken?: string;
   cacheTtlSeconds: number;
+  /**
+   * PRD #710: true when `repoUrl` came from a PER-REQUEST override (`?repo=`),
+   * i.e. from the client, rather than from the operator's
+   * DOT_AI_USER_PROMPTS_REPO.
+   *
+   * It exists to decide one thing: whether the server's own git credential may
+   * be attached to this URL at all (see shouldWithholdServerCredential). The
+   * operator's env-configured repo is the operator's own choice of destination
+   * and is NOT gated — it is the same trust class as the allowlist itself, so
+   * gating it would only break the operator's private GitLab prompts repo while
+   * protecting nothing.
+   */
+  repoUrlIsClientSupplied?: boolean;
 }
 
 /**
@@ -622,12 +641,165 @@ export function computePromptsSource(override?: UserPromptsOverride): string {
 }
 
 /**
+ * Address classes a CLIENT-SUPPLIED prompts URL may not name (PRD #710).
+ *
+ * Kept as a classification rather than a boolean so the refusal can say WHICH
+ * class refused it — "is a link-local address" tells a caller who typed the
+ * cloud metadata endpoint something "is not allowed" does not.
+ */
+type NonPublicHostKind =
+  | 'loopback'
+  | 'link-local'
+  | 'private'
+  | 'unique-local'
+  | 'unspecified'
+  | 'broadcast';
+
+/** IPv4 rules, applied to four octets (also reached from IPv4-mapped IPv6). */
+function classifyIpv4(octets: number[]): NonPublicHostKind | undefined {
+  const [a, b] = octets;
+  if (a === 127) return 'loopback'; // 127.0.0.0/8
+  if (a === 10) return 'private'; // 10.0.0.0/8
+  if (a === 172 && b >= 16 && b <= 31) return 'private'; // 172.16.0.0/12
+  if (a === 192 && b === 168) return 'private'; // 192.168.0.0/16
+  if (a === 169 && b === 254) return 'link-local'; // 169.254.0.0/16 (metadata)
+  // The whole of 0.0.0.0/8 ("this network"), not just the unspecified address:
+  // no part of it is a routable destination, and `http://0/` — which the URL
+  // parser expands to 0.0.0.0 — is a well-worn loopback alias.
+  if (a === 0) return 'unspecified';
+  if (octets.every(octet => octet === 255)) return 'broadcast';
+  return undefined;
+}
+
+/**
+ * The 16 bytes of a VALID IPv6 address, or undefined if it cannot be read.
+ *
+ * Callers reach this only after `net.isIP` has already said "6", so the failure
+ * branches are belt-and-braces rather than live paths. Written out because the
+ * platform gives us no address→bytes primitive: `URL` hands back a compressed,
+ * lowercased serialization (`::ffff:7f00:1`) and nothing that expands it.
+ */
+function ipv6ToBytes(address: string): number[] | undefined {
+  let text = address;
+  let embeddedV4: number[] | undefined;
+
+  // A dotted tail (`::ffff:127.0.0.1`) is the last 32 bits. URL.hostname never
+  // serializes this form, but the parse is cheap and keeps the helper honest
+  // for any other caller.
+  if (text.includes('.')) {
+    const cut = text.lastIndexOf(':');
+    if (cut === -1) return undefined;
+    const dotted = text.slice(cut + 1);
+    if (!net.isIPv4(dotted)) return undefined;
+    embeddedV4 = dotted.split('.').map(octet => parseInt(octet, 10));
+    text = `${text.slice(0, cut + 1)}0:0`;
+  }
+
+  const halves = text.split('::');
+  if (halves.length > 2) return undefined;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const gap = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (gap < 0) return undefined;
+  const groups = [...head, ...Array<string>(gap).fill('0'), ...tail];
+  if (groups.length !== 8) return undefined;
+
+  const bytes: number[] = [];
+  for (const group of groups) {
+    const value = parseInt(group, 16);
+    if (!Number.isInteger(value) || value < 0 || value > 0xffff) {
+      return undefined;
+    }
+    bytes.push(value >> 8, value & 0xff);
+  }
+  if (embeddedV4) {
+    bytes.splice(12, 4, ...embeddedV4);
+  }
+  return bytes;
+}
+
+/** IPv6 rules, applied to the 16 address bytes. */
+function classifyIpv6(bytes: number[]): NonPublicHostKind | undefined {
+  const zeroPrefix = (length: number) =>
+    bytes.slice(0, length).every(byte => byte === 0);
+
+  if (zeroPrefix(15) && bytes[15] === 1) return 'loopback'; // ::1
+  if (zeroPrefix(16)) return 'unspecified'; // ::
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return 'link-local'; // fe80::/10
+  if ((bytes[0] & 0xfe) === 0xfc) return 'unique-local'; // fc00::/7
+
+  // IPv4-mapped (::ffff:a.b.c.d) and the deprecated IPv4-compatible (::a.b.c.d)
+  // both ADDRESS a v4 destination, so they get the v4 rules. Skipping this is
+  // the bypass: `::ffff:127.0.0.1` is loopback wearing a v6 shape, and a check
+  // that stops at "not in any v6 range" waves it through.
+  if (zeroPrefix(10) && bytes[10] === 0xff && bytes[11] === 0xff) {
+    return classifyIpv4(bytes.slice(12));
+  }
+  if (zeroPrefix(12)) {
+    return classifyIpv4(bytes.slice(12));
+  }
+  return undefined;
+}
+
+/**
+ * WHY `hostname` is not a destination a client-supplied prompts URL may name —
+ * `undefined` when it is fine (PRD #710).
+ *
+ * The `?repo=` override validated only the SCHEME, so a caller could aim the
+ * server's clone at loopback, at `169.254.169.254` (the cloud metadata
+ * endpoint), or at any cluster-internal address. That is worse than a
+ * reachability scanner: git echoes a `text/plain` error body VERBATIM as
+ * `remote:` lines and those reach the caller inside the 502
+ * PROMPTS_SOURCE_ERROR — 10.8 KB came back untruncated in a field check — so it
+ * is a limited read primitive against internal services.
+ *
+ * Pass `URL.hostname`, not the raw authority. The WHATWG parser has already
+ * done the normalization a hand-rolled check gets wrong: `2130706433`,
+ * `0x7f000001`, `0177.0.0.1`, `127.1` and `0` all arrive here as dotted quads,
+ * userinfo and `:port` are already stripped, and IPv6 arrives bracketed.
+ *
+ * DELIBERATE GAP: this classifies IP LITERALS ONLY. A hostname that RESOLVES to
+ * an internal address (`localhost`, a Service DNS name) still passes — closing
+ * that needs resolve-then-pin, a much larger change that brings its own TOCTOU
+ * window between the check and git's own connect. Nothing here performs DNS.
+ *
+ * Not applied to DOT_AI_USER_PROMPTS_REPO: an operator who points prompts at an
+ * in-cluster git server chose that destination, and is the same trust class as
+ * the allowlist itself. Not applied to pushToGit/remediate either — those are
+ * gated by `gitops.allowedRepoHosts`, which is strictly narrower.
+ */
+function classifyNonPublicHost(
+  hostname: string
+): NonPublicHostKind | undefined {
+  // Brackets are part of URL.hostname for IPv6; a trailing dot is a
+  // fully-qualified-name marker the IP parsers don't expect.
+  const host = hostname
+    .replace(/^\[/, '')
+    .replace(/\]$/, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
+
+  const family = net.isIP(host);
+  if (family === 4) {
+    return classifyIpv4(host.split('.').map(octet => parseInt(octet, 10)));
+  }
+  if (family === 6) {
+    const bytes = ipv6ToBytes(host);
+    return bytes ? classifyIpv6(bytes) : undefined;
+  }
+  // Not a literal — a NAME. See the deliberate gap above.
+  return undefined;
+}
+
+/**
  * Build a UserPromptsConfig from a per-request override.
  * Reuses DOT_AI_GIT_TOKEN and DOT_AI_USER_PROMPTS_CACHE_TTL from the environment;
  * branch and subPath fall back to the same defaults as the env-var path.
  *
  * Validates the override inputs before returning:
  *   - repoUrl scheme must be http or https (prevents file://, ssh://, etc.)
+ *   - repoUrl host must not be an IP literal in a non-public range (PRD #710 —
+ *     loopback, link-local, private, unique-local, unspecified, broadcast)
  *   - subPath must be a relative path inside the cache directory (no '..',
  *     no absolute, no null bytes)
  *   - branch must match the git-safe character set used elsewhere
@@ -649,6 +821,21 @@ export function getUserPromptsConfigFromOverride(
   if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
     throw new Error(
       `Invalid override repoUrl scheme: ${parsedUrl.protocol} (only http and https are allowed) for ${sanitizeUrlForLogging(override.repoUrl)}`
+    );
+  }
+
+  // F1b (PRD #710): the host must not be an IP literal in a range that is never
+  // a public prompts source. Sits beside the scheme check, so it runs before
+  // anything is cloned — a REFUSAL, not the credential gate's degradation,
+  // because there is no useful weaker outcome: the point is not to make the
+  // request at all. A caller-supplied X-Dot-AI-Git-Token does not soften it
+  // (whose credential travels is a different question from whether the fetch
+  // happens). The hostname is safe to echo — URL parsing already excluded any
+  // userinfo — while the URL itself still goes through sanitizeUrlForLogging.
+  const nonPublicKind = classifyNonPublicHost(parsedUrl.hostname);
+  if (nonPublicKind) {
+    throw new Error(
+      `Invalid override repoUrl host: ${parsedUrl.hostname} is a ${nonPublicKind} address, not a public destination this server may fetch prompts from, for ${sanitizeUrlForLogging(override.repoUrl)}`
     );
   }
 
@@ -688,7 +875,154 @@ export function getUserPromptsConfigFromOverride(
     // the env credential remains the fallback when no header is present.
     gitToken: override.gitToken ?? process.env.DOT_AI_GIT_TOKEN,
     cacheTtlSeconds,
+    // PRD #710: this repoUrl came from the request, so the server credential is
+    // allowlist-gated before it can be attached to it.
+    repoUrlIsClientSupplied: true,
   };
+}
+
+/**
+ * Whether the SERVER's git credential must be withheld from this repository
+ * (PRD #710, the prompts-override instance of the credential-exfiltration
+ * finding).
+ *
+ * The hole: `?repo=https://attacker.example/x.git` with no X-Dot-AI-Git-Token
+ * header reaches the env-auth path of cloneRepo, which embeds DOT_AI_GIT_TOKEN
+ * (or a freshly minted GitHub App installation token) into whatever URL it was
+ * given — a URL the caller chose. getUserPromptsConfigFromOverride validates the
+ * SCHEME of that URL, and refuses an IP literal in a non-public range, but it
+ * says nothing about WHICH public host may hold the credential — that is this
+ * gate's job.
+ *
+ * The remedy DEGRADES rather than refuses: the clone still happens, just without
+ * the server's credential, so every public repository on every host keeps
+ * working exactly as before. What changes is only a PRIVATE repo on a
+ * non-allowlisted host — and that IS a real loss for some deployments, not a
+ * theoretical one: getAuthenticatedUrl sends DOT_AI_GIT_TOKEN as the basic-auth
+ * PASSWORD under the username `x-access-token`, which is exactly how GitLab and
+ * Gitea/Forgejo accept a personal access token, so a non-GitHub token in that
+ * variable did authenticate to those hosts before this gate. Such a request must
+ * forward its own credential in the X-Dot-AI-Git-Token header (the mechanism PRD
+ * #621 exists to provide), or the operator must add the host to
+ * `gitops.allowedRepoHosts`.
+ *
+ * Two inputs, both necessary:
+ * - `repoUrlIsClientSupplied` — the operator's own DOT_AI_USER_PROMPTS_REPO is
+ *   not gated (see the field's docblock).
+ * - `overrideToken` — a request that brought its own credential is not touched
+ *   for ANY host (PRD #621 is unaffected); only the SERVER's credential is
+ *   gated, and cloneRepo's token path never reads the env anyway.
+ *
+ * Reuses isRepoHostAllowed — the same parsed-hostname comparison and the same
+ * `gitops.allowedRepoHosts` value pushToGit is gated on. No second parser, no
+ * second config value. Note that gate refuses on TWO grounds, and both are live
+ * here: the scheme check bites `http://` URLs, which this path accepts (see
+ * getUserPromptsConfigFromOverride) and would otherwise hand the credential to
+ * in cleartext. Anything reporting the decision must therefore say WHICH ground
+ * — see isSchemeRefusal.
+ */
+function shouldWithholdServerCredential(
+  config: UserPromptsConfig,
+  overrideToken?: string
+): boolean {
+  if (!config.repoUrlIsClientSupplied) return false;
+  if (overrideToken) return false;
+  return !isRepoHostAllowed(config.repoUrl);
+}
+
+/**
+ * Whether the credential was withheld over the URL's SCHEME rather than its
+ * HOST — which decides both the wording of the two explanations below and whose
+ * fix it is: a scheme is the CALLER's to correct by sending an `https://` URL, a
+ * host is the OPERATOR's to add to `gitops.allowedRepoHosts` (or the caller's to
+ * bypass with the X-Dot-AI-Git-Token header).
+ *
+ * Only `http://` can reach this on this path — getUserPromptsConfigFromOverride
+ * rejects every other non-https scheme outright — but the cause is CLASSIFIED,
+ * not assumed, so it stays correct if that ever widens, and so this path and
+ * pushToGit cannot describe the same URL two different ways. Not splitting it was
+ * the bug: for `http://github.com/x.git` on the default allowlist, both builders
+ * announced that host "github.com" is not on an allowlist that reads
+ * "github.com", sending the reader to change a value that was already right.
+ */
+function isSchemeRefusal(repoUrl: string): boolean {
+  const cause = classifyRepoCredentialRefusal(repoUrl)?.cause;
+  return cause === 'scheme' || cause === 'shorthand';
+}
+
+/**
+ * Announce a withheld credential — the whole point of degrading rather than
+ * refusing is that the request SUCCEEDS, so the only way an operator debugging
+ * "why is my private repo 404ing" learns of the decision is this line. Carries
+ * the host, the allowlist as it currently reads, which of the two grounds
+ * refused this URL, and the way out for that ground.
+ *
+ * One function for both the clone and the pull path so they cannot drift into
+ * saying different things about the same decision.
+ */
+function warnServerCredentialWithheld(
+  logger: Logger,
+  config: UserPromptsConfig,
+  operation: 'clone' | 'pull'
+): void {
+  const schemeRefusal = isSchemeRefusal(config.repoUrl);
+  // The remedy is per CAUSE, the symptom per OPERATION — so all four
+  // combinations read correctly without four hand-written strings.
+  const remedy = schemeRefusal
+    ? `the request names the repository with an ${ALLOWED_REPO_SCHEME}// URL`
+    : 'the request supplies its own credential in the X-Dot-AI-Git-Token header';
+  logger.warn(`Withholding the server git credential from this ${operation}`, {
+    url: sanitizeUrlForLogging(config.repoUrl),
+    host: getRepoHost(config.repoUrl),
+    allowedHosts: getAllowedRepoHosts(),
+    reason: schemeRefusal
+      ? `the repository URL came from the request and its scheme is not "${ALLOWED_REPO_SCHEME}//", the only scheme that may carry the server credential — the "gitops.allowedRepoHosts" allowlist is not what refused it`
+      : 'the repository URL came from the request and its host is not on the "gitops.allowedRepoHosts" allowlist',
+    consequence:
+      operation === 'clone'
+        ? `cloning unauthenticated; a private repository will fail unless ${remedy}`
+        : `pulling unauthenticated; a private repository keeps serving the cached copy instead of refreshing, unless ${remedy}`,
+  });
+}
+
+/**
+ * The operator-facing explanation of a withheld credential, appended to a clone
+ * failure so "why is my private repo 404ing" is answerable from the error alone
+ * rather than only from the (scrubbed) warn line.
+ *
+ * Names the cause, the way(s) to fix THAT cause, and nothing from the URL itself
+ * beyond its scheme — so a credential embedded in `repoUrl` cannot ride out in a
+ * message that reaches the client (the override failure path returns it as
+ * UserPromptsOverrideError).
+ *
+ * A scheme refusal deliberately does NOT offer the two host remedies: neither
+ * one works. Adding the host to the allowlist leaves the scheme refusal in place,
+ * and the X-Dot-AI-Git-Token header — which does bypass the gate for any URL —
+ * would put the caller's own credential on a cleartext request, so it is not
+ * advice worth giving for an `http://` URL.
+ */
+function describeWithheldServerCredential(repoUrl: string): string {
+  const refusal = classifyRepoCredentialRefusal(repoUrl);
+  const prefix = "The server's git credential was NOT used for this clone";
+
+  if (refusal?.cause === 'scheme' || refusal?.cause === 'shorthand') {
+    const subject =
+      refusal.cause === 'scheme'
+        ? `the repository URL scheme "${refusal.scheme}//" cannot carry it — "${ALLOWED_REPO_SCHEME}//" is the only scheme that may, since http:// would send it in cleartext`
+        : `the repository URL is written in the scp-style "host:path" shorthand, and "${ALLOWED_REPO_SCHEME}//" is the only form that may carry it`;
+    return `${prefix} because ${subject}, so the repository was cloned unauthenticated. If it is private, send the request again naming the same repository with an ${ALLOWED_REPO_SCHEME}// URL. This is not an allowlist decision — the "gitops.allowedRepoHosts" Helm value has no bearing on a URL that is not ${ALLOWED_REPO_SCHEME}//.`;
+  }
+
+  const host = refusal?.cause === 'host' ? refusal.host : getRepoHost(repoUrl);
+  const subject = host
+    ? `repository host "${host}" is not on the "gitops.allowedRepoHosts" allowlist`
+    : 'the repository URL does not name a host this server can parse, so it is not on the "gitops.allowedRepoHosts" allowlist';
+  const allowed = getAllowedRepoHosts();
+  const allowedText =
+    allowed.length === 0
+      ? 'the allowlist is currently empty'
+      : `currently allowed: ${allowed.join(', ')}`;
+  return `${prefix} because ${subject} (${allowedText}), so the repository was cloned unauthenticated. If it is private, send the credential with the request in the X-Dot-AI-Git-Token header, or add the host to the "gitops.allowedRepoHosts" Helm value.`;
 }
 
 /**
@@ -837,6 +1171,18 @@ async function cloneRepository(
     localPath,
   });
 
+  // PRD #710: gate the SERVER's credential on the repo-host allowlist for a
+  // client-supplied URL, and make the degradation visible — an operator
+  // debugging "my private repo 404s" must be able to see that the credential
+  // was deliberately withheld rather than silently unused.
+  const withholdServerCredential = shouldWithholdServerCredential(
+    config,
+    overrideToken
+  );
+  if (withholdServerCredential) {
+    warnServerCredentialWithheld(logger, config, 'clone');
+  }
+
   try {
     // Ensure parent directory exists
     const parentDir = path.dirname(localPath);
@@ -855,6 +1201,7 @@ async function cloneRepository(
       // Per-request override credential (PRD #621 M3). undefined → cloneRepo
       // falls back to env auth, i.e. today's behavior unchanged.
       token: overrideToken,
+      withholdServerCredential,
     });
 
     logger.info('Successfully cloned user prompts repository', {
@@ -868,7 +1215,13 @@ async function cloneRepository(
       );
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    const sanitizedError = scrub(errorMessage);
+    // PRD #710: an unauthenticated clone of a private repo fails as a generic
+    // "not found" (that is what a 404 for an unauthenticated caller looks like),
+    // which points the operator at the wrong problem. Say why no credential was
+    // sent, and how to send one.
+    const sanitizedError = withholdServerCredential
+      ? `${scrub(errorMessage)} ${describeWithheldServerCredential(config.repoUrl)}`
+      : scrub(errorMessage);
 
     logger.error(
       'Failed to clone user prompts repository',
@@ -911,8 +1264,19 @@ async function pullRepository(
     localPath,
   });
 
+  // PRD #710: pullRepo rewrites `origin` to the authenticated URL, and `origin`
+  // of this cached clone is the URL the request supplied — so the same gate
+  // applies here, or the credential would leak on the first refresh instead of
+  // the first clone. This path only ever runs for the SHARED cache, which a
+  // token-bearing request never touches (it clones in isolation), so there is no
+  // override token to consider.
+  const withholdServerCredential = shouldWithholdServerCredential(config);
+  if (withholdServerCredential) {
+    warnServerCredentialWithheld(logger, config, 'pull');
+  }
+
   try {
-    await pullRepo(localPath);
+    await pullRepo(localPath, { withholdServerCredential });
 
     logger.debug('Successfully pulled user prompts repository', {
       url: sanitizedUrl,

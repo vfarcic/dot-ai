@@ -9,7 +9,7 @@ annotations: {}
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "1.25.0"                     # Container image tag - set by CI pipeline during release
+  tag: "2.0.0"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
@@ -55,6 +55,8 @@ secrets:
     apiKey: ""                      # API key value (only needed if chart should create the secret)
   # GitHub App authentication for git operations (PRD #362)
   # Note: PAT token uses DOT_AI_GIT_TOKEN env var configured via extraEnv
+  # Repository permissions the App needs: Contents: write, and Pull requests:
+  # write for pushToGit with pullRequest: true (PRD #710)
   githubApp:
     enabled: false                  # Enable GitHub App authentication
     appId: ""                       # GitHub App ID
@@ -235,12 +237,70 @@ webUI:
                                       # When set, query responses include visualizationUrl field
                                       # Format: {baseUrl}/v/{sessionId}
 
+# GitOps push (PRD #395, PRD #710)
+gitops:
+  # Repository hosts the server may hand its own Git credential to.
+  #
+  # This is a SECURITY control, not a convenience: the repository URL comes from
+  # the client, and the server embeds ITS OWN credential (DOT_AI_GIT_TOKEN or a
+  # GitHub App installation token) into whatever URL it is given. Without an
+  # allowlist, any caller allowed to run the recommend tool can name a host they
+  # control and have that credential delivered to it.
+  #
+  # - Entries are hostnames: exact, case-insensitive, no wildcards, no substring
+  #   matching. A ":port" suffix is accepted and ignored (the credential reaches
+  #   the host whichever port answers). "github.com" therefore does NOT cover
+  #   "www.github.com" — which is why the default below lists both. Any other
+  #   host your callers use must be named the same way, spelling by spelling.
+  # - The URL must also be https://. That is checked TOGETHER with the host, so
+  #   http://, ssh://, git:// and the scp-style "host:path" shorthand are outside
+  #   the allowlist even when the host is listed — an entry here does not buy the
+  #   credential back for them. Supply the HTTPS clone URL.
+  # - An EMPTY list ([]) denies every repository. It does NOT mean "allow
+  #   everything" — to allow a host, name it. Emptying the whole block
+  #   (`gitops:` with nothing under it) is deny-all too; deleting it, or
+  #   `gitops: {}`, keeps the default below.
+  #
+  # THREE callers are gated by this one value, with deliberately different
+  # consequences:
+  # - pushToGit (recommend), direct push and pullRequest: true alike — REFUSED
+  #   before anything is cloned, committed or pushed. So pushing to a
+  #   GitLab/Bitbucket/self-hosted remote requires adding its host here.
+  #   Automatic pull request creation still only supports github.com; elsewhere
+  #   the branch is pushed and the PR must be opened manually.
+  # - The per-request prompts override (?repo=) — DEGRADED, not refused: the
+  #   clone still happens, unauthenticated. Public prompt repos on any host keep
+  #   working; a private one needs the X-Dot-AI-Git-Token request header
+  #   instead. (A scheme that is neither http nor https is rejected as invalid
+  #   input with HTTP 400 before this gate is reached.)
+  # - The remediate tool's repository clone — DEGRADED the same way, but it has
+  #   NO per-request credential header, so adding the host here is the only
+  #   remedy. It is gated because the model chooses the URL from
+  #   client-influenced context, and it fails as git's own auth error rather
+  #   than naming the allowlist.
+  #
+  # DOT_AI_USER_PROMPTS_REPO is the operator's own URL and is NOT gated.
+  #
+  # The default names both GitHub spellings: matching is exact with no wildcards,
+  # and "www.github.com" is the same host in practice (it clones via redirect and
+  # gets pull requests like the bare form), so listing only "github.com" would
+  # refuse a real GitHub remote written the other way.
+  #
+  # Docs: https://devopstoolkit.ai/docs/ai-engine/setup/deployment#gitops-repository-host-allowlist
+  allowedRepoHosts:
+    - github.com
+    - www.github.com
+
 # Additional environment variables (optional)
 # Use this to add any custom environment variables to the MCP server
 # Example use cases: tracing configuration, custom integrations, Git authentication
 #
-# Git Authentication for pushToGit stage (PRD #395):
-# To enable GitOps workflows, configure one of the following:
+# Git Authentication for pushToGit stage (PRD #395, PRD #710):
+# To enable GitOps workflows, configure one of the following.
+# The same credential covers both push modes: committing to the target branch
+# directly, and (pullRequest: true) opening a pull request from a
+# server-generated branch. Pull request mode additionally needs permission to
+# open pull requests — see the permissions listed below.
 #
 # Option 1: Personal Access Token (PAT)
 # extraEnv:
@@ -258,10 +318,12 @@ webUI:
 # Option 2: GitHub App (recommended for production)
 # - Set secrets.githubApp.enabled: true
 # - Configure secrets.githubApp.appId and secrets.githubApp.privateKey
+# - Repository permissions: Contents: write (push commits)
+#                           Pull requests: write (open a PR with pullRequest: true)
 #
-# Required token scopes:
-# - repo (for private repositories)
-# - public_repo (for public repositories)
+# Required PAT scopes:
+# - repo (for private repositories — also covers opening pull requests)
+# - public_repo (for public repositories — also covers opening pull requests)
 #
 extraEnv: []
   # OpenTelemetry tracing:
@@ -388,7 +450,7 @@ plugins:
     enabled: true
     image:
       repository: ghcr.io/vfarcic/dot-ai-agentic-tools
-      tag: "1.25.0"
+      tag: "2.0.0"
     port: 8080
     # RBAC created automatically by chart (hardcoded for agentic-tools)
     env: []                         # Additional environment variables
@@ -406,7 +468,7 @@ plugins:
   #   enabled: true
   #   image:
   #     repository: myregistry/my-tools
-  #     tag: "1.25.0"
+  #     tag: "2.0.0"
   #   port: 8082
   #   serviceAccountName: "my-tools-sa"  # You create this SA with needed permissions
   #   env:
