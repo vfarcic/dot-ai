@@ -121,12 +121,17 @@ After identifying the problematic resource, check whether it is managed by a Git
 - **No validation actions**: Describe validation needs in `validationIntent`, not as separate actions
 
 **Kubectl Patch Strategy Selection**:
-- **Use `--type=json` for array updates** (containers, volumes, env vars):
-  - JSON Patch allows precise array element targeting by index
+
+Decide by looking at the **patch body you are about to write**, not at the field you are conceptually changing.
+
+- **Use `--type=json` whenever the patch body would contain an array** (containers, volumes, env vars, ports):
+  - JSON Patch targets one array element by index and leaves every other field on that element untouched
   - Example: `kubectl patch deployment app -n ns --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/resources/limits/memory","value":"256Mi"}]'`
-- **Use `--type=merge` for simple field updates**:
-  - Simpler syntax for non-array fields
-  - Example: `kubectl patch deployment app -n ns --type=merge -p='{"spec":{"replicas":3}}'`
+  - This covers container `resources`, `image`, `env`, `args`, and probes. These are array updates even though the value you are changing is a single scalar, because reaching them means writing `"containers": [ ... ]`
+- **Use `--type=merge` only when the patch body contains no array at all**:
+  - A JSON merge patch **replaces** any array it names rather than merging into it, so every field you did not repeat on that element is dropped
+  - Patching container resources this way deletes the container's `image` and the API server rejects the whole request with `spec.template.spec.containers[0].image: Required value`
+  - Example of a correct use — no array anywhere in the body: `kubectl patch deployment app -n ns --type=merge -p='{"spec":{"replicas":3}}'`
 - **Avoid `--type=strategic`**: Can cause "invalid character" errors with partial array specifications, especially for containers
 
 **Risk Assessment**:
