@@ -81,13 +81,15 @@ Semantic phase labels layer on top of the same channel where they are cheap — 
 - **A failed notification never aborts the work.** Emit failures are logged and swallowed.
 - **The final result is unchanged.** Progress is additive; no change to any tool's response shape.
 
-## Known limitation: the client timeout is a second, independent ceiling
+## Client timeout behavior (verified)
 
-Progress notifications fix the LB unconditionally. They fix the *client* hang only for clients that opt into extending their own deadline.
+Progress notifications fix the LB unconditionally. Whether they also prevent a *client*-side abort depends on the client:
 
-The MCP SDK defaults to `DEFAULT_REQUEST_TIMEOUT_MSEC = 60000` (`protocol.d.ts:57`) and only extends it on progress when the caller sets `resetTimeoutOnProgress` (`protocol.d.ts:83`) — with `maxTotalTimeout` (`protocol.d.ts:89`) capping it regardless.
+- **Claude Code** (verified against v2.1.222): registers an `onprogress` handler on every `tools/call`, so the `progressToken` is sent automatically and no user configuration is required. It does not use the SDK's `resetTimeoutOnProgress` — it implements its own progress-aware idle timeout, which every notification resets. Defaults for a remote HTTP server: 300s idle (`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT`), plus a hard ceiling from the per-server `timeout` / `MCP_TOOL_TIMEOUT` that defaults to ~1e8 ms — effectively unlimited. The SDK's 60s `DEFAULT_REQUEST_TIMEOUT_MSEC` never applies, because Claude Code always passes an explicit timeout.
+- **Bare MCP TypeScript SDK clients**: the 60s default does apply (`DEFAULT_REQUEST_TIMEOUT_MSEC`, `protocol.d.ts:57`), and only `resetTimeoutOnProgress` (`protocol.d.ts:83`) extends it — bounded by `maxTotalTimeout` (`protocol.d.ts:89`) regardless.
+- **Cursor**: not verified.
 
-This must be verified against the target clients before the work is called done, or we ship heartbeats and still see timeouts. Documenting the required client configuration is part of the deliverable.
+The reported failure in #704 was a ~150s `recommend` behind an AWS ALB, nowhere near any client-side limit — purely the LB idle timeout, which is what this work fixes.
 
 ## Scope
 
@@ -127,11 +129,11 @@ This must be verified against the target clients before the work is called done,
 - [x] **M2 — Time-based heartbeat.** Interval-driven emitter started/stopped per MCP tool call with `finally` cleanup; configurable interval. Verify no timer leaks across concurrent sessions and on error paths. _(`d6e9eed`)_
 - [x] **M3 — Semantic phases for `recommend`.** Phase labels at the `findBestSolutions` boundaries, including `progress`/`total` across the per-solution loop. _(`4b98c03`)_
 - [x] **M4 — Tests.** Integration coverage for both the opt-in and no-token paths; assert the no-token path is unchanged. `npm run test:integration` green. _(`2dc7c04`, `52c945b`)_
-- [x] **M5 — Client verification and docs.** Confirm `resetTimeoutOnProgress` behavior against the clients we care about; document required client config and the LB interaction. Changelog fragment in `changelog.d/`. _(`361f2f2`)_
+- [x] **M5 — Client verification and docs.** Confirm `resetTimeoutOnProgress` behavior against the clients we care about; document required client config and the LB interaction. Changelog fragment in `changelog.d/`. _(`361f2f2`, plus the "Progress Notifications for Long-Running Calls" section in `docs/ai-engine/setup/deployment.md`)_
 
 ## Open questions
 
-1. **Heartbeat interval.** ~20s (as used in the reporter's fork) is comfortably inside a 60s ALB default. Configurable, or fixed? — Resolved: configurable via `DOT_AI_MCP_PROGRESS_INTERVAL_MS` (default 20000ms).
+1. **Heartbeat interval.** ~20s (as used in the reporter's fork) is comfortably inside a 60s ALB default. Configurable, or fixed? — Resolved: configurable via the `mcp.progress.heartbeatIntervalMs` chart value (default 20000ms), rendered into `DOT_AI_MCP_PROGRESS_INTERVAL_MS`.
 2. **Heartbeat vs. phase labels when both apply.** Should a phase label reset the heartbeat timer, or do both share a sequence? — Resolved: the heartbeat timer runs on its fixed interval (a phase label does not reset it), but both feed **one strictly increasing `progress` sequence per token** so the stream stays MCP-spec compliant.
-3. **Which clients must be verified** for `resetTimeoutOnProgress` before this is considered done? — Only MCP TS SDK verified by the integration test.
-4. **Should the `progress`/`total` counters be meaningful** (monotonic across known phases) or is `message`-only sufficient? Meaningful counters need a phase count known up front, which the Helm branch makes conditional. — Resolved: `findBestSolutions` emits monotonic integer `progress`/`total` for the phases; the heartbeat nudges the same shared value by a tiny step (reusing the current phase message) so it stays strictly increasing without overtaking the next phase — the MCP spec requires `progress` to increase on every notification for a token.
+3. **Which clients must be verified** for `resetTimeoutOnProgress` before this is considered done? — Resolved: Claude Code verified (v2.1.222 — opts in automatically, needs no configuration); Cursor outstanding. See "Client timeout behavior (verified)" above.
+4. **Should the `progress`/`total` counters be meaningful** (monotonic across known phases) or is `message`-only sufficient? Meaningful counters need a phase count known up front, which the Helm branch makes conditional. — Resolved: `total` is fixed at `RECOMMEND_PROGRESS_PHASES = 4` from the first notification, and the final phase is subdivided fractionally (`3 + i / totalSolutions`) because the solution count is AI-determined and unknown until assembly returns. Each value reports work *completed*, so `progress` reaches `total` only when the call is done. The heartbeat nudges the same shared value by a tiny step (reusing the current phase message) so the sequence stays strictly increasing without overtaking the next phase — the MCP spec requires `progress` to increase on every notification for a token.

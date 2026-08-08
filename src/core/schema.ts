@@ -15,7 +15,10 @@ import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 import { HelmChartInfo } from './helm-types';
 import { KnowledgeSearchResultItem } from './knowledge-types';
 import { searchKnowledgeBase } from './knowledge-service';
-import { reportProgress } from '../interfaces/request-context';
+import {
+  reportProgress,
+  RECOMMEND_PROGRESS_PHASES,
+} from '../interfaces/request-context';
 
 // PRD #343: Inline sanitization (helm-utils.ts removed)
 function sanitizeShellArg(arg: string, fieldName: string = 'argument'): string {
@@ -779,7 +782,11 @@ export class ResourceRecommender {
     try {
       // Phase 0: Search unified knowledge base for relevant organizational knowledge
       // PRD #375: Single search replaces separate pattern + policy searches
-      reportProgress(1, undefined, 'Searching organizational knowledge…');
+      reportProgress(
+        1,
+        RECOMMEND_PROGRESS_PHASES,
+        'Searching organizational knowledge…'
+      );
       const relevantKnowledge = await this.searchRelevantKnowledge(intent);
 
       // Phase 1a: Replace mass resource discovery with capability-based pre-filtering
@@ -796,7 +803,11 @@ export class ResourceRecommender {
 
       if (this.capabilityService) {
         try {
-          reportProgress(2, undefined, 'Searching cluster capabilities…');
+          reportProgress(
+            2,
+            RECOMMEND_PROGRESS_PHASES,
+            'Searching cluster capabilities…'
+          );
           relevantCapabilities =
             await this.capabilityService.searchCapabilities(intent, {
               limit: 50,
@@ -842,7 +853,11 @@ export class ResourceRecommender {
 
       // Phase 2: AI assembles and ranks complete solutions
       // PRD #375: Pass unified knowledge chunks (includes policy+pattern+general) to AI context
-      reportProgress(3, undefined, 'Generating configuration options…');
+      reportProgress(
+        3,
+        RECOMMEND_PROGRESS_PHASES,
+        'Generating configuration options…'
+      );
       const solutionResult = await this.assembleAndRankSolutions(
         intent,
         capabilityFilteredResources,
@@ -861,12 +876,16 @@ export class ResourceRecommender {
       // Phase 3: Generate questions for each capability-based solution
       // Emit progress across the serial per-solution loop — this is the longest
       // silent window and the reported freeze point (PRD #705).
+      // `3 + i` reports work *completed*, not started, so the value only reaches
+      // the final phase once the last solution is actually done — a bar that read
+      // 100% with a solution still to generate, then ticked past it as heartbeats
+      // landed, would be worse than no bar at all.
       const totalSolutions = solutionResult.solutions.length;
       for (let i = 0; i < totalSolutions; i++) {
         const solution = solutionResult.solutions[i];
         reportProgress(
-          3 + i + 1,
-          3 + totalSolutions,
+          3 + i / totalSolutions,
+          RECOMMEND_PROGRESS_PHASES,
           `Generating configuration questions (${i + 1}/${totalSolutions})…`
         );
         solution.questions = await this.generateQuestionsWithAI(

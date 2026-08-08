@@ -36,6 +36,19 @@ export function getCurrentIdentity(): UserIdentity | undefined {
 }
 
 /**
+ * Coarse phase count for a `recommend` call, used as the `total` on every
+ * progress notification it emits (PRD #705).
+ *
+ * The four phases are: organizational knowledge, cluster capabilities, solution
+ * assembly, and the final per-solution step (question generation, or Helm chart
+ * selection on that branch). The final phase is subdivided fractionally because
+ * the solution count is AI-determined and unknown until assembly returns —
+ * fixing `total` up front is what lets a client render a bar from the very first
+ * notification without the ratio jumping backwards when the count arrives.
+ */
+export const RECOMMEND_PROGRESS_PHASES = 4;
+
+/**
  * Report progress on the current MCP tool call (PRD #705). No-op outside a
  * request context or when the client did not send a `progressToken`.
  */
