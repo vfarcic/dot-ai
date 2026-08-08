@@ -7,8 +7,8 @@
  * `notifications/progress`, and the SSE stream that carries them never touch the
  * REST router (`isApiRequest` short-circuits `/api/v1/...` before any of this).
  *
- * So this test cannot use `IntegrationTest`/`httpClient`. It connects a real MCP
- * `Client` over `StreamableHTTPClientTransport` to the same server-under-test
+ * So this test cannot use `IntegrationTest`/`httpClient`. Each test connects its
+ * own MCP `Client` over `StreamableHTTPClientTransport` to the server-under-test
  * (`MCP_BASE_URL`, root path, `Authorization: Bearer ${DOT_AI_AUTH_TOKEN}` — the
  * exact wiring the harness exports and `.mcp-test.json` documents) and covers the
  * three claims the PRD rests on:
@@ -32,7 +32,7 @@
  * boundaries regardless of wall-clock timing.
  */
 
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Progress } from '@modelcontextprotocol/sdk/types.js';
@@ -88,55 +88,51 @@ async function connectClient(): Promise<{
   return { client, transport };
 }
 
-describe('MCP Progress Notifications (PRD #705)', () => {
-  let client: Client;
-  let transport: StreamableHTTPClientTransport;
-
-  beforeAll(async () => {
+describe.concurrent('MCP Progress Notifications (PRD #705)', () => {
+  beforeAll(() => {
     // Verify we're pointed at the test cluster/harness (mirrors recommend.test.ts).
     expect({ kubeconfig: process.env.KUBECONFIG }).toMatchObject({
       kubeconfig: expect.stringContaining('kubeconfig-test.yaml'),
     });
-    ({ client, transport } = await connectClient());
-  }, 60000);
-
-  afterAll(async () => {
-    await client?.close();
-    await transport?.close();
   });
 
-  // Tests share a single MCP client/session, so they are intentionally NOT run
-  // as `describe.concurrent` against each other.
   test(
     'semantic phases: recommend reports every phase including the question-generation loop, and still returns its result',
     async () => {
       const notifications: Progress[] = [];
+      const { client, transport } = await connectClient();
 
-      const result = await client.callTool(
-        {
-          name: 'recommend',
-          arguments: {
-            stage: 'recommend',
-            intent: RECOMMEND_INTENT,
-            final: true,
-            interaction_id: 'progress_optin',
+      let payload: Record<string, unknown>;
+      try {
+        const result = await client.callTool(
+          {
+            name: 'recommend',
+            arguments: {
+              stage: 'recommend',
+              intent: RECOMMEND_INTENT,
+              final: true,
+              interaction_id: 'progress_optin',
+            },
           },
-        },
-        undefined,
-        {
-          // Registering onprogress makes the SDK inject `_meta.progressToken`.
-          onprogress: progress => notifications.push(progress),
-          // The client-side half of the fix for bare SDK clients: each
-          // notification extends this request's own deadline. Claude Code does
-          // not need this — it resets its own idle timeout on every notification.
-          resetTimeoutOnProgress: true,
-          timeout: 60000,
-          maxTotalTimeout: 300000,
-        }
-      );
+          undefined,
+          {
+            // Registering onprogress makes the SDK inject `_meta.progressToken`.
+            onprogress: progress => notifications.push(progress),
+            // The client-side half of the fix for bare SDK clients: each
+            // notification extends this request's own deadline. Claude Code does
+            // not need this — it resets its own idle timeout on every notification.
+            resetTimeoutOnProgress: true,
+            timeout: 60000,
+            maxTotalTimeout: 300000,
+          }
+        );
+        payload = parseToolResult(result);
+      } finally {
+        await client.close();
+        await transport.close();
+      }
 
       // Progress is out-of-band: the tool result still arrives, unchanged in shape.
-      const payload = parseToolResult(result);
       expect(payload).toMatchObject({
         intent: RECOMMEND_INTENT,
         // Solution content is AI-generated, but every solution carries the same
@@ -209,24 +205,32 @@ describe('MCP Progress Notifications (PRD #705)', () => {
       // Every notification it produces therefore comes from the time-based
       // heartbeat, which is the entire liveness mechanism for query, remediate,
       // operate, and impact-analysis.
-      const result = await client.callTool(
-        {
-          name: 'query',
-          arguments: {
-            intent: 'What databases can I deploy?',
-            interaction_id: 'progress_heartbeat',
-          },
-        },
-        undefined,
-        {
-          onprogress: progress => notifications.push(progress),
-          resetTimeoutOnProgress: true,
-          timeout: 60000,
-          maxTotalTimeout: 300000,
-        }
-      );
+      const { client, transport } = await connectClient();
 
-      const payload = parseToolResult(result);
+      let payload: Record<string, unknown>;
+      try {
+        const result = await client.callTool(
+          {
+            name: 'query',
+            arguments: {
+              intent: 'What databases can I deploy?',
+              interaction_id: 'progress_heartbeat',
+            },
+          },
+          undefined,
+          {
+            onprogress: progress => notifications.push(progress),
+            resetTimeoutOnProgress: true,
+            timeout: 60000,
+            maxTotalTimeout: 300000,
+          }
+        );
+        payload = parseToolResult(result);
+      } finally {
+        await client.close();
+        await transport.close();
+      }
+
       expect(payload).toMatchObject({
         success: true,
         sessionId: expect.stringMatching(/^qry-\d+-[a-f0-9]+$/),
@@ -253,11 +257,13 @@ describe('MCP Progress Notifications (PRD #705)', () => {
     'opt-out: no progressToken means no notifications and an unchanged result',
     async () => {
       const notifications: unknown[] = [];
+      const { client, transport } = await connectClient();
 
       // Tap the transport rather than registering onprogress — that would inject
       // a progressToken and defeat the point. Wrap the client's own handler
       // instead of replacing it, or responses stop being dispatched and the call
-      // never resolves. Restored in `finally`.
+      // never resolves. The transport belongs to this test alone, so the wrap
+      // cannot observe or disturb another test's stream.
       const clientOnMessage = transport.onmessage;
       transport.onmessage = message => {
         if (
@@ -273,7 +279,7 @@ describe('MCP Progress Notifications (PRD #705)', () => {
         const result = await client.callTool(
           {
             name: 'version',
-            arguments: {},
+            arguments: { interaction_id: 'progress_optout' },
           },
           undefined,
           // No onprogress → no progressToken → progress plumbing is a no-op.
@@ -281,7 +287,8 @@ describe('MCP Progress Notifications (PRD #705)', () => {
         );
         payload = parseToolResult(result);
       } finally {
-        transport.onmessage = clientOnMessage;
+        await client.close();
+        await transport.close();
       }
 
       // The result is what the tool returns with the progress plumbing inert.
