@@ -292,6 +292,97 @@ $ helm template dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VE
           value: "1"
 ```
 
+## Progress Notifications for Long-Running Calls
+
+Some tool calls take minutes. `recommend` in particular can run for well over two minutes on a large cluster, and for most of that time it is blocked on the AI provider with no bytes flowing. A proxy or load balancer sitting in front of the server sees an idle connection and drops it — the server finishes the work, but the client already gave up.
+
+To prevent that, the server emits MCP `notifications/progress` for the whole duration of every tool call, driven by a fixed-interval heartbeat. The heartbeat guarantees traffic on the connection regardless of what the tool is doing internally; `recommend` layers human-readable phase labels on top of it ("Searching organizational knowledge…", "Generating configuration questions (2/3)…"), which clients that surface progress messages will display.
+
+Progress is **opt-in per call**. A client opts in by sending `_meta.progressToken` on `tools/call` — most MCP SDKs do this automatically when the caller registers a progress handler. Clients that send no token, and all REST API callers, are completely unaffected.
+
+### Sizing the heartbeat against your load balancer
+
+The interval must be comfortably shorter than the idle timeout of every hop between the client and the server. The default of 20s is chosen to sit inside a 60s idle timeout, which is the default for an AWS ALB and for most nginx-style proxies.
+
+| Your shortest idle timeout | Recommended `heartbeatIntervalMs` |
+|----------------------------|-----------------------------------|
+| 60s (AWS ALB default, common nginx default) | `20000` (the built-in default — no configuration needed) |
+| 30s | `10000` |
+| 120s or higher | `20000` is still fine; raising it only reduces notification volume |
+
+If in-flight requests are still being dropped, the idle timeout on some hop is shorter than your interval. Lower the interval rather than raising the timeout.
+
+### Configuration
+
+| Setting | Default | Helm value | Env var (runtime) |
+|---------|---------|------------|-------------------|
+| Heartbeat interval, in milliseconds | `20000` | `mcp.progress.heartbeatIntervalMs` | `DOT_AI_MCP_PROGRESS_INTERVAL_MS` |
+
+Configure via typed Helm values (preferred):
+
+```yaml
+mcp:
+  progress:
+    heartbeatIntervalMs: "10000"   # for a proxy with a 30s idle timeout
+```
+
+Or via `--set`:
+
+```bash
+helm install dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+  --set mcp.progress.heartbeatIntervalMs="10000" \
+  # ... other settings
+```
+
+Leaving the value empty (the default) renders no env var at all, and the built-in 20s interval applies:
+
+```bash
+$ helm template dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+    --set secrets.auth.token=t --set secrets.anthropic.apiKey=k \
+  | grep DOT_AI_MCP_PROGRESS_INTERVAL_MS
+# (no output — no env var rendered, the 20s default from code applies)
+```
+
+Setting it emits the env var:
+
+```bash
+$ helm template dot-ai-mcp oci://ghcr.io/vfarcic/dot-ai/charts/dot-ai:$DOT_AI_VERSION \
+    --set secrets.auth.token=t --set secrets.anthropic.apiKey=k \
+    --set mcp.progress.heartbeatIntervalMs=10000 \
+  | grep -A1 DOT_AI_MCP_PROGRESS_INTERVAL_MS
+        - name: DOT_AI_MCP_PROGRESS_INTERVAL_MS
+          value: "10000"
+```
+
+### Client timeout behavior
+
+The heartbeat solves the proxy/load-balancer problem unconditionally. Whether it also prevents the *client* from timing out depends on the client, because a client enforces its own deadline independently of any network hop:
+
+| Client | Sends `progressToken`? | Extends its own deadline on progress? | What you need to do |
+|--------|------------------------|----------------------------------------|---------------------|
+| **Claude Code** | Yes, automatically | Yes — it resets its own idle timer on every notification | Nothing |
+| **MCP TypeScript SDK** (custom clients) | Only if you register an `onprogress` handler | Only if you pass `resetTimeoutOnProgress` | Pass both, see below |
+| **Cursor** | Not verified | Not verified | Test before relying on it |
+
+Claude Code needs no configuration. It registers a progress handler on every tool call, so the token is sent automatically, and it resets its own idle timeout (default 300s for a remote HTTP server, `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT`) each time a notification arrives.
+
+If you are building a client directly on the MCP TypeScript SDK, the default request timeout is 60s and progress alone does not extend it. Pass both options:
+
+```typescript
+await client.callTool(
+  { name: 'recommend', arguments: { /* ... */ } },
+  undefined,
+  {
+    onprogress: p => console.log(p.message),  // makes the SDK send the progressToken
+    resetTimeoutOnProgress: true,             // extends the deadline on each notification
+    timeout: 60000,
+    maxTotalTimeout: 300000,                  // absolute ceiling, never extended
+  }
+);
+```
+
+Without `resetTimeoutOnProgress`, such a client aborts at 60s no matter how much progress the server reports.
+
 ## Embedding Provider Configuration
 
 The DevOps AI Toolkit supports multiple embedding providers for semantic search in pattern management, capability discovery, and policy matching.

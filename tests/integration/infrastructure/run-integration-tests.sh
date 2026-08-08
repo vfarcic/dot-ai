@@ -568,6 +568,7 @@ helm upgrade --install dot-ai ./charts \
     --set plugins.agentic-tools.image.pullPolicy=Never \
     "${HELM_MCP_ARGS[@]}" \
     --set rbac.enforcement.enabled="${RBAC_ENABLED}" \
+    --set mcp.progress.heartbeatIntervalMs=2000 \
     --set-json "extraEnv=[{\"name\":\"QDRANT_CAPABILITIES_COLLECTION\",\"value\":\"capabilities-policies\"},{\"name\":\"DEBUG_DOT_AI\",\"value\":\"true\"},{\"name\":\"DOT_AI_TELEMETRY\",\"value\":\"${DOT_AI_TELEMETRY:-false}\"},{\"name\":\"CI\",\"value\":\"true\"},{\"name\":\"DOT_AI_USER_PROMPTS_REPO\",\"value\":\"${DOT_AI_USER_PROMPTS_REPO}\"},{\"name\":\"DOT_AI_USER_PROMPTS_PATH\",\"value\":\"user-prompts\"},{\"name\":\"DOT_AI_GIT_TOKEN\",\"value\":\"${DOT_AI_GIT_TOKEN:-}\"},{\"name\":\"DOT_AI_GIT_CREATE_DRAFT_PRS\",\"value\":\"true\"},{\"name\":\"MCP_DANGEROUSLY_ALLOW_INSECURE_ISSUER_URL\",\"value\":\"true\"}]" \
     --wait --timeout=300s || {
     log_error "Failed to deploy dot-ai via Helm"

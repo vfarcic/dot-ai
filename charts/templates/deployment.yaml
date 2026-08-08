@@ -76,6 +76,12 @@ spec:
         - name: DOT_AI_AI_MAX_RETRIES_WRAP_UP
           value: {{ .Values.ai.retries.wrapUp | quote }}
 {{- end }}
+        # MCP progress heartbeat (PRD #705)
+        # Empty falls through to the default in src/interfaces/request-context.ts.
+{{- if .Values.mcp.progress.heartbeatIntervalMs }}
+        - name: DOT_AI_MCP_PROGRESS_INTERVAL_MS
+          value: {{ .Values.mcp.progress.heartbeatIntervalMs | quote }}
+{{- end }}
 {{- if .Values.ai.customEndpoint.enabled }}
         - name: CUSTOM_LLM_BASE_URL
           value: {{ .Values.ai.customEndpoint.baseURL | quote }}
