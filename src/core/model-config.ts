@@ -13,8 +13,8 @@ export const CURRENT_MODELS = {
   google: 'gemini-3.1-pro-preview', // Still the flagship Gemini and still preview-only - no GA promotion, no 3.2+ Pro
   google_flash: 'gemini-3.6-flash', // Gemini 3.6 Flash - GA (no longer a preview pin); full-Flash tier restored after the 3.1 generation shipped Flash-Lite only
   kimi: 'kimi-k3', // Moonshot AI Kimi K3 - 1M context; replaces kimi-k2.5, which sunsets 2026-08-31
-  alibaba: 'qwen3.7-plus', // Alibaba Qwen 3.7-Plus - 1M context, multimodal (vision), GA since 2026-06-01
-  xai: 'grok-4.5', // Grok 4.5 - 500K context, native video input
+  alibaba: 'qwen3.7-plus', // Alibaba Qwen 3.7-Plus - text and image understanding (Model Studio)
+  xai: 'grok-4.5', // Grok 4.5 - 500K context, text and image input
   host: 'host', // Delegates generation to the client via MCP Sampling
   openrouter: 'anthropic/claude-haiku-4.5', // PRD #194: OpenRouter default model (overridden by AI_MODEL env var)
   custom: 'gpt-5.6-terra', // PRD #194: Custom endpoint default model (overridden by AI_MODEL env var)
