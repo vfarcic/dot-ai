@@ -21,7 +21,7 @@ export interface AITracingOptions {
   /** AI provider name (e.g., 'anthropic', 'openai', 'google') */
   provider: string;
 
-  /** Model identifier (e.g., 'claude-sonnet-4-6', 'gpt-5.4', 'text-embedding-3-small') */
+  /** Model identifier (e.g., 'claude-sonnet-5', 'gpt-5.6-terra', 'text-embedding-3-small') */
   model: string;
 
   /** Operation type: 'chat', 'tool_loop', 'embeddings' */
@@ -70,14 +70,14 @@ export interface AITracingResult {
  *
  * @example Chat operation
  * const response = await withAITracing(
- *   { provider: 'anthropic', model: 'claude-sonnet-4-6', operation: 'chat' },
+ *   { provider: 'anthropic', model: 'claude-sonnet-5', operation: 'chat' },
  *   async () => await client.messages.create(...),
  *   (result) => ({ inputTokens: result.usage.input_tokens, outputTokens: result.usage.output_tokens })
  * );
  *
  * @example Tool loop operation
  * const result = await withAITracing(
- *   { provider: 'anthropic', model: 'claude-sonnet-4-6', operation: 'tool_loop' },
+ *   { provider: 'anthropic', model: 'claude-sonnet-5', operation: 'tool_loop' },
  *   async () => await provider.toolLoop(...),
  *   (result) => ({ inputTokens: result.totalTokens.input, outputTokens: result.totalTokens.output })
  * );
@@ -98,7 +98,7 @@ export async function withAITracing<T>(
   const tracer = trace.getTracer('dot-ai-mcp');
 
   // Span name format: "{operation} {model}"
-  // Examples: "chat claude-sonnet-4-6", "tool_loop claude-sonnet-4-6", "embeddings text-embedding-3-small"
+  // Examples: "chat claude-sonnet-5", "tool_loop claude-sonnet-5", "embeddings text-embedding-3-small"
   const spanName = `${options.operation} ${options.model}`;
 
   return await tracer.startActiveSpan(

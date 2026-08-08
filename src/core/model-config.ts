@@ -6,20 +6,20 @@
  */
 
 export const CURRENT_MODELS = {
-  anthropic: 'claude-sonnet-4-6',
-  anthropic_opus: 'claude-opus-4-7',
-  anthropic_haiku: 'claude-haiku-4-5-20251001',
-  openai: 'gpt-5.4',
-  google: 'gemini-3.1-pro-preview',
-  google_flash: 'gemini-3-flash-preview', // PRD #294: Gemini 3 Flash - faster/cheaper variant with same 1M context
-  kimi: 'kimi-k2.5', // PRD #353: Moonshot AI Kimi K2.5 - single model with thinking by default, 256K context
-  alibaba: 'qwen3.6-plus', // PRD #480: Alibaba Qwen 3.6-Plus - 262K context, 201 languages, MoE architecture
-  xai: 'grok-4',
+  anthropic: 'claude-sonnet-5',
+  anthropic_opus: 'claude-opus-5',
+  anthropic_haiku: 'claude-haiku-4-5-20251001', // Still the current Haiku - no 5-generation Haiku exists
+  openai: 'gpt-5.6-terra',
+  google: 'gemini-3.1-pro-preview', // Still the flagship Gemini and still preview-only - no GA promotion, no 3.2+ Pro
+  google_flash: 'gemini-3.6-flash', // Gemini 3.6 Flash - GA (no longer a preview pin); full-Flash tier restored after the 3.1 generation shipped Flash-Lite only
+  kimi: 'kimi-k3', // Moonshot AI Kimi K3 - 1M context; replaces kimi-k2.5, which sunsets 2026-08-31
+  alibaba: 'qwen3.7-plus', // Alibaba Qwen 3.7-Plus - 1M context, multimodal (vision), GA since 2026-06-01
+  xai: 'grok-4.5', // Grok 4.5 - 500K context, native video input
   host: 'host', // Delegates generation to the client via MCP Sampling
   openrouter: 'anthropic/claude-haiku-4.5', // PRD #194: OpenRouter default model (overridden by AI_MODEL env var)
-  custom: 'gpt-5.4', // PRD #194: Custom endpoint default model (overridden by AI_MODEL env var)
-  amazon_bedrock: 'global.anthropic.claude-sonnet-4-6', // PRD #175: Amazon Bedrock default model (overridden by AI_MODEL env var)
-  copilot: 'claude-sonnet-4.6', // PRD #587: GitHub Copilot provider - use dot notation (catalog ID); Copilot supports both /chat/completions and /v1/messages for Claude
+  custom: 'gpt-5.6-terra', // PRD #194: Custom endpoint default model (overridden by AI_MODEL env var)
+  amazon_bedrock: 'global.anthropic.claude-sonnet-5', // PRD #175: Amazon Bedrock default model (overridden by AI_MODEL env var)
+  copilot: 'claude-sonnet-5', // PRD #587: GitHub Copilot provider - catalog ID (dot notation only for minor versions, e.g. claude-sonnet-4.6); Copilot supports both /chat/completions and /v1/messages for Claude
 } as const;
 
 /**
