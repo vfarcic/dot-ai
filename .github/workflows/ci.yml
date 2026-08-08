@@ -100,8 +100,12 @@ jobs:
             tests: version
           - name: remediate
             tests: remediate
+          # mcp-progress folds in here rather than getting its own job: apply_profile
+          # unions infra across the listed names, and its recommend calls need the
+          # CNPG CRDs the recommend profile installs. Sharing the cluster also avoids
+          # a second spin-up.
           - name: recommend
-            tests: recommend
+            tests: recommend mcp-progress
           - name: query
             tests: query
           - name: manage-org-data-policies-capabilities

@@ -14,7 +14,11 @@ import { handleGenerateManifestsTool } from './generate-manifests';
 import { handleDeployManifestsTool } from './deploy-manifests';
 import { handlePushToGitTool } from './push-to-git';
 import { loadPrompt } from '../core/shared-prompt-loader';
-import { getCurrentIdentity } from '../interfaces/request-context';
+import {
+  getCurrentIdentity,
+  reportProgress,
+  RECOMMEND_PROGRESS_PHASES,
+} from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
 import { getVisualizationUrl } from '../core/visualization';
@@ -438,6 +442,11 @@ export async function handleRecommendTool(
           charts: chartsText
         });
 
+        // The Helm branch is the alternative fourth phase: findBestSolutions
+        // returns early when helmRecommendation is set, so the question-generation
+        // loop never runs and these two can never interleave. Reports 3 completed
+        // phases with the fourth in flight, same convention as that loop.
+        reportProgress(3, RECOMMEND_PROGRESS_PHASES, 'Selecting Helm chart…');
         const aiResponse = await dotAI.ai.sendMessage(
           chartSelectionPrompt,
           'recommend-helm-chart-selection',

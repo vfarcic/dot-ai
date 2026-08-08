@@ -88,7 +88,13 @@ import {
   DotAIOAuthProvider,
   type UserIdentity,
 } from './oauth';
-import { requestContext, getCurrentIdentity } from './request-context';
+import {
+  requestContext,
+  getCurrentIdentity,
+  buildProgressReporter,
+  startProgressHeartbeat,
+  type ProgressNotificationSource,
+} from './request-context';
 import { checkToolAccess, filterAuthorizedTools } from '../core/rbac';
 import express from 'express';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
@@ -267,7 +273,10 @@ export class MCPServer {
     inputSchema: Record<string, unknown>,
     handler: ToolHandler
   ): void {
-    const mcpTracedHandler = async (args: ToolArgs) => {
+    const mcpTracedHandler = async (
+      args: ToolArgs,
+      extra: ProgressNotificationSource
+    ) => {
       // RBAC enforcement (PRD #392) — invocation-time check as second layer of defense
       const identity = getCurrentIdentity();
       if (identity) {
@@ -286,9 +295,32 @@ export class MCPServer {
           };
         }
       }
-      return await withToolTracing(name, args, handler, {
-        mcpClient: session.clientInfo,
-      });
+
+      // Progress notifications (PRD #705) — no-op unless the client opted in
+      // with `_meta.progressToken`. Bound onto the request-scoped context so
+      // downstream blocking phases can emit without changing any signatures.
+      const store = requestContext.getStore();
+      const channel = buildProgressReporter(extra, error =>
+        this.logger.warn('Progress notification failed', { tool: name, error })
+      );
+      if (store) {
+        store.progress = channel?.report;
+      }
+
+      // Time-based heartbeat: guarantees liveness during silent blocking phases
+      // (e.g. recommend's serial question-generation loop) so an idle LB does
+      // not drop the connection. Shares one monotonic sequence with semantic
+      // updates via the channel. Cleared in `finally` to avoid timer leaks.
+      const stopHeartbeat = channel
+        ? startProgressHeartbeat(channel.heartbeat, name)
+        : undefined;
+      try {
+        return await withToolTracing(name, args, handler, {
+          mcpClient: session.clientInfo,
+        });
+      } finally {
+        stopHeartbeat?.();
+      }
     };
     /* eslint-disable @typescript-eslint/no-explicit-any -- MCP SDK type compatibility */
     server.registerTool(
