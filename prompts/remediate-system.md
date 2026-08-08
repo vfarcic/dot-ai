@@ -121,12 +121,22 @@ After identifying the problematic resource, check whether it is managed by a Git
 - **No validation actions**: Describe validation needs in `validationIntent`, not as separate actions
 
 **Kubectl Patch Strategy Selection**:
-- **Use `--type=json` for array updates** (containers, volumes, env vars):
-  - JSON Patch allows precise array element targeting by index
-  - Example: `kubectl patch deployment app -n ns --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/resources/limits/memory","value":"256Mi"}]'`
-- **Use `--type=merge` for simple field updates**:
-  - Simpler syntax for non-array fields
-  - Example: `kubectl patch deployment app -n ns --type=merge -p='{"spec":{"replicas":3}}'`
+
+Decide by inspecting the **hypothetical JSON merge-patch object** for the change you intend — not the payload you ultimately send, since a JSON Patch payload is itself always a top-level array and would make every update look like an array update.
+
+- **Use `--type=json` when that object would contain an array at any depth** (containers, volumes, env vars, ports):
+  - JSON Patch targets one array element by index and leaves every other field on that element untouched
+  - This covers container `resources`, `image`, `env`, `args`, and probes. They qualify even though the value being changed is a single scalar, because reaching them means writing `"containers": [ ... ]` in merge-patch form
+  - **Resolve the index before building the path.** Match the target container by name against the live object and use its position as `N` — never assume `0`, or a pod with a sidecar gets the wrong container patched:
+    `kubectl get deployment app -n ns -o jsonpath='{.spec.template.spec.containers[*].name}'`
+  - **Point the path at the field, not the element.** `/spec/template/spec/containers/N/image` changes the image; `/spec/template/spec/containers/N` replaces the entire container object and drops everything you did not restate
+  - **Pick `add` or `replace` by whether the path already exists.** `replace` requires the target to be present, so a container with no `resources` block needs `add` — check the live object first rather than assuming
+  - Example, replacing a limit that is already set on container `0`: `kubectl patch deployment app -n ns --type=json -p='[{"op":"replace","path":"/spec/template/spec/containers/0/resources/limits/memory","value":"256Mi"}]'`
+  - Example, adding a `resources` block that does not exist yet: `kubectl patch deployment app -n ns --type=json -p='[{"op":"add","path":"/spec/template/spec/containers/0/resources","value":{"limits":{"memory":"256Mi"}}}]'`
+- **Use `--type=merge` only when that object contains no array at any depth**:
+  - A JSON merge patch **replaces** any array it names rather than merging into it, so every field you did not repeat on that element is dropped
+  - Patching container resources this way deletes the container's `image` and the API server rejects the whole request with `spec.template.spec.containers[0].image: Required value`
+  - Example of a correct use — no array anywhere in the object: `kubectl patch deployment app -n ns --type=merge -p='{"spec":{"replicas":3}}'`
 - **Avoid `--type=strategic`**: Can cause "invalid character" errors with partial array specifications, especially for containers
 
 **Risk Assessment**:
