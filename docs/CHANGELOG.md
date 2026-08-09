@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [2.1.0] - 2026-08-09
+
+### Features
+
+- Long-running MCP tool calls (notably `recommend`) now emit `notifications/progress` for their whole duration, keeping the connection alive so a proxy/load-balancer idle timeout no longer drops an in-flight request. Progress is opt-in per call via `_meta.progressToken`; callers that do not send one — and all REST callers — are unaffected. A time-based heartbeat (default 20s, configurable with `mcp.progress.heartbeatIntervalMs`) guarantees liveness, and `recommend` layers semantic phase labels on top, which clients that surface progress messages will display. Claude Code needs no configuration: it registers a progress handler, so the token is sent automatically, and it resets its own idle timeout on every notification. Clients built directly on the MCP TypeScript SDK must additionally pass `resetTimeoutOnProgress` to extend their own request deadline. ([#705-mcp-progress-notifications](https://github.com/vfarcic/dot-ai/issues/705-mcp-progress-notifications))
+- ## Refreshed Pinned AI Model Versions Across Nine Providers
+
+  Nine provider pins have been upgraded to each provider's current model. The previous refresh was three months earlier, and every provider except Anthropic Haiku, Google Gemini Pro, and OpenRouter had shipped at least one newer model since.
+
+  - **Anthropic Sonnet**: `claude-sonnet-4-6` → `claude-sonnet-5`. Activated by default and when `AI_PROVIDER=anthropic`.
+  - **Anthropic Opus**: `claude-opus-4-7` → `claude-opus-5`. Activated when `AI_PROVIDER=anthropic_opus`.
+  - **OpenAI**: `gpt-5.4` → `gpt-5.6-terra`. Activated when `AI_PROVIDER=openai` or `AI_PROVIDER=custom`. Terra is the tier successor to the previous pin and is slightly cheaper ($2/$12 per million tokens versus $2.50/$15); `gpt-5.6-sol` is available as the flagship tier via `AI_MODEL` if you want to trade cost for capability.
+  - **Google Gemini Flash**: `gemini-3-flash-preview` → `gemini-3.6-flash`. Activated when `AI_PROVIDER=google_flash`. This also moves the pin off a preview model onto a GA one — Google shipped only Flash-Lite variants at the 3.1 generation, so the full-Flash tier was unavailable at the last refresh.
+  - **Moonshot Kimi**: `kimi-k2.5` → `kimi-k3`, with a 1M-token context window (up from 256K). Activated when `AI_PROVIDER=kimi`. This upgrade is time-critical: `kimi-k2.5` is already unavailable to newly registered Moonshot accounts and is sunset on 2026-08-31, so the old pin stops working regardless of upgrading.
+  - **Alibaba Qwen**: `qwen3.6-plus` → `qwen3.7-plus`, adding image understanding alongside text. Activated when `AI_PROVIDER=alibaba`.
+  - **xAI Grok**: `grok-4` → `grok-4.5`, with a 500K-token context window and text and image input. Activated when `AI_PROVIDER=xai`.
+  - **Amazon Bedrock**: `global.anthropic.claude-sonnet-4-6` → `global.anthropic.claude-sonnet-5`. Activated when `AI_PROVIDER=amazon_bedrock`.
+  - **GitHub Copilot**: `claude-sonnet-4.6` → `claude-sonnet-5`. Activated when `AI_PROVIDER=copilot`.
+
+  Three pins were evaluated and deliberately left alone because they are already current: Anthropic Haiku (`claude-haiku-4-5-20251001` — no Haiku 5 generation exists), Google Gemini Pro (`gemini-3.1-pro-preview` — still the flagship Gemini and still preview-only), and OpenRouter (`anthropic/claude-haiku-4.5`). Both embedding models are also unchanged and current: OpenAI's `text-embedding-3-small` has no announced successor, and Google's `gemini-embedding-001` remains the GA option.
+
+  No configuration changes are required for most users — the same provider API key environment variables continue to work, and `AI_MODEL` still overrides the pin for any provider. Two provider-side conditions are worth checking before upgrading: Amazon Bedrock users need Claude Sonnet 5 enabled for their AWS account, and GitHub Copilot's Claude Sonnet 5 requires a Copilot Pro, Pro+, Max, Business, or Enterprise plan. In either case, setting `AI_MODEL` to the previously pinned model restores the old behavior.
+
+  ([#742](https://github.com/vfarcic/dot-ai/issues/742))
+
+### Bug Fixes
+
+- Fixed remediation actions failing when a fix targets a field nested inside a container. The AI could choose `kubectl patch --type=merge` for changes like a memory limit, but a JSON merge patch replaces the `containers` array instead of merging into it, dropping the container's `image` and causing the API server to reject the command with `spec.template.spec.containers[0].image: Required value`. The remediation guidance now selects the patch type from the shape of the intended merge-patch object — anything containing an array uses `--type=json` — and additionally requires resolving the target container's index by name rather than assuming the first one, and choosing `add` over `replace` when the field being set does not exist yet. ([#736-remediate-merge-patch-arrays](https://github.com/vfarcic/dot-ai/issues/736-remediate-merge-patch-arrays))
+
+
 ## [2.0.0] - 2026-08-06
 
 ### Breaking Changes
