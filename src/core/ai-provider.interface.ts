@@ -226,7 +226,7 @@ export interface AIProvider {
    * NEW: Required to replace hardcoded model at claude.ts:181
    * Each provider has different model naming conventions.
    *
-   * @returns Model identifier (e.g., 'claude-sonnet-4-6', 'gpt-5.4', 'gemini-3.1-pro-preview')
+   * @returns Model identifier (e.g., 'claude-sonnet-5', 'gpt-5.6-terra', 'gemini-3.1-pro-preview')
    */
   getDefaultModel(): string;
 
@@ -242,7 +242,7 @@ export interface AIProvider {
   /**
    * Get the current model name being used
    *
-   * @returns Model name (e.g., 'grok-4', 'claude-sonnet-4-6')
+   * @returns Model name (e.g., 'grok-4.5', 'claude-sonnet-5')
    */
   getModelName(): string;
 
