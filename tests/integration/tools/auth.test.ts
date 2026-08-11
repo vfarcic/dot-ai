@@ -141,6 +141,22 @@ describe.concurrent('Authentication Integration', () => {
         data: { status: 'ok' },
       });
     });
+
+    test('should allow unauthenticated access to readyz and report ready', async () => {
+      // PRD #714 M4: /readyz verifies the capability subsystem. In the
+      // integration environment Qdrant is up and the collection is accessible,
+      // so the probe returns 200 (success: true) with a substantive signal.
+      const response = await unauthenticatedClient.get('/readyz');
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          ready: true,
+          vectorDBHealthy: true,
+          collectionAccessible: true,
+        },
+      });
+    });
   });
 
   describe('OAuth Discovery (RFC 9728 / RFC 8414)', () => {

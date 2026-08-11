@@ -376,6 +376,76 @@ async function getEmbeddingStatus(): Promise<SystemStatus['embedding']> {
 }
 
 /**
+ * Lean readiness signal for the `/readyz` probe (PRD #714 M4).
+ *
+ * Reuses the capability diagnostics — Qdrant reachable, collection accessible, and a
+ * (now cheap, M1) count — but omits the expensive embedding/list checks getCapabilityStatus
+ * runs, since the probe fires every ~5s. Results are cached for a short TTL so a burst of
+ * probes collapses to one backend round-trip (decision 4).
+ */
+export interface CapabilityReadiness {
+  ready: boolean;
+  vectorDBHealthy: boolean;
+  collectionAccessible: boolean;
+  storedCount?: number;
+  error?: string;
+  checkedAt: string;
+}
+
+const READINESS_CACHE_TTL_MS = 5000;
+let readinessCache: { value: CapabilityReadiness; expiresAt: number } | undefined;
+
+export function resetCapabilityReadinessCache(): void {
+  readinessCache = undefined;
+}
+
+export async function getCapabilityReadiness(
+  now: number = Date.now()
+): Promise<CapabilityReadiness> {
+  if (readinessCache && readinessCache.expiresAt > now) {
+    return readinessCache.value;
+  }
+
+  const checkedAt = new Date().toISOString();
+  let value: CapabilityReadiness;
+
+  try {
+    const capabilityService = new CapabilityVectorService();
+    const vectorDBHealthy = await capabilityService.healthCheck();
+
+    if (!vectorDBHealthy) {
+      value = {
+        ready: false,
+        vectorDBHealthy: false,
+        collectionAccessible: false,
+        checkedAt,
+      };
+    } else {
+      await capabilityService.initialize();
+      const storedCount = await capabilityService.getCapabilitiesCount();
+      value = {
+        ready: true,
+        vectorDBHealthy: true,
+        collectionAccessible: true,
+        storedCount,
+        checkedAt,
+      };
+    }
+  } catch (error) {
+    value = {
+      ready: false,
+      vectorDBHealthy: false,
+      collectionAccessible: false,
+      error: error instanceof Error ? error.message : String(error),
+      checkedAt,
+    };
+  }
+
+  readinessCache = { value, expiresAt: now + READINESS_CACHE_TTL_MS };
+  return value;
+}
+
+/**
  * Test capability system readiness
  */
 async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
