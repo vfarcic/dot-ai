@@ -156,6 +156,47 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(listResponse.success).toBe(true);
       expect(listResponse.data.result.data.capabilities.length).toBeGreaterThan(0);
 
+      // === PRD #714 M2: list contract — truncation, full listing, identity-only ===
+      const listData = listResponse.data.result.data;
+      const scannedTotal = listData.totalCount;
+
+      // A limit below the total flags truncation explicitly (the mandatory
+      // check a consumer computing a diff must honor).
+      const truncatedResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 1,
+        interaction_id: 'verify_truncation_flag'
+      });
+      expect(truncatedResponse.data.result.data.returnedCount).toBe(1);
+      expect(truncatedResponse.data.result.data.totalCount).toBe(scannedTotal);
+      expect(truncatedResponse.data.result.data.truncated).toBe(scannedTotal > 1);
+
+      // A ceiling-sized limit returns the whole set and reports not-truncated.
+      const fullResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10000,
+        interaction_id: 'verify_full_listing'
+      });
+      expect(fullResponse.data.result.data.returnedCount).toBe(scannedTotal);
+      expect(fullResponse.data.result.data.capabilities.length).toBe(scannedTotal);
+      expect(fullResponse.data.result.data.truncated).toBe(false);
+
+      // identityOnly returns only identity fields, no heavy payload.
+      const identityResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10000,
+        identityOnly: true,
+        interaction_id: 'verify_identity_projection'
+      });
+      expect(identityResponse.data.result.data.returnedCount).toBe(scannedTotal);
+      const identityItem = identityResponse.data.result.data.capabilities[0];
+      expect(identityItem).toHaveProperty('id');
+      expect(identityItem).toHaveProperty('resourceName');
+      expect(Object.keys(identityItem).sort()).toEqual(['id', 'resourceName']);
+
       // Get a specific capability ID for RUD operations
       const capabilityId = listResponse.data.result.data.capabilities[0].id;
       const capabilityResourceName = listResponse.data.result.data.capabilities[0].resourceName;
