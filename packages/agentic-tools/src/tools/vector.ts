@@ -24,6 +24,7 @@ import {
   remove,
   removeAll,
   list,
+  count,
   initializeCollection,
   getCollectionStats,
   searchByKeywords,
@@ -373,6 +374,55 @@ export const vectorList: QdrantTool = {
 };
 
 /**
+ * vector_count - Count documents in a collection without fetching payloads
+ */
+export const vectorCount: QdrantTool = {
+  definition: {
+    name: 'vector_count',
+    type: 'agentic',
+    description:
+      'Count documents in a collection without fetching their payloads. Uses the Qdrant count API, so it stays cheap regardless of collection size.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collection: { type: 'string', description: 'Collection name' },
+        filter: {
+          type: 'object',
+          description: 'Optional Qdrant filter to narrow the count',
+        },
+      },
+      required: ['collection'],
+    },
+  },
+  handler: withQdrantValidation(async args => {
+    const collection = requireQdrantParam<string>(
+      args,
+      'collection',
+      'vector_count'
+    );
+    const filter = optionalQdrantParam<Record<string, unknown> | undefined>(
+      args,
+      'filter',
+      undefined
+    );
+
+    try {
+      const total = await count(collection, { filter });
+      return qdrantSuccessResult(
+        total,
+        `Collection '${collection}' contains ${total} documents`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return qdrantErrorResult(
+        message,
+        `Failed to count documents in '${collection}': ${message}`
+      );
+    }
+  }),
+};
+
+/**
  * collection_initialize - Initialize or verify a collection
  */
 export const collectionInitialize: QdrantTool = {
@@ -683,6 +733,7 @@ export const VECTOR_TOOLS: QdrantTool[] = [
   vectorDelete,
   vectorDeleteAll,
   vectorList,
+  vectorCount,
   collectionInitialize,
   collectionStats,
   collectionList,

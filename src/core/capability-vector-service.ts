@@ -212,8 +212,6 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
    * Get count of stored capabilities
    */
   async getCapabilitiesCount(): Promise<number> {
-    // Use getAllData to get count since base class doesn't expose getCount
-    const allCapabilities = await this.getAllData(); // Get all capabilities to count them
-    return allCapabilities.length;
+    return await this.getDataCount();
   }
 }
