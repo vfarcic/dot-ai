@@ -150,7 +150,7 @@ function assertContract(name: string, actual: unknown): void {
   expect(actual).toEqual(committed);
 }
 
-describe('capabilities list/scan/progress/delete response contract (PRD #714)', () => {
+describe('capabilities list/progress/delete response contract (PRD #714)', () => {
   it('list — full projection', async () => {
     const result = await handleCapabilityList(
       { limit: 100 },

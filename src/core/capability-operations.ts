@@ -103,7 +103,7 @@ export async function handleCapabilityList(
     const MAX_LIMIT = 10000;
     const rawLimit = Number(args.limit);
     const requestedLimit =
-      Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : DEFAULT_LIMIT;
+      Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : DEFAULT_LIMIT;
     const limit = Math.min(requestedLimit, MAX_LIMIT);
     const identityOnly = args.identityOnly === true;
 

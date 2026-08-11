@@ -157,7 +157,34 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(listResponse.data.result.data.capabilities.length).toBeGreaterThan(0);
 
       // === PRD #714 M2: list contract — truncation, full listing, identity-only ===
-      const listData = listResponse.data.result.data;
+      // The progress poll above exits early (>= minSuccessfulResources), so the scan may
+      // still be writing. The exact-count assertions below require a stable collection, so
+      // wait for the scan to complete before capturing scannedTotal.
+      let scanComplete = false;
+      for (let i = 0; i < maxAttempts && !scanComplete; i++) {
+        const p = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId,
+          interaction_id: `await_complete_${i}`
+        });
+        const status = p?.data?.result?.progress?.status;
+        if (status === 'complete' || status === 'completed') {
+          scanComplete = true;
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
+      expect(scanComplete).toBe(true);
+
+      // Re-list against the now-stable collection so totalCount cannot shift mid-assertion.
+      const stableListResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10,
+        interaction_id: 'verify_scan_stable'
+      });
+      const listData = stableListResponse.data.result.data;
       const scannedTotal = listData.totalCount;
 
       // A limit below the total flags truncation explicitly (the mandatory

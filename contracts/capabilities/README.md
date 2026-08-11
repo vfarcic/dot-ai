@@ -1,7 +1,7 @@
 # Capabilities response contract (PRD #714)
 
 Machine-consumable golden fixtures for the `manageOrgData` **capabilities**
-`list` / `scan` / `progress` / `delete` responses. These files are the published,
+`list` / `progress` / `delete` responses. These files are the published,
 test-enforced wire contract: downstream consumers (notably
 [`dot-ai-controller`](https://github.com/vfarcic/dot-ai-controller)) unmarshal them in
 their own tests, so changing the response shape in this repo fails those builds until the
