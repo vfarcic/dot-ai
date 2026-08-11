@@ -394,9 +394,11 @@ export interface CapabilityReadiness {
 
 const READINESS_CACHE_TTL_MS = 5000;
 let readinessCache: { value: CapabilityReadiness; expiresAt: number } | undefined;
+let readinessInFlight: Promise<CapabilityReadiness> | undefined;
 
 export function resetCapabilityReadinessCache(): void {
   readinessCache = undefined;
+  readinessInFlight = undefined;
 }
 
 export async function getCapabilityReadiness(
@@ -406,43 +408,60 @@ export async function getCapabilityReadiness(
     return readinessCache.value;
   }
 
+  // Coalesce concurrent cache misses onto a single backend probe so a burst of
+  // /readyz requests doesn't fan out into N healthCheck/initialize/count calls.
+  if (readinessInFlight) {
+    return readinessInFlight;
+  }
+
+  readinessInFlight = (async () => {
+    try {
+      const value = await probeCapabilityReadiness();
+      readinessCache = { value, expiresAt: now + READINESS_CACHE_TTL_MS };
+      return value;
+    } finally {
+      readinessInFlight = undefined;
+    }
+  })();
+  return readinessInFlight;
+}
+
+async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
   const checkedAt = new Date().toISOString();
-  let value: CapabilityReadiness;
 
   try {
     const capabilityService = new CapabilityVectorService();
     const vectorDBHealthy = await capabilityService.healthCheck();
 
     if (!vectorDBHealthy) {
-      value = {
+      return {
         ready: false,
         vectorDBHealthy: false,
         collectionAccessible: false,
         checkedAt,
       };
-    } else {
-      await capabilityService.initialize();
-      const storedCount = await capabilityService.getCapabilitiesCount();
-      value = {
-        ready: true,
-        vectorDBHealthy: true,
-        collectionAccessible: true,
-        storedCount,
-        checkedAt,
-      };
     }
-  } catch (error) {
-    value = {
+
+    await capabilityService.initialize();
+    const storedCount = await capabilityService.getCapabilitiesCount();
+    return {
+      ready: true,
+      vectorDBHealthy: true,
+      collectionAccessible: true,
+      storedCount,
+      checkedAt,
+    };
+  } catch {
+    // /readyz is unauthenticated, so keep the message generic — a raw backend
+    // error can disclose internal service, network, or configuration details.
+    return {
       ready: false,
       vectorDBHealthy: false,
       collectionAccessible: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: 'capability readiness check failed',
       checkedAt,
     };
   }
-
-  readinessCache = { value, expiresAt: now + READINESS_CACHE_TTL_MS };
-  return value;
 }
 
 /**

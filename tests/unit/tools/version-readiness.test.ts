@@ -64,8 +64,8 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
     expect(getCapabilitiesCount).not.toHaveBeenCalled();
   });
 
-  it('is not ready and surfaces the error when a check throws', async () => {
-    healthCheck.mockRejectedValue(new Error('connect ECONNREFUSED'));
+  it('is not ready and reports a generic error when a check throws', async () => {
+    healthCheck.mockRejectedValue(new Error('connect ECONNREFUSED 10.0.0.5:6333'));
 
     const readiness = await getCapabilityReadiness(1000);
 
@@ -73,8 +73,35 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
       ready: false,
       vectorDBHealthy: false,
       collectionAccessible: false,
-      error: 'connect ECONNREFUSED',
+      // /readyz is unauthenticated: the raw backend error must not leak.
+      error: 'capability readiness check failed',
     });
+    expect(readiness.error).not.toContain('ECONNREFUSED');
+    expect(readiness.error).not.toContain('10.0.0.5');
+  });
+
+  it('coalesces concurrent probes onto a single backend check', async () => {
+    let resolveHealth!: (value: boolean) => void;
+    healthCheck.mockReturnValue(
+      new Promise<boolean>(resolve => {
+        resolveHealth = resolve;
+      })
+    );
+    getCapabilitiesCount.mockResolvedValue(7);
+
+    // Three probes race before the first backend call resolves.
+    const p1 = getCapabilityReadiness(1000);
+    const p2 = getCapabilityReadiness(1000);
+    const p3 = getCapabilityReadiness(1000);
+    resolveHealth(true);
+    const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+
+    expect(healthCheck).toHaveBeenCalledTimes(1);
+    expect(getCapabilitiesCount).toHaveBeenCalledTimes(1);
+    expect(r1).toMatchObject({ ready: true, storedCount: 7 });
+    // All concurrent callers share the one resolved value.
+    expect(r2).toBe(r1);
+    expect(r3).toBe(r1);
   });
 
   it('serves a cached result within the TTL, then refreshes after it expires', async () => {

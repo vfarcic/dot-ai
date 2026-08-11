@@ -766,10 +766,21 @@ export class MCPServer {
             // outage takes the pod out of rotation without restarting it.
             if (req.url === '/readyz' && req.method === 'GET') {
               const readiness = await getCapabilityReadiness();
+              // Serialize only the public readiness fields — /readyz is
+              // unauthenticated, so never echo internal diagnostics that may be
+              // added to the readiness object later.
+              const body = {
+                ready: readiness.ready,
+                vectorDBHealthy: readiness.vectorDBHealthy,
+                collectionAccessible: readiness.collectionAccessible,
+                storedCount: readiness.storedCount,
+                error: readiness.error,
+                checkedAt: readiness.checkedAt,
+              };
               res.writeHead(readiness.ready ? 200 : 503, {
                 'Content-Type': 'application/json',
               });
-              res.end(JSON.stringify(readiness));
+              res.end(JSON.stringify(body));
               endSpan(readiness.ready ? 200 : 503);
               return;
             }
