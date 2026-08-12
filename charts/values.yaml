@@ -362,6 +362,11 @@ localEmbeddings:
     tag: "cpu-latest"
   model: "sentence-transformers/all-MiniLM-L6-v2"  # Embedding model (384 dimensions)
   dimensions: 384                   # Must match the model's output dimensions
+  # Pod scheduling (optional). Pin the local embeddings workload to specific
+  # nodes, or constrain placement with affinity and tolerations.
+  nodeSelector: {}                  # Map of node labels to match
+  affinity: {}                      # Pod affinity/anti-affinity rules
+  tolerations: []                   # Pod tolerations for tainted nodes
   # Opt-in workaround (default off). TEI's built-in downloader cannot fetch models
   # stored on HuggingFace's Xet backend (fails with "Header content-range is
   # missing"). When enabled, an initContainer prefetches the model with a Xet-aware

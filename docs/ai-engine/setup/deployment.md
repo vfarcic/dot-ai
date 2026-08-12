@@ -403,7 +403,7 @@ This is already included in the [Quick Start](#quick-start-5-minutes) above. No 
 | **Model** | `all-MiniLM-L6-v2` (384 dimensions) |
 | **Resource footprint** | ~256 MB RAM, 250m CPU (request) |
 | **GPU** | Not required |
-| **Architecture** | amd64 only (no ARM64/Apple Silicon — see [TEI issue #769](https://github.com/huggingface/text-embeddings-inference/issues/769)) |
+| **Architecture** | amd64 only (no ARM64/Apple Silicon — see [TEI issue #769](https://github.com/huggingface/text-embeddings-inference/issues/769)). On mixed-arch clusters, pin the pod with [nodeSelector](#local-embeddings-scheduling). |
 
 To customize the model or resources:
 
@@ -420,6 +420,37 @@ localEmbeddings:
       cpu: "1"
       memory: "512Mi"
 ```
+
+#### Pod scheduling {#local-embeddings-scheduling}
+
+The TEI image is amd64-only, so on a mixed-architecture cluster the local
+embeddings pod must be pinned to compatible nodes. Use `nodeSelector`,
+`affinity`, and `tolerations` to control placement — for example, to keep it on
+amd64 nodes, target a dedicated node pool, and tolerate that pool's taint:
+
+```yaml
+localEmbeddings:
+  enabled: true
+  nodeSelector:
+    kubernetes.io/arch: amd64
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: ml
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: ["m7i.large"]
+```
+
+All three default to empty and are omitted from the rendered Deployment when
+unset, so existing installations are unaffected. They apply only to the local
+embeddings Deployment — no other workload in the chart is affected.
 
 #### Embedding model prefetch (HuggingFace Xet workaround) {#local-embeddings-prefetch}
 
