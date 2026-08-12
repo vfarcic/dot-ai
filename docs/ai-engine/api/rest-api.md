@@ -185,8 +185,7 @@ GET /readyz
 - **`/readyz` (readiness)** — verifies the capability subsystem before accepting traffic.
   Returns `200` when ready and `503` when not, so a Qdrant, collection, or embedding
   (TEI) outage takes the pod out of the Service rotation **without** restarting it. Backs
-  the `readinessProbe`. The embedding check gates on the [#709](https://github.com/vfarcic/dot-ai/discussions/709)
-  root cause: TEI still loading its model while Qdrant is already up.
+  the `readinessProbe`. 
 
 The `/readyz` body is a raw JSON object (not the standard envelope):
 

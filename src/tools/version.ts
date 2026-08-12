@@ -449,8 +449,8 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
     await capabilityService.initialize();
     const storedCount = await capabilityService.getCapabilitiesCount();
 
-    // The #709 race is the embedding backend (TEI) still loading its model while
-    // Qdrant is already up. Generate a probe embedding so /readyz reports ready
+    
+    // Generate a probe embedding so /readyz reports ready
     // only once embeddings actually serve. Isolated so an embedding outage still
     // reports the healthy Qdrant/collection signals rather than masking them.
     let embeddingHealthy = false;
