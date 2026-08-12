@@ -318,8 +318,9 @@ stable, published response shape. The payload lives at `data.result.data` and ca
   cluster resources.
 - `totalCount` — total capabilities in the collection (counted cheaply, not by listing).
 - `returnedCount` / `limit` — how many were returned and the effective ceiling.
-- `truncated` — `true` when `returnedCount < totalCount`; a consumer computing a diff must
-  treat a truncated list as incomplete.
+- `truncated` — `true` when the returned list was capped by `limit`
+  (`returnedCount === limit`); a consumer computing a diff must treat a truncated
+  list as incomplete.
 
 Two parameters control the response:
 

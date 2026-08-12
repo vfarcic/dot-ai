@@ -410,7 +410,8 @@ export async function getCapabilityReadiness(
   }
 
   // Coalesce concurrent cache misses onto a single backend probe so a burst of
-  // /readyz requests doesn't fan out into N healthCheck/initialize/count calls.
+  // /readyz requests doesn't fan out into N healthCheck/collectionExists/count
+  // calls.
   if (readinessInFlight) {
     return readinessInFlight;
   }
@@ -446,10 +447,19 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
       };
     }
 
-    await capabilityService.initialize();
+    const collectionAccessible = await capabilityService.collectionExists();
+    if (!collectionAccessible) {
+      return {
+        ready: false,
+        vectorDBHealthy: true,
+        collectionAccessible: false,
+        embeddingHealthy: false,
+        checkedAt,
+      };
+    }
+
     const storedCount = await capabilityService.getCapabilitiesCount();
 
-    
     // Generate a probe embedding so /readyz reports ready
     // only once embeddings actually serve. Isolated so an embedding outage still
     // reports the healthy Qdrant/collection signals rather than masking them.

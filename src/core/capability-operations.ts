@@ -109,9 +109,9 @@ export async function handleCapabilityList(
 
     const capabilities = await capabilityService.getAllCapabilities(limit);
     const count = await capabilityService.getCapabilitiesCount();
-    // The list is truncated whenever it did not return the whole collection.
-    // Consumers computing a diff must treat a truncated list as incomplete.
-    const truncated = capabilities.length < count;
+    // Derive truncation from the single list read against the ceiling: a list that filled the limit may be
+    // capped. Consumers computing a diff must treat a truncated list as incomplete.
+    const truncated = capabilities.length >= limit;
 
     logger.info('Capabilities listed successfully', {
       requestId,

@@ -8,9 +8,9 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { healthCheck, initialize, getCapabilitiesCount } = vi.hoisted(() => ({
+const { healthCheck, collectionExists, getCapabilitiesCount } = vi.hoisted(() => ({
   healthCheck: vi.fn(),
-  initialize: vi.fn(),
+  collectionExists: vi.fn(),
   getCapabilitiesCount: vi.fn(),
 }));
 
@@ -22,7 +22,7 @@ const { generateEmbedding, getEmbeddingStatus } = vi.hoisted(() => ({
 vi.mock('../../../src/core/capability-vector-service', () => ({
   // Normal function, not an arrow — Reflect.construct rejects arrow constructors.
   CapabilityVectorService: vi.fn(function () {
-    return { healthCheck, initialize, getCapabilitiesCount };
+    return { healthCheck, collectionExists, getCapabilitiesCount };
   }),
 }));
 
@@ -48,7 +48,7 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
   beforeEach(() => {
     resetCapabilityReadinessCache();
     healthCheck.mockReset();
-    initialize.mockReset().mockResolvedValue(undefined);
+    collectionExists.mockReset().mockResolvedValue(true);
     getCapabilitiesCount.mockReset();
     getEmbeddingStatus.mockReset().mockReturnValue({ dimensions: 1536 });
     generateEmbedding.mockReset().mockResolvedValue(validEmbedding());
@@ -67,7 +67,33 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
       embeddingHealthy: true,
       storedCount: 42,
     });
-    expect(initialize).toHaveBeenCalledTimes(1);
+    expect(collectionExists).toHaveBeenCalledTimes(1);
+  });
+
+  it('is read-only: the probe never creates the collection', async () => {
+    healthCheck.mockResolvedValue(true);
+    getCapabilitiesCount.mockResolvedValue(0);
+
+    await getCapabilityReadiness(() => 1000);
+
+    // initialize() creates the collection if absent; a probe must not.
+    expect(collectionExists).toHaveBeenCalledTimes(1);
+  });
+
+  it('is not ready when the collection is absent even though Qdrant is up', async () => {
+    healthCheck.mockResolvedValue(true);
+    collectionExists.mockResolvedValue(false);
+
+    const readiness = await getCapabilityReadiness(() => 1000);
+
+    expect(readiness).toMatchObject({
+      ready: false,
+      vectorDBHealthy: true,
+      collectionAccessible: false,
+      embeddingHealthy: false,
+    });
+    // An absent collection is not-ready without counting or embedding.
+    expect(getCapabilitiesCount).not.toHaveBeenCalled();
   });
 
   it('is not ready when Qdrant is unreachable', async () => {
@@ -82,7 +108,7 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
       embeddingHealthy: false,
     });
     // The collection is never touched once the DB is down.
-    expect(initialize).not.toHaveBeenCalled();
+    expect(collectionExists).not.toHaveBeenCalled();
     expect(getCapabilitiesCount).not.toHaveBeenCalled();
   });
 

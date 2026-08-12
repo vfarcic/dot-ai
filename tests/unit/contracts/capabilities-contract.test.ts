@@ -36,6 +36,7 @@ import {
   ResourceCapability,
 } from '../../../src/core/capabilities';
 import { Logger } from '../../../src/core/error-handling';
+import { buildToolExecutionResponse } from '../../../src/interfaces/rest-api';
 
 // handleCapabilityCRUD constructs its own CapabilityVectorService; mock it so the empty /
 // backend-unavailable paths can be exercised without a live Qdrant.
@@ -95,22 +96,18 @@ const SAMPLE_CAPABILITIES: ResourceCapability[] = [
 
 /**
  * Wrap a tool result in the exact REST ToolExecutionResponse envelope a consumer sees.
- * Mirrors src/interfaces/rest-api.ts (executionTime/meta pinned for determinism).
+ * Built through the real `buildToolExecutionResponse` so an envelope change in the REST
+ * layer is caught by this contract.
  */
 function envelope(result: unknown): unknown {
-  return {
-    success: true,
-    data: {
-      result,
-      tool: 'manageOrgData',
-      executionTime: 0,
-    },
-    meta: {
-      timestamp: FIXED_TIMESTAMP,
-      requestId: FIXED_REQUEST_ID,
-      version: FIXED_VERSION,
-    },
-  };
+  return buildToolExecutionResponse({
+    result,
+    tool: 'manageOrgData',
+    executionTime: 0,
+    requestId: FIXED_REQUEST_ID,
+    version: FIXED_VERSION,
+    timestamp: FIXED_TIMESTAMP,
+  });
 }
 
 function fakeService(
