@@ -773,6 +773,7 @@ export class MCPServer {
                 ready: readiness.ready,
                 vectorDBHealthy: readiness.vectorDBHealthy,
                 collectionAccessible: readiness.collectionAccessible,
+                embeddingHealthy: readiness.embeddingHealthy,
                 storedCount: readiness.storedCount,
                 error: readiness.error,
                 checkedAt: readiness.checkedAt,

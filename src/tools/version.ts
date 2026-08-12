@@ -387,6 +387,7 @@ export interface CapabilityReadiness {
   ready: boolean;
   vectorDBHealthy: boolean;
   collectionAccessible: boolean;
+  embeddingHealthy: boolean;
   storedCount?: number;
   error?: string;
   checkedAt: string;
@@ -402,9 +403,9 @@ export function resetCapabilityReadinessCache(): void {
 }
 
 export async function getCapabilityReadiness(
-  now: number = Date.now()
+  clock: () => number = Date.now
 ): Promise<CapabilityReadiness> {
-  if (readinessCache && readinessCache.expiresAt > now) {
+  if (readinessCache && readinessCache.expiresAt > clock()) {
     return readinessCache.value;
   }
 
@@ -417,7 +418,9 @@ export async function getCapabilityReadiness(
   readinessInFlight = (async () => {
     try {
       const value = await probeCapabilityReadiness();
-      readinessCache = { value, expiresAt: now + READINESS_CACHE_TTL_MS };
+      // Anchor expiry to probe completion, not call start: a slow backend must
+      // not shorten (or, when it takes >= TTL, negate) the cache window.
+      readinessCache = { value, expiresAt: clock() + READINESS_CACHE_TTL_MS };
       return value;
     } finally {
       readinessInFlight = undefined;
@@ -438,16 +441,37 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
         ready: false,
         vectorDBHealthy: false,
         collectionAccessible: false,
+        embeddingHealthy: false,
         checkedAt,
       };
     }
 
     await capabilityService.initialize();
     const storedCount = await capabilityService.getCapabilitiesCount();
+
+    // The #709 race is the embedding backend (TEI) still loading its model while
+    // Qdrant is already up. Generate a probe embedding so /readyz reports ready
+    // only once embeddings actually serve. Isolated so an embedding outage still
+    // reports the healthy Qdrant/collection signals rather than masking them.
+    let embeddingHealthy = false;
+    try {
+      const embeddingService = new EmbeddingService();
+      const expectedDimensions = embeddingService.getStatus().dimensions || 1536;
+      const probeEmbedding =
+        await embeddingService.generateEmbedding('readiness probe');
+      embeddingHealthy =
+        Array.isArray(probeEmbedding) &&
+        probeEmbedding.length === expectedDimensions &&
+        probeEmbedding.every(Number.isFinite);
+    } catch {
+      embeddingHealthy = false;
+    }
+
     return {
-      ready: true,
+      ready: embeddingHealthy,
       vectorDBHealthy: true,
       collectionAccessible: true,
+      embeddingHealthy,
       storedCount,
       checkedAt,
     };
@@ -458,6 +482,7 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
       ready: false,
       vectorDBHealthy: false,
       collectionAccessible: false,
+      embeddingHealthy: false,
       error: 'capability readiness check failed',
       checkedAt,
     };

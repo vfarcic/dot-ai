@@ -183,8 +183,10 @@ GET /readyz
 - **`/healthz` (liveness)** — always returns `200 {"status":"ok"}` while the process is
   running. Backs the `livenessProbe`; a failure here means the pod is restarted.
 - **`/readyz` (readiness)** — verifies the capability subsystem before accepting traffic.
-  Returns `200` when ready and `503` when not, so a Qdrant or collection outage takes the
-  pod out of the Service rotation **without** restarting it. Backs the `readinessProbe`.
+  Returns `200` when ready and `503` when not, so a Qdrant, collection, or embedding
+  (TEI) outage takes the pod out of the Service rotation **without** restarting it. Backs
+  the `readinessProbe`. The embedding check gates on the [#709](https://github.com/vfarcic/dot-ai/discussions/709)
+  root cause: TEI still loading its model while Qdrant is already up.
 
 The `/readyz` body is a raw JSON object (not the standard envelope):
 
@@ -193,13 +195,15 @@ The `/readyz` body is a raw JSON object (not the standard envelope):
   "ready": true,
   "vectorDBHealthy": true,
   "collectionAccessible": true,
+  "embeddingHealthy": true,
   "storedCount": 42,
   "checkedAt": "2026-08-11T00:00:00.000Z"
 }
 ```
 
-When the vector DB is unreachable or the collection is missing, `ready` is `false`, the
-relevant flag is `false`, an `error` string may be included, and the HTTP status is `503`.
+When the vector DB is unreachable, the collection is missing, or the embedding backend
+cannot serve, `ready` is `false`, the relevant flag is `false`, an `error` string may be
+included, and the HTTP status is `503`.
 Results are cached for a few seconds so probes don't hammer the vector DB.
 
 ### Response Format
