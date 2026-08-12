@@ -109,6 +109,8 @@ spec:
           value: "local-embeddings-no-key-required"
         - name: CUSTOM_EMBEDDINGS_BASE_URL
           value: "http://{{ .Release.Name }}-local-embeddings.{{ .Release.Namespace }}.svc.cluster.local:80/v1"
+        - name: EMBEDDINGS_MODEL
+          value: {{ .Values.localEmbeddings.model | quote }}
         - name: EMBEDDINGS_DIMENSIONS
           value: {{ .Values.localEmbeddings.dimensions | quote }}
 {{- end }}

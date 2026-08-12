@@ -127,7 +127,11 @@ describe.concurrent('Embeddings env var rendering (Issue #465)', () => {
     expect(apiKeyEntries).toHaveLength(1);
     expect(apiKeyEntries[0].value).toBe('local-embeddings-no-key-required');
 
-    // EMBEDDINGS_DIMENSIONS from localEmbeddings
+    // EMBEDDINGS_MODEL and EMBEDDINGS_DIMENSIONS from localEmbeddings
+    const modelEntries = env.filter(e => e.name === 'EMBEDDINGS_MODEL');
+    expect(modelEntries).toHaveLength(1);
+    expect(modelEntries[0].value).toBe('sentence-transformers/all-MiniLM-L6-v2');
+
     const dimEntries = env.filter(e => e.name === 'EMBEDDINGS_DIMENSIONS');
     expect(dimEntries).toHaveLength(1);
     expect(dimEntries[0].value).toBe('384');
@@ -138,9 +142,11 @@ describe.concurrent('Embeddings env var rendering (Issue #465)', () => {
       'ai.customEndpoint.enabled=true',
       'ai.customEndpoint.baseURL=https://my-llm:443/v1',
       'ai.customEndpoint.embeddingsBaseURL=https://my-embeddings:443/v1',
+      'ai.customEndpoint.embeddingsModel=custom-embed',
       'ai.customEndpoint.embeddingsDimensions=768',
       'ai.customEndpoint.headers={"X-Custom":"val"}',
       'localEmbeddings.enabled=true',
+      'localEmbeddings.model=local-embed',
     ]);
     const env = getMcpServerEnv(docs);
 
@@ -154,7 +160,11 @@ describe.concurrent('Embeddings env var rendering (Issue #465)', () => {
     expect(apiKeyEntries).toHaveLength(1);
     expect(apiKeyEntries[0].value).toBe('local-embeddings-no-key-required');
 
-    // EMBEDDINGS_DIMENSIONS from localEmbeddings (not customEndpoint)
+    // EMBEDDINGS_MODEL and EMBEDDINGS_DIMENSIONS from localEmbeddings (not customEndpoint)
+    const modelEntries = env.filter(e => e.name === 'EMBEDDINGS_MODEL');
+    expect(modelEntries).toHaveLength(1);
+    expect(modelEntries[0].value).toBe('local-embed');
+
     const dimEntries = env.filter(e => e.name === 'EMBEDDINGS_DIMENSIONS');
     expect(dimEntries).toHaveLength(1);
     expect(dimEntries[0].value).toBe('384');
