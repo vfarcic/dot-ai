@@ -393,7 +393,7 @@ export interface CapabilityReadiness {
   checkedAt: string;
 }
 
-const READINESS_CACHE_TTL_MS = 5000;
+const READINESS_CACHE_TTL_MS = 2500;
 let readinessCache: { value: CapabilityReadiness; expiresAt: number } | undefined;
 let readinessInFlight: Promise<CapabilityReadiness> | undefined;
 
@@ -452,13 +452,17 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
       };
     }
 
-    // Informational only — never gates readiness. An absent collection is a valid
-    // fresh-install state (empty list), and collectionExists() is read-only so the
-    // probe never creates the collection as a side effect.
-    const collectionAccessible = await capabilityService.collectionExists();
-    const storedCount = collectionAccessible
-      ? await capabilityService.getCapabilitiesCount()
-      : 0;
+    let collectionAccessible = false;
+    let storedCount: number | undefined;
+    try {
+      collectionAccessible = await capabilityService.collectionExists();
+      storedCount = collectionAccessible
+        ? await capabilityService.getCapabilitiesCount()
+        : 0;
+    } catch {
+      collectionAccessible = false;
+      storedCount = undefined;
+    }
 
     // Live "can it serve?" probe — only in semantic mode. Keyword-only deployments
     // serve capability reads without embeddings, so they are ready without one.

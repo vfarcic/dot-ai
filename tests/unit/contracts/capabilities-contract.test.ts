@@ -98,10 +98,18 @@ const SAMPLE_CAPABILITIES: ResourceCapability[] = [
  * Wrap a tool result in the exact REST ToolExecutionResponse envelope a consumer sees.
  * Built through the real `buildToolExecutionResponse` so an envelope change in the REST
  * layer is caught by this contract.
+ *
+ * The handler result is first round-tripped through the same JSON serialization the wire
+ * performs (manageOrgData does `JSON.stringify(result)` into `content[0].text`; the REST
+ * layer `JSON.parse`s it back), so a value that isn't JSON-safe (a Date, undefined, a
+ * function) drifts the fixture and fails the test. The manageOrgData routing wrapper adds
+ * no transform of its own; the true nesting (`data.result.data.capabilities`) is guarded
+ * by the integration test.
  */
 function envelope(result: unknown): unknown {
+  const wire = JSON.parse(JSON.stringify(result));
   return buildToolExecutionResponse({
-    result,
+    result: wire,
     tool: 'manageOrgData',
     executionTime: 0,
     requestId: FIXED_REQUEST_ID,
@@ -180,7 +188,8 @@ describe('capabilities list/progress/delete response contract (PRD #714)', () =>
       logger,
       FIXED_REQUEST_ID,
       fakeService({
-        getAllCapabilities: async () => SAMPLE_CAPABILITIES.slice(0, 1),
+        // Honor the requested count so the fetch-limit+1 truncation probe sees "more".
+        getAllCapabilities: async (n: number) => SAMPLE_CAPABILITIES.slice(0, n),
         getCapabilitiesCount: async () => SAMPLE_CAPABILITIES.length,
       })
     );

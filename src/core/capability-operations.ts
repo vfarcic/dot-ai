@@ -107,11 +107,11 @@ export async function handleCapabilityList(
     const limit = Math.min(requestedLimit, MAX_LIMIT);
     const identityOnly = args.identityOnly === true;
 
-    const capabilities = await capabilityService.getAllCapabilities(limit);
+    const capabilities = await capabilityService.getAllCapabilities(limit + 1);
     const count = await capabilityService.getCapabilitiesCount();
-    // Derive truncation from the single list read against the ceiling: a list that filled the limit may be
-    // capped. Consumers computing a diff must treat a truncated list as incomplete.
-    const truncated = capabilities.length >= limit;
+    // Fetch one past the ceiling so a full page reveals whether more remain, then trim.
+    const truncated = capabilities.length > limit;
+    capabilities.splice(limit);
 
     logger.info('Capabilities listed successfully', {
       requestId,

@@ -104,6 +104,24 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
     expect(getCapabilitiesCount).not.toHaveBeenCalled();
   });
 
+  it('stays ready when the collection check fails transiently after Qdrant is confirmed up', async () => {
+    healthCheck.mockResolvedValue(true);
+    collectionExists.mockRejectedValue(new Error('collection_stats timed out'));
+
+    const readiness = await getCapabilityReadiness(() => 1000);
+
+    // A transient collection hiccup must not be misattributed to the vector DB, which
+    // healthCheck just confirmed up. Collection state is informational.
+    expect(readiness).toMatchObject({
+      ready: true,
+      vectorDBHealthy: true,
+      collectionAccessible: false,
+      embeddingsRequired: true,
+      embeddingHealthy: true,
+    });
+    expect(readiness.storedCount).toBeUndefined();
+  });
+
   it('is not ready when Qdrant is unreachable', async () => {
     healthCheck.mockResolvedValue(false);
 
@@ -221,13 +239,13 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
     const clock = () => now;
 
     await getCapabilityReadiness(clock);
-    // A second probe inside the 5s TTL must not hit the backend again.
-    now = 3000;
+    // A second probe inside the 2.5s TTL must not hit the backend again.
+    now = 2000;
     await getCapabilityReadiness(clock);
     expect(healthCheck).toHaveBeenCalledTimes(1);
 
     // Once the TTL has elapsed the next probe recomputes.
-    now = 6001;
+    now = 4000;
     await getCapabilityReadiness(clock);
     expect(healthCheck).toHaveBeenCalledTimes(2);
   });
