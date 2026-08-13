@@ -761,9 +761,9 @@ export class MCPServer {
             }
 
             // Readiness endpoint (unauthenticated, PRD #714 M4). Unlike /healthz
-            // (always 200 for liveness), /readyz verifies the capability subsystem
-            // — Qdrant reachable and the collection accessible — so a subsystem
-            // outage takes the pod out of rotation without restarting it.
+            // (always 200 for liveness), /readyz reports whether Qdrant reachable and, in semantic mode, embeddings
+            // serving — so a subsystem outage takes the pod out of rotation without
+            // restarting it.
             if (req.url === '/readyz' && req.method === 'GET') {
               const readiness = await getCapabilityReadiness();
               // Serialize only the public readiness fields — /readyz is
@@ -773,6 +773,7 @@ export class MCPServer {
                 ready: readiness.ready,
                 vectorDBHealthy: readiness.vectorDBHealthy,
                 collectionAccessible: readiness.collectionAccessible,
+                embeddingsRequired: readiness.embeddingsRequired,
                 embeddingHealthy: readiness.embeddingHealthy,
                 storedCount: readiness.storedCount,
                 error: readiness.error,

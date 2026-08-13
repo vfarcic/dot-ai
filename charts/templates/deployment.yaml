@@ -284,10 +284,10 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
-        # PRD #714 M4: readiness verifies the capability subsystem (Qdrant +
-        # collection) via /readyz, so a subsystem outage removes the pod from
-        # rotation without restarting it. Liveness stays on the always-200
-        # /healthz above.
+        # PRD #714 M4: readiness reports whether the pod can serve a capability
+        # scan (Qdrant reachable + embeddings serving in semantic mode) via
+        # /readyz, so a subsystem outage removes the pod from rotation without
+        # restarting it. Liveness stays on the always-200 /healthz above.
         readinessProbe:
           httpGet:
             path: /readyz

@@ -376,17 +376,17 @@ async function getEmbeddingStatus(): Promise<SystemStatus['embedding']> {
 }
 
 /**
- * Lean readiness signal for the `/readyz` probe (PRD #714 M4).
+ * Readiness signal for the `/readyz` probe (PRD #714 M4).
  *
- * Reuses the capability diagnostics — Qdrant reachable, collection accessible, and a
- * (now cheap, M1) count — but omits the expensive embedding/list checks getCapabilityStatus
- * runs, since the probe fires every ~5s. Results are cached for a short TTL so a burst of
- * probes collapses to one backend round-trip (decision 4).
+ * Qdrant reachable and — only when embeddings are
+ * configured (semantic mode) — embeddings actually serving. Collection existence and
+ * `storedCount` are informational only.
  */
 export interface CapabilityReadiness {
   ready: boolean;
   vectorDBHealthy: boolean;
   collectionAccessible: boolean;
+  embeddingsRequired: boolean;
   embeddingHealthy: boolean;
   storedCount?: number;
   error?: string;
@@ -435,6 +435,10 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
 
   try {
     const capabilityService = new CapabilityVectorService();
+    const embeddingService = new EmbeddingService();
+    // Config flag: are embeddings configured (semantic mode)?
+    const embeddingsRequired = embeddingService.isAvailable();
+
     const vectorDBHealthy = await capabilityService.healthCheck();
 
     if (!vectorDBHealthy) {
@@ -442,45 +446,43 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
         ready: false,
         vectorDBHealthy: false,
         collectionAccessible: false,
+        embeddingsRequired,
         embeddingHealthy: false,
         checkedAt,
       };
     }
 
+    // Informational only — never gates readiness. An absent collection is a valid
+    // fresh-install state (empty list), and collectionExists() is read-only so the
+    // probe never creates the collection as a side effect.
     const collectionAccessible = await capabilityService.collectionExists();
-    if (!collectionAccessible) {
-      return {
-        ready: false,
-        vectorDBHealthy: true,
-        collectionAccessible: false,
-        embeddingHealthy: false,
-        checkedAt,
-      };
-    }
+    const storedCount = collectionAccessible
+      ? await capabilityService.getCapabilitiesCount()
+      : 0;
 
-    const storedCount = await capabilityService.getCapabilitiesCount();
-
-    // Generate a probe embedding so /readyz reports ready
-    // only once embeddings actually serve. Isolated so an embedding outage still
-    // reports the healthy Qdrant/collection signals rather than masking them.
-    let embeddingHealthy = false;
-    try {
-      const embeddingService = new EmbeddingService();
-      const expectedDimensions = embeddingService.getStatus().dimensions || 1536;
-      const probeEmbedding =
-        await embeddingService.generateEmbedding('readiness probe');
-      embeddingHealthy =
-        Array.isArray(probeEmbedding) &&
-        probeEmbedding.length === expectedDimensions &&
-        probeEmbedding.every(Number.isFinite);
-    } catch {
-      embeddingHealthy = false;
+    // Live "can it serve?" probe — only in semantic mode. Keyword-only deployments
+    // serve capability reads without embeddings, so they are ready without one.
+    let embeddingHealthy = !embeddingsRequired;
+    if (embeddingsRequired) {
+      try {
+        const expectedDimensions =
+          embeddingService.getStatus().dimensions || 1536;
+        const probeEmbedding =
+          await embeddingService.generateEmbedding('readiness probe');
+        embeddingHealthy =
+          Array.isArray(probeEmbedding) &&
+          probeEmbedding.length === expectedDimensions &&
+          probeEmbedding.every(Number.isFinite);
+      } catch {
+        embeddingHealthy = false;
+      }
     }
 
     return {
-      ready: embeddingHealthy,
+      ready: vectorDBHealthy && (embeddingsRequired ? embeddingHealthy : true),
       vectorDBHealthy: true,
-      collectionAccessible: true,
+      collectionAccessible,
+      embeddingsRequired,
       embeddingHealthy,
       storedCount,
       checkedAt,
@@ -492,6 +494,7 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
       ready: false,
       vectorDBHealthy: false,
       collectionAccessible: false,
+      embeddingsRequired: false,
       embeddingHealthy: false,
       error: 'capability readiness check failed',
       checkedAt,

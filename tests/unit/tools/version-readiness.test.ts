@@ -1,9 +1,10 @@
 /**
  * Unit tests for the /readyz readiness signal (PRD #714 M4).
  *
- * getCapabilityReadiness() reuses the capability diagnostics but must stay cheap enough
- * for a 5s probe: it caches its result for a short TTL and reports not-ready whenever
- * Qdrant is unreachable or the collection cannot be accessed.
+ * getCapabilityReadiness() reports ready when Qdrant is reachable and — only in semantic
+ * mode (embeddings configured) — embeddings actually serve. Collection existence and
+ * storedCount are informational, never gates. Results are cached for a short TTL so a
+ * burst of probes collapses to one backend round-trip.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -14,9 +15,10 @@ const { healthCheck, collectionExists, getCapabilitiesCount } = vi.hoisted(() =>
   getCapabilitiesCount: vi.fn(),
 }));
 
-const { generateEmbedding, getEmbeddingStatus } = vi.hoisted(() => ({
+const { generateEmbedding, getEmbeddingStatus, isAvailable } = vi.hoisted(() => ({
   generateEmbedding: vi.fn(),
   getEmbeddingStatus: vi.fn(),
+  isAvailable: vi.fn(),
 }));
 
 vi.mock('../../../src/core/capability-vector-service', () => ({
@@ -31,7 +33,7 @@ vi.mock('../../../src/core/embedding-service', () => ({
     return {
       generateEmbedding,
       getStatus: getEmbeddingStatus,
-      isAvailable: () => true,
+      isAvailable,
       getDimensions: () => 1536,
     };
   }),
@@ -52,6 +54,8 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
     getCapabilitiesCount.mockReset();
     getEmbeddingStatus.mockReset().mockReturnValue({ dimensions: 1536 });
     generateEmbedding.mockReset().mockResolvedValue(validEmbedding());
+    // Semantic mode by default — embeddings configured.
+    isAvailable.mockReset().mockReturnValue(true);
   });
 
   it('is ready when Qdrant is healthy, the collection is accessible, and embeddings work', async () => {
@@ -64,6 +68,7 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
       ready: true,
       vectorDBHealthy: true,
       collectionAccessible: true,
+      embeddingsRequired: true,
       embeddingHealthy: true,
       storedCount: 42,
     });
@@ -80,19 +85,22 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
     expect(collectionExists).toHaveBeenCalledTimes(1);
   });
 
-  it('is not ready when the collection is absent even though Qdrant is up', async () => {
+  it('is ready on a fresh install: Qdrant up, collection absent, embeddings serving', async () => {
     healthCheck.mockResolvedValue(true);
     collectionExists.mockResolvedValue(false);
 
     const readiness = await getCapabilityReadiness(() => 1000);
 
+    // An absent collection is a healthy fresh-install state, not a not-ready signal.
     expect(readiness).toMatchObject({
-      ready: false,
+      ready: true,
       vectorDBHealthy: true,
       collectionAccessible: false,
-      embeddingHealthy: false,
+      embeddingsRequired: true,
+      embeddingHealthy: true,
+      storedCount: 0,
     });
-    // An absent collection is not-ready without counting or embedding.
+    // storedCount is informational — no count needed when the collection is absent.
     expect(getCapabilitiesCount).not.toHaveBeenCalled();
   });
 
@@ -123,8 +131,45 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
       ready: false,
       vectorDBHealthy: true,
       collectionAccessible: true,
+      embeddingsRequired: true,
       embeddingHealthy: false,
     });
+  });
+
+  it('keyword-only deployment is ready without probing embeddings (absent collection)', async () => {
+    isAvailable.mockReturnValue(false);
+    healthCheck.mockResolvedValue(true);
+    collectionExists.mockResolvedValue(false);
+
+    const readiness = await getCapabilityReadiness(() => 1000);
+
+    expect(readiness).toMatchObject({
+      ready: true,
+      vectorDBHealthy: true,
+      collectionAccessible: false,
+      embeddingsRequired: false,
+      embeddingHealthy: true,
+    });
+    // No embeddings configured — the probe must never generate one.
+    expect(generateEmbedding).not.toHaveBeenCalled();
+  });
+
+  it('keyword-only deployment is ready without probing embeddings (populated collection)', async () => {
+    isAvailable.mockReturnValue(false);
+    healthCheck.mockResolvedValue(true);
+    getCapabilitiesCount.mockResolvedValue(5);
+
+    const readiness = await getCapabilityReadiness(() => 1000);
+
+    expect(readiness).toMatchObject({
+      ready: true,
+      vectorDBHealthy: true,
+      collectionAccessible: true,
+      embeddingsRequired: false,
+      embeddingHealthy: true,
+      storedCount: 5,
+    });
+    expect(generateEmbedding).not.toHaveBeenCalled();
   });
 
   it('is not ready and reports a generic error when a check throws', async () => {
