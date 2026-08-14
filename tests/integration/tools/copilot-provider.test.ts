@@ -14,7 +14,10 @@
 
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
-import { makeCopilotCredentialResolver } from '../../../src/core/providers/copilot-token-exchanger.js';
+import {
+  isSupportedCopilotToken,
+  makeCopilotCredentialResolver,
+} from '../../../src/core/providers/copilot-token-exchanger.js';
 
 const COPILOT_TOKEN =
   process.env.GITHUB_COPILOT_TOKEN ||
@@ -22,17 +25,18 @@ const COPILOT_TOKEN =
   process.env.GITHUB_TOKEN;
 
 const isCopilotProvider = process.env.AI_PROVIDER === 'copilot';
-const hasToken = Boolean(COPILOT_TOKEN);
-const shouldRun = isCopilotProvider && hasToken;
+const hasUsableToken = Boolean(
+  COPILOT_TOKEN && isSupportedCopilotToken(COPILOT_TOKEN)
+);
+const shouldRun = isCopilotProvider && hasUsableToken;
 
 // Emit a clear skip reason so CI logs are searchable
 if (!shouldRun) {
   const reasons: string[] = [];
-  if (!isCopilotProvider)
-    reasons.push('AI_PROVIDER is not "copilot"');
-  if (!hasToken)
+  if (!isCopilotProvider) reasons.push('AI_PROVIDER is not "copilot"');
+  if (!hasUsableToken)
     reasons.push(
-      'no token in GITHUB_COPILOT_TOKEN / GH_TOKEN / GITHUB_TOKEN'
+      'no supported token in GITHUB_COPILOT_TOKEN / GH_TOKEN / GITHUB_TOKEN'
     );
   console.info(
     `[copilot-provider] Skipping Copilot integration tests: ${reasons.join(', ')}`

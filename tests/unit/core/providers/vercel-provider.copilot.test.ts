@@ -154,8 +154,10 @@ describe('copilot vercel-provider integration', () => {
     expect(res.status).toBe(200);
     expect(secondToken).toBe('Bearer gho_refreshedtoken');
   });
+});
 
-  // Live e2e — only runs when a real token is available
+// Keep the live test outside the describe whose beforeEach clears credentials.
+describe('copilot live credential (env-dependent)', () => {
   it.skipIf(!hasUsableToken)(
     'e2e: resolver returns a usable token from env',
     () => {
