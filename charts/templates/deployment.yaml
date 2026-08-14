@@ -110,7 +110,11 @@ spec:
         - name: CUSTOM_EMBEDDINGS_BASE_URL
           value: "http://{{ .Release.Name }}-local-embeddings.{{ .Release.Namespace }}.svc.cluster.local:80/v1"
         - name: EMBEDDINGS_MODEL
+{{- if .Values.localEmbeddings.prefetch.enabled }}
+          value: "/models/model"
+{{- else }}
           value: {{ .Values.localEmbeddings.model | quote }}
+{{- end }}
         - name: EMBEDDINGS_DIMENSIONS
           value: {{ .Values.localEmbeddings.dimensions | quote }}
 {{- end }}
