@@ -4,17 +4,6 @@
     "dot-ai"
   ],
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "command": "dot-ai skills generate --agent claude-code",
-            "type": "command"
-          }
-        ],
-        "matcher": "startup"
-      }
-    ],
     "UserPromptSubmit": [
       {
         "hooks": [
