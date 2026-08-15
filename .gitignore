@@ -33,6 +33,7 @@ pids
 *.pid
 *.seed
 *.pid.lock
+.claude/skills/.dot-ai.lock
 
 # Coverage
 coverage/
