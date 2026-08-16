@@ -382,12 +382,15 @@ localEmbeddings:
   # Pod scheduling controls for the local embeddings Deployment only (issue #755).
   # All three are empty by default and are omitted entirely from the rendered
   # manifest unless set — nothing is scheduled differently until you opt in.
-  # Use them to pin TEI to architecture-compatible nodes (the image is not always
-  # multi-arch), to place it on a dedicated/accelerator node pool, or to let it
+  # Use them to pin TEI to architecture-compatible nodes (the default TEI image is
+  # amd64 only), to place it on a dedicated/accelerator node pool, or to let it
   # run on tainted nodes.
-  nodeSelector: {}                  # Node labels the pod must match, e.g. {kubernetes.io/arch: arm64}
-  affinity: {}                      # Standard pod affinity/anti-affinity rules (node, pod, podAnti)
-  tolerations: []                   # Taints the pod tolerates, e.g. a dedicated embeddings node pool
+  nodeSelector: {}                  # Node labels the pod must match, e.g. {kubernetes.io/arch: amd64}
+  affinity: {}                      # Standard Kubernetes affinity rules (nodeAffinity, podAffinity, podAntiAffinity)
+  tolerations: []                   # Taints the pod tolerates. Prefer a specific key, e.g.
+                                    # [{key: dedicated, operator: Equal, value: embeddings, effect: NoSchedule}].
+                                    # A keyless `operator: Exists` tolerates EVERY taint, including
+                                    # node-role.kubernetes.io/control-plane — avoid it.
 
 # Dex OIDC Provider (PRD #380)
 # Deploys Dex as the identity provider for OAuth2/OIDC authentication.

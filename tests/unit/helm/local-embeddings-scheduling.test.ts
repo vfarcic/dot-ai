@@ -33,6 +33,18 @@ interface DeploymentResource {
   };
 }
 
+/** Deployment or StatefulSet - both carry a pod template that could gain scheduling keys */
+interface WorkloadResource {
+  apiVersion: string;
+  kind: 'Deployment' | 'StatefulSet';
+  metadata: { name: string };
+  spec: {
+    template: {
+      spec: PodSpec;
+    };
+  };
+}
+
 function helmTemplate(setValues: string[] = [], setJsonValues: string[] = []): unknown[] {
   const chartPath = './charts';
   const setArgs = setValues.map(v => `--set ${v}`).join(' ');
@@ -71,6 +83,18 @@ const TOLERATIONS_JSON =
 
 const NODE_SELECTOR_JSON =
   'localEmbeddings.nodeSelector={"kubernetes.io/arch":"arm64","node-pool":"embeddings"}';
+
+// Enables the subcharts that issue #755 requirement 2 names explicitly. Dex renders only
+// when its preconditions (secret, admin hash, both external URLs) are satisfied; Qdrant
+// renders by default but as a StatefulSet, so neither is covered by a defaults-only render.
+const SUBCHARTS_ENABLED = [
+  'localEmbeddings.enabled=true',
+  'dex.enabled=true',
+  'dex.existingSecret=my-secret',
+  'dex.adminPasswordHash=hash',
+  'dex.externalUrl=https://dex.example.com',
+  'externalUrl=https://dot-ai.example.com',
+];
 
 describe.concurrent('Local embeddings pod scheduling options (Issue #755)', () => {
 
@@ -181,6 +205,86 @@ describe.concurrent('Local embeddings pod scheduling options (Issue #755)', () =
       expect(podSpec.nodeSelector, `${deployment.metadata.name} nodeSelector`).toBeUndefined();
       expect(podSpec.affinity, `${deployment.metadata.name} affinity`).toBeUndefined();
       expect(podSpec.tolerations, `${deployment.metadata.name} tolerations`).toBeUndefined();
+    }
+  });
+
+  test('isolation: Dex and Qdrant workloads are unaffected when the subcharts are enabled', () => {
+    const docs = helmTemplate(SUBCHARTS_ENABLED, [
+      NODE_SELECTOR_JSON,
+      AFFINITY_JSON,
+      TOLERATIONS_JSON,
+    ]);
+
+    // Qdrant is a StatefulSet, so a Deployment-only filter would silently skip it
+    const workloads = [
+      ...findResourcesByKind<WorkloadResource>(docs, 'Deployment'),
+      ...findResourcesByKind<WorkloadResource>(docs, 'StatefulSet'),
+    ];
+    const names = workloads.map(w => w.metadata.name);
+
+    // The two workloads issue #755 names must actually be in the render, not assumed
+    expect(names.some(n => n.includes('dex')), `rendered: ${names.join(', ')}`).toBe(true);
+    expect(names.some(n => n.includes('qdrant')), `rendered: ${names.join(', ')}`).toBe(true);
+    expect(names.some(n => n.includes('agentic-tools'))).toBe(true);
+    expect(
+      names.some(
+        n =>
+          !n.includes('dex') &&
+          !n.includes('qdrant') &&
+          !n.includes('agentic-tools') &&
+          !n.includes('local-embeddings')
+      ),
+      'main dot-ai Deployment'
+    ).toBe(true);
+    expect(workloads.length).toBeGreaterThanOrEqual(5);
+
+    const target = workloads.filter(w => w.metadata.name.includes('local-embeddings'));
+    expect(target).toHaveLength(1);
+    expect(target[0].spec.template.spec.nodeSelector).toEqual({
+      'kubernetes.io/arch': 'arm64',
+      'node-pool': 'embeddings',
+    });
+    expect(target[0].spec.template.spec.affinity?.nodeAffinity).toBeDefined();
+    expect(target[0].spec.template.spec.tolerations).toHaveLength(2);
+
+    for (const workload of workloads) {
+      if (workload.metadata.name.includes('local-embeddings')) continue;
+      const label = `${workload.kind}/${workload.metadata.name}`;
+      const podSpec = workload.spec.template.spec;
+      expect(podSpec.nodeSelector, `${label} nodeSelector`).toBeUndefined();
+      expect(podSpec.affinity, `${label} affinity`).toBeUndefined();
+      expect(podSpec.tolerations, `${label} tolerations`).toBeUndefined();
+    }
+  });
+
+  test('enabled=false: scheduling values set render no local-embeddings resources at all', () => {
+    const docs = helmTemplate(
+      ['localEmbeddings.enabled=false'],
+      [NODE_SELECTOR_JSON, TOLERATIONS_JSON]
+    );
+
+    expect(
+      findResourcesByKind<DeploymentResource>(docs, 'Deployment', 'local-embeddings')
+    ).toHaveLength(0);
+
+    // Nothing local-embeddings-related is emitted - not the Deployment, not the Service
+    const localEmbeddingsDocs = docs.filter(doc =>
+      ((doc as Record<string, unknown>).metadata as Record<string, unknown>)?.name
+        ?.toString()
+        .includes('local-embeddings')
+    );
+    expect(localEmbeddingsDocs).toHaveLength(0);
+
+    // And no other workload picked the values up
+    const workloads = [
+      ...findResourcesByKind<WorkloadResource>(docs, 'Deployment'),
+      ...findResourcesByKind<WorkloadResource>(docs, 'StatefulSet'),
+    ];
+    expect(workloads.length).toBeGreaterThanOrEqual(3);
+    for (const workload of workloads) {
+      const label = `${workload.kind}/${workload.metadata.name}`;
+      expect(workload.spec.template.spec.nodeSelector, `${label} nodeSelector`).toBeUndefined();
+      expect(workload.spec.template.spec.tolerations, `${label} tolerations`).toBeUndefined();
     }
   });
 });
