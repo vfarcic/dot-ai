@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [2.2.0] - 2026-08-17
+
+### Features
+
+- ## Pod Scheduling for Local Embeddings
+
+  The local embeddings Deployment now accepts standard Kubernetes pod scheduling controls, so platform operators can control which nodes it runs on without an out-of-chart post-render patch.
+
+  Three optional Helm values — `localEmbeddings.nodeSelector`, `localEmbeddings.affinity`, and `localEmbeddings.tolerations` — are rendered verbatim under `spec.template.spec` of the local-embeddings Deployment only. Use them to pin the TEI pod to amd64 nodes on a mixed-architecture cluster (the default TEI image is amd64-only), place it on a dedicated or accelerator node pool, or let it run on tainted nodes. All three are empty by default and are omitted entirely from the rendered manifest, so existing installs are unchanged unless configured. No architecture or scheduling policy is hardcoded.
+
+  See [Pod scheduling](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/deployment#local-embeddings-scheduling) for configuration examples.
+
+  Reported by [@reysylaj](https://github.com/reysylaj) in [#755](https://github.com/vfarcic/dot-ai/issues/755). ([#755](https://github.com/vfarcic/dot-ai/issues/755))
+
+### Bug Fixes
+
+- **Copilot test token gating**
+
+  The live Copilot credential test now runs only when the environment contains a
+  supported OAuth or GitHub App token, so unrelated personal access tokens no
+  longer cause the local unit suite to fail. ([#759-copilot-token-shape-gate](https://github.com/vfarcic/dot-ai/issues/759-copilot-token-shape-gate))
+- **Local embeddings use the configured TEI model**
+
+  Helm deployments with local embeddings enabled now pass the model name served by
+  TEI to the MCP server, including the prefetched model path, preventing
+  model-mismatch warnings on embedding requests. ([#753-local-embeddings-model](https://github.com/vfarcic/dot-ai/issues/753-local-embeddings-model))
+
+
 ## [2.1.0] - 2026-08-09
 
 ### Features
