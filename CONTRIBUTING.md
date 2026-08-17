@@ -78,7 +78,7 @@ This project uses [towncrier](https://github.com/twisted/towncrier) for release 
 
 Create a file in `changelog.d/` with this naming pattern:
 
-```
+```text
 changelog.d/<issue-number>.<type>.md
 ```
 
@@ -94,7 +94,7 @@ Describe the change in the fragment body instead.
 
 For a change with no issue behind it, prefix the name with `+`:
 
-```
+```text
 changelog.d/+<short-description>.<type>.md
 ```
 

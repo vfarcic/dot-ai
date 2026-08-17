@@ -206,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Bug Fixes
 
-- The operate tool now extracts JSON from AI responses using a more robust parser, fixing intermittent `Operation failed: Invalid AI response format` errors that occurred when the model included explanatory text alongside the JSON object. ([#operate-json-parse](https://github.com/vfarcic/dot-ai/issues/operate-json-parse))
+- The operate tool now extracts JSON from AI responses using a more robust parser, fixing intermittent `Operation failed: Invalid AI response format` errors that occurred when the model included explanatory text alongside the JSON object. ([#628](https://github.com/vfarcic/dot-ai/issues/628))
 - GitHub Copilot provider configuration now rejects personal access tokens (`github_pat_*` and `ghp_*`) before making inference calls, because `api.githubcopilot.com` does not support PATs for this direct-token endpoint. Docs and Helm comments now list only `gho_*` and `ghu_*` tokens. ([#627](https://github.com/vfarcic/dot-ai/issues/627))
 
 
@@ -259,7 +259,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Bug Fixes
 
-- Upgrade `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` from `^0.207.0` to `^0.217.0` to close GHSA-q7rr-3cgh-j5r3 (high severity, Prometheus exporter process crash via malformed HTTP request). Upgrade `mermaid` from `^10.9.5` to `^11.15.0` to close GHSA-87f9-hvmw-gh4p, GHSA-6m6c-36f7-fhxh, GHSA-ghcm-xqfw-q4vr, and GHSA-xcj9-5m2h-648r (4 moderate severity, CSS/HTML injection and infinite-loop DoS in Mermaid diagrams). All transitively-bumped `@opentelemetry/*` packages move in lockstep to `0.217.0` / `2.7.1`. The codebase only consumes `mermaid.parse()` and `mermaid.initialize()`, whose APIs are unchanged between v10 and v11. Unblocks `npm run audit` and the CI `Run dependency security audit` gate. ([#otel-prometheus-security-advisory](https://github.com/vfarcic/dot-ai/issues/otel-prometheus-security-advisory))
+- Upgrade `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` from `^0.207.0` to `^0.217.0` to close GHSA-q7rr-3cgh-j5r3 (high severity, Prometheus exporter process crash via malformed HTTP request). Upgrade `mermaid` from `^10.9.5` to `^11.15.0` to close GHSA-87f9-hvmw-gh4p, GHSA-6m6c-36f7-fhxh, GHSA-ghcm-xqfw-q4vr, and GHSA-xcj9-5m2h-648r (4 moderate severity, CSS/HTML injection and infinite-loop DoS in Mermaid diagrams). All transitively-bumped `@opentelemetry/*` packages move in lockstep to `0.217.0` / `2.7.1`. The codebase only consumes `mermaid.parse()` and `mermaid.initialize()`, whose APIs are unchanged between v10 and v11. Unblocks `npm run audit` and the CI `Run dependency security audit` gate. ([#498](https://github.com/vfarcic/dot-ai/issues/498))
 - Upgrade base images and `@types/node` from Node.js 22 to 24 (`Dockerfile`, `mock-server/Dockerfile`, `packages/agentic-tools/Dockerfile`, plus `node-version: '24.x'` in all GitHub Actions workflows so CI and prod images stay in lockstep). Upgrade `vitest` and `@vitest/ui` from `^3.2.4` to `^4.0.0`. Add a `protobufjs: ^8.2.0` override to close 7 transitive security advisories pulled in via `@opentelemetry/otlp-transformer` and `@grpc/proto-loader`: GHSA-q6x5-8v7m-xcrf (moderate, overlong UTF-8 decoding), GHSA-2pr8-phx7-x9h3 (moderate, DoS from crafted field names), GHSA-66ff-xgx4-vchm (high, code injection through bytes field defaults), GHSA-fx83-v9x8-x52w (moderate, prototype injection in generated constructors), GHSA-75px-5xx7-5xc7 (high, code generation gadget after prototype pollution), GHSA-jvwf-75h9-cwgg (high, process-wide DoS through unsafe option paths), GHSA-685m-2w69-288q (high, DoS through unbounded protobuf recursion). Removes pre-existing SHA digest pins from `mock-server/Dockerfile` and `packages/agentic-tools/Dockerfile`, consistent with the multi-arch policy enforced in `renovate.json`. Unblocks the CI `Run dependency security audit` gate on `main`. ([#565](https://github.com/vfarcic/dot-ai/issues/565))
 
 
@@ -289,7 +289,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
   A new shared prompt, `/prd-full`, runs an entire PRD lifecycle without prompting for confirmation between steps and stops once a pull request has been created. Composes the existing `/prd-start`, `/prd-next`, `/prd-update-progress`, and `/prd-done` prompts with a global "do not pause" rule and a hard stop after PR creation, so the user can review the result before merging.
 
-  Required arguments: `prdNumber` (the PRD to implement) and `mode` (`branch` or `worktree`, pre-answering the isolation choice that `/prd-start` would otherwise ask). ([#prd-full-prompt](https://github.com/vfarcic/dot-ai/issues/prd-full-prompt))
+  Required arguments: `prdNumber` (the PRD to implement) and `mode` (`branch` or `worktree`, pre-answering the isolation choice that `/prd-start` would otherwise ask).
 
 
 ## [1.17.0] - 2026-05-08
@@ -374,7 +374,7 @@ No significant changes.
 
   Also removed the obsolete `anthropic-beta: context-1m-2025-08-07` header, which is no longer needed as 1M context is native to Claude Opus 4.6 and Sonnet 4.6.
 
-  See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/setup/deployment) for configuration details. ([#anthropic-bearer-auth](https://github.com/vfarcic/dot-ai/issues/anthropic-bearer-auth))
+  See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/setup/deployment) for configuration details.
 
 
 ## [1.15.1] - 2026-04-02
@@ -407,7 +407,7 @@ No significant changes.
 
 - **AI provider errors no longer masked by JSON parse failures**
 
-  When an AI provider call fails (e.g., proxy authentication error, network timeout), the actual error message is now surfaced to the user. Previously, the error string was passed directly to `JSON.parse()`, producing a confusing `SyntaxError: Unexpected token 'E', "Error duri"... is not valid JSON` that hid the real cause. This affected the query, remediate, impact-analysis tools, and the REST API visualization endpoint. ([#fix-status-guard](https://github.com/vfarcic/dot-ai/issues/fix-status-guard))
+  When an AI provider call fails (e.g., proxy authentication error, network timeout), the actual error message is now surfaced to the user. Previously, the error string was passed directly to `JSON.parse()`, producing a confusing `SyntaxError: Unexpected token 'E', "Error duri"... is not valid JSON` that hid the real cause. This affected the query, remediate, impact-analysis tools, and the REST API visualization endpoint. ([#447](https://github.com/vfarcic/dot-ai/issues/447))
 
 
 ## [1.14.0] - 2026-03-29
@@ -499,7 +499,7 @@ No significant changes.
 
   The REST API now supports `X-Dot-AI-Authorization` as a fallback authentication header. When accessing the API through the Kubernetes API server proxy (e.g., from Headlamp or other dashboard plugins), the standard `Authorization` header is overwritten with a Kubernetes bearer token. Clients can now send their dot-ai token via `X-Dot-AI-Authorization: Bearer <token>` to bypass this limitation.
 
-  The fallback header is checked first; if absent, the standard `Authorization` header is used as before. Existing clients require no changes. ([#proxy-auth](https://github.com/vfarcic/dot-ai/issues/proxy-auth))
+  The fallback header is checked first; if absent, the standard `Authorization` header is used as before. Existing clients require no changes.
 
 
 ## [1.10.1] - 2026-03-13
@@ -508,7 +508,7 @@ No significant changes.
 
 - **Dex Readiness Probe Timeout**
 
-  Fixed intermittent Dex unhealthy events caused by an overly tight readiness probe timeout. The `/healthz/ready` endpoint queries the Kubernetes API server (CRD storage), which can exceed the previous 1-second timeout under normal cluster load. The default readiness probe now uses `timeoutSeconds: 5` and `failureThreshold: 5`, preventing false-positive unhealthy events during routine operations. ([#dex-probe](https://github.com/vfarcic/dot-ai/issues/dex-probe))
+  Fixed intermittent Dex unhealthy events caused by an overly tight readiness probe timeout. The `/healthz/ready` endpoint queries the Kubernetes API server (CRD storage), which can exceed the previous 1-second timeout under normal cluster load. The default readiness probe now uses `timeoutSeconds: 5` and `failureThreshold: 5`, preventing false-positive unhealthy events during routine operations.
 
 
 ## [1.10.0] - 2026-03-13
@@ -532,7 +532,7 @@ No significant changes.
 
 - **Admin Role Missing User Management Permission**
 
-  The built-in `dotai-admin` ClusterRole now grants the `apply` verb on the `users` resource. Previously, admins could view users but not create, update, or delete them, which required a custom ClusterRole as a workaround. Upgrading the Helm chart automatically fixes this for all existing `dotai-admin` bindings. ([#admin-users-apply](https://github.com/vfarcic/dot-ai/issues/admin-users-apply))
+  The built-in `dotai-admin` ClusterRole now grants the `apply` verb on the `users` resource. Previously, admins could view users but not create, update, or delete them, which required a custom ClusterRole as a workaround. Upgrading the Helm chart automatically fixes this for all existing `dotai-admin` bindings.
 
 
 ## [1.9.0] - 2026-03-11
@@ -744,10 +744,10 @@ No significant changes.
 
   The Google AI provider now uses Gemini 3.1 Pro (`gemini-3.1-pro-preview`), replacing Gemini 3 Pro. Gemini 3.1 Pro offers improved thinking, better token efficiency, and more reliable tool usage for agentic workflows.
 
-  Integration test timeouts for capability scanning and Helm operations have been increased to accommodate variance across model providers. ([#gemini-upgrade](https://github.com/vfarcic/dot-ai/issues/gemini-upgrade))
+  Integration test timeouts for capability scanning and Helm operations have been increased to accommodate variance across model providers.
 - **Claude Sonnet 4.6 Upgrade**
 
-  The default Anthropic provider now uses Claude Sonnet 4.6 (`claude-sonnet-4-6`), replacing Claude Sonnet 4.5. Sonnet 4.6 delivers near-Opus intelligence with improved coding, long-context reasoning, and agent planning, while maintaining the same pricing tier. The Amazon Bedrock default model has also been updated to `global.anthropic.claude-sonnet-4-6`. ([#sonnet-upgrade](https://github.com/vfarcic/dot-ai/issues/sonnet-upgrade))
+  The default Anthropic provider now uses Claude Sonnet 4.6 (`claude-sonnet-4-6`), replacing Claude Sonnet 4.5. Sonnet 4.6 delivers near-Opus intelligence with improved coding, long-context reasoning, and agent planning, while maintaining the same pricing tier. The Amazon Bedrock default model has also been updated to `global.anthropic.claude-sonnet-4-6`.
 
 
 ## [1.2.4] - 2026-02-16
@@ -756,7 +756,7 @@ No significant changes.
 
 - **Plugin Readiness Probe Timing**
 
-  The agentic-tools plugin readiness probe `initialDelaySeconds` is now 30 seconds (previously 5 seconds). The aggressive 5-second delay caused spurious readiness probe failures during pod startup, triggering unnecessary rolling restarts when the container needed more time to initialize. ([#readiness-probe](https://github.com/vfarcic/dot-ai/issues/readiness-probe))
+  The agentic-tools plugin readiness probe `initialDelaySeconds` is now 30 seconds (previously 5 seconds). The aggressive 5-second delay caused spurious readiness probe failures during pod startup, triggering unnecessary rolling restarts when the container needed more time to initialize.
 
 
 ## [1.2.3] - 2026-02-16
