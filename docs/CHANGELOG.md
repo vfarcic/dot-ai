@@ -27,19 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
   The live Copilot credential test now runs only when the environment contains a
   supported OAuth or GitHub App token, so unrelated personal access tokens no
-  longer cause the local unit suite to fail. ([#759-copilot-token-shape-gate](https://github.com/vfarcic/dot-ai/issues/759-copilot-token-shape-gate))
+  longer cause the local unit suite to fail. ([#759](https://github.com/vfarcic/dot-ai/issues/759))
 - **Local embeddings use the configured TEI model**
 
   Helm deployments with local embeddings enabled now pass the model name served by
   TEI to the MCP server, including the prefetched model path, preventing
-  model-mismatch warnings on embedding requests. ([#753-local-embeddings-model](https://github.com/vfarcic/dot-ai/issues/753-local-embeddings-model))
+  model-mismatch warnings on embedding requests. ([#753](https://github.com/vfarcic/dot-ai/issues/753))
 
 
 ## [2.1.0] - 2026-08-09
 
 ### Features
 
-- Long-running MCP tool calls (notably `recommend`) now emit `notifications/progress` for their whole duration, keeping the connection alive so a proxy/load-balancer idle timeout no longer drops an in-flight request. Progress is opt-in per call via `_meta.progressToken`; callers that do not send one — and all REST callers — are unaffected. A time-based heartbeat (default 20s, configurable with `mcp.progress.heartbeatIntervalMs`) guarantees liveness, and `recommend` layers semantic phase labels on top, which clients that surface progress messages will display. Claude Code needs no configuration: it registers a progress handler, so the token is sent automatically, and it resets its own idle timeout on every notification. Clients built directly on the MCP TypeScript SDK must additionally pass `resetTimeoutOnProgress` to extend their own request deadline. ([#705-mcp-progress-notifications](https://github.com/vfarcic/dot-ai/issues/705-mcp-progress-notifications))
+- Long-running MCP tool calls (notably `recommend`) now emit `notifications/progress` for their whole duration, keeping the connection alive so a proxy/load-balancer idle timeout no longer drops an in-flight request. Progress is opt-in per call via `_meta.progressToken`; callers that do not send one — and all REST callers — are unaffected. A time-based heartbeat (default 20s, configurable with `mcp.progress.heartbeatIntervalMs`) guarantees liveness, and `recommend` layers semantic phase labels on top, which clients that surface progress messages will display. Claude Code needs no configuration: it registers a progress handler, so the token is sent automatically, and it resets its own idle timeout on every notification. Clients built directly on the MCP TypeScript SDK must additionally pass `resetTimeoutOnProgress` to extend their own request deadline. ([#705](https://github.com/vfarcic/dot-ai/issues/705))
 - ## Refreshed Pinned AI Model Versions Across Nine Providers
 
   Nine provider pins have been upgraded to each provider's current model. The previous refresh was three months earlier, and every provider except Anthropic Haiku, Google Gemini Pro, and OpenRouter had shipped at least one newer model since.
@@ -62,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Bug Fixes
 
-- Fixed remediation actions failing when a fix targets a field nested inside a container. The AI could choose `kubectl patch --type=merge` for changes like a memory limit, but a JSON merge patch replaces the `containers` array instead of merging into it, dropping the container's `image` and causing the API server to reject the command with `spec.template.spec.containers[0].image: Required value`. The remediation guidance now selects the patch type from the shape of the intended merge-patch object — anything containing an array uses `--type=json` — and additionally requires resolving the target container's index by name rather than assuming the first one, and choosing `add` over `replace` when the field being set does not exist yet. ([#736-remediate-merge-patch-arrays](https://github.com/vfarcic/dot-ai/issues/736-remediate-merge-patch-arrays))
+- Fixed remediation actions failing when a fix targets a field nested inside a container. The AI could choose `kubectl patch --type=merge` for changes like a memory limit, but a JSON merge patch replaces the `containers` array instead of merging into it, dropping the container's `image` and causing the API server to reject the command with `spec.template.spec.containers[0].image: Required value`. The remediation guidance now selects the patch type from the shape of the intended merge-patch object — anything containing an array uses `--type=json` — and additionally requires resolving the target container's index by name rather than assuming the first one, and choosing `add` over `replace` when the field being set does not exist yet. ([#736](https://github.com/vfarcic/dot-ai/issues/736))
 
 
 ## [2.0.0] - 2026-08-06
@@ -126,7 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   for matching rules and the unset-vs-empty semantics,
   [Shared Prompt Library](https://devopstoolkit.ai/docs/mcp/ai-engine/tools/prompts#the-server-credential-and-the-host-allowlist)
   for the prompts-override walkthrough and what the override fetch still exposes, and
-  [Authorization](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/authorization) for the upgrade path. ([#710-git-credential-host-allowlist](https://github.com/vfarcic/dot-ai/issues/710-git-credential-host-allowlist))
+  [Authorization](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/authorization) for the upgrade path. ([#710](https://github.com/vfarcic/dot-ai/issues/710))
 - **Breaking change.** Direct push to Git via `pushToGit` now requires the `apply` verb on `recommend`; pull request mode needs only `execute`. Any deployment with `rbac.enforcement.enabled: true` whose users push directly with a viewer-level (`execute`-only) binding stops working on upgrade. The obvious remedy — granting `apply` — also unblocks `deployManifests`, which is usually the opposite of what such an operator wants. The intended migration is to adopt PR mode, not to widen the binding. Exposure is bounded because `rbac.enforcement.enabled` defaults to `false`. See the [authorization upgrade section](https://devopstoolkit.ai/docs/mcp/ai-engine/setup/authorization) for the full guidance.
 
   Two more path-safety behavior changes ship alongside this:
@@ -134,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - `pushToGit` refuses a `targetPath` that traverses, or itself is, a symbolic link in the GitOps repository.
   - `pushToGit` and `remediate` now refuse to write any path that resolves inside the git control directory (`.git`), including through a symlink committed in the repository; the whole batch of files is validated before any of it is written.
 
-  ([#710-pushtogit-apply-verb-and-path-guards](https://github.com/vfarcic/dot-ai/issues/710-pushtogit-apply-verb-and-path-guards))
+  ([#710](https://github.com/vfarcic/dot-ai/issues/710))
 
 
 ## [1.25.0] - 2026-07-22
@@ -156,35 +156,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Organizational patterns and policies are now consolidated into a single unified knowledge base — one `knowledge` collection whose documents carry AI-assigned classification tags — replacing the separate pattern and policy vector collections. Documents are ingested, searched, and removed through the `manageKnowledge` tool, and all consumers (deployment recommendations, the operate tool, and the REST API) read from the one collection. Existing `patterns`/`policies` collections are migrated into the unified knowledge base automatically on server startup (idempotent, non-fatal, with deterministic IDs so re-runs cannot duplicate points), so upgrades need no manual data steps. The optional in-cluster local embedding service can also prefetch its model via an init container (`localEmbeddings.prefetch`) to work around HuggingFace Xet-storage download failures.
 
-  Note: as part of this change, `manageOrgData` is now capabilities-only — organizational patterns and policies are managed through `manageKnowledge` (ingest / search / deleteByUri) with automatic AI classification. The `pattern` and `policy` `dataType` values and the `create`/`analyze` operations have been removed from `manageOrgData`; calls using them now return a validation error pointing to `manageKnowledge`. ([#375-unified-knowledge-base](https://github.com/vfarcic/dot-ai/issues/375-unified-knowledge-base))
+  Note: as part of this change, `manageOrgData` is now capabilities-only — organizational patterns and policies are managed through `manageKnowledge` (ingest / search / deleteByUri) with automatic AI classification. The `pattern` and `policy` `dataType` values and the `create`/`analyze` operations have been removed from `manageOrgData`; calls using them now return a validation error pointing to `manageKnowledge`. ([#375](https://github.com/vfarcic/dot-ai/issues/375))
 
 ### Bug Fixes
 
-- Ingesting a prompts source no longer intermittently fails with `EXDEV: cross-device link not permitted` when the staging and destination cache directories resolve to different filesystems. The cache root is now resolved once per ingest so the staging directory and its final location always share a filesystem, and the writability probe uses a unique filename to avoid a race between concurrent ingests. ([#647-prompts-ingest-cross-device](https://github.com/vfarcic/dot-ai/issues/647-prompts-ingest-cross-device))
+- Ingesting a prompts source no longer intermittently fails with `EXDEV: cross-device link not permitted` when the staging and destination cache directories resolve to different filesystems. The cache root is now resolved once per ingest so the staging directory and its final location always share a filesystem, and the writability probe uses a unique filename to avoid a race between concurrent ingests. ([#647](https://github.com/vfarcic/dot-ai/issues/647))
 
 
 ## [1.23.1] - 2026-07-07
 
 ### Bug Fixes
 
-- Generating skills from the `prd-full` prompt now produces a complete `SKILL.md` with its full instruction body. Previously its `prdNumber` and `mode` arguments were marked `required: true`, so static skill generation (which calls `prompts/get` with no arguments) failed with `400 Missing required arguments` and wrote a metadata-only, body-less skill. Both arguments are now `required: false` — the prompt body still enforces them at invocation time — matching sibling prompts like `prd-start`. ([#681-prd-full-skill-body](https://github.com/vfarcic/dot-ai/issues/681-prd-full-skill-body))
+- Generating skills from the `prd-full` prompt now produces a complete `SKILL.md` with its full instruction body. Previously its `prdNumber` and `mode` arguments were marked `required: true`, so static skill generation (which calls `prompts/get` with no arguments) failed with `400 Missing required arguments` and wrote a metadata-only, body-less skill. Both arguments are now `required: false` — the prompt body still enforces them at invocation time — matching sibling prompts like `prd-start`. ([#681](https://github.com/vfarcic/dot-ai/issues/681))
 
 
 ## [1.23.0] - 2026-06-20
 
 ### Features
 
-- Added server-side ingestion endpoint (`POST /api/v1/prompts/sources`) that accepts CLI-uploaded skill sources as a JSON manifest with base64-encoded file entries, stores them in an LRU cache with deduplication (M4), and serves them via `?source=<key>` on the existing prompt-render endpoint without requiring a Git clone. Includes D5 hardening: 512 KiB raw-body limit (413), zip-slip and null-byte path rejection (400), mode stripping, and atomic re-ingest. M5 secret scrubbing and `?repo=` render parity are also included, along with mock-server parity and documentation. Also added `GET /api/v1/prompts?source=<id>` to enumerate the prompts contained in an uploaded source (standard list schema, scrubbed identifier echo); an unknown or evicted source returns 400 with re-upload guidance and never triggers a clone. ([#647-prompts-source-ingestion-endpoint](https://github.com/vfarcic/dot-ai/issues/647-prompts-source-ingestion-endpoint))
+- Added server-side ingestion endpoint (`POST /api/v1/prompts/sources`) that accepts CLI-uploaded skill sources as a JSON manifest with base64-encoded file entries, stores them in an LRU cache with deduplication (M4), and serves them via `?source=<key>` on the existing prompt-render endpoint without requiring a Git clone. Includes D5 hardening: 512 KiB raw-body limit (413), zip-slip and null-byte path rejection (400), mode stripping, and atomic re-ingest. M5 secret scrubbing and `?repo=` render parity are also included, along with mock-server parity and documentation. Also added `GET /api/v1/prompts?source=<id>` to enumerate the prompts contained in an uploaded source (standard list schema, scrubbed identifier echo); an unknown or evicted source returns 400 with re-upload guidance and never triggers a clone. ([#647](https://github.com/vfarcic/dot-ai/issues/647))
 
 ### Bug Fixes
 
-- A per-request prompts-repo override (`?repo=` / `body.repo`) whose source cannot be cloned — for example a missing or wrong forwarded `X-Dot-AI-Git-Token`, or an unreachable host — now fails with HTTP 502 (`PROMPTS_SOURCE_ERROR`) instead of silently falling back to built-in prompts with HTTP 200. The CLI surfaces this as an error rather than reporting success with fewer skills. Failures of the env-var-configured repo (`DOT_AI_USER_PROMPTS_REPO`) still fall back to built-in prompts as before, and the returned error message remains credential-scrubbed. ([#575-prompts-override-fail-open](https://github.com/vfarcic/dot-ai/issues/575-prompts-override-fail-open))
+- A per-request prompts-repo override (`?repo=` / `body.repo`) whose source cannot be cloned — for example a missing or wrong forwarded `X-Dot-AI-Git-Token`, or an unreachable host — now fails with HTTP 502 (`PROMPTS_SOURCE_ERROR`) instead of silently falling back to built-in prompts with HTTP 200. The CLI surfaces this as an error rather than reporting success with fewer skills. Failures of the env-var-configured repo (`DOT_AI_USER_PROMPTS_REPO`) still fall back to built-in prompts as before, and the returned error message remains credential-scrubbed. ([#575](https://github.com/vfarcic/dot-ai/issues/575))
 
 ### Other Changes
 
-- Updated dependencies to clear known security advisories. Bumped `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` to `0.219.0` (resolving the `@opentelemetry/core` and `protobufjs` advisories) and refreshed transitive packages (`form-data`, `hono`, `ws`, `vite`, `dompurify`, `js-yaml`) to patched versions. `npm audit` now reports no moderate-or-higher vulnerabilities. ([#648-dependency-security-updates](https://github.com/vfarcic/dot-ai/issues/648-dependency-security-updates))
-- Pinned the transitive `dompurify` dependency to `^3.4.11` via an `overrides` entry to clear the moderate advisory GHSA-cmwh-pvxp-8882 (permanent `ALLOWED_ATTR` pollution via `setConfig()` bypassing the hook clone-guard; incomplete fix of the 3.4.7 patch). `npm audit` now reports no moderate-or-higher vulnerabilities. ([#655-dompurify-security](https://github.com/vfarcic/dot-ai/issues/655-dompurify-security))
-- Pinned the transitive `undici` dependency to `^6.27.0` via an `overrides` entry to clear four newly-disclosed advisories: GHSA-p88m-4jfj-68fv (moderate, HTTP header injection via Set-Cookie percent-decoding), GHSA-vxpw-j846-p89q (high, WebSocket client DoS via fragment count bypass), GHSA-35p6-xmwp-9g52 (low, HTTP response queue poisoning via keep-alive socket reuse), and GHSA-g8m3-5g58-fq7m (low, Set-Cookie SameSite downgrade). `npm audit` now reports no moderate-or-higher vulnerabilities. ([#655-undici-security](https://github.com/vfarcic/dot-ai/issues/655-undici-security))
+- Updated dependencies to clear known security advisories. Bumped `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` to `0.219.0` (resolving the `@opentelemetry/core` and `protobufjs` advisories) and refreshed transitive packages (`form-data`, `hono`, `ws`, `vite`, `dompurify`, `js-yaml`) to patched versions. `npm audit` now reports no moderate-or-higher vulnerabilities. ([#648](https://github.com/vfarcic/dot-ai/issues/648))
+- Pinned the transitive `dompurify` dependency to `^3.4.11` via an `overrides` entry to clear the moderate advisory GHSA-cmwh-pvxp-8882 (permanent `ALLOWED_ATTR` pollution via `setConfig()` bypassing the hook clone-guard; incomplete fix of the 3.4.7 patch). `npm audit` now reports no moderate-or-higher vulnerabilities. ([#655](https://github.com/vfarcic/dot-ai/issues/655))
+- Pinned the transitive `undici` dependency to `^6.27.0` via an `overrides` entry to clear four newly-disclosed advisories: GHSA-p88m-4jfj-68fv (moderate, HTTP header injection via Set-Cookie percent-decoding), GHSA-vxpw-j846-p89q (high, WebSocket client DoS via fragment count bypass), GHSA-35p6-xmwp-9g52 (low, HTTP response queue poisoning via keep-alive socket reuse), and GHSA-g8m3-5g58-fq7m (low, Set-Cookie SameSite downgrade). `npm audit` now reports no moderate-or-higher vulnerabilities. ([#655](https://github.com/vfarcic/dot-ai/issues/655))
 
 
 ## [1.22.0] - 2026-06-13
@@ -206,8 +206,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Bug Fixes
 
-- The operate tool now extracts JSON from AI responses using a more robust parser, fixing intermittent `Operation failed: Invalid AI response format` errors that occurred when the model included explanatory text alongside the JSON object. ([#operate-json-parse](https://github.com/vfarcic/dot-ai/issues/operate-json-parse))
-- GitHub Copilot provider configuration now rejects personal access tokens (`github_pat_*` and `ghp_*`) before making inference calls, because `api.githubcopilot.com` does not support PATs for this direct-token endpoint. Docs and Helm comments now list only `gho_*` and `ghu_*` tokens. ([#627-fix-copilot-pat-support](https://github.com/vfarcic/dot-ai/issues/627-fix-copilot-pat-support))
+- The operate tool now extracts JSON from AI responses using a more robust parser, fixing intermittent `Operation failed: Invalid AI response format` errors that occurred when the model included explanatory text alongside the JSON object. ([#628](https://github.com/vfarcic/dot-ai/issues/628))
+- GitHub Copilot provider configuration now rejects personal access tokens (`github_pat_*` and `ghp_*`) before making inference calls, because `api.githubcopilot.com` does not support PATs for this direct-token endpoint. Docs and Helm comments now list only `gho_*` and `ghu_*` tokens. ([#627](https://github.com/vfarcic/dot-ai/issues/627))
 
 
 ## [1.21.0] - 2026-06-06
@@ -241,33 +241,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Other Changes
 
-- Followup to PR #572 (issue #464): add `MockLanguageModelV3`-based unit tests covering `VercelProvider.toolLoop`. Verifies the multi-step tool-call flow end to end: a single `tool-call` content part dispatches the executor with parsed input, two sequential tool calls produce ordered `toolCallsExecuted` entries with matching iteration counts, and an unknown tool name leaves the executor untouched while the loop still returns the final text. No production code changes. ([#464-vercel-provider-toolloop-tests](https://github.com/vfarcic/dot-ai/issues/464-vercel-provider-toolloop-tests))
+- Followup to PR #572 (issue #464): add `MockLanguageModelV3`-based unit tests covering `VercelProvider.toolLoop`. Verifies the multi-step tool-call flow end to end: a single `tool-call` content part dispatches the executor with parsed input, two sequential tool calls produce ordered `toolCallsExecuted` entries with matching iteration counts, and an unknown tool name leaves the executor untouched while the loop still returns the final text. No production code changes. ([#464](https://github.com/vfarcic/dot-ai/issues/464))
 
 
 ## [1.19.1] - 2026-05-13
 
 ### Other Changes
 
-- Followup to PR #493 (issue #464): add `MockLanguageModelV3`-based unit tests covering `VercelProvider.sendMessage` error paths. Verifies that rate-limit (429), auth (401), and generic network failures from the Vercel AI SDK are wrapped into a single `<provider> API error:` `Error` with the original error preserved on `cause`, so upstream telemetry, retry classification, and debug logs can still inspect the underlying failure. No production code changes. ([#464-vercel-provider-error-paths](https://github.com/vfarcic/dot-ai/issues/464-vercel-provider-error-paths))
+- Followup to PR #493 (issue #464): add `MockLanguageModelV3`-based unit tests covering `VercelProvider.sendMessage` error paths. Verifies that rate-limit (429), auth (401), and generic network failures from the Vercel AI SDK are wrapped into a single `<provider> API error:` `Error` with the original error preserved on `cause`, so upstream telemetry, retry classification, and debug logs can still inspect the underlying failure. No production code changes. ([#464](https://github.com/vfarcic/dot-ai/issues/464))
 
 
 ## [1.19.0] - 2026-05-12
 
 ### Features
 
-- Configurable retry budget for AI SDK calls. `embed`, `embedMany`, and `generateText` now pass an explicit `maxRetries` value resolved per operation type (`embeddings`, `chat`, `tool_loop`, `wrap_up`). Defaults match production needs (embeddings 4 for resilience, chat 2, tool-loop 2, wrap-up 1) and can be tuned via typed Helm values under `ai.retries.{default,embeddings,chat,toolLoop,wrapUp}`, which the chart templates into the underlying env vars (`DOT_AI_AI_MAX_RETRIES`, `DOT_AI_AI_MAX_RETRIES_EMBEDDINGS`, `DOT_AI_AI_MAX_RETRIES_CHAT`, `DOT_AI_AI_MAX_RETRIES_TOOL_LOOP`, `DOT_AI_AI_MAX_RETRIES_WRAP_UP`). Per-operation values take precedence over the global override; setting a value to `0` disables retries. ([#459-configure-retry-behavior](https://github.com/vfarcic/dot-ai/issues/459-configure-retry-behavior))
+- Configurable retry budget for AI SDK calls. `embed`, `embedMany`, and `generateText` now pass an explicit `maxRetries` value resolved per operation type (`embeddings`, `chat`, `tool_loop`, `wrap_up`). Defaults match production needs (embeddings 4 for resilience, chat 2, tool-loop 2, wrap-up 1) and can be tuned via typed Helm values under `ai.retries.{default,embeddings,chat,toolLoop,wrapUp}`, which the chart templates into the underlying env vars (`DOT_AI_AI_MAX_RETRIES`, `DOT_AI_AI_MAX_RETRIES_EMBEDDINGS`, `DOT_AI_AI_MAX_RETRIES_CHAT`, `DOT_AI_AI_MAX_RETRIES_TOOL_LOOP`, `DOT_AI_AI_MAX_RETRIES_WRAP_UP`). Per-operation values take precedence over the global override; setting a value to `0` disables retries. ([#459](https://github.com/vfarcic/dot-ai/issues/459))
 
 ### Bug Fixes
 
-- Upgrade `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` from `^0.207.0` to `^0.217.0` to close GHSA-q7rr-3cgh-j5r3 (high severity, Prometheus exporter process crash via malformed HTTP request). Upgrade `mermaid` from `^10.9.5` to `^11.15.0` to close GHSA-87f9-hvmw-gh4p, GHSA-6m6c-36f7-fhxh, GHSA-ghcm-xqfw-q4vr, and GHSA-xcj9-5m2h-648r (4 moderate severity, CSS/HTML injection and infinite-loop DoS in Mermaid diagrams). All transitively-bumped `@opentelemetry/*` packages move in lockstep to `0.217.0` / `2.7.1`. The codebase only consumes `mermaid.parse()` and `mermaid.initialize()`, whose APIs are unchanged between v10 and v11. Unblocks `npm run audit` and the CI `Run dependency security audit` gate. ([#otel-prometheus-security-advisory](https://github.com/vfarcic/dot-ai/issues/otel-prometheus-security-advisory))
-- Upgrade base images and `@types/node` from Node.js 22 to 24 (`Dockerfile`, `mock-server/Dockerfile`, `packages/agentic-tools/Dockerfile`, plus `node-version: '24.x'` in all GitHub Actions workflows so CI and prod images stay in lockstep). Upgrade `vitest` and `@vitest/ui` from `^3.2.4` to `^4.0.0`. Add a `protobufjs: ^8.2.0` override to close 7 transitive security advisories pulled in via `@opentelemetry/otlp-transformer` and `@grpc/proto-loader`: GHSA-q6x5-8v7m-xcrf (moderate, overlong UTF-8 decoding), GHSA-2pr8-phx7-x9h3 (moderate, DoS from crafted field names), GHSA-66ff-xgx4-vchm (high, code injection through bytes field defaults), GHSA-fx83-v9x8-x52w (moderate, prototype injection in generated constructors), GHSA-75px-5xx7-5xc7 (high, code generation gadget after prototype pollution), GHSA-jvwf-75h9-cwgg (high, process-wide DoS through unsafe option paths), GHSA-685m-2w69-288q (high, DoS through unbounded protobuf recursion). Removes pre-existing SHA digest pins from `mock-server/Dockerfile` and `packages/agentic-tools/Dockerfile`, consistent with the multi-arch policy enforced in `renovate.json`. Unblocks the CI `Run dependency security audit` gate on `main`. ([#565-node24-vitest4-protobufjs](https://github.com/vfarcic/dot-ai/issues/565-node24-vitest4-protobufjs))
+- Upgrade `@opentelemetry/sdk-node` and `@opentelemetry/exporter-trace-otlp-http` from `^0.207.0` to `^0.217.0` to close GHSA-q7rr-3cgh-j5r3 (high severity, Prometheus exporter process crash via malformed HTTP request). Upgrade `mermaid` from `^10.9.5` to `^11.15.0` to close GHSA-87f9-hvmw-gh4p, GHSA-6m6c-36f7-fhxh, GHSA-ghcm-xqfw-q4vr, and GHSA-xcj9-5m2h-648r (4 moderate severity, CSS/HTML injection and infinite-loop DoS in Mermaid diagrams). All transitively-bumped `@opentelemetry/*` packages move in lockstep to `0.217.0` / `2.7.1`. The codebase only consumes `mermaid.parse()` and `mermaid.initialize()`, whose APIs are unchanged between v10 and v11. Unblocks `npm run audit` and the CI `Run dependency security audit` gate. ([#498](https://github.com/vfarcic/dot-ai/issues/498))
+- Upgrade base images and `@types/node` from Node.js 22 to 24 (`Dockerfile`, `mock-server/Dockerfile`, `packages/agentic-tools/Dockerfile`, plus `node-version: '24.x'` in all GitHub Actions workflows so CI and prod images stay in lockstep). Upgrade `vitest` and `@vitest/ui` from `^3.2.4` to `^4.0.0`. Add a `protobufjs: ^8.2.0` override to close 7 transitive security advisories pulled in via `@opentelemetry/otlp-transformer` and `@grpc/proto-loader`: GHSA-q6x5-8v7m-xcrf (moderate, overlong UTF-8 decoding), GHSA-2pr8-phx7-x9h3 (moderate, DoS from crafted field names), GHSA-66ff-xgx4-vchm (high, code injection through bytes field defaults), GHSA-fx83-v9x8-x52w (moderate, prototype injection in generated constructors), GHSA-75px-5xx7-5xc7 (high, code generation gadget after prototype pollution), GHSA-jvwf-75h9-cwgg (high, process-wide DoS through unsafe option paths), GHSA-685m-2w69-288q (high, DoS through unbounded protobuf recursion). Removes pre-existing SHA digest pins from `mock-server/Dockerfile` and `packages/agentic-tools/Dockerfile`, consistent with the multi-arch policy enforced in `renovate.json`. Unblocks the CI `Run dependency security audit` gate on `main`. ([#565](https://github.com/vfarcic/dot-ai/issues/565))
 
 
 ## [1.18.1] - 2026-05-10
 
 ### Bug Fixes
 
-- Override transitive `fast-uri` to `>= 3.1.2` to close two high-severity security advisories surfaced by the dependency audit step in CI: `GHSA-q3j6-qgpj-74h6` (path traversal via percent-encoded dot segments, fixed in `>= 3.1.1`) and `GHSA-v39h-62p7-jpjc` (host confusion via percent-encoded authority delimiters, fixed in `>= 3.1.2`). The vulnerable version was pulled in via `@modelcontextprotocol/sdk@1.27.1 -> ajv@8.18.0 -> fast-uri@3.1.0`. ([#495-fast-uri-security-advisory](https://github.com/vfarcic/dot-ai/issues/495-fast-uri-security-advisory))
+- Override transitive `fast-uri` to `>= 3.1.2` to close two high-severity security advisories surfaced by the dependency audit step in CI: `GHSA-q3j6-qgpj-74h6` (path traversal via percent-encoded dot segments, fixed in `>= 3.1.1`) and `GHSA-v39h-62p7-jpjc` (host confusion via percent-encoded authority delimiters, fixed in `>= 3.1.2`). The vulnerable version was pulled in via `@modelcontextprotocol/sdk@1.27.1 -> ajv@8.18.0 -> fast-uri@3.1.0`. ([#495](https://github.com/vfarcic/dot-ai/issues/495))
 
 ### Other Changes
 
@@ -277,8 +277,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   unit tests for `VercelProvider.sendMessage`. Provider response mapping and
   prompt forwarding can now be exercised without API keys, network calls,
   or live integration fixtures, complementing the existing per-provider
-  integration suite. ([#464-mock-language-model-unit-tests](https://github.com/vfarcic/dot-ai/issues/464-mock-language-model-unit-tests))
-- Replace manual `Promise.all + embed()` fan-out in `VercelEmbeddingProvider.generateEmbeddings` with a single `embedMany` call from the Vercel AI SDK. The SDK now handles batching, parallelism, and chunking internally; existing OpenTelemetry tracing, circuit breaker, and Google `providerOptions` (outputDimensionality, taskType) are preserved. Adds `MockEmbeddingModelV3`-based unit tests covering the batching path. (#453) ([#453-use-embedmany-batch-embeddings](https://github.com/vfarcic/dot-ai/issues/453-use-embedmany-batch-embeddings))
+  integration suite. ([#464](https://github.com/vfarcic/dot-ai/issues/464))
+- Replace manual `Promise.all + embed()` fan-out in `VercelEmbeddingProvider.generateEmbeddings` with a single `embedMany` call from the Vercel AI SDK. The SDK now handles batching, parallelism, and chunking internally; existing OpenTelemetry tracing, circuit breaker, and Google `providerOptions` (outputDimensionality, taskType) are preserved. Adds `MockEmbeddingModelV3`-based unit tests covering the batching path. (#453) ([#453](https://github.com/vfarcic/dot-ai/issues/453))
 
 
 ## [1.18.0] - 2026-05-08
@@ -289,7 +289,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
   A new shared prompt, `/prd-full`, runs an entire PRD lifecycle without prompting for confirmation between steps and stops once a pull request has been created. Composes the existing `/prd-start`, `/prd-next`, `/prd-update-progress`, and `/prd-done` prompts with a global "do not pause" rule and a hard stop after PR creation, so the user can review the result before merging.
 
-  Required arguments: `prdNumber` (the PRD to implement) and `mode` (`branch` or `worktree`, pre-answering the isolation choice that `/prd-start` would otherwise ask). ([#prd-full-prompt](https://github.com/vfarcic/dot-ai/issues/prd-full-prompt))
+  Required arguments: `prdNumber` (the PRD to implement) and `mode` (`branch` or `worktree`, pre-answering the isolation choice that `/prd-start` would otherwise ask).
 
 
 ## [1.17.0] - 2026-05-08
@@ -307,7 +307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
   The remaining provider pins (`openai`, `custom`, `google`, `google_flash`, `kimi`, `xai`) were evaluated against newer candidate versions but held at their current pins after baseline-vs-new integration testing. See PRD #480 for per-provider rationale and follow-up items. Stale model references in `docs/ai-engine/setup/deployment.md` (OpenRouter example), `src/core/ai-provider.interface.ts` (JSDoc examples), and `src/core/tracing/ai-tracing.ts` (comment examples) have also been refreshed to current pins.
 
-  ([#480-refresh-ai-model-pins](https://github.com/vfarcic/dot-ai/issues/480-refresh-ai-model-pins))
+  ([#480](https://github.com/vfarcic/dot-ai/issues/480))
 
 
 ## [1.16.3] - 2026-04-29
@@ -316,7 +316,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Answer validator now accepts empty string when it's an explicit `select` option**
 
-  When the recommend tool generated a required `select` question whose `options` list explicitly included `""` (e.g., `["", "soft", "hard"]` to mean "no anti-affinity"), the answer validator rejected the empty string with a "required" error even though the question itself listed it as a valid choice. The validator now treats `""` as a valid answer for required `select` questions whenever it appears in the question's `options` array. ([#474-answer-validator-empty-select](https://github.com/vfarcic/dot-ai/issues/474-answer-validator-empty-select))
+  When the recommend tool generated a required `select` question whose `options` list explicitly included `""` (e.g., `["", "soft", "hard"]` to mean "no anti-affinity"), the answer validator rejected the empty string with a "required" error even though the question itself listed it as a valid choice. The validator now treats `""` as a valid answer for required `select` questions whenever it appears in the question's `options` array. ([#474](https://github.com/vfarcic/dot-ai/issues/474))
 - **Custom AI provider base URL now works through the Helm chart (#474)**
 
   Two fixes so a custom OpenAI-compatible LLM endpoint can be configured end-to-end via Helm:
@@ -326,13 +326,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
   The default (`ai.provider: anthropic`) is unchanged. Users with a custom endpoint can pick whichever style they prefer: explicit (`ai.provider: custom`) or auto-detect (`ai.provider: ""`).
 
-  ([#474-custom-provider-helm](https://github.com/vfarcic/dot-ai/issues/474-custom-provider-helm))
+  ([#474](https://github.com/vfarcic/dot-ai/issues/474))
 
 ### Other Changes
 
 - **Integration tests now create draft PRs to skip automated reviews**
 
-  The remediate tool's GitOps test path creates real PRs against `vfarcic/dot-ai` to verify the end-to-end flow. These transient PRs were briefly triggering CodeRabbit reviews. The PR creation in `handleGitCreatePr` now honors a `DOT_AI_GIT_CREATE_DRAFT_PRS=true` env var (set only on the integration test pod) to create those PRs as drafts, which CodeRabbit skips by configuration. Production behavior is unchanged. ([#474-integration-draft-prs](https://github.com/vfarcic/dot-ai/issues/474-integration-draft-prs))
+  The remediate tool's GitOps test path creates real PRs against `vfarcic/dot-ai` to verify the end-to-end flow. These transient PRs were briefly triggering CodeRabbit reviews. The PR creation in `handleGitCreatePr` now honors a `DOT_AI_GIT_CREATE_DRAFT_PRS=true` env var (set only on the integration test pod) to create those PRs as drafts, which CodeRabbit skips by configuration. Production behavior is unchanged. ([#474](https://github.com/vfarcic/dot-ai/issues/474))
 
 
 ## [1.16.2] - 2026-04-26
@@ -341,7 +341,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Resolve npm audit advisories (#468)**
 
-  Updated transitive dependencies via `npm audit fix` (hono, dompurify, lodash-es, postcss, protobufjs, vite, and others) and bumped direct `uuid` from 13 to 14 to address GHSA-w5hq-g745-h8pq. Added an `.nsprc` exception for the same advisory via the `mermaid > uuid` transitive path, which has no upstream fix yet; the vulnerable code path (passing a `buf` argument to `uuidv5`) is not used in this codebase. ([#468-npm-audit-fixes](https://github.com/vfarcic/dot-ai/issues/468-npm-audit-fixes))
+  Updated transitive dependencies via `npm audit fix` (hono, dompurify, lodash-es, postcss, protobufjs, vite, and others) and bumped direct `uuid` from 13 to 14 to address GHSA-w5hq-g745-h8pq. Added an `.nsprc` exception for the same advisory via the `mermaid > uuid` transitive path, which has no upstream fix yet; the vulnerable code path (passing a `buf` argument to `uuidv5`) is not used in this codebase. ([#468](https://github.com/vfarcic/dot-ai/issues/468))
 
 
 ## [1.16.1] - 2026-04-14
@@ -374,7 +374,7 @@ No significant changes.
 
   Also removed the obsolete `anthropic-beta: context-1m-2025-08-07` header, which is no longer needed as 1M context is native to Claude Opus 4.6 and Sonnet 4.6.
 
-  See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/setup/deployment) for configuration details. ([#anthropic-bearer-auth](https://github.com/vfarcic/dot-ai/issues/anthropic-bearer-auth))
+  See the [Deployment Guide](https://devopstoolkit.ai/docs/mcp/setup/deployment) for configuration details.
 
 
 ## [1.15.1] - 2026-04-02
@@ -398,7 +398,7 @@ No significant changes.
 
   No auth config = no auth = current behavior unchanged (backward compatible).
 
-  ([#414-mcp-client-auth](https://github.com/vfarcic/dot-ai/issues/414-mcp-client-auth))
+  ([#414](https://github.com/vfarcic/dot-ai/issues/414))
 
 
 ## [1.14.1] - 2026-03-30
@@ -407,7 +407,7 @@ No significant changes.
 
 - **AI provider errors no longer masked by JSON parse failures**
 
-  When an AI provider call fails (e.g., proxy authentication error, network timeout), the actual error message is now surfaced to the user. Previously, the error string was passed directly to `JSON.parse()`, producing a confusing `SyntaxError: Unexpected token 'E', "Error duri"... is not valid JSON` that hid the real cause. This affected the query, remediate, impact-analysis tools, and the REST API visualization endpoint. ([#fix-status-guard](https://github.com/vfarcic/dot-ai/issues/fix-status-guard))
+  When an AI provider call fails (e.g., proxy authentication error, network timeout), the actual error message is now surfaced to the user. Previously, the error string was passed directly to `JSON.parse()`, producing a confusing `SyntaxError: Unexpected token 'E', "Error duri"... is not valid JSON` that hid the real cause. This affected the query, remediate, impact-analysis tools, and the REST API visualization endpoint. ([#447](https://github.com/vfarcic/dot-ai/issues/447))
 
 
 ## [1.14.0] - 2026-03-29
@@ -499,7 +499,7 @@ No significant changes.
 
   The REST API now supports `X-Dot-AI-Authorization` as a fallback authentication header. When accessing the API through the Kubernetes API server proxy (e.g., from Headlamp or other dashboard plugins), the standard `Authorization` header is overwritten with a Kubernetes bearer token. Clients can now send their dot-ai token via `X-Dot-AI-Authorization: Bearer <token>` to bypass this limitation.
 
-  The fallback header is checked first; if absent, the standard `Authorization` header is used as before. Existing clients require no changes. ([#proxy-auth](https://github.com/vfarcic/dot-ai/issues/proxy-auth))
+  The fallback header is checked first; if absent, the standard `Authorization` header is used as before. Existing clients require no changes.
 
 
 ## [1.10.1] - 2026-03-13
@@ -508,7 +508,7 @@ No significant changes.
 
 - **Dex Readiness Probe Timeout**
 
-  Fixed intermittent Dex unhealthy events caused by an overly tight readiness probe timeout. The `/healthz/ready` endpoint queries the Kubernetes API server (CRD storage), which can exceed the previous 1-second timeout under normal cluster load. The default readiness probe now uses `timeoutSeconds: 5` and `failureThreshold: 5`, preventing false-positive unhealthy events during routine operations. ([#dex-probe](https://github.com/vfarcic/dot-ai/issues/dex-probe))
+  Fixed intermittent Dex unhealthy events caused by an overly tight readiness probe timeout. The `/healthz/ready` endpoint queries the Kubernetes API server (CRD storage), which can exceed the previous 1-second timeout under normal cluster load. The default readiness probe now uses `timeoutSeconds: 5` and `failureThreshold: 5`, preventing false-positive unhealthy events during routine operations.
 
 
 ## [1.10.0] - 2026-03-13
@@ -532,7 +532,7 @@ No significant changes.
 
 - **Admin Role Missing User Management Permission**
 
-  The built-in `dotai-admin` ClusterRole now grants the `apply` verb on the `users` resource. Previously, admins could view users but not create, update, or delete them, which required a custom ClusterRole as a workaround. Upgrading the Helm chart automatically fixes this for all existing `dotai-admin` bindings. ([#admin-users-apply](https://github.com/vfarcic/dot-ai/issues/admin-users-apply))
+  The built-in `dotai-admin` ClusterRole now grants the `apply` verb on the `users` resource. Previously, admins could view users but not create, update, or delete them, which required a custom ClusterRole as a workaround. Upgrading the Helm chart automatically fixes this for all existing `dotai-admin` bindings.
 
 
 ## [1.9.0] - 2026-03-11
@@ -543,7 +543,7 @@ No significant changes.
 
   The `GET /api/v1/tools` endpoint now includes a virtual `users` entry when the authenticated user has `manageUsers` RBAC permission on the `users` resource. This enables Web UI clients to show or hide user management features based on the user's authorization level, without requiring a separate permissions endpoint.
 
-  Token users and RBAC-disabled deployments see `users` in discovery automatically. OAuth users only see it when granted the appropriate ClusterRoleBinding (e.g., `dotai-admin`). ([#392-users-discovery](https://github.com/vfarcic/dot-ai/issues/392-users-discovery))
+  Token users and RBAC-disabled deployments see `users` in discovery automatically. OAuth users only see it when granted the appropriate ClusterRoleBinding (e.g., `dotai-admin`). ([#392](https://github.com/vfarcic/dot-ai/issues/392))
 
 
 ## [1.8.1] - 2026-03-11
@@ -744,10 +744,10 @@ No significant changes.
 
   The Google AI provider now uses Gemini 3.1 Pro (`gemini-3.1-pro-preview`), replacing Gemini 3 Pro. Gemini 3.1 Pro offers improved thinking, better token efficiency, and more reliable tool usage for agentic workflows.
 
-  Integration test timeouts for capability scanning and Helm operations have been increased to accommodate variance across model providers. ([#gemini-upgrade](https://github.com/vfarcic/dot-ai/issues/gemini-upgrade))
+  Integration test timeouts for capability scanning and Helm operations have been increased to accommodate variance across model providers.
 - **Claude Sonnet 4.6 Upgrade**
 
-  The default Anthropic provider now uses Claude Sonnet 4.6 (`claude-sonnet-4-6`), replacing Claude Sonnet 4.5. Sonnet 4.6 delivers near-Opus intelligence with improved coding, long-context reasoning, and agent planning, while maintaining the same pricing tier. The Amazon Bedrock default model has also been updated to `global.anthropic.claude-sonnet-4-6`. ([#sonnet-upgrade](https://github.com/vfarcic/dot-ai/issues/sonnet-upgrade))
+  The default Anthropic provider now uses Claude Sonnet 4.6 (`claude-sonnet-4-6`), replacing Claude Sonnet 4.5. Sonnet 4.6 delivers near-Opus intelligence with improved coding, long-context reasoning, and agent planning, while maintaining the same pricing tier. The Amazon Bedrock default model has also been updated to `global.anthropic.claude-sonnet-4-6`.
 
 
 ## [1.2.4] - 2026-02-16
@@ -756,7 +756,7 @@ No significant changes.
 
 - **Plugin Readiness Probe Timing**
 
-  The agentic-tools plugin readiness probe `initialDelaySeconds` is now 30 seconds (previously 5 seconds). The aggressive 5-second delay caused spurious readiness probe failures during pod startup, triggering unnecessary rolling restarts when the container needed more time to initialize. ([#readiness-probe](https://github.com/vfarcic/dot-ai/issues/readiness-probe))
+  The agentic-tools plugin readiness probe `initialDelaySeconds` is now 30 seconds (previously 5 seconds). The aggressive 5-second delay caused spurious readiness probe failures during pod startup, triggering unnecessary rolling restarts when the container needed more time to initialize.
 
 
 ## [1.2.3] - 2026-02-16
@@ -839,7 +839,7 @@ No significant changes.
 
 - **Fixed Plugin Image Build Failure**
 
-  Fixed agentic-tools plugin Docker build failing due to GitHub API rate limiting when downloading kubectl and helm. Now uses official container images (rancher/kubectl, alpine/helm) to copy binaries, matching the main Dockerfile pattern and enabling Renovate auto-updates. ([#347-2](https://github.com/vfarcic/dot-ai/issues/347-2))
+  Fixed agentic-tools plugin Docker build failing due to GitHub API rate limiting when downloading kubectl and helm. Now uses official container images (rancher/kubectl, alpine/helm) to copy binaries, matching the main Dockerfile pattern and enabling Renovate auto-updates. ([#347](https://github.com/vfarcic/dot-ai/issues/347))
 - **Plugin Tools No Longer Exposed as MCP Tools**
 
   Plugin tools (kubectl_*, helm_*, shell_exec) are no longer registered as MCP tools. Previously, all 20+ plugin tools were exposed alongside the 7 built-in tools, consuming significant context tokens in AI clients even when users only needed core functionality.

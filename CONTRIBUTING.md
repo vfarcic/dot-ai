@@ -78,14 +78,28 @@ This project uses [towncrier](https://github.com/twisted/towncrier) for release 
 
 Create a file in `changelog.d/` with this naming pattern:
 
-```
-changelog.d/<issue-number>-<short-description>.<type>.md
+```text
+changelog.d/<issue-number>.<type>.md
 ```
 
 **Examples**:
-- `331-towncrier-release-notes.feature.md`
-- `328-dashboard-http-api.feature.md`
-- `456-fix-query-timeout.bugfix.md`
+- `331.feature.md`
+- `328.feature.md`
+- `456.bugfix.md`
+
+The filename carries no description. towncrier treats everything before the type
+as the issue reference and renders it as a link, so `331-towncrier-release-notes.feature.md`
+publishes a link to `/issues/331-towncrier-release-notes`, which does not exist.
+Describe the change in the fragment body instead.
+
+For a change with no issue behind it, prefix the name with `+`:
+
+```text
+changelog.d/+<short-description>.<type>.md
+```
+
+towncrier treats these as orphan fragments and renders them with no issue link —
+use them rather than inventing an issue-number-like stem.
 
 **Types**:
 - `feature` - New features
@@ -100,7 +114,7 @@ Describe what the feature or fix IS (not "added X" diary-style). Use a title and
 
 When applicable, link to relevant documentation at https://devopstoolkit.ai.
 
-**Example** (`changelog.d/331-towncrier-release-notes.feature.md`):
+**Example** (`changelog.d/331.feature.md`):
 ```markdown
 **Towncrier-based release notes system**
 
