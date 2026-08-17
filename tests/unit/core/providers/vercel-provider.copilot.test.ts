@@ -6,11 +6,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { makeCopilotCredentialResolver } from '../../../../src/core/providers/copilot-token-exchanger';
+import {
+  isSupportedCopilotToken,
+  makeCopilotCredentialResolver,
+} from '../../../../src/core/providers/copilot-token-exchanger';
 
 // Mock execSync so gh CLI fallback doesn't bleed real credentials into tests
 vi.mock('node:child_process', () => ({
-  execSync: vi.fn(() => { throw new Error('gh: mocked'); }),
+  execSync: vi.fn(() => {
+    throw new Error('gh: mocked');
+  }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -18,6 +23,12 @@ vi.mock('node:child_process', () => ({
 // ---------------------------------------------------------------------------
 
 const VALID_TOKEN = 'gho_testtoken1234';
+
+const hasUsableToken = [
+  process.env.GITHUB_COPILOT_TOKEN,
+  process.env.GH_TOKEN,
+  process.env.GITHUB_TOKEN,
+].some(token => token && isSupportedCopilotToken(token));
 
 function makeResolver(token = VALID_TOKEN) {
   return makeCopilotCredentialResolver(token);
@@ -52,6 +63,15 @@ describe('copilot vercel-provider integration', () => {
   it('resolver throws when env chain is empty and no override', () => {
     const resolver = makeCopilotCredentialResolver('ghp_invalid'); // classic PAT = unsupported
     expect(() => resolver.resolve()).toThrow(/No supported GitHub token/);
+  });
+
+  it.each([
+    ['OAuth token', 'gho_testtoken1234', true],
+    ['GitHub App user token', 'ghu_testtoken1234', true],
+    ['classic PAT', 'ghp_testtoken1234', false],
+    ['fine-grained PAT', 'github_pat_testtoken1234', false],
+  ])('recognizes %s support by token shape', (_name, token, expected) => {
+    expect(isSupportedCopilotToken(token)).toBe(expected);
   });
 
   it('copilotFetch injects required headers including x-initiator', async () => {
@@ -127,14 +147,18 @@ describe('copilot vercel-provider integration', () => {
       return response;
     };
 
-    const res = await copilotFetch('https://api.githubcopilot.com/chat/completions');
+    const res = await copilotFetch(
+      'https://api.githubcopilot.com/chat/completions'
+    );
     expect(callCount).toBe(2);
     expect(res.status).toBe(200);
     expect(secondToken).toBe('Bearer gho_refreshedtoken');
   });
+});
 
-  // Live e2e — only runs when a real token is available
-  it.skipIf(!process.env.GITHUB_COPILOT_TOKEN && !process.env.GH_TOKEN && !process.env.GITHUB_TOKEN)(
+// Keep the live test outside the describe whose beforeEach clears credentials.
+describe('copilot live credential (env-dependent)', () => {
+  it.skipIf(!hasUsableToken)(
     'e2e: resolver returns a usable token from env',
     () => {
       const resolver = makeCopilotCredentialResolver();

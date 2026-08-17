@@ -24,8 +24,8 @@
 
 const SUPPORTED_PREFIXES = ['gho_', 'ghu_'];
 
-function isSupported(token: string): boolean {
-  return SUPPORTED_PREFIXES.some((p) => token.startsWith(p));
+export function isSupportedCopilotToken(token: string): boolean {
+  return SUPPORTED_PREFIXES.some(p => token.startsWith(p));
 }
 export interface CopilotCredentialResolver {
   /**
@@ -48,14 +48,18 @@ export function makeCopilotCredentialResolver(
   return {
     resolve(): string {
       // 1. Explicit override (e.g. GITHUB_COPILOT_TOKEN passed by factory)
-      if (overrideToken && isSupported(overrideToken)) {
+      if (overrideToken && isSupportedCopilotToken(overrideToken)) {
         return overrideToken;
       }
 
       // 2. Env chain
-      for (const envVar of ['GITHUB_COPILOT_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']) {
+      for (const envVar of [
+        'GITHUB_COPILOT_TOKEN',
+        'GH_TOKEN',
+        'GITHUB_TOKEN',
+      ]) {
         const val = process.env[envVar];
-        if (val && isSupported(val)) {
+        if (val && isSupportedCopilotToken(val)) {
           return val;
         }
       }
