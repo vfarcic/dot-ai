@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [2.2.1] - 2026-08-17
+
+### Documentation
+
+- **Working issue links in release notes**
+
+  Release-note entries linked to URLs like `/issues/759-copilot-token-shape-gate`,
+  which do not exist — 41 of the issue links published across the changelog were
+  dead. Fragment filenames that reference an issue now carry only its number,
+  matching what the release tooling already generated, and every published link
+  has been corrected
+  or, where the change had no issue behind it, removed. ([#777](https://github.com/vfarcic/dot-ai/issues/777))
+
+
 ## [2.2.0] - 2026-08-17
 
 ### Features
