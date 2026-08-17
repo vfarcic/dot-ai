@@ -403,7 +403,7 @@ This is already included in the [Quick Start](#quick-start-5-minutes) above. No 
 | **Model** | `all-MiniLM-L6-v2` (384 dimensions) |
 | **Resource footprint** | ~256 MB RAM, 250m CPU (request) |
 | **GPU** | Not required |
-| **Architecture** | amd64 only (no ARM64/Apple Silicon — see [TEI issue #769](https://github.com/huggingface/text-embeddings-inference/issues/769)) |
+| **Architecture** | amd64 only (no ARM64/Apple Silicon — see [TEI issue #769](https://github.com/huggingface/text-embeddings-inference/issues/769)). On mixed clusters, pin the pod to amd64 nodes — see [Pod scheduling](#local-embeddings-scheduling) |
 
 To customize the model or resources:
 
@@ -434,6 +434,35 @@ localEmbeddings:
 ```
 
 > ⚠️ **When to leave it off (the default):** prefetch requires PyPI **and** HuggingFace to be reachable at pod startup and only supports **public, non-gated** models (no `HF_TOKEN` is passed). Leave it disabled for air-gapped clusters, gated/private models, a `model:` set to a local path, or a custom pre-baked TEI image — in those cases prefetch would break a setup that otherwise works.
+
+#### Pod scheduling (nodeSelector, affinity, tolerations) {#local-embeddings-scheduling}
+
+By default the embeddings pod carries no scheduling constraints, so the scheduler places it on any node with room. That is the wrong node when only some of your nodes can run it — a mixed-architecture cluster (the TEI image is amd64 only, see the table above), a dedicated or accelerator node pool, or nodes reserved behind taints. Three optional values add the standard Kubernetes scheduling fields to the local-embeddings Deployment, and to nothing else in the chart:
+
+```yaml
+localEmbeddings:
+  enabled: true
+  nodeSelector:                     # Node labels the pod must match
+    kubernetes.io/arch: amd64
+  affinity:                         # Standard node/pod affinity and anti-affinity rules
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node-pool
+                operator: In
+                values:
+                  - embeddings
+  tolerations:                      # Taints the pod tolerates
+    - key: dedicated
+      operator: Equal
+      value: embeddings
+      effect: NoSchedule
+```
+
+Each value is independent — set only the ones you need. What you provide is passed through verbatim to `spec.template.spec` of the local-embeddings Deployment, so any valid Kubernetes [pod-to-node assignment](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/) or [taint and toleration](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) syntax works. All three are empty by default and are omitted from the rendered manifest entirely, so an existing install schedules exactly as before until you set one.
+
+> ⚠️ **On mixed-architecture clusters, pin to amd64.** The TEI image is amd64 only ([TEI issue #769](https://github.com/huggingface/text-embeddings-inference/issues/769)), so on a cluster that also has ARM64 nodes the embeddings pod can be placed on a node it cannot run on. Setting `nodeSelector: {kubernetes.io/arch: amd64}` keeps it on nodes where it starts. These values control **where** the pod is scheduled — they do not make TEI run on an unsupported architecture.
 
 To disable local embeddings (e.g., if using a cloud provider instead):
 

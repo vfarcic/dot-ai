@@ -112,6 +112,18 @@ spec:
       - name: model-cache
         emptyDir: {}
       {{- end }}
+      {{- with .Values.localEmbeddings.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.localEmbeddings.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.localEmbeddings.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       terminationGracePeriodSeconds: 30
 ---
 apiVersion: v1

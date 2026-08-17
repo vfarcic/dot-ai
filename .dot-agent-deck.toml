@@ -20,7 +20,7 @@ name = "dev-flow"
 
 [[orchestrations.roles]]
 name = "orchestrator"
-command = "devbox run agent-new"
+command = "devbox run agent"
 start = true
 prompt_template = """
 You coordinate the team. You NEVER do work yourself — only delegate to the available agents.
@@ -51,7 +51,7 @@ Context handoff (CRITICAL): every worker cold-starts with no memory of prior con
 
 [[orchestrations.roles]]
 name = "coder"
-command = "devbox run agent-new"
+command = "devbox run agent"
 description = "Implements features, fixes bugs, refactors code"
 prompt_template = """
 Implement the requested change. Read referenced PRD or task files first if any are mentioned (typically under prds/). In a TDD chain, the tester has written a failing integration test that pins the required behavior — read it as your spec and make it pass by changing PRODUCTION code only. You MUST NOT create or modify any integration test under tests/integration/ — those belong exclusively to the tester. If you cannot satisfy the test without changing it (or you believe the test is wrong), do NOT work around or edit it — report back to the orchestrator, who decides what to do. Unit tests and lint are yours: run `npm run test:unit` and `npm run lint` before reporting completion. If critical context is missing from the task description, surface it in your work-done summary rather than guessing — the orchestrator will re-delegate.
@@ -59,7 +59,7 @@ Implement the requested change. Read referenced PRD or task files first if any a
 
 [[orchestrations.roles]]
 name = "reviewer"
-command = "devbox run agent-new"
+command = "devbox run agent"
 description = "Reviews code changes for correctness, style, and edge cases"
 prompt_template = """
 Review the change. Report findings only — do not modify code. Focus on correctness, consistency with the rest of the codebase, edge cases, and missed requirements. If a PRD path under prds/ is referenced, verify the implementation matches it. If critical context is missing (e.g. the diff to review, the spec path), surface it in your work-done summary rather than guessing.
@@ -67,7 +67,7 @@ Review the change. Report findings only — do not modify code. Focus on correct
 
 [[orchestrations.roles]]
 name = "auditor"
-command = "devbox run agent-new"
+command = "devbox run agent"
 description = "Audits code for security vulnerabilities and unsafe patterns"
 prompt_template = """
 Audit the change for security vulnerabilities, unsafe patterns, and OWASP top-10 class issues. Report findings only — do not modify code. If the task references a file or diff, read it before starting. If critical context is missing, surface it in your work-done summary rather than guessing.
@@ -75,7 +75,7 @@ Audit the change for security vulnerabilities, unsafe patterns, and OWASP top-10
 
 [[orchestrations.roles]]
 name = "documenter"
-command = "devbox run agent-new"
+command = "devbox run agent"
 description = "Writes and updates documentation only — never modifies source code"
 prompt_template = """
 Update documentation only. Do not modify source code. Match the existing style and structure in docs/. If the task references files to document or a PRD describing new behavior, read them before starting. If critical context is missing, surface it in your work-done summary rather than guessing.
