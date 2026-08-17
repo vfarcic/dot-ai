@@ -26,7 +26,12 @@ describe.concurrent('Version Tool Integration', () => {
   // Embedding config depends on whether local embeddings are used (CI) or OpenAI (local dev)
   const useLocalEmbeddings = process.env.USE_LOCAL_EMBEDDINGS === 'true';
   const expectedEmbedding = useLocalEmbeddings
-    ? { available: true, provider: 'custom', model: 'custom', dimensions: 384 }
+    ? {
+        available: true,
+        provider: 'custom',
+        model: '/models/model',
+        dimensions: 384,
+      }
     : {
         available: true,
         provider: 'openai',
@@ -51,11 +56,11 @@ describe.concurrent('Version Tool Integration', () => {
             apiGroup: '',
             labels: {},
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
+            updatedAt: new Date().toISOString(),
+          },
         ],
         deletes: [],
-        isResync: false
+        isResync: false,
       });
     }, 30000);
 
