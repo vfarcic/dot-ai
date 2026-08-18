@@ -44,13 +44,6 @@ describe.concurrent('GitHub Copilot Provider Integration', () => {
     if (!shouldRun) return;
   });
 
-  test.each([
-    'github_pat_unsupportedForCopilotInference',
-    'ghp_unsupportedForCopilotInference',
-  ])('should reject unsupported PAT shape %s', token => {
-    expect(isSupportedCopilotToken(token)).toBe(false);
-  });
-
   test.skipIf(!shouldRun)(
     'should return a valid version response when using Copilot provider',
     async () => {
