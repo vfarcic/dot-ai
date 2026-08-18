@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [2.2.2] - 2026-08-18
+
+### Other Changes
+
+- **Copilot integration credential detection**
+
+  Copilot integration tests now search the full environment chain for a
+  supported credential instead of checking only the first populated variable. ([#759](https://github.com/vfarcic/dot-ai/issues/759))
+
+
 ## [2.2.1] - 2026-08-17
 
 ### Documentation
