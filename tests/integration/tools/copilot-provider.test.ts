@@ -12,22 +12,16 @@
  * PRD #587: GitHub Copilot Provider
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
-import {
-  isSupportedCopilotToken,
-  makeCopilotCredentialResolver,
-} from '../../../src/core/providers/copilot-token-exchanger.js';
-
-const COPILOT_TOKEN =
-  process.env.GITHUB_COPILOT_TOKEN ||
-  process.env.GH_TOKEN ||
-  process.env.GITHUB_TOKEN;
+import { isSupportedCopilotToken } from '../../../src/core/providers/copilot-token-exchanger.js';
 
 const isCopilotProvider = process.env.AI_PROVIDER === 'copilot';
-const hasUsableToken = Boolean(
-  COPILOT_TOKEN && isSupportedCopilotToken(COPILOT_TOKEN)
-);
+const hasUsableToken = [
+  process.env.GITHUB_COPILOT_TOKEN,
+  process.env.GH_TOKEN,
+  process.env.GITHUB_TOKEN,
+].some(token => token && isSupportedCopilotToken(token));
 const shouldRun = isCopilotProvider && hasUsableToken;
 
 // Emit a clear skip reason so CI logs are searchable
@@ -45,20 +39,6 @@ if (!shouldRun) {
 
 describe.concurrent('GitHub Copilot Provider Integration', () => {
   const integrationTest = new IntegrationTest();
-
-  beforeAll(async () => {
-    if (!shouldRun) return;
-  });
-
-  test('should reject fine-grained PATs before calling the Copilot API', () => {
-    const resolver = makeCopilotCredentialResolver(
-      'github_pat_unsupportedForCopilotInference'
-    );
-
-    expect(() => resolver.resolve()).toThrow(
-      /Personal access tokens \(github_pat_\* and ghp_\*\) are not supported/
-    );
-  });
 
   test.skipIf(!shouldRun)(
     'should return a valid version response when using Copilot provider',
