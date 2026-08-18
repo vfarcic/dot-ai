@@ -316,10 +316,14 @@ stable, published response shape. The payload lives at `data.result.data` and ca
 - `capabilities` — the items. Each has an `id` (deterministic UUID) and a `resourceName`
   (`Kind.group` identity). Match on `resourceName`, not `id`, when reconciling against
   cluster resources.
-- `totalCount` — total capabilities in the collection (counted cheaply, not by listing).
+- `truncated` — the authoritative completeness signal, derived from the list read itself:
+  `true` when more capabilities exist than were returned. A consumer computing a diff must
+  treat a truncated list as incomplete.
+- `totalCount` — capabilities in the collection. When `truncated` is `false` this equals
+  `returnedCount` exactly (the single read covered the whole set). When `truncated` is
+  `true` it is a best-effort figure from a separate count that may momentarily disagree with
+  the page under a concurrent scan — never infer completeness from it; use `truncated`.
 - `returnedCount` / `limit` — how many were returned and the effective ceiling.
-- `truncated` — `true` when the returned list is incomplete, i.e. `returnedCount <
-  totalCount`; a consumer computing a diff must treat a truncated list as incomplete.
 
 Two parameters control the response:
 

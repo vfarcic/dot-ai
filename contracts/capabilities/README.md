@@ -13,13 +13,13 @@ contract is updated deliberately.
 | --- | --- |
 | `list-full.json` | Full capability projection (id, resourceName, apiVersion, capabilities, description, …). |
 | `list-identity-only.json` | `identityOnly` projection — **only** `id` + `resourceName` per item (the diff payload). |
-| `list-truncated.json` | `returnedCount < totalCount` with `truncated: true` — an incomplete list a diff must not trust. |
+| `list-truncated.json` | `truncated: true` with `returnedCount < totalCount` — an incomplete list a diff must not trust. |
 | `list-empty.json` | Collection not yet initialized — empty list, `success: true`. |
 | `list-backend-unavailable.json` | Qdrant unreachable — outer `success: true`, inner `data.result.success: false`. |
 | `delete.json` | Successful delete acknowledgement (`deletedCapability`). |
 | `progress-completed.json` | Completed scan progress envelope. |
 
-## The three invariants these fixtures encode
+## The four invariants these fixtures encode
 
 1. **Envelope nesting.** The REST layer wraps every tool result in a
    `ToolExecutionResponse`. The real payload therefore lives at
@@ -36,6 +36,14 @@ contract is updated deliberately.
    throw. The real operation result is `data.result.success`. When the backend is
    unreachable it is `false` (see `list-backend-unavailable.json`) even though the outer
    envelope is `success: true`. Consumers must read the inner flag before trusting `data`.
+
+4. **`truncated` is authoritative; `totalCount` is not a completeness oracle.**
+   `truncated` is derived from the list read itself and is the only reliable "more remain"
+   signal. When `truncated` is `false`, `totalCount == returnedCount` exactly (the read
+   covered the whole set). When `truncated` is `true`, `totalCount` comes from a separate,
+   non-atomic count and may momentarily disagree with the page while a scan writes
+   concurrently — a diffing consumer must key off `truncated`, not `returnedCount <
+   totalCount`.
 
 ## Regenerating
 
