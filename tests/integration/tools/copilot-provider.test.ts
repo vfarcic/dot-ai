@@ -12,7 +12,7 @@
  * PRD #587: GitHub Copilot Provider
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 import { isSupportedCopilotToken } from '../../../src/core/providers/copilot-token-exchanger.js';
 
@@ -39,10 +39,6 @@ if (!shouldRun) {
 
 describe.concurrent('GitHub Copilot Provider Integration', () => {
   const integrationTest = new IntegrationTest();
-
-  beforeAll(async () => {
-    if (!shouldRun) return;
-  });
 
   test.skipIf(!shouldRun)(
     'should return a valid version response when using Copilot provider',
