@@ -156,61 +156,29 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(listResponse.success).toBe(true);
       expect(listResponse.data.result.data.capabilities.length).toBeGreaterThan(0);
 
-      // === PRD #714 M2: list contract — truncation, full listing, identity-only ===
-      // The progress poll above exits early (>= minSuccessfulResources), so the scan may
-      // still be writing. The exact-count assertions below require a stable collection, so
-      // wait for the scan to complete before capturing scannedTotal.
-      let scanComplete = false;
-      for (let i = 0; i < maxAttempts && !scanComplete; i++) {
-        const p = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-          dataType: 'capabilities',
-          operation: 'progress',
-          sessionId,
-          interaction_id: `await_complete_${i}`
-        });
-        const status = p?.data?.result?.progress?.status;
-        if (status === 'complete' || status === 'completed') {
-          scanComplete = true;
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-      }
-      expect(scanComplete).toBe(true);
-
-      // Re-list against the now-stable collection so totalCount cannot shift mid-assertion.
-      const stableListResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'list',
-        limit: 10,
-        interaction_id: 'verify_scan_stable'
-      });
-      const listData = stableListResponse.data.result.data;
-      const scannedTotal = listData.totalCount;
-
-      // A limit below the total flags truncation explicitly (the mandatory
-      // check a consumer computing a diff must honor).
+      // PRD #714 M2: shared collection is mutated by concurrent scans, so assert only
+      // per-response invariants, never an exact cross-call total (Tier 2 covers exact counts).
       const truncatedResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'list',
         limit: 1,
         interaction_id: 'verify_truncation_flag'
       });
-      expect(truncatedResponse.data.result.data.returnedCount).toBe(1);
-      expect(truncatedResponse.data.result.data.totalCount).toBe(scannedTotal);
-      expect(truncatedResponse.data.result.data.truncated).toBe(scannedTotal > 1);
+      expect(truncatedResponse.data.result.data.returnedCount).toBeLessThanOrEqual(1);
+      expect(typeof truncatedResponse.data.result.data.truncated).toBe('boolean');
 
-      // A ceiling-sized limit returns the whole set and reports not-truncated.
       const fullResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'list',
         limit: 10000,
         interaction_id: 'verify_full_listing'
       });
-      expect(fullResponse.data.result.data.returnedCount).toBe(scannedTotal);
-      expect(fullResponse.data.result.data.capabilities.length).toBe(scannedTotal);
-      expect(fullResponse.data.result.data.truncated).toBe(false);
+      expect(fullResponse.data.result.data.returnedCount).toBe(fullResponse.data.result.data.capabilities.length);
+      // M4: when not truncated the page is the whole set, so totalCount == returnedCount.
+      if (!fullResponse.data.result.data.truncated) {
+        expect(fullResponse.data.result.data.totalCount).toBe(fullResponse.data.result.data.returnedCount);
+      }
 
-      // identityOnly returns only identity fields, no heavy payload.
       const identityResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
         operation: 'list',
@@ -218,11 +186,9 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         identityOnly: true,
         interaction_id: 'verify_identity_projection'
       });
-      expect(identityResponse.data.result.data.returnedCount).toBe(scannedTotal);
-      const identityItem = identityResponse.data.result.data.capabilities[0];
-      expect(identityItem).toHaveProperty('id');
-      expect(identityItem).toHaveProperty('resourceName');
-      expect(Object.keys(identityItem).sort()).toEqual(['id', 'resourceName']);
+      for (const item of identityResponse.data.result.data.capabilities) {
+        expect(Object.keys(item).sort()).toEqual(['id', 'resourceName']);
+      }
 
       // Get a specific capability ID for RUD operations
       const capabilityId = listResponse.data.result.data.capabilities[0].id;
@@ -444,6 +410,104 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       // Note: No cleanup to avoid race conditions with parallel tests
     }, 300000); // 5 minute timeout for specific resource scan
 
+  });
+
+  describe('List Contract — Isolated Collection (PRD #714 M2, Tier 2)', () => {
+    // A dedicated collection nothing else writes to, so exact counts and the truncation
+    // boundary are deterministic (Tier 1 covers the shared-collection invariants).
+    const CONTRACT_COLLECTION = 'capabilities-contract-test';
+    // Core resources (no CRD dependency); one capability is stored per scanned resource.
+    const RESOURCE_LIST = 'Service,Deployment.apps,ConfigMap';
+    const EXPECTED_TOTAL = 3;
+
+    test('exact counts, truncation, and identity parity on a stable collection', async () => {
+      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'deleteAll',
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_cleanup'
+      });
+
+      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'scan',
+        resourceList: RESOURCE_LIST,
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_scan'
+      });
+      expect(scanResponse.data.result.success).toBe(true);
+      const sessionId = scanResponse.data.result.sessionId;
+
+      // Poll generously so a slow AI backend can't flake it (exits early on completion).
+      let scanComplete = false;
+      const maxAttempts = 30;
+      for (let i = 0; i < maxAttempts && !scanComplete; i++) {
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        const p = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId,
+          interaction_id: `contract_isolated_progress_${i}`
+        });
+        const status = p?.data?.result?.progress?.status;
+        if (status === 'complete' || status === 'completed') {
+          scanComplete = true;
+        }
+      }
+      expect(scanComplete).toBe(true);
+
+      // Full page → whole set, not truncated, exact total.
+      const full = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10000,
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_full'
+      });
+      const fullData = full.data.result.data;
+      expect(fullData.totalCount).toBe(EXPECTED_TOTAL);
+      expect(fullData.returnedCount).toBe(EXPECTED_TOTAL);
+      expect(fullData.capabilities.length).toBe(EXPECTED_TOTAL);
+      expect(fullData.truncated).toBe(false);
+
+      // Limit below the total → truncated, exact total still reported.
+      const trunc = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 1,
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_truncated'
+      });
+      const truncData = trunc.data.result.data;
+      expect(truncData.returnedCount).toBe(1);
+      expect(truncData.totalCount).toBe(EXPECTED_TOTAL);
+      expect(truncData.truncated).toBe(true);
+
+      // identityOnly → same set, each item projected to exactly { id, resourceName }.
+      const identity = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10000,
+        identityOnly: true,
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_identity'
+      });
+      const identityData = identity.data.result.data;
+      expect(identityData.returnedCount).toBe(EXPECTED_TOTAL);
+      const fullIds = fullData.capabilities.map((c: { id: string }) => c.id).sort();
+      const identityIds = identityData.capabilities.map((c: { id: string }) => c.id).sort();
+      expect(identityIds).toEqual(fullIds);
+      for (const item of identityData.capabilities) {
+        expect(Object.keys(item).sort()).toEqual(['id', 'resourceName']);
+      }
+
+      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'deleteAll',
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_teardown'
+      });
+    }, 360000);
   });
 
   describe('Capabilities Management Operations', () => {
