@@ -107,11 +107,16 @@ export async function handleCapabilityList(
     const limit = Math.min(requestedLimit, MAX_LIMIT);
     const identityOnly = args.identityOnly === true;
 
-    const capabilities = await capabilityService.getAllCapabilities(limit + 1);
-    const count = await capabilityService.getCapabilitiesCount();
     // Fetch one past the ceiling so a full page reveals whether more remain, then trim.
+    const capabilities = await capabilityService.getAllCapabilities(limit + 1);
     const truncated = capabilities.length > limit;
     capabilities.splice(limit);
+    // truncated is the authoritative completeness signal (from this single read). When it
+    // is false the page IS the whole set, so returnedCount is the exact total; only pay for
+    // a separate, non-atomic count() when the page could not prove completeness.
+    const count = truncated
+      ? await capabilityService.getCapabilitiesCount()
+      : capabilities.length;
 
     logger.info('Capabilities listed successfully', {
       requestId,
