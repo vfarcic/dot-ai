@@ -196,6 +196,36 @@ describe('capabilities list/progress/delete response contract (PRD #714)', () =>
     assertContract('list-truncated', envelope(result));
   });
 
+  it('list — caps returnedCount at the 10000 ceiling and flags truncated (> ceiling)', async () => {
+    // The >10000 case can't be provoked against a live cluster, so it is pinned here (Tier 3)
+    // where a mocked count makes it deterministic; integration covers the concurrent path.
+    const OVER_CEILING = 10001;
+    const result = await handleCapabilityList(
+      { limit: 10000, identityOnly: true },
+      logger,
+      FIXED_REQUEST_ID,
+      fakeService({
+        // Honor the requested n (limit + 1) so the truncation probe sees one past the ceiling.
+        getAllCapabilities: async (n: number) =>
+          Array.from(
+            { length: n },
+            (_, i) => ({ resourceName: `Resource${i}.example.com` })
+          ) as unknown as ResourceCapability[],
+        getCapabilitiesCount: async () => OVER_CEILING,
+      })
+    );
+    const data = result.data as {
+      returnedCount: number;
+      totalCount: number;
+      truncated: boolean;
+      limit: number;
+    };
+    expect(data.limit).toBe(10000);
+    expect(data.returnedCount).toBe(10000);
+    expect(data.truncated).toBe(true);
+    expect(data.totalCount).toBe(OVER_CEILING);
+  });
+
   it('list — empty collection (not yet initialized)', async () => {
     vi.mocked(CapabilityVectorService).mockImplementation(function () {
       return fakeService({
