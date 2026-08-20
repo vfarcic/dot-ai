@@ -396,8 +396,12 @@ export interface CapabilityReadiness {
 const READINESS_CACHE_TTL_MS = 2500;
 let readinessCache: { value: CapabilityReadiness; expiresAt: number } | undefined;
 let readinessInFlight: Promise<CapabilityReadiness> | undefined;
+// Bumped on every reset so a probe started before the reset can't repopulate the
+// cache after it: its captured generation no longer matches.
+let readinessGeneration = 0;
 
 export function resetCapabilityReadinessCache(): void {
+  readinessGeneration++;
   readinessCache = undefined;
   readinessInFlight = undefined;
 }
@@ -416,15 +420,22 @@ export async function getCapabilityReadiness(
     return readinessInFlight;
   }
 
+  const generation = readinessGeneration;
   readinessInFlight = (async () => {
     try {
       const value = await probeCapabilityReadiness();
-      // Anchor expiry to probe completion, not call start: a slow backend must
-      // not shorten (or, when it takes >= TTL, negate) the cache window.
-      readinessCache = { value, expiresAt: clock() + READINESS_CACHE_TTL_MS };
+      // Discard the result if the cache was reset while this probe ran, so a
+      // stale probe can neither repopulate a cleared cache nor clobber a newer one.
+      if (generation === readinessGeneration) {
+        // Anchor expiry to probe completion, not call start: a slow backend must
+        // not shorten (or, when it takes >= TTL, negate) the cache window.
+        readinessCache = { value, expiresAt: clock() + READINESS_CACHE_TTL_MS };
+      }
       return value;
     } finally {
-      readinessInFlight = undefined;
+      if (generation === readinessGeneration) {
+        readinessInFlight = undefined;
+      }
     }
   })();
   return readinessInFlight;
@@ -436,8 +447,10 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
   try {
     const capabilityService = new CapabilityVectorService();
     const embeddingService = new EmbeddingService();
-    // Config flag: are embeddings configured (semantic mode)?
-    const embeddingsRequired = embeddingService.isAvailable();
+    // Intent, not availability: a configured-but-unavailable provider must still
+    // require the live probe below, so it fails readiness instead of passing as
+    // keyword-only. (isAvailable() returns false for both cases.)
+    const embeddingsRequired = embeddingService.isSemanticModeConfigured();
 
     const vectorDBHealthy = await capabilityService.healthCheck();
 

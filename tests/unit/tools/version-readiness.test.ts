@@ -15,10 +15,11 @@ const { healthCheck, collectionExists, getCapabilitiesCount } = vi.hoisted(() =>
   getCapabilitiesCount: vi.fn(),
 }));
 
-const { generateEmbedding, getEmbeddingStatus, isAvailable } = vi.hoisted(() => ({
+const { generateEmbedding, getEmbeddingStatus, isAvailable, isSemanticModeConfigured } = vi.hoisted(() => ({
   generateEmbedding: vi.fn(),
   getEmbeddingStatus: vi.fn(),
   isAvailable: vi.fn(),
+  isSemanticModeConfigured: vi.fn(),
 }));
 
 vi.mock('../../../src/core/capability-vector-service', () => ({
@@ -34,6 +35,7 @@ vi.mock('../../../src/core/embedding-service', () => ({
       generateEmbedding,
       getStatus: getEmbeddingStatus,
       isAvailable,
+      isSemanticModeConfigured,
       getDimensions: () => 1536,
     };
   }),
@@ -56,6 +58,7 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
     generateEmbedding.mockReset().mockResolvedValue(validEmbedding());
     // Semantic mode by default — embeddings configured.
     isAvailable.mockReset().mockReturnValue(true);
+    isSemanticModeConfigured.mockReset().mockReturnValue(true);
   });
 
   it('is ready when Qdrant is healthy, the collection is accessible, and embeddings work', async () => {
@@ -155,7 +158,7 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
   });
 
   it('keyword-only deployment is ready without probing embeddings (absent collection)', async () => {
-    isAvailable.mockReturnValue(false);
+    isSemanticModeConfigured.mockReturnValue(false);
     healthCheck.mockResolvedValue(true);
     collectionExists.mockResolvedValue(false);
 
@@ -173,7 +176,7 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
   });
 
   it('keyword-only deployment is ready without probing embeddings (populated collection)', async () => {
-    isAvailable.mockReturnValue(false);
+    isSemanticModeConfigured.mockReturnValue(false);
     healthCheck.mockResolvedValue(true);
     getCapabilitiesCount.mockResolvedValue(5);
 
@@ -188,6 +191,26 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
       storedCount: 5,
     });
     expect(generateEmbedding).not.toHaveBeenCalled();
+  });
+
+  it('is not ready when semantic mode is configured but the provider is unavailable', async () => {
+    // isAvailable() is false (provider failed to construct) but semantic mode is
+    // intended, so the probe must still run and fail readiness — not pass as keyword-only.
+    isAvailable.mockReturnValue(false);
+    isSemanticModeConfigured.mockReturnValue(true);
+    healthCheck.mockResolvedValue(true);
+    getCapabilitiesCount.mockResolvedValue(42);
+    generateEmbedding.mockRejectedValue(new Error('openai embedding provider not available'));
+
+    const readiness = await getCapabilityReadiness(() => 1000);
+
+    expect(readiness).toMatchObject({
+      ready: false,
+      vectorDBHealthy: true,
+      embeddingsRequired: true,
+      embeddingHealthy: false,
+    });
+    expect(generateEmbedding).toHaveBeenCalled();
   });
 
   it('is not ready and reports a generic error when a check throws', async () => {
