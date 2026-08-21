@@ -22,7 +22,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 
 import {
@@ -275,9 +274,9 @@ describe('capabilities list/progress/delete response contract (PRD #714)', () =>
   });
 
   it('progress — completed scan', async () => {
-    const sessionDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'cap-contract-')
-    );
+    const tempRoot = path.resolve('tmp');
+    fs.mkdirSync(tempRoot, { recursive: true });
+    const sessionDir = fs.mkdtempSync(path.join(tempRoot, 'cap-contract-'));
     const previous = process.env.DOT_AI_SESSION_DIR;
     process.env.DOT_AI_SESSION_DIR = sessionDir;
     try {
