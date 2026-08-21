@@ -187,10 +187,17 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
     const embeddingService = new EmbeddingService();
 
     // Test capabilities collection
-    const capabilitiesStatus = await testCollectionStatus('capabilities', () => {
-      const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
-      return capabilityService.getCapabilitiesCount();
-    });
+    const capabilitiesStatus = await testCollectionStatus(
+      'capabilities',
+      () => {
+        const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
+        return capabilityService.getCapabilitiesCount();
+      },
+      () => {
+        const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
+        return capabilityService.collectionExists();
+      }
+    );
 
     // Test resources collection and get synced types
     const resourcesStatus = await testResourcesCollectionStatus(embeddingService);
@@ -222,9 +229,19 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
  */
 async function testCollectionStatus(
   collectionName: string, 
-  getCountFn: () => Promise<number>
+  getCountFn: () => Promise<number>,
+  existsFn?: () => Promise<boolean>
 ): Promise<{ exists: boolean; documentsCount?: number; error?: string; }> {
   try {
+    // Determine existence explicitly rather than inferring it from a thrown
+    // error: vector_count returns 0 for a missing collection instead of throwing.
+    if (existsFn && !(await existsFn())) {
+      return {
+        exists: false,
+        error: `${collectionName} collection does not exist`
+      };
+    }
+
     const documentsCount = await getCountFn();
     return {
       exists: true,
