@@ -448,6 +448,7 @@ export class EmbeddingService {
     return !!(
       process.env.EMBEDDINGS_PROVIDER ||
       process.env.CUSTOM_EMBEDDINGS_BASE_URL ||
+      process.env.CUSTOM_EMBEDDINGS_API_KEY ||
       process.env.OPENAI_API_KEY
     );
   }
