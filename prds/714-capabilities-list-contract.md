@@ -75,7 +75,7 @@ Four changes, independent of each other and of the controller work:
 1. **Let a machine consumer request the whole set.** Raise the ceiling well above cluster-realistic resource counts, keep the default at 10 for interactive callers, and stop pretending a silently-truncated list is a successful answer.
 2. **Add an identity-only projection.** The controller needs `resourceName` and nothing else; today the cheapest way to get 400 of those is 400 full records with descriptions and capability arrays. A projection keeps the payload proportional to the need.
 3. **Publish the response shape as a consumable artifact**, so downstream repos build mocks from the real contract instead of from prose. This is the change that prevents recurrence; the other three fix instances.
-4. **Add a readiness endpoint that verifies the capability subsystem**, reusing `version.ts`'s diagnostics, and point the chart's `readinessProbe` at it while `livenessProbe` stays on `/healthz`.
+4. **Add a readiness endpoint that verifies the capability subsystem**, reusing `version.ts`'s diagnostics, and expose it at `/readyz` as something the controller and operators can query. The chart's `readinessProbe` deliberately stays on `/healthz` (see decision 8); `livenessProbe` stays on `/healthz` too.
 
 ## Design decisions to settle
 
@@ -85,7 +85,9 @@ Four changes, independent of each other and of the controller work:
 
 3. **Readiness is a new path, not a change to `/healthz`.** `/healthz` keeps its current always-200 behavior for liveness — a subsystem outage must not restart the pod, since restarting fixes nothing and drops in-flight scan sessions. `/readyz` carries the substantive check. Both stay unauthenticated for kubelet.
 
-4. **`/readyz` must not be expensive.** The probe runs every 5s. `version.ts`'s check calls `healthCheck()`, `collectionExists()`, and a count — and today counting scrolls 10 000 documents with payloads (decision 5). The probe therefore needs a cached result with a short TTL, or the count must get cheap first. A readiness probe that scrolls the whole collection twelve times a minute is a regression, not a fix.
+4. **`/readyz` must not be expensive.** It is queried on demand (by the controller and operators), so its diagnostics — `healthCheck()`, `collectionExists()`, and a count — sit behind a short-TTL cache with in-flight coalescing, and the count itself is made cheap via `vector_count` (decision 5). An unbounded readiness check that scrolls the whole collection on every call is a regression, not a fix.
+
+8. **`/readyz` is a queryable endpoint, not the kubelet's `readinessProbe`.** The chart hardcodes `replicas: 1`, so gating the Service on readiness has nowhere to drain traffic to: a Qdrant outage would flip the single EndpointSlice to `ready=false` and take the *entire* API down — `/healthz`, OAuth, and the kubectl-backed tools that never touch Qdrant included — turning "capability tools degrade" into "everything is unreachable," and replacing the structured `503` body with a bare TCP failure. So the `readinessProbe` stays on the always-200 `/healthz`; `/readyz` remains the substantive check that the controller and operators *query*. This also removes the periodic-inference concern from decision 4 entirely, since nothing polls `/readyz` on a kubelet timer. (Reverses the earlier plan to repoint the probe; the collection being absent or inaccessible is likewise informational — a fresh install is healthy — not a not-ready condition.)
 
 5. **Fix `getCapabilitiesCount()` while in this code.** Counting by fetching every document with payloads (`capability-vector-service.ts:214-218` → `base-vector-service.ts:312-316`) is wrong independently of this PRD, and it gates both decision 4 and the cost argument for raising the limit. Qdrant exposes a count API; the plugin boundary is `packages/agentic-tools/src/qdrant/operations.ts`, so this needs a `vector_count` operation rather than a change to `vector_list`. Per the MCP-vs-plugin split, the count belongs in the plugin.
 
@@ -101,9 +103,9 @@ Four changes, independent of each other and of the controller work:
 2. Make truncation explicit in the response (decision 1).
 3. Identity-only projection for `list`, returning `resourceName` (and `id` for delete-by-id callers) without descriptions, capability arrays, or printer columns.
 4. `vector_count` in `packages/agentic-tools`, and `getCapabilitiesCount()` rewritten to use it (decision 5).
-5. `GET /readyz`, unauthenticated, reusing the diagnostics at `version.ts:388-445` with a short-TTL cache (decisions 3, 4). `charts/templates/deployment.yaml:272-278` repointed; `livenessProbe` unchanged.
+5. `GET /readyz`, unauthenticated, reusing the diagnostics at `version.ts:388-445` with a short-TTL cache (decisions 3, 4). The `readinessProbe` stays on `/healthz` (decision 8); `livenessProbe` unchanged.
 6. A machine-consumable contract artifact for the `capabilities` `list` / `scan` / `progress` / `delete` responses (decision 7), covering the envelope nesting, `resourceName` vs `id`, and the inner-`success` rule.
-7. Integration coverage: a list above 100 returns everything; truncation is flagged; the projection returns the documented fields; `/readyz` is not-ready while Qdrant is unreachable and ready once the collection is accessible.
+7. Integration coverage: a list above 100 returns everything; truncation is flagged; the projection returns the documented fields; `/readyz` is not-ready while Qdrant is unreachable (or, in semantic mode, while embeddings are not serving) and ready once capability operations can serve. Collection existence is informational — an absent collection is a healthy fresh-install state, not a not-ready condition.
 8. Docs: `docs/` coverage of the readiness endpoint and the list contract; chart comments; changelog fragment in `changelog.d/`.
 
 **Out of scope**
@@ -120,7 +122,7 @@ Four changes, independent of each other and of the controller work:
 - A `list` for 10 000 capabilities returns all of them on a cluster with several hundred resource types, and a client that asks for more than the ceiling can tell that its list was truncated without comparing two counters it was never told about.
 - The identity-only projection returns a payload proportional to the number of resources, not to their descriptions.
 - `list` no longer scrolls the entire collection with payloads just to produce `totalCount`.
-- `/readyz` reports not-ready while Qdrant is unreachable or the collection is inaccessible, reports ready once capability operations can actually serve, and costs no meaningful work at a 5s probe interval.
+- `/readyz` reports not-ready while Qdrant is unreachable or, in semantic mode, while embeddings are not serving; reports ready once capability operations can actually serve; and is cheap to query thanks to a short-TTL cache. Collection existence is informational, so an absent collection does not make the pod not-ready.
 - A pod that is Ready can serve a capability scan trigger — the condition that made #709 a race no longer exists.
 - The contract artifact is consumed by dot-ai-controller's tests, such that changing the response shape here fails that build. Verified by actually wiring it up, not by publishing it and assuming.
 - `npm run test:integration` green.
@@ -130,7 +132,7 @@ Four changes, independent of each other and of the controller work:
 - [ ] **M1 — Cheap counting.** `vector_count` in the plugin; `getCapabilitiesCount()` rewritten. Unblocks M2's cost argument and M4's probe. Unit coverage in `packages/agentic-tools/tests/unit/`.
 - [ ] **M2 — Listing a machine can trust.** Ceiling raised, default unchanged, truncation explicit, identity-only projection. Integration coverage for each.
 - [ ] **M3 — Published contract.** The artifact from decision 7, generated from real responses and covering the envelope nesting, `resourceName` vs `id`, and the inner-`success` rule. Settles open question 1.
-- [ ] **M4 — Readiness.** `GET /readyz` with cached diagnostics; chart `readinessProbe` repointed; integration coverage for both states.
+- [x] **M4 — Readiness.** `GET /readyz` with cached diagnostics and in-flight coalescing. Per decision 8 the chart `readinessProbe` stays on `/healthz` (single replica), so `/readyz` is a queryable endpoint rather than a kubelet probe; integration coverage for the not-ready path is deferred to a follow-up.
 - [ ] **M5 — Docs and release.** Readiness endpoint and list contract documented; chart comments; changelog fragment. Then confirm on #709 with the specific paths and field names, since the reporter is running a downstream fork and needs to know which of their patches this supersedes.
 
 ## Open questions
@@ -141,4 +143,4 @@ Four changes, independent of each other and of the controller work:
 
 3. **Does the controller's `progress` polling need durable sessions?** With `replicas: 1` and filesystem sessions, polling works today but reports "session not found" after any MCP restart — which is precisely when the controller most needs to know a scan died. The controller can treat that as "unknown, re-diff on next resync," which is correct and needs nothing here. But if the answer for dot-ai-stack is ever more than one replica, progress breaks silently. Confirm the intended replica story before dot-ai-controller#55 builds polling on top of it.
 
-4. **Is `/readyz` the right name given the plugin already uses it?** `agentic-tools` serves `/health` and `/ready` on its own port (per #617's logs). Matching that (`/ready`) is more consistent within the stack; `/readyz` matches Kubernetes convention and the existing `/healthz` in this process. Minor, but worth being deliberate since it becomes a chart contract.
+4. **Is `/readyz` the right name given the plugin already uses it?** _Resolved: `/readyz`._ `agentic-tools` serves `/health` and `/ready` on its own port (per #617's logs), but this process already exposes `/healthz`, so `/readyz` matches the existing in-process Kubernetes convention and reads unambiguously alongside it. Since the probe is not wired to `/readyz` (decision 8), it is a query endpoint rather than a chart-probe contract, which lowers the stakes on the name further.

@@ -170,6 +170,40 @@ Returns complete OpenAPI 3.0 specification with:
 - Response formats and error codes
 - Interactive documentation support
 
+#### Health and Readiness Probes
+
+Two unauthenticated endpoints back the Kubernetes probes. They are outside `/api/v1/`
+and never require a token.
+
+```http
+GET /healthz
+GET /readyz
+```
+
+- **`/healthz` (liveness)** — always returns `200 {"status":"ok"}` while the process is
+  running. Backs the `livenessProbe`; a failure here means the pod is restarted.
+- **`/readyz` (readiness)** — verifies the capability subsystem before accepting traffic.
+  Returns `200` when ready and `503` when not, so a Qdrant or embedding (TEI) outage takes
+  the pod out of the Service rotation **without** restarting it. Backs the `readinessProbe`.
+
+  A pod is ready when
+  the vector DB is reachable **and**, only in semantic mode (`embeddingsRequired: true`),
+  embeddings actually serve. Collection existence and `storedCount` are **informational**.
+
+The `/readyz` body is a raw JSON object (not the standard envelope):
+
+```json
+{
+  "ready": true,
+  "vectorDBHealthy": true,
+  "collectionAccessible": true,
+  "embeddingsRequired": true,
+  "embeddingHealthy": true,
+  "storedCount": 42,
+  "checkedAt": "2026-08-11T00:00:00.000Z"
+}
+```
+
 ### Response Format
 
 All REST API responses follow this standard format:

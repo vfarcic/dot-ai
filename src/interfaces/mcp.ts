@@ -28,6 +28,7 @@ import {
   VERSION_TOOL_DESCRIPTION,
   VERSION_TOOL_INPUT_SCHEMA,
   handleVersionTool,
+  getCapabilityReadiness,
 } from '../tools/version';
 import {
   ORGANIZATIONAL_DATA_TOOL_NAME,
@@ -756,6 +757,33 @@ export class MCPServer {
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ status: 'ok' }));
               endSpan(200);
+              return;
+            }
+
+            // Readiness endpoint (unauthenticated, PRD #714 M4). Unlike /healthz
+            // (always 200 for liveness), /readyz reports whether Qdrant reachable and, in semantic mode, embeddings
+            // serving — so a subsystem outage takes the pod out of rotation without
+            // restarting it.
+            if (req.url === '/readyz' && req.method === 'GET') {
+              const readiness = await getCapabilityReadiness();
+              // Serialize only the public readiness fields — /readyz is
+              // unauthenticated, so never echo internal diagnostics that may be
+              // added to the readiness object later.
+              const body = {
+                ready: readiness.ready,
+                vectorDBHealthy: readiness.vectorDBHealthy,
+                collectionAccessible: readiness.collectionAccessible,
+                embeddingsRequired: readiness.embeddingsRequired,
+                embeddingHealthy: readiness.embeddingHealthy,
+                storedCount: readiness.storedCount,
+                error: readiness.error,
+                checkedAt: readiness.checkedAt,
+              };
+              res.writeHead(readiness.ready ? 200 : 503, {
+                'Content-Type': 'application/json',
+              });
+              res.end(JSON.stringify(body));
+              endSpan(readiness.ready ? 200 : 503);
               return;
             }
 

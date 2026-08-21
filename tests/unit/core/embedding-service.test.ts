@@ -48,7 +48,7 @@ vi.mock('../../../src/core/tracing/ai-tracing', () => ({
   withAITracing: vi.fn((_config, fn) => fn()),
 }));
 
-import { VercelEmbeddingProvider } from '../../../src/core/embedding-service';
+import { EmbeddingService, VercelEmbeddingProvider } from '../../../src/core/embedding-service';
 
 describe('VercelEmbeddingProvider.generateEmbeddings (with embedMany)', () => {
   const originalEnv = process.env;
@@ -169,5 +169,50 @@ describe('VercelEmbeddingProvider.generateEmbeddings (with embedMany)', () => {
     await expect(provider.generateEmbeddings(['x'])).rejects.toThrow(
       /^openai batch embedding failed: upstream rate limit$/
     );
+  });
+});
+
+describe('EmbeddingService.isSemanticModeConfigured', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.EMBEDDINGS_PROVIDER;
+    delete process.env.CUSTOM_EMBEDDINGS_BASE_URL;
+    delete process.env.CUSTOM_EMBEDDINGS_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    // Reset (not just clear) so the factory returns undefined and the provider
+    // fails to construct — modeling a configured-but-unavailable provider.
+    mockCreateOpenAI.mockReset();
+    mockGoogleTextEmbedding.mockReset();
+    mockCreateAmazonBedrock.mockReset();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.restoreAllMocks();
+  });
+
+  it('treats a custom-key-only deployment as semantic mode even when the provider is unavailable', () => {
+    process.env.CUSTOM_EMBEDDINGS_API_KEY = 'sk-custom';
+
+    const service = new EmbeddingService();
+
+    expect(service.isAvailable()).toBe(false);
+    expect(service.isSemanticModeConfigured()).toBe(true);
+  });
+
+  it('treats a deployment with no embedding configuration as keyword-only', () => {
+    const service = new EmbeddingService();
+
+    expect(service.isAvailable()).toBe(false);
+    expect(service.isSemanticModeConfigured()).toBe(false);
+  });
+
+  it('treats a constructor-configured provider as semantic mode even when it fails to construct', () => {
+    const service = new EmbeddingService({ provider: 'openai', apiKey: 'sk-config' });
+
+    expect(service.isAvailable()).toBe(false);
+    expect(service.isSemanticModeConfigured()).toBe(true);
   });
 });

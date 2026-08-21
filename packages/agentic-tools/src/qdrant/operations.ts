@@ -232,6 +232,37 @@ export async function list(
 }
 
 /**
+ * Count documents in a collection without fetching their payloads
+ *
+ * @param collection - Collection name
+ * @param options - Optional filter to narrow the count
+ * @returns Number of matching points, or 0 if the collection does not exist
+ */
+export async function count(
+  collection: string,
+  options: { filter?: Record<string, unknown> } = {}
+): Promise<number> {
+  const client = getQdrantClient();
+
+  // Check if collection exists first
+  const collections = await client.getCollections();
+  const collectionExists = collections.collections.some(
+    col => col.name === collection
+  );
+
+  if (!collectionExists) {
+    return 0;
+  }
+
+  const result = await client.count(collection, {
+    exact: true,
+    ...(options.filter && { filter: options.filter }),
+  });
+
+  return result.count;
+}
+
+/**
  * Initialize a collection (create if not exists, verify dimensions if exists)
  *
  * @param collection - Collection name

@@ -187,10 +187,17 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
     const embeddingService = new EmbeddingService();
 
     // Test capabilities collection
-    const capabilitiesStatus = await testCollectionStatus('capabilities', () => {
-      const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
-      return capabilityService.getCapabilitiesCount();
-    });
+    const capabilitiesStatus = await testCollectionStatus(
+      'capabilities',
+      () => {
+        const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
+        return capabilityService.getCapabilitiesCount();
+      },
+      () => {
+        const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
+        return capabilityService.collectionExists();
+      }
+    );
 
     // Test resources collection and get synced types
     const resourcesStatus = await testResourcesCollectionStatus(embeddingService);
@@ -222,9 +229,19 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
  */
 async function testCollectionStatus(
   collectionName: string, 
-  getCountFn: () => Promise<number>
+  getCountFn: () => Promise<number>,
+  existsFn?: () => Promise<boolean>
 ): Promise<{ exists: boolean; documentsCount?: number; error?: string; }> {
   try {
+    // Determine existence explicitly rather than inferring it from a thrown
+    // error: vector_count returns 0 for a missing collection instead of throwing.
+    if (existsFn && !(await existsFn())) {
+      return {
+        exists: false,
+        error: `${collectionName} collection does not exist`
+      };
+    }
+
     const documentsCount = await getCountFn();
     return {
       exists: true,
@@ -373,6 +390,150 @@ async function getEmbeddingStatus(): Promise<SystemStatus['embedding']> {
     dimensions: status.dimensions,
     reason: status.reason
   };
+}
+
+/**
+ * Readiness signal for the `/readyz` probe (PRD #714 M4).
+ *
+ * Qdrant reachable and — only when embeddings are
+ * configured (semantic mode) — embeddings actually serving. Collection existence and
+ * `storedCount` are informational only.
+ */
+export interface CapabilityReadiness {
+  ready: boolean;
+  vectorDBHealthy: boolean;
+  collectionAccessible: boolean;
+  embeddingsRequired: boolean;
+  embeddingHealthy: boolean;
+  storedCount?: number;
+  error?: string;
+  checkedAt: string;
+}
+
+const READINESS_CACHE_TTL_MS = 2500;
+let readinessCache: { value: CapabilityReadiness; expiresAt: number } | undefined;
+let readinessInFlight: Promise<CapabilityReadiness> | undefined;
+// Bumped on every reset so a probe started before the reset can't repopulate the
+// cache after it: its captured generation no longer matches.
+let readinessGeneration = 0;
+
+export function resetCapabilityReadinessCache(): void {
+  readinessGeneration++;
+  readinessCache = undefined;
+  readinessInFlight = undefined;
+}
+
+export async function getCapabilityReadiness(
+  clock: () => number = Date.now
+): Promise<CapabilityReadiness> {
+  if (readinessCache && readinessCache.expiresAt > clock()) {
+    return readinessCache.value;
+  }
+
+  // Coalesce concurrent cache misses onto a single backend probe so a burst of
+  // /readyz requests doesn't fan out into N healthCheck/collectionExists/count
+  // calls.
+  if (readinessInFlight) {
+    return readinessInFlight;
+  }
+
+  const generation = readinessGeneration;
+  readinessInFlight = (async () => {
+    try {
+      const value = await probeCapabilityReadiness();
+      // Discard the result if the cache was reset while this probe ran, so a
+      // stale probe can neither repopulate a cleared cache nor clobber a newer one.
+      if (generation === readinessGeneration) {
+        // Anchor expiry to probe completion, not call start: a slow backend must
+        // not shorten (or, when it takes >= TTL, negate) the cache window.
+        readinessCache = { value, expiresAt: clock() + READINESS_CACHE_TTL_MS };
+      }
+      return value;
+    } finally {
+      if (generation === readinessGeneration) {
+        readinessInFlight = undefined;
+      }
+    }
+  })();
+  return readinessInFlight;
+}
+
+async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const capabilityService = new CapabilityVectorService();
+    const embeddingService = new EmbeddingService();
+    // Intent, not availability: a configured-but-unavailable provider must still
+    // require the live probe below, so it fails readiness instead of passing as
+    // keyword-only. (isAvailable() returns false for both cases.)
+    const embeddingsRequired = embeddingService.isSemanticModeConfigured();
+
+    const vectorDBHealthy = await capabilityService.healthCheck();
+
+    if (!vectorDBHealthy) {
+      return {
+        ready: false,
+        vectorDBHealthy: false,
+        collectionAccessible: false,
+        embeddingsRequired,
+        embeddingHealthy: false,
+        checkedAt,
+      };
+    }
+
+    let collectionAccessible = false;
+    let storedCount: number | undefined;
+    try {
+      collectionAccessible = await capabilityService.collectionExists();
+      storedCount = collectionAccessible
+        ? await capabilityService.getCapabilitiesCount()
+        : 0;
+    } catch {
+      collectionAccessible = false;
+      storedCount = undefined;
+    }
+
+    // Live "can it serve?" probe — only in semantic mode. Keyword-only deployments
+    // serve capability reads without embeddings, so they are ready without one.
+    let embeddingHealthy = !embeddingsRequired;
+    if (embeddingsRequired) {
+      try {
+        const expectedDimensions =
+          embeddingService.getStatus().dimensions || 1536;
+        const probeEmbedding =
+          await embeddingService.generateEmbedding('readiness probe');
+        embeddingHealthy =
+          Array.isArray(probeEmbedding) &&
+          probeEmbedding.length === expectedDimensions &&
+          probeEmbedding.every(Number.isFinite);
+      } catch {
+        embeddingHealthy = false;
+      }
+    }
+
+    return {
+      ready: vectorDBHealthy && (embeddingsRequired ? embeddingHealthy : true),
+      vectorDBHealthy: true,
+      collectionAccessible,
+      embeddingsRequired,
+      embeddingHealthy,
+      storedCount,
+      checkedAt,
+    };
+  } catch {
+    // /readyz is unauthenticated, so keep the message generic — a raw backend
+    // error can disclose internal service, network, or configuration details.
+    return {
+      ready: false,
+      vectorDBHealthy: false,
+      collectionAccessible: false,
+      embeddingsRequired: false,
+      embeddingHealthy: false,
+      error: 'capability readiness check failed',
+      checkedAt,
+    };
+  }
 }
 
 /**

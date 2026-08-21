@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "data": {
+    "result": {
+      "success": true,
+      "operation": "list",
+      "dataType": "capabilities",
+      "data": {
+        "capabilities": [
+          {
+            "id": "17c5105f-e215-ae9b-b3bf-58b608abb3b7",
+            "resourceName": "sqls.devopstoolkit.live"
+          },
+          {
+            "id": "e925987f-58d7-6746-11b3-006ccba0e5f2",
+            "resourceName": "resourcegroups.azure.upbound.io"
+          }
+        ],
+        "totalCount": 2,
+        "returnedCount": 2,
+        "limit": 100,
+        "truncated": false
+      },
+      "message": "Retrieved 2 capabilities (2 total)"
+    },
+    "tool": "manageOrgData",
+    "executionTime": 0
+  },
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00.000Z",
+    "requestId": "contract-fixture",
+    "version": "0.0.0-contract"
+  }
+}

@@ -364,6 +364,34 @@ export interface ToolExecutionResponse extends RestApiResponse {
 }
 
 /**
+ * Single source of truth for the tool-execution envelope. The published capabilities
+ * contract test builds its golden fixtures through this same function, so any change to
+ * the envelope nesting is caught by the contract instead of silently drifting.
+ */
+export function buildToolExecutionResponse(params: {
+  result: unknown;
+  tool: string;
+  executionTime: number;
+  requestId: string;
+  version: string;
+  timestamp: string;
+}): ToolExecutionResponse {
+  return {
+    success: true,
+    data: {
+      result: params.result,
+      tool: params.tool,
+      executionTime: params.executionTime,
+    },
+    meta: {
+      timestamp: params.timestamp,
+      requestId: params.requestId,
+      version: params.version,
+    },
+  };
+}
+
+/**
  * Tool discovery response format
  */
 export interface ToolDiscoveryResponse extends RestApiResponse {
@@ -915,19 +943,14 @@ export class RestApiRouter {
 
       const executionTime = Date.now() - startTime;
 
-      const response: ToolExecutionResponse = {
-        success: true,
-        data: {
-          result: transformedResult,
-          tool: toolName,
-          executionTime,
-        },
-        meta: {
-          timestamp: new Date().toISOString(),
-          requestId,
-          version: this.config.version,
-        },
-      };
+      const response: ToolExecutionResponse = buildToolExecutionResponse({
+        result: transformedResult,
+        tool: toolName,
+        executionTime,
+        requestId,
+        version: this.config.version,
+        timestamp: new Date().toISOString(),
+      });
 
       await this.sendJsonResponse(res, HttpStatus.OK, response);
 

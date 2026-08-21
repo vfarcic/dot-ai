@@ -363,11 +363,14 @@ function createEmbeddingProvider(
  */
 export class EmbeddingService {
   private provider: EmbeddingProvider | null;
+  private readonly config: EmbeddingConfig;
   private lastBatchFailureLogTime?: number;
   private suppressedBatchFailureCount: number = 0;
   private static readonly BATCH_FAILURE_LOG_INTERVAL_MS = 30000;
 
   constructor(config: EmbeddingConfig = {}) {
+    // Retain config so semantic intent survives a failed provider construction
+    this.config = config;
     // Use factory to initialize appropriate provider
     this.provider = createEmbeddingProvider(config);
   }
@@ -431,6 +434,28 @@ export class EmbeddingService {
    */
   isAvailable(): boolean {
     return this.provider !== null && this.provider.isAvailable();
+  }
+
+  /**
+   * Whether the deployment intends to use embeddings (semantic mode), regardless
+   * of whether the provider actually constructed. `isAvailable()` conflates an
+   * intentional keyword-only deployment with a configured-but-unavailable
+   * provider (missing key, custom endpoint set but client failed to build); this
+   * keys off explicit configuration — constructor-supplied or environment — so
+   * readiness can still require a live probe in the latter case.
+   */
+  isSemanticModeConfigured(): boolean {
+    if (this.isAvailable()) {
+      return true;
+    }
+    return !!(
+      this.config.provider ||
+      this.config.apiKey ||
+      process.env.EMBEDDINGS_PROVIDER ||
+      process.env.CUSTOM_EMBEDDINGS_BASE_URL ||
+      process.env.CUSTOM_EMBEDDINGS_API_KEY ||
+      process.env.OPENAI_API_KEY
+    );
   }
 
   /**
