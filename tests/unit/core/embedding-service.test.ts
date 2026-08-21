@@ -208,4 +208,11 @@ describe('EmbeddingService.isSemanticModeConfigured', () => {
     expect(service.isAvailable()).toBe(false);
     expect(service.isSemanticModeConfigured()).toBe(false);
   });
+
+  it('treats a constructor-configured provider as semantic mode even when it fails to construct', () => {
+    const service = new EmbeddingService({ provider: 'openai', apiKey: 'sk-config' });
+
+    expect(service.isAvailable()).toBe(false);
+    expect(service.isSemanticModeConfigured()).toBe(true);
+  });
 });
