@@ -22,6 +22,7 @@ vi.mock('../../src/qdrant/operations', async () => {
     remove: vi.fn(),
     removeAll: vi.fn(),
     list: vi.fn(),
+    count: vi.fn(),
     initializeCollection: vi.fn(),
     getCollectionStats: vi.fn(),
   };
@@ -39,6 +40,7 @@ describe('Vector Tool Definitions', () => {
     expect(toolNames).toContain('vector_delete');
     expect(toolNames).toContain('vector_delete_all');
     expect(toolNames).toContain('vector_list');
+    expect(toolNames).toContain('vector_count');
     expect(toolNames).toContain('collection_initialize');
     expect(toolNames).toContain('collection_stats');
   });
@@ -53,6 +55,7 @@ describe('Vector Tool Definitions', () => {
       'vector_delete',
       'vector_delete_all',
       'vector_list',
+      'vector_count',
       'collection_initialize',
       'collection_stats',
     ];
@@ -73,6 +76,7 @@ describe('Vector Tool Definitions', () => {
       'vector_delete',
       'vector_delete_all',
       'vector_list',
+      'vector_count',
       'collection_initialize',
       'collection_stats',
     ];
@@ -115,6 +119,7 @@ describe('Vector Tool Handlers', () => {
   const mockRemove = vi.mocked(operations.remove);
   const mockRemoveAll = vi.mocked(operations.removeAll);
   const mockList = vi.mocked(operations.list);
+  const mockCount = vi.mocked(operations.count);
   const mockInitializeCollection = vi.mocked(operations.initializeCollection);
   const mockGetCollectionStats = vi.mocked(operations.getCollectionStats);
 
@@ -710,6 +715,56 @@ describe('Vector Tool Handlers', () => {
         success: true,
         data: { exists: false },
         message: expect.stringContaining('does not exist'),
+      });
+    });
+  });
+
+  describe('vector_count', () => {
+    it('should require collection parameter', async () => {
+      const handler = TOOL_HANDLERS['vector_count'];
+      const result = await handler({});
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('collection'),
+      });
+    });
+
+    it('should return the count without a filter', async () => {
+      mockCount.mockResolvedValue(4200);
+
+      const handler = TOOL_HANDLERS['vector_count'];
+      const result = await handler({ collection: 'capabilities' });
+
+      expect(mockCount).toHaveBeenCalledWith('capabilities', {
+        filter: undefined,
+      });
+      expect(result).toMatchObject({
+        success: true,
+        data: 4200,
+      });
+    });
+
+    it('should pass an optional filter through to the count operation', async () => {
+      mockCount.mockResolvedValue(7);
+
+      const filter = { must: [{ key: 'group', match: { value: 'apps' } }] };
+      const handler = TOOL_HANDLERS['vector_count'];
+      const result = await handler({ collection: 'capabilities', filter });
+
+      expect(mockCount).toHaveBeenCalledWith('capabilities', { filter });
+      expect(result).toMatchObject({ success: true, data: 7 });
+    });
+
+    it('should surface errors from the count operation', async () => {
+      mockCount.mockRejectedValue(new Error('qdrant down'));
+
+      const handler = TOOL_HANDLERS['vector_count'];
+      const result = await handler({ collection: 'capabilities' });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('qdrant down'),
       });
     });
   });

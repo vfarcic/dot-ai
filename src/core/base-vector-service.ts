@@ -133,17 +133,13 @@ export abstract class BaseVectorService<T> {
    * Check if collection exists without creating it
    */
   async collectionExists(): Promise<boolean> {
-    try {
-      const stats = await this.invokePlugin<CollectionStats>(
-        'collection_stats',
-        {
-          collection: this.collectionName,
-        }
-      );
-      return stats.exists;
-    } catch {
-      return false;
-    }
+    const stats = await this.invokePlugin<CollectionStats>(
+      'collection_stats',
+      {
+        collection: this.collectionName,
+      }
+    );
+    return stats.exists;
   }
 
   /**
@@ -327,19 +323,9 @@ export abstract class BaseVectorService<T> {
    * Get total count of data items
    */
   async getDataCount(): Promise<number> {
-    try {
-      const stats = await this.invokePlugin<CollectionStats>(
-        'collection_stats',
-        {
-          collection: this.collectionName,
-        }
-      );
-      return stats.pointsCount || 0;
-    } catch {
-      // Fallback: get all and count
-      const data = await this.getAllData();
-      return data.length;
-    }
+    return await this.invokePlugin<number>('vector_count', {
+      collection: this.collectionName,
+    });
   }
 
   /**

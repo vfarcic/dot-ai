@@ -170,6 +170,41 @@ Returns complete OpenAPI 3.0 specification with:
 - Response formats and error codes
 - Interactive documentation support
 
+#### Health and Scan Readiness
+
+Two endpoints outside `/api/v1/` report process health and capability-scan readiness:
+
+```http
+GET /healthz
+GET /readyz
+```
+
+- **`/healthz` (liveness)** — always returns `200 {"status":"ok"}` while the process is
+  running. It is unauthenticated and backs both the chart's liveness and readiness probes.
+- **`/readyz` (scan readiness)** — verifies that Qdrant and embeddings can serve a new
+  capability scan. It follows the server's normal bearer-authentication policy and is an
+  on-demand diagnostic endpoint; the chart does not use it as a Kubernetes probe. It
+  returns `200` when ready and `503` when a required dependency is unavailable.
+
+  A scan is ready when the vector DB is reachable and embeddings actually serve.
+  `embeddingsRequired` is therefore always `true`. Collection existence and `storedCount`
+  are informational because a scan can initialize an absent collection. Results are cached
+  for 30 seconds, and a dependency that does not answer within 10 seconds produces `503`.
+
+The `/readyz` body is a raw JSON object (not the standard envelope):
+
+```json
+{
+  "ready": true,
+  "vectorDBHealthy": true,
+  "collectionAccessible": true,
+  "embeddingsRequired": true,
+  "embeddingHealthy": true,
+  "storedCount": 19,
+  "checkedAt": "2026-08-20T02:25:21.644Z"
+}
+```
+
 ### Response Format
 
 All REST API responses follow this standard format:

@@ -43,7 +43,8 @@ export const ORGANIZATIONAL_DATA_TOOL_INPUT_SCHEMA = {
   id: z.string().optional().describe('Capability ID (required for get/delete operations) or search query (required for search operations)'),
 
   // Generic fields for list operations
-  limit: z.number().optional().describe('Maximum number of items to return (default: 10)'),
+  limit: z.number().int().optional().describe('Maximum number of items to return (must be an integer; default: 10, maximum: 10000). The response carries an explicit truncated flag, the authoritative completeness signal; totalCount equals returnedCount when not truncated and is a best-effort figure otherwise.'),
+  identityOnly: z.boolean().optional().describe('For list: return only identity fields (id, resourceName) instead of full capability records. Keeps the payload proportional to the number of resources for machine consumers such as the controller.'),
 
   // Resource-specific fields (for capabilities operations)
   resource: z.object({
@@ -75,6 +76,7 @@ export interface OrganizationalDataInput {
   response?: string;
   id?: string;
   limit?: number;
+  identityOnly?: boolean;
   resource?: {
     kind: string;
     group: string;

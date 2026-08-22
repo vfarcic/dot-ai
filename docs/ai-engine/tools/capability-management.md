@@ -308,6 +308,34 @@ You have 15 capabilities stored in the system. Here are the first 10:
 | Role                             | rbac.authorization.k8s.io    | medium     | rbac, permissions, security                   |
 ```
 
+#### List response contract (machine consumers)
+
+For automated consumers (notably the `dot-ai-controller`), the `list` operation returns a
+stable, published response shape. The payload lives at `data.result.data` and carries:
+
+- `capabilities` — the items. Each has an `id` (deterministic UUID) and a `resourceName`
+  (`Kind.group` identity). Match on `resourceName`, not `id`, when reconciling against
+  cluster resources.
+- `truncated` — the authoritative completeness signal, derived from the list read itself:
+  `true` when more capabilities exist than were returned. A consumer computing a diff must
+  treat a truncated list as incomplete.
+- `totalCount` — capabilities in the collection. When `truncated` is `false` this equals
+  `returnedCount` exactly (the single read covered the whole set). When `truncated` is
+  `true` it is a best-effort figure from a separate count that may momentarily disagree with
+  the page under a concurrent scan — never infer completeness from it; use `truncated`.
+- `returnedCount` / `limit` — how many were returned and the effective ceiling.
+
+Two parameters control the response:
+
+- `limit` — positive integer, default `10`, maximum `10000`. Non-integer, zero, and
+  negative values are rejected. Pass a large limit to retrieve the whole set in one call.
+- `identityOnly` — when `true`, each item is projected to just `id` + `resourceName`,
+  keeping the payload proportional to the number of resources.
+
+The exact wire shape is pinned by golden fixtures under
+[`contracts/capabilities/`](https://github.com/vfarcic/dot-ai/tree/main/contracts/capabilities);
+changing it fails the build until the fixtures are regenerated deliberately.
+
 ### Search for Specific Capabilities
 
 Search stored capabilities using natural language queries:

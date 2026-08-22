@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "data": {
+    "result": {
+      "success": true,
+      "operation": "list",
+      "dataType": "capabilities",
+      "data": {
+        "capabilities": [],
+        "totalCount": 0,
+        "returnedCount": 0,
+        "limit": 10,
+        "truncated": false
+      },
+      "message": "No capabilities found (collection not initialized)"
+    },
+    "tool": "manageOrgData",
+    "executionTime": 0
+  },
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00.000Z",
+    "requestId": "contract-fixture",
+    "version": "0.0.0-contract"
+  }
+}

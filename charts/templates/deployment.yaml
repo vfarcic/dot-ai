@@ -290,6 +290,9 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
+        # /readyz is an authenticated, on-demand capability-scan diagnostic. Keep
+        # Kubernetes readiness on /healthz because this chart runs one API replica;
+        # gating that replica on Qdrant or embeddings would take unrelated tools offline.
         readinessProbe:
           httpGet:
             path: /healthz

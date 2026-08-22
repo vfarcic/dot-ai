@@ -22,6 +22,7 @@ import * as path from 'path';
 interface CapabilityOperationArgs {
   id?: string;
   limit?: number;
+  identityOnly?: boolean;
   sessionId?: string;
   collection?: string;
 }
@@ -62,6 +63,52 @@ interface CapabilityOperationResponse {
   clientInstructions?: Record<string, unknown>;
 }
 
+const DEFAULT_CAPABILITY_LIST_LIMIT = 10;
+const MAX_CAPABILITY_LIST_LIMIT = 10000;
+
+type CapabilityListLimit =
+  | { valid: true; limit: number }
+  | { valid: false; response: CapabilityOperationResponse };
+
+function resolveCapabilityListLimit(value: unknown): CapabilityListLimit {
+  if (value === undefined) {
+    return { valid: true, limit: DEFAULT_CAPABILITY_LIST_LIMIT };
+  }
+
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    return {
+      valid: false,
+      response: {
+        success: false,
+        operation: 'list',
+        dataType: 'capabilities',
+        error: {
+          message: 'Capability list limit must be a positive integer',
+          details: `Received: ${String(value)}`,
+        },
+      },
+    };
+  }
+
+  return { valid: true, limit: Math.min(value, MAX_CAPABILITY_LIST_LIMIT) };
+}
+
+function validateCapabilityListProjection(
+  value: unknown
+): CapabilityOperationResponse | undefined {
+  if (value === undefined || typeof value === 'boolean') return undefined;
+
+  return {
+    success: false,
+    operation: 'list',
+    dataType: 'capabilities',
+    error: {
+      message: 'Capability identityOnly must be a boolean',
+      details: `Received: ${String(value)}`,
+    },
+  };
+}
+
 /**
  * Get initialized capability service
  * @param collection - Collection name (default: 'capabilities')
@@ -96,18 +143,32 @@ export async function handleCapabilityList(
   capabilityService: CapabilityVectorService
 ): Promise<CapabilityOperationResponse> {
   try {
-    // Get all capabilities with validated limit
-    const rawLimit = Number(args.limit);
-    const limit =
-      Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 10;
-    const capabilities = await capabilityService.getAllCapabilities(limit);
-    const count = await capabilityService.getCapabilitiesCount();
+    const resolvedLimit = resolveCapabilityListLimit(args.limit);
+    if (!resolvedLimit.valid) return resolvedLimit.response;
+    const projectionError = validateCapabilityListProjection(args.identityOnly);
+    if (projectionError) return projectionError;
+
+    const limit = resolvedLimit.limit;
+    const identityOnly = args.identityOnly === true;
+
+    // Fetch one past the ceiling so a full page reveals whether more remain, then trim.
+    const capabilities = await capabilityService.getAllCapabilities(limit + 1);
+    const truncated = capabilities.length > limit;
+    capabilities.splice(limit);
+    // truncated is the authoritative completeness signal (from this single read). When it
+    // is false the page IS the whole set, so returnedCount is the exact total; only pay for
+    // a separate, non-atomic count() when the page could not prove completeness.
+    const count = truncated
+      ? await capabilityService.getCapabilitiesCount()
+      : capabilities.length;
 
     logger.info('Capabilities listed successfully', {
       requestId,
       count: capabilities.length,
       totalCount: count,
       limit,
+      identityOnly,
+      truncated,
     });
 
     return {
@@ -116,12 +177,16 @@ export async function handleCapabilityList(
       dataType: 'capabilities',
       data: {
         capabilities: capabilities.map(cap => {
+          const id =
+            (cap as { id?: string }).id ??
+            CapabilityInferenceEngine.generateCapabilityId(cap.resourceName);
+          if (identityOnly) {
+            return { id, resourceName: cap.resourceName };
+          }
           const desc =
             typeof cap.description === 'string' ? cap.description : '';
           return {
-            id:
-              (cap as { id?: string }).id ??
-              CapabilityInferenceEngine.generateCapabilityId(cap.resourceName),
+            id,
             resourceName: cap.resourceName,
             apiVersion: cap.apiVersion,
             version: cap.version,
@@ -136,18 +201,23 @@ export async function handleCapabilityList(
         totalCount: count,
         returnedCount: capabilities.length,
         limit,
+        truncated,
       },
       message: `Retrieved ${capabilities.length} capabilities (${count} total)`,
-      clientInstructions: {
-        behavior:
-          'Display capability list with IDs prominently visible for user reference',
-        requirement:
-          'Each capability must show: ID, resource name, main capabilities, and description',
-        format:
-          'List format with ID clearly labeled (e.g., "ID: abc123") so users can reference specific capabilities',
-        prohibit:
-          'Do not hide or omit capability IDs from the display - users need them for get operations',
-      },
+      ...(identityOnly
+        ? {}
+        : {
+            clientInstructions: {
+              behavior:
+                'Display capability list with IDs prominently visible for user reference',
+              requirement:
+                'Each capability must show: ID, resource name, main capabilities, and description',
+              format:
+                'List format with ID clearly labeled (e.g., "ID: abc123") so users can reference specific capabilities',
+              prohibit:
+                'Do not hide or omit capability IDs from the display - users need them for get operations',
+            },
+          }),
     };
   } catch (error) {
     logger.error('Failed to list capabilities', error as Error, {
@@ -874,6 +944,15 @@ export async function handleCapabilityCRUD(
   logger: Logger,
   requestId: string
 ): Promise<CapabilityOperationResponse> {
+  const listLimit = operation === 'list'
+    ? resolveCapabilityListLimit(args.limit)
+    : undefined;
+  if (listLimit && !listLimit.valid) return listLimit.response;
+  if (operation === 'list') {
+    const projectionError = validateCapabilityListProjection(args.identityOnly);
+    if (projectionError) return projectionError;
+  }
+
   // Create capability service for CRUD operations
   // Use collection from args if provided, otherwise defaults to 'capabilities'
   const capabilityService = new CapabilityVectorService(args.collection);
@@ -908,7 +987,15 @@ export async function handleCapabilityCRUD(
             success: true,
             operation: 'list',
             dataType: 'capabilities',
-            data: { capabilities: [], totalCount: 0, returnedCount: 0 },
+            data: {
+              capabilities: [],
+              totalCount: 0,
+              returnedCount: 0,
+              limit: listLimit?.valid
+                ? listLimit.limit
+                : DEFAULT_CAPABILITY_LIST_LIMIT,
+              truncated: false,
+            },
             message: 'No capabilities found (collection not initialized)',
           };
         } else if (operation === 'get') {

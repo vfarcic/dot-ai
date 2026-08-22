@@ -21,6 +21,7 @@ import { getVisualizationUrl, BaseVisualizationData } from '../core/visualizatio
 import { isPluginInitialized, invokePluginTool, getPluginManager } from '../core/plugin-registry';
 import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
 import { getCurrentIdentity } from '../interfaces/request-context';
+import { loadPrompt } from '../core/shared-prompt-loader';
 
 export const VERSION_TOOL_NAME = 'version';
 export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
@@ -187,10 +188,17 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
     const embeddingService = new EmbeddingService();
 
     // Test capabilities collection
-    const capabilitiesStatus = await testCollectionStatus('capabilities', () => {
-      const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
-      return capabilityService.getCapabilitiesCount();
-    });
+    const capabilitiesStatus = await testCollectionStatus(
+      'capabilities',
+      () => {
+        const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
+        return capabilityService.getCapabilitiesCount();
+      },
+      () => {
+        const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
+        return capabilityService.collectionExists();
+      }
+    );
 
     // Test resources collection and get synced types
     const resourcesStatus = await testResourcesCollectionStatus(embeddingService);
@@ -222,9 +230,19 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
  */
 async function testCollectionStatus(
   collectionName: string, 
-  getCountFn: () => Promise<number>
+  getCountFn: () => Promise<number>,
+  existsFn?: () => Promise<boolean>
 ): Promise<{ exists: boolean; documentsCount?: number; error?: string; }> {
   try {
+    // Determine existence explicitly rather than inferring it from a thrown
+    // error: vector_count returns 0 for a missing collection instead of throwing.
+    if (existsFn && !(await existsFn())) {
+      return {
+        exists: false,
+        error: `${collectionName} collection does not exist`
+      };
+    }
+
     const documentsCount = await getCountFn();
     return {
       exists: true,
@@ -373,6 +391,176 @@ async function getEmbeddingStatus(): Promise<SystemStatus['embedding']> {
     dimensions: status.dimensions,
     reason: status.reason
   };
+}
+
+/**
+ * Readiness signal for the `/readyz` endpoint (PRD #714 M4).
+ *
+ * Qdrant reachable and embeddings actually serving. Capability scans always
+ * require embeddings, while collection existence and `storedCount` are informational.
+ */
+export interface CapabilityReadiness {
+  ready: boolean;
+  vectorDBHealthy: boolean;
+  collectionAccessible: boolean;
+  embeddingsRequired: boolean;
+  embeddingHealthy: boolean;
+  storedCount?: number;
+  error?: string;
+  checkedAt: string;
+}
+
+const READINESS_CACHE_TTL_MS = 30000;
+const READINESS_PROBE_TIMEOUT_MS = 10000;
+const READINESS_COLLECTION_INFO_TIMEOUT_MS = 1000;
+const READINESS_EMBEDDING_INPUT = loadPrompt('readiness-embedding').trim();
+let readinessCache: { value: CapabilityReadiness; expiresAt: number } | undefined;
+let readinessInFlight: Promise<CapabilityReadiness> | undefined;
+// Bumped on every reset so a probe started before the reset can't repopulate the
+// cache after it: its captured generation no longer matches.
+let readinessGeneration = 0;
+
+export function resetCapabilityReadinessCache(): void {
+  readinessGeneration++;
+  readinessCache = undefined;
+  readinessInFlight = undefined;
+}
+
+export async function getCapabilityReadiness(
+  clock: () => number = Date.now,
+  timeoutMs: number = READINESS_PROBE_TIMEOUT_MS
+): Promise<CapabilityReadiness> {
+  if (readinessCache && readinessCache.expiresAt > clock()) {
+    return readinessCache.value;
+  }
+
+  // Coalesce concurrent cache misses onto a single backend probe so a burst of
+  // /readyz requests doesn't fan out into N healthCheck/collectionExists/count
+  // calls.
+  if (readinessInFlight) {
+    return readinessInFlight;
+  }
+
+  const generation = readinessGeneration;
+  readinessInFlight = (async () => {
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      const timeoutResult = new Promise<CapabilityReadiness>(resolve => {
+        timeout = setTimeout(
+          () => resolve(failedCapabilityReadiness('capability readiness check timed out')),
+          timeoutMs
+        );
+      });
+      const value = await Promise.race([
+        probeCapabilityReadiness(),
+        timeoutResult,
+      ]);
+      // Discard the result if the cache was reset while this probe ran, so a
+      // stale probe can neither repopulate a cleared cache nor clobber a newer one.
+      if (generation === readinessGeneration) {
+        // Anchor expiry to probe completion, not call start: a slow backend must
+        // not shorten (or, when it takes >= TTL, negate) the cache window.
+        readinessCache = { value, expiresAt: clock() + READINESS_CACHE_TTL_MS };
+      }
+      return value;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      if (generation === readinessGeneration) {
+        readinessInFlight = undefined;
+      }
+    }
+  })();
+  return readinessInFlight;
+}
+
+function failedCapabilityReadiness(error?: string): CapabilityReadiness {
+  return {
+    ready: false,
+    vectorDBHealthy: false,
+    collectionAccessible: false,
+    embeddingsRequired: true,
+    embeddingHealthy: false,
+    ...(error ? { error } : {}),
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const capabilityService = new CapabilityVectorService();
+    const embeddingService = new EmbeddingService();
+    // New capability scans always require embeddings for vector storage.
+    const embeddingsRequired = true;
+
+    const vectorDBHealthy = await capabilityService.healthCheck();
+
+    if (!vectorDBHealthy) {
+      return {
+        ready: false,
+        vectorDBHealthy: false,
+        collectionAccessible: false,
+        embeddingsRequired,
+        embeddingHealthy: false,
+        checkedAt,
+      };
+    }
+
+    const collectionInfo = (async (): Promise<{
+      collectionAccessible: boolean;
+      storedCount?: number;
+    }> => {
+      try {
+        const collectionAccessible = await capabilityService.collectionExists();
+        const storedCount = collectionAccessible
+          ? await capabilityService.getCapabilitiesCount()
+          : 0;
+        return { collectionAccessible, storedCount };
+      } catch {
+        return { collectionAccessible: false };
+      }
+    })();
+    let collectionInfoTimeout: NodeJS.Timeout | undefined;
+    const boundedCollectionInfo = Promise.race([
+      collectionInfo,
+      new Promise<{ collectionAccessible: boolean; storedCount?: number }>(resolve => {
+        collectionInfoTimeout = setTimeout(
+          () => resolve({ collectionAccessible: false }),
+          READINESS_COLLECTION_INFO_TIMEOUT_MS
+        );
+      }),
+    ]);
+
+    let embeddingHealthy = false;
+    try {
+      const expectedDimensions =
+        embeddingService.getStatus().dimensions || 1536;
+      const probeEmbedding =
+        await embeddingService.generateEmbedding(READINESS_EMBEDDING_INPUT);
+      embeddingHealthy =
+        Array.isArray(probeEmbedding) &&
+        probeEmbedding.length === expectedDimensions &&
+        probeEmbedding.every(Number.isFinite);
+    } catch {
+      embeddingHealthy = false;
+    }
+    const { collectionAccessible, storedCount } = await boundedCollectionInfo;
+    if (collectionInfoTimeout) clearTimeout(collectionInfoTimeout);
+
+    return {
+      ready: vectorDBHealthy && embeddingHealthy,
+      vectorDBHealthy: true,
+      collectionAccessible,
+      embeddingsRequired,
+      embeddingHealthy,
+      storedCount,
+      checkedAt,
+    };
+  } catch {
+    // Keep the response generic so diagnostics never disclose backend details.
+    return failedCapabilityReadiness('capability readiness check failed');
+  }
 }
 
 /**
