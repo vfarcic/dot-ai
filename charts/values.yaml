@@ -9,7 +9,7 @@ annotations: {}
 # Application image configuration
 image:
   repository: ghcr.io/vfarcic/dot-ai  # Container image repository
-  tag: "2.2.2"                     # Container image tag - set by CI pipeline during release
+  tag: "2.3.0"                     # Container image tag - set by CI pipeline during release
 
 # Resource configuration
 resources:
@@ -462,7 +462,7 @@ plugins:
     enabled: true
     image:
       repository: ghcr.io/vfarcic/dot-ai-agentic-tools
-      tag: "2.2.2"
+      tag: "2.3.0"
     port: 8080
     # RBAC created automatically by chart (hardcoded for agentic-tools)
     env: []                         # Additional environment variables
@@ -480,7 +480,7 @@ plugins:
   #   enabled: true
   #   image:
   #     repository: myregistry/my-tools
-  #     tag: "2.2.2"
+  #     tag: "2.3.0"
   #   port: 8082
   #   serviceAccountName: "my-tools-sa"  # You create this SA with needed permissions
   #   env:
