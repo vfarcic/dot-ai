@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "data": {
+    "result": {
+      "success": false,
+      "operation": "list",
+      "dataType": "capabilities",
+      "error": {
+        "message": "Vector DB (Qdrant) connection required",
+        "details": "Capability operations require a working Qdrant connection.",
+        "setup": {
+          "docker": "docker run -p 6333:6333 qdrant/qdrant",
+          "config": "export QDRANT_URL=http://localhost:6333"
+        }
+      }
+    },
+    "tool": "manageOrgData",
+    "executionTime": 0
+  },
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00.000Z",
+    "requestId": "contract-fixture",
+    "version": "0.0.0-contract"
+  }
+}

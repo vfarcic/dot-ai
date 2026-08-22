@@ -62,7 +62,7 @@ jobs:
         npm pack
         docker build -t dot-ai:test .
         rm -f vfarcic-dot-ai-*.tgz
-        (cd packages/agentic-tools && npm ci && npm run build && npm prune --omit=dev)
+        (cd packages/agentic-tools && npm ci && npm run build && npm test && npm prune --omit=dev)
         docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools
         docker save dot-ai:test -o /tmp/dot-ai-test.tar
         docker save dot-ai-agentic-tools:test -o /tmp/dot-ai-agentic-tools-test.tar
@@ -112,7 +112,7 @@ jobs:
             tests: manage-org-data-policies manage-org-data-capabilities
           # Base-only tests (grouped to share cluster setup overhead)
           - name: base-group-1
-            tests: operate manage-org-data-patterns manage-knowledge auth rbac
+            tests: operate manage-org-data-patterns manage-knowledge auth readiness rbac
           - name: base-group-2
             tests: resource-sync openapi plugin project-setup prompts
           # Isolated in its own group because its migration seed step recreates and then deletes the legacy `patterns` collection.

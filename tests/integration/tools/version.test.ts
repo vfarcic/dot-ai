@@ -134,15 +134,15 @@ describe.concurrent('Version Tool Integration', () => {
                 webhookReady: true,
                 policyGenerationReady: true,
               },
-              // PRD #343 + #251 + #384: Plugin stats (40 tools: 17 kubectl + 10 helm + 12 vector + 1 knowledge)
+              // PRD #343 + #251 + #384 + #714: 41 tools (17 kubectl + 10 helm + 13 vector + 1 knowledge)
               plugins: {
                 pluginCount: 1,
-                toolCount: 40,
+                toolCount: 41,
                 plugins: [
                   {
                     name: 'agentic-tools',
                     version: '1.0.0',
-                    toolCount: 40,
+                    toolCount: 41,
                   },
                 ],
               },
@@ -228,11 +228,11 @@ describe.concurrent('Version Tool Integration', () => {
         plugins?.pluginCount,
         `Plugin discovery failed: found ${plugins?.pluginCount} plugins. Check plugins.json mounted at /etc/dot-ai/ and plugin service reachable`
       ).toBe(1);
-      // 40 tools in agentic-tools plugin (17 kubectl + 10 helm + 12 vector + 1 knowledge - PRD #343, #251, #359, #356, #384)
+      // 41 tools in agentic-tools plugin (17 kubectl + 10 helm + 13 vector + 1 knowledge - PRD #343, #251, #359, #356, #384, #714)
       expect(
         plugins?.toolCount,
-        `Expected 40 tools, found ${plugins?.toolCount}. Check agentic-tools registration`
-      ).toBe(40);
+        `Expected 41 tools, found ${plugins?.toolCount}. Check agentic-tools registration`
+      ).toBe(41);
       expect(
         plugins?.plugins?.[0]?.name,
         'agentic-tools plugin not in discovered plugins'

@@ -7,7 +7,7 @@
  * NOTE: Written based on actual API response inspection following PRD best practices.
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('ManageOrgData - Capabilities Integration', () => {
@@ -378,6 +378,181 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
 
   });
 
+  describe('List Contract — Isolated Collection (PRD #714 M2, Tier 2)', () => {
+    // A dedicated collection nothing else writes to, so exact counts and the truncation
+    // boundary are deterministic (Tier 1 covers the shared-collection invariants).
+    const CONTRACT_COLLECTION = `capabilities-contract-${process.pid}-${Date.now()}`;
+    // Core resources (no CRD dependency); one capability is stored per scanned resource.
+    const RESOURCE_LIST = 'Service,Deployment.apps,ConfigMap';
+    const EXPECTED_TOTAL = 3;
+
+    beforeAll(async () => {
+      const cleanup = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'deleteAll',
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_cleanup'
+      });
+      expect(cleanup).toMatchObject({
+        success: true,
+        data: { result: { success: true, operation: 'deleteAll' } },
+      });
+    });
+
+    afterAll(async () => {
+      await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'deleteAll',
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_teardown'
+      });
+    });
+
+    test('exact counts, truncation, and identity parity on a stable collection', async () => {
+      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'scan',
+        resourceList: RESOURCE_LIST,
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_scan'
+      });
+      expect(scanResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'scan',
+            dataType: 'capabilities',
+            status: 'started',
+          },
+        },
+      });
+      const sessionId = scanResponse.data.result.sessionId;
+
+      // Poll generously so a slow AI backend can't flake it (exits early on completion).
+      let scanComplete = false;
+      let lastProgress;
+      const maxAttempts = 30;
+      for (let i = 0; i < maxAttempts && !scanComplete; i++) {
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        const p = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId,
+          interaction_id: `contract_isolated_progress_${i}`
+        });
+        lastProgress = p;
+        const status = p?.data?.result?.progress?.status;
+        if (status === 'complete' || status === 'completed') {
+          scanComplete = true;
+        }
+      }
+      expect(lastProgress).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            progress: { status: 'completed' },
+          },
+        },
+      });
+
+      // Full page → whole set, not truncated, exact total.
+      const full = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10000,
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_full'
+      });
+      const fullData = full.data.result.data;
+      expect(full).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'list',
+            data: {
+              totalCount: EXPECTED_TOTAL,
+              returnedCount: EXPECTED_TOTAL,
+              limit: 10000,
+              truncated: false,
+            },
+          },
+        },
+      });
+      expect(fullData.capabilities).toMatchObject([{}, {}, {}]);
+
+      // Limit below the total → truncated, exact total still reported.
+      const trunc = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 1,
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_truncated'
+      });
+      const truncData = trunc.data.result.data;
+      expect(trunc).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'list',
+            data: {
+              totalCount: EXPECTED_TOTAL,
+              returnedCount: 1,
+              limit: 1,
+              truncated: true,
+            },
+          },
+        },
+      });
+      expect(truncData.capabilities).toMatchObject([{}]);
+
+      // identityOnly → same set, each item projected to exactly { id, resourceName }.
+      const identity = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10000,
+        identityOnly: true,
+        collection: CONTRACT_COLLECTION,
+        interaction_id: 'contract_isolated_identity'
+      });
+      const identityData = identity.data.result.data;
+      expect(identity).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: true,
+            operation: 'list',
+            data: {
+              totalCount: EXPECTED_TOTAL,
+              returnedCount: EXPECTED_TOTAL,
+              limit: 10000,
+              truncated: false,
+            },
+          },
+        },
+      });
+      const fullIdentities = fullData.capabilities
+        .map((c: { id: string; resourceName: string }) => ({
+          id: c.id,
+          resourceName: c.resourceName,
+        }))
+        .sort((a: { resourceName: string }, b: { resourceName: string }) =>
+          a.resourceName.localeCompare(b.resourceName)
+        );
+      const identityItems = identityData.capabilities
+        .sort((a: { resourceName: string }, b: { resourceName: string }) =>
+          a.resourceName.localeCompare(b.resourceName)
+        );
+      expect(identityItems).toMatchObject(fullIdentities);
+      for (const item of identityData.capabilities) {
+        expect(Object.keys(item).sort()).toMatchObject(['id', 'resourceName']);
+      }
+    }, 360000);
+  });
+
   describe('Capabilities Management Operations', () => {
     // NOTE: CRUD lifecycle (Create, Read, Update, Delete) is now tested in the full auto scan test above
     // to avoid race conditions with deterministic capability IDs across concurrent tests
@@ -632,6 +807,54 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
   });
 
   describe('Error Handling', () => {
+    test('should reject a fractional list limit over REST', async () => {
+      const response = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        limit: 10.5,
+        interaction_id: 'fractional_list_limit'
+      });
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: false,
+            operation: 'list',
+            dataType: 'capabilities',
+            error: {
+              message: 'Capability list limit must be a positive integer',
+              details: 'Received: 10.5',
+            },
+          },
+        },
+      });
+    });
+
+    test('should reject a non-boolean identity projection over REST', async () => {
+      const response = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'list',
+        identityOnly: 'true',
+        interaction_id: 'invalid_identity_projection'
+      });
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            success: false,
+            operation: 'list',
+            dataType: 'capabilities',
+            error: {
+              message: 'Capability identityOnly must be a boolean',
+              details: 'Received: true',
+            },
+          },
+        },
+      });
+    });
+
     test('should handle invalid operation gracefully', async () => {
       const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
         dataType: 'capabilities',
