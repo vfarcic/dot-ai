@@ -75,7 +75,7 @@ export class IntegrationTest {
         // Check for CrashLoopBackOff condition
         if (condition === 'Failed' && pod.status?.containerStatuses) {
           const crashLooping = pod.status.containerStatuses.some(
-            (status: any) =>
+            (status: k8s.V1ContainerStatus) =>
               status.state?.waiting?.reason === 'CrashLoopBackOff'
           );
           if (crashLooping) {
@@ -182,10 +182,10 @@ export class IntegrationTest {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       return output;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Return empty string for errors (e.g., resources not found)
       // The --ignore-not-found flag handles most of these gracefully
-      return error.stdout || '';
+      return (error as { stdout?: string }).stdout || '';
     }
   }
 

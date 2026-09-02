@@ -391,7 +391,7 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(deployment.printerColumns.length).toBeGreaterThan(0);
       // Deployment has columns: NAME, READY, UP-TO-DATE, AVAILABLE, AGE (uppercase from kubectl output)
       const deploymentColNames = deployment.printerColumns.map(
-        (c: any) => c.name
+        (c: { name: string }) => c.name
       );
       expect(deploymentColNames).toContain('NAME');
       expect(deploymentColNames).toContain('READY');
@@ -407,7 +407,9 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(Array.isArray(service.printerColumns)).toBe(true);
       expect(service.printerColumns.length).toBeGreaterThan(0);
       // Service has columns: NAME, TYPE, CLUSTER-IP, EXTERNAL-IP, PORT(S), AGE (uppercase from kubectl output)
-      const serviceColNames = service.printerColumns.map((c: any) => c.name);
+      const serviceColNames = service.printerColumns.map(
+        (c: { name: string }) => c.name
+      );
       expect(serviceColNames).toContain('NAME');
       expect(serviceColNames).toContain('TYPE');
       expect(serviceColNames).toContain('CLUSTER-IP');
@@ -423,7 +425,9 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(Array.isArray(cluster.printerColumns)).toBe(true);
       expect(cluster.printerColumns.length).toBeGreaterThan(0);
       // CNPG Cluster has columns from CRD spec (title case - no instances at scan time)
-      const clusterColNames = cluster.printerColumns.map((c: any) => c.name);
+      const clusterColNames = cluster.printerColumns.map(
+        (c: { name: string }) => c.name
+      );
       expect(clusterColNames).toContain('Name');
       expect(clusterColNames).toContain('Age');
       expect(clusterColNames).toContain('Instances');

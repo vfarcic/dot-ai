@@ -5,6 +5,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { createMockLogger } from '../helpers/mock-logger.js';
 import {
   CircuitBreaker,
   CircuitBreakerFactory,
@@ -476,12 +477,7 @@ describe('CircuitOpenError', () => {
 
 describe('Log Suppression', () => {
   test('should log "circuit open" only once per open period', async () => {
-    const mockLogger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    };
+    const mockLogger = createMockLogger();
 
     const breaker = new CircuitBreaker(
       'test-circuit',
@@ -489,7 +485,7 @@ describe('Log Suppression', () => {
         failureThreshold: 2,
         cooldownPeriodMs: 10000,
       },
-      mockLogger as any
+      mockLogger
     );
 
     // Open the circuit
@@ -512,19 +508,14 @@ describe('Log Suppression', () => {
     }
 
     // Should only log "circuit open" once, not 5 times
-    const circuitOpenLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+    const circuitOpenLogs = mockLogger.warn.mock.calls.filter(call =>
       call[0]?.includes('is open, blocking')
     );
     expect(circuitOpenLogs.length).toBe(1);
   });
 
   test('should log again after circuit is reset and reopens', async () => {
-    const mockLogger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    };
+    const mockLogger = createMockLogger();
 
     const breaker = new CircuitBreaker(
       'test-circuit',
@@ -532,7 +523,7 @@ describe('Log Suppression', () => {
         failureThreshold: 2,
         cooldownPeriodMs: 10000,
       },
-      mockLogger as any
+      mockLogger
     );
 
     // Open the circuit first time
@@ -572,19 +563,14 @@ describe('Log Suppression', () => {
       CircuitOpenError
     );
 
-    const circuitOpenLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+    const circuitOpenLogs = mockLogger.warn.mock.calls.filter(call =>
       call[0]?.includes('is open, blocking')
     );
     expect(circuitOpenLogs.length).toBe(1);
   });
 
   test('should include willRetryAt in log when circuit is open', async () => {
-    const mockLogger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    };
+    const mockLogger = createMockLogger();
 
     const breaker = new CircuitBreaker(
       'test-circuit',
@@ -592,7 +578,7 @@ describe('Log Suppression', () => {
         failureThreshold: 2,
         cooldownPeriodMs: 5000,
       },
-      mockLogger as any
+      mockLogger
     );
 
     // Open the circuit
@@ -612,21 +598,16 @@ describe('Log Suppression', () => {
     );
 
     // Find the "circuit open" log call
-    const circuitOpenLog = mockLogger.warn.mock.calls.find((call: any[]) =>
+    const circuitOpenLog = mockLogger.warn.mock.calls.find(call =>
       call[0]?.includes('is open, blocking')
     );
     expect(circuitOpenLog).toBeDefined();
-    expect(circuitOpenLog[1]).toHaveProperty('willRetryAt');
-    expect(circuitOpenLog[1]).toHaveProperty('remainingCooldownMs');
+    expect(circuitOpenLog![1]).toHaveProperty('willRetryAt');
+    expect(circuitOpenLog![1]).toHaveProperty('remainingCooldownMs');
   });
 
   test('should rate-limit failure WARN logs', async () => {
-    const mockLogger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    };
+    const mockLogger = createMockLogger();
 
     const breaker = new CircuitBreaker(
       'test-circuit',
@@ -634,7 +615,7 @@ describe('Log Suppression', () => {
         failureThreshold: 100, // High threshold so we stay in CLOSED
         cooldownPeriodMs: 10000,
       },
-      mockLogger as any
+      mockLogger
     );
 
     // Record many failures rapidly
@@ -643,7 +624,7 @@ describe('Log Suppression', () => {
     }
 
     // Should have logged the first failure, then suppressed the rest
-    const failureLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+    const failureLogs = mockLogger.warn.mock.calls.filter(call =>
       call[0]?.includes('recorded failure')
     );
     expect(failureLogs.length).toBe(1);
@@ -651,12 +632,7 @@ describe('Log Suppression', () => {
 
   test('should include suppressed count when logging after rate-limit', async () => {
     vi.useFakeTimers();
-    const mockLogger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    };
+    const mockLogger = createMockLogger();
 
     const breaker = new CircuitBreaker(
       'test-circuit',
@@ -664,7 +640,7 @@ describe('Log Suppression', () => {
         failureThreshold: 100,
         cooldownPeriodMs: 10000,
       },
-      mockLogger as any
+      mockLogger
     );
 
     // Record failures rapidly
@@ -678,7 +654,7 @@ describe('Log Suppression', () => {
     // Record another failure - should log with suppressed count
     breaker.recordFailure(new Error('fail'));
 
-    const failureLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+    const failureLogs = mockLogger.warn.mock.calls.filter(call =>
       call[0]?.includes('recorded failure')
     );
     expect(failureLogs.length).toBe(2);
@@ -689,12 +665,7 @@ describe('Log Suppression', () => {
   });
 
   test('should reset failure log rate-limit on circuit reset', async () => {
-    const mockLogger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    };
+    const mockLogger = createMockLogger();
 
     const breaker = new CircuitBreaker(
       'test-circuit',
@@ -702,7 +673,7 @@ describe('Log Suppression', () => {
         failureThreshold: 100,
         cooldownPeriodMs: 10000,
       },
-      mockLogger as any
+      mockLogger
     );
 
     // Record some failures
@@ -716,7 +687,7 @@ describe('Log Suppression', () => {
     breaker.reset();
     breaker.recordFailure(new Error('fail again'));
 
-    const failureLogs = mockLogger.warn.mock.calls.filter((call: any[]) =>
+    const failureLogs = mockLogger.warn.mock.calls.filter(call =>
       call[0]?.includes('recorded failure')
     );
     expect(failureLogs.length).toBe(1);

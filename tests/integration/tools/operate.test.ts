@@ -8,6 +8,7 @@
 
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
+import type { HpaResource, ProposedChange } from '../helpers/api-shapes.js';
 
 describe.concurrent('Operate Tool Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -307,7 +308,7 @@ EOF`);
 
       // Should create HPA with min=4, max=4 (pattern says even if both are the same)
       const hpaCreation = proposedChanges.create.find(
-        (change: any) => change.kind === 'HorizontalPodAutoscaler'
+        (change: ProposedChange) => change.kind === 'HorizontalPodAutoscaler'
       );
       expect(hpaCreation).toBeDefined();
       expect(hpaCreation.rationale).toMatch(
@@ -365,7 +366,7 @@ EOF`);
 
       // Find the HPA for test-api
       const testApiHpa = hpaList.items.find(
-        (hpa: any) => hpa.spec.scaleTargetRef.name === 'test-api'
+        (hpa: HpaResource) => hpa.spec?.scaleTargetRef?.name === 'test-api'
       );
       expect(testApiHpa).toBeDefined();
       expect(testApiHpa.spec.minReplicas).toBe(4);

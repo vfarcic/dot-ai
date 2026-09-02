@@ -14,6 +14,12 @@
 import { describe, test, expect } from 'vitest';
 import { HttpRestApiClient } from '../helpers/http-client.js';
 import { IntegrationTest } from '../helpers/test-base.js';
+import type { RestApiResponse } from '../helpers/http-client.js';
+import type {
+  OpenApiParameter,
+  OpenApiPathItem,
+  OpenApiSpec,
+} from '../helpers/api-shapes.js';
 
 describe.concurrent('OpenAPI Specification Integration', () => {
   // Create an HTTP client WITHOUT authentication headers
@@ -27,7 +33,8 @@ describe.concurrent('OpenAPI Specification Integration', () => {
 
   // Helper to extract OpenAPI spec from wrapped response
   // The HTTP client wraps raw JSON responses in { success: true, data: <response> }
-  const getOpenApiSpec = (response: any) => response.data || response;
+  const getOpenApiSpec = (response: RestApiResponse): OpenApiSpec =>
+    (response.data as OpenApiSpec) ?? (response as unknown as OpenApiSpec);
 
   describe('Public Access (No Authentication)', () => {
     test('should return OpenAPI specification without authentication', async () => {
@@ -62,7 +69,7 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       const spec = getOpenApiSpec(response);
 
       // Verify essential tool endpoints exist
-      const paths = spec.paths as Record<string, any>;
+      const paths = spec.paths as Record<string, OpenApiPathItem>;
 
       // Check for tool discovery endpoint
       expect(paths).toHaveProperty('/api/v1/tools');
@@ -92,7 +99,10 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       const response = await unauthenticatedClient.get('/api/v1/openapi');
       const spec = getOpenApiSpec(response);
 
-      const schemas = spec.components?.schemas as Record<string, any>;
+      const schemas = spec.components?.schemas as Record<
+        string,
+        Record<string, unknown>
+      >;
 
       // Verify base response schemas exist
       expect(schemas).toHaveProperty('RestApiResponse');
@@ -135,7 +145,7 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       const response = await unauthenticatedClient.get('/api/v1/openapi');
       const spec = getOpenApiSpec(response);
 
-      const tags = spec.tags as Array<{ name: string; description: string }>;
+      const tags = spec.tags ?? [];
 
       // Verify expected tags exist
       const tagNames = tags.map(t => t.name);
@@ -171,7 +181,7 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       const response = await unauthenticatedClient.get('/api/v1/openapi');
       const spec = getOpenApiSpec(response);
 
-      const paths = spec.paths as Record<string, any>;
+      const paths = spec.paths as Record<string, OpenApiPathItem>;
 
       // Tool execution endpoints should only accept POST
       const versionPath = paths['/api/v1/tools/version'];
@@ -195,12 +205,12 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       const response = await unauthenticatedClient.get('/api/v1/openapi');
       const spec = getOpenApiSpec(response);
 
-      const paths = spec.paths as Record<string, any>;
+      const paths = spec.paths as Record<string, OpenApiPathItem>;
       const versionEndpoint = paths['/api/v1/tools/version']?.post;
 
       // Verify request body schema reference
       expect(versionEndpoint).toHaveProperty('requestBody');
-      expect(versionEndpoint.requestBody).toMatchObject({
+      expect(versionEndpoint!.requestBody).toMatchObject({
         required: true,
         content: {
           'application/json': {
@@ -213,12 +223,16 @@ describe.concurrent('OpenAPI Specification Integration', () => {
 
       // Verify response schema reference
       expect(versionEndpoint).toHaveProperty('responses');
-      expect(versionEndpoint.responses).toHaveProperty('200');
-      expect(
-        versionEndpoint.responses['200'].content['application/json'].schema
-      ).toMatchObject({
-        $ref: '#/components/schemas/ToolExecutionResponse',
-      });
+      const responses = versionEndpoint!.responses as Record<
+        string,
+        { content: Record<string, { schema: unknown }> }
+      >;
+      expect(responses).toHaveProperty('200');
+      expect(responses['200'].content['application/json'].schema).toMatchObject(
+        {
+          $ref: '#/components/schemas/ToolExecutionResponse',
+        }
+      );
     });
   });
 
@@ -235,9 +249,9 @@ describe.concurrent('OpenAPI Specification Integration', () => {
 
       // Both should return the same OpenAPI spec structure
       expect(unauthSpec.openapi).toBe(authSpec.openapi);
-      expect(unauthSpec.info.title).toBe(authSpec.info.title);
-      expect(Object.keys(unauthSpec.paths)).toEqual(
-        Object.keys(authSpec.paths)
+      expect(unauthSpec.info?.title).toBe(authSpec.info?.title);
+      expect(Object.keys(unauthSpec.paths ?? {})).toEqual(
+        Object.keys(authSpec.paths ?? {})
       );
     });
   });
@@ -267,7 +281,7 @@ describe.concurrent('OpenAPI Specification Integration', () => {
     test('should generate OpenAPI paths from route registry with proper structure', async () => {
       const response = await unauthenticatedClient.get('/api/v1/openapi');
       const spec = getOpenApiSpec(response);
-      const paths = spec.paths as Record<string, any>;
+      const paths = spec.paths as Record<string, OpenApiPathItem>;
 
       // Verify parameterized route converts :param to {param} format
       expect(paths).toHaveProperty('/api/v1/visualize/{sessionId}');
@@ -275,9 +289,9 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       expect(vizEndpoint).toBeDefined();
 
       // Verify path parameter is documented
-      expect(vizEndpoint.parameters).toBeDefined();
-      const sessionIdParam = vizEndpoint.parameters.find(
-        (p: any) => p.name === 'sessionId' && p.in === 'path'
+      expect(vizEndpoint!.parameters).toBeDefined();
+      const sessionIdParam = vizEndpoint!.parameters!.find(
+        (p: OpenApiParameter) => p.name === 'sessionId' && p.in === 'path'
       );
       expect(sessionIdParam).toMatchObject({
         name: 'sessionId',
@@ -286,15 +300,19 @@ describe.concurrent('OpenAPI Specification Integration', () => {
       });
 
       // Verify response schema reference exists
+      const vizResponses = vizEndpoint!.responses as Record<
+        string,
+        { content: Record<string, { schema: { $ref?: string } }> }
+      >;
       expect(
-        vizEndpoint.responses['200'].content['application/json'].schema.$ref
+        vizResponses['200'].content['application/json'].schema.$ref
       ).toBeDefined();
 
       // Verify error responses are documented
-      expect(vizEndpoint.responses).toHaveProperty('404');
+      expect(vizResponses).toHaveProperty('404');
 
       // Verify tags from route registry are included
-      expect(vizEndpoint.tags).toContain('Visualization');
+      expect(vizEndpoint!.tags).toContain('Visualization');
     });
   });
 });

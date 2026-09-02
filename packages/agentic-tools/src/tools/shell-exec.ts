@@ -57,11 +57,16 @@ export const shellExec: KubectlTool = {
         : output;
 
       return successResult(fullOutput, `Command executed successfully`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // exec error includes stdout/stderr in the error object
-      const stdout = error.stdout?.trim() || '';
-      const stderr = error.stderr?.trim() || '';
-      const message = error.message || 'Command execution failed';
+      const execError = error as {
+        stdout?: string;
+        stderr?: string;
+        message?: string;
+      };
+      const stdout = execError.stdout?.trim() || '';
+      const stderr = execError.stderr?.trim() || '';
+      const message = execError.message || 'Command execution failed';
 
       // Combine all output for error context
       const errorOutput = [message, stdout, stderr].filter(Boolean).join('\n');

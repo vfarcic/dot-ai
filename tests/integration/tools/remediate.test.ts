@@ -9,6 +9,11 @@
 import { describe, test, expect, beforeAll, onTestFinished } from 'vitest';
 import * as http from 'http';
 import { IntegrationTest } from '../helpers/test-base.js';
+import type {
+  CommandExecutionResult,
+  PodResource,
+  RemediationAction,
+} from '../helpers/api-shapes.js';
 
 const SSE_BASE_URL = process.env.MCP_BASE_URL || 'http://localhost:3456';
 
@@ -94,7 +99,7 @@ spec:
 EOF`);
 
       // Wait for pod to start and crash at least once (with retry loop)
-      let podData: any;
+      let podData: PodResource | undefined;
       let restartCountInitial = 0;
       const maxWaitTime = 90000; // 90 seconds max
       const checkInterval = 5000; // Check every 5 seconds
@@ -115,12 +120,9 @@ EOF`);
         if (podsData.items && podsData.items.length > 0) {
           podData = podsData.items[0];
 
-          if (
-            podData.status.containerStatuses &&
-            podData.status.containerStatuses[0]
-          ) {
-            restartCountInitial =
-              podData.status.containerStatuses[0].restartCount;
+          const containerStatuses = podData?.status?.containerStatuses;
+          if (containerStatuses?.[0]) {
+            restartCountInitial = containerStatuses[0].restartCount;
             if (restartCountInitial > 0) {
               break; // Pod has crashed and restarted
             }
@@ -131,7 +133,7 @@ EOF`);
       }
 
       // Verify pod is in a problematic state (CrashLoopBackOff, Running but will crash, or Pending)
-      expect(podData.status.phase).toMatch(/Running|Pending/);
+      expect(podData?.status?.phase).toMatch(/Running|Pending/);
 
       // Verify pod has restarted at least once (indicating OOM crashes)
       expect(restartCountInitial).toBeGreaterThan(0); // Should have crashed at least once
@@ -255,7 +257,7 @@ EOF`);
 
       // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
       const gitSourceActions = remediationActions.filter(
-        (a: any) => a.gitSource
+        (a: RemediationAction) => a.gitSource
       );
       expect(gitSourceActions.length).toBe(0);
 
@@ -447,7 +449,7 @@ EOF`);
 
       // Verify all remediation commands succeeded
       const results = executionResponse.data.result.results;
-      results.forEach((result: any) => {
+      results.forEach((result: CommandExecutionResult) => {
         expect(result.success).toBe(true);
       });
 
@@ -472,7 +474,7 @@ EOF`);
 
       // Verify pod is actually healthy (Ready condition)
       const readyCondition = afterPod.status.conditions.find(
-        (c: any) => c.type === 'Ready'
+        (c: { type: string; status: string }) => c.type === 'Ready'
       );
       expect(readyCondition.status).toBe('True');
 
@@ -566,7 +568,7 @@ spec:
 EOF`);
 
       // Wait for pod to start and crash (with retry loop)
-      let podData: any;
+      let podData: PodResource | undefined;
       let restartCount = 0;
       const maxWaitTime = 90000; // 90 seconds max
       const checkInterval = 5000; // Check every 5 seconds
@@ -587,11 +589,9 @@ EOF`);
         if (podsData.items && podsData.items.length > 0) {
           podData = podsData.items[0];
 
-          if (
-            podData.status.containerStatuses &&
-            podData.status.containerStatuses[0]
-          ) {
-            restartCount = podData.status.containerStatuses[0].restartCount;
+          const containerStatuses = podData?.status?.containerStatuses;
+          if (containerStatuses?.[0]) {
+            restartCount = containerStatuses[0].restartCount;
             if (restartCount > 0) {
               break; // Pod has crashed and restarted
             }
@@ -645,13 +645,15 @@ EOF`);
 
       // Verify all remediation commands succeeded
       const results = autoResponse.data.result.results;
-      results.forEach((result: any) => {
+      results.forEach((result: CommandExecutionResult) => {
         expect(result.success).toBe(true);
       });
 
       // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
       const autoActions = autoResponse.data.result.remediation?.actions || [];
-      const autoGitSourceActions = autoActions.filter((a: any) => a.gitSource);
+      const autoGitSourceActions = autoActions.filter(
+        (a: RemediationAction) => a.gitSource
+      );
       expect(autoGitSourceActions.length).toBe(0);
 
       // PHASE 2: Verify ACTUAL cluster remediation - outcome-based validation
@@ -665,10 +667,10 @@ EOF`);
 
       // Should have at least one running stress workload pod
       const runningPods = afterPodsData.items.filter(
-        (pod: any) =>
-          pod.status.phase === 'Running' &&
-          pod.spec.containers.some(
-            (container: any) => container.image === 'polinux/stress:1.0.4'
+        (pod: PodResource) =>
+          pod.status?.phase === 'Running' &&
+          pod.spec?.containers?.some(
+            container => container.image === 'polinux/stress:1.0.4'
           )
       );
       expect(runningPods.length).toBeGreaterThan(0);
@@ -859,7 +861,7 @@ EOF`);
       // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
       const helmGitSourceActions =
         investigationResponse.data.result.remediation.actions.filter(
-          (a: any) => a.gitSource
+          (a: RemediationAction) => a.gitSource
         );
       expect(helmGitSourceActions.length).toBe(0);
 
@@ -987,11 +989,9 @@ EOF`);
         const podsData = JSON.parse(podsJson);
         if (podsData.items && podsData.items.length > 0) {
           const podData = podsData.items[0];
-          if (
-            podData.status.containerStatuses &&
-            podData.status.containerStatuses[0]
-          ) {
-            restartCount = podData.status.containerStatuses[0].restartCount;
+          const containerStatuses = podData?.status?.containerStatuses;
+          if (containerStatuses?.[0]) {
+            restartCount = containerStatuses[0].restartCount;
             if (restartCount > 0) {
               break;
             }

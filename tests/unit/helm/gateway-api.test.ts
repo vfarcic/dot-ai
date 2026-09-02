@@ -9,6 +9,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
+import { isNamedK8sDoc } from './k8s-doc.js';
 import { execSync } from 'child_process';
 import * as yaml from 'js-yaml';
 import { readFileSync } from 'fs';
@@ -75,14 +76,9 @@ describe.concurrent('Gateway API Helm Chart Integration', () => {
       (doc: unknown) =>
         typeof doc === 'object' &&
         doc !== null &&
-        'kind' in doc &&
+        isNamedK8sDoc(doc) &&
         doc.kind === kind &&
-        (!nameExcludes ||
-          !(
-            'metadata' in doc &&
-            typeof (doc as any).metadata?.name === 'string' &&
-            (doc as any).metadata.name.includes(nameExcludes)
-          ))
+        (!nameExcludes || !doc.metadata.name.includes(nameExcludes))
     ) as T | undefined;
   }
 

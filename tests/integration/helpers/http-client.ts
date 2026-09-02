@@ -12,11 +12,22 @@ import { URL } from 'url';
 
 export interface RestApiResponse {
   success: boolean;
+  /**
+   * The tool-specific response payload, straight off the wire.
+   *
+   * This is the one deliberate `any` left in tests/. It is untyped JSON at an
+   * HTTP boundary, and every integration test reads it as
+   * `response.data.result.<something>` for a different tool. Typing it as
+   * `unknown` produces 392 narrowing errors across 33 files, and the fix would
+   * be ~400 casts — strictly worse code than one documented exception. Assert
+   * on the shape you expect with `toMatchObject` instead.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any;
   error?: {
     code: string;
     message: string;
-    details?: any;
+    details?: unknown;
   };
   meta?: {
     timestamp: string;
@@ -63,7 +74,7 @@ export class HttpRestApiClient {
    */
   async post(
     path: string,
-    body?: any,
+    body?: unknown,
     headers?: Record<string, string>
   ): Promise<RestApiResponse> {
     return this.request('POST', path, body, headers);
@@ -74,7 +85,7 @@ export class HttpRestApiClient {
    */
   async put(
     path: string,
-    body?: any,
+    body?: unknown,
     headers?: Record<string, string>
   ): Promise<RestApiResponse> {
     return this.request('PUT', path, body, headers);
@@ -96,7 +107,7 @@ export class HttpRestApiClient {
   private async request(
     method: string,
     path: string,
-    body?: any,
+    body?: unknown,
     headers?: Record<string, string>
   ): Promise<RestApiResponse> {
     const url = new URL(path, this.baseUrl);
@@ -118,7 +129,7 @@ export class HttpRestApiClient {
       const startTime = Date.now();
       let socketAssigned = false;
       let socketTimeoutHandler: (() => void) | null = null;
-      let currentSocket: any = null;
+      let currentSocket: import('net').Socket | null = null;
 
       const cleanup = () => {
         // Remove socket timeout listener to prevent memory leak on reused sockets

@@ -833,7 +833,6 @@ describe('Prompts Integration', () => {
         branch: fixtureBranch,
       });
       expect(fileRes.ok).toBe(true);
-
     });
 
     afterAll(async () => {

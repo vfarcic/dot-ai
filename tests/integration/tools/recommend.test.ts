@@ -21,6 +21,14 @@ import * as k8s from '@kubernetes/client-node';
 import { IntegrationTest } from '../helpers/test-base.js';
 import { HttpRestApiClient } from '../helpers/http-client.js';
 import { signJwt } from '../../../src/interfaces/oauth/jwt.js';
+import type {
+  GeneratedFile,
+  GitPushResult,
+  K8sManifest,
+  OwnerReference,
+  Question,
+  SolutionSummary,
+} from '../helpers/api-shapes.js';
 
 /**
  * Pick a *valid* answer for an AI-generated question.
@@ -36,11 +44,11 @@ import { signJwt } from '../../../src/interfaces/oauth/jwt.js';
  * (src/tools/answer-question.ts), so that is the only case needing a fallback.
  * Anything else passes the suggestion through unchanged.
  */
-function validAnswerFor(question: any): any {
+function validAnswerFor(question: Question): unknown {
   const { type, options, suggestedAnswer } = question;
 
   if (type === 'select' && Array.isArray(options) && options.length > 0) {
-    if (!options.includes(suggestedAnswer)) {
+    if (!options.includes(suggestedAnswer as string)) {
       return options[0];
     }
   }
@@ -105,7 +113,7 @@ describe.concurrent('Recommend Tool Integration', () => {
     }
 
     expect(response.ok).toBe(true);
-    return response.json();
+    return response.json() as Promise<GitHubFileContent>;
   }
 
   // ─── GitHub pull request helpers (PRD #710 M2 PR mode) ───
@@ -426,7 +434,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PRD #320: Verify visualization URL contains all solution session IDs
       const solutionIds = solutionsResponse.data.result.solutions.map(
-        (s: any) => s.solutionId
+        (s: SolutionSummary) => s.solutionId
       );
       const visualizationUrl = solutionsResponse.data.result.visualizationUrl;
       const urlSessionIds = visualizationUrl.split('/v/')[1].split('+');
@@ -499,7 +507,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Validate allSolutions contains all solution IDs from the response
       const sessionAllSolutions = sessionResponse.data.data.allSolutions.map(
-        (s: any) => s.solutionId
+        (s: SolutionSummary) => s.solutionId
       );
       expect(sessionAllSolutions).toEqual(solutionIds);
 
@@ -549,7 +557,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       const requiredQuestions = chooseResponse.data.result.questions;
       expect(requiredQuestions.length).toBeGreaterThan(0);
 
-      requiredQuestions.forEach((q: any) => {
+      requiredQuestions.forEach((q: Question) => {
         expect(q).toMatchObject({
           id: expect.any(String),
           question: expect.any(String),
@@ -562,10 +570,10 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PACKAGING QUESTIONS VALIDATION: Capability-based solutions must have outputFormat and outputPath
       const outputFormatQuestion = requiredQuestions.find(
-        (q: any) => q.id === 'outputFormat'
+        (q: Question) => q.id === 'outputFormat'
       );
       const outputPathQuestion = requiredQuestions.find(
-        (q: any) => q.id === 'outputPath'
+        (q: Question) => q.id === 'outputPath'
       );
 
       expect(outputFormatQuestion).toBeDefined();
@@ -589,8 +597,8 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 4: Answer required stage questions using suggestedAnswers
       // Explicitly use 'raw' format for main workflow test (kustomize/helm have dedicated tests)
-      const requiredAnswers: Record<string, any> = {};
-      requiredQuestions.forEach((q: any) => {
+      const requiredAnswers: Record<string, unknown> = {};
+      requiredQuestions.forEach((q: Question) => {
         if (q.id === 'outputFormat') {
           requiredAnswers[q.id] = 'raw'; // Use raw format for main workflow
         } else {
@@ -798,7 +806,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Verify raw format contains single manifests.yaml file
       const files = generateResponse.data.result.files;
       const manifestFile = files.find(
-        (f: any) => f.relativePath === 'manifests.yaml'
+        (f: GeneratedFile) => f.relativePath === 'manifests.yaml'
       );
       expect(manifestFile).toBeDefined();
       expect(manifestFile.content).toContain('apiVersion:');
@@ -811,10 +819,10 @@ describe.concurrent('Recommend Tool Integration', () => {
       // SOLUTION CR VALIDATION: Verify Solution CR is included and properly structured
       const yaml = await import('js-yaml');
       // For raw format, parse the single manifests.yaml file
-      const parsedManifests = yaml.loadAll(manifests);
-      const solutionCR = parsedManifests.find(
-        (m: any) => m?.kind === 'Solution'
-      );
+      const parsedManifests = yaml.loadAll(
+        manifests
+      ) as Array<K8sManifest | null>;
+      const solutionCR = parsedManifests.find(m => m?.kind === 'Solution');
 
       // Extract namespace from answers (default to 'default' if not specified)
       const namespace = requiredAnswers.namespace || 'default';
@@ -895,12 +903,12 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 10: Verify resources were created in the cluster
       // Parse manifests to verify each resource exists
-      const deployedManifests = yaml.loadAll(manifests);
+      const deployedManifests = yaml.loadAll(manifests) as K8sManifest[];
       expect(deployedManifests.length).toBeGreaterThan(0);
 
       // Verify at least one non-Solution resource was deployed
       const nonSolutionResources = deployedManifests.filter(
-        (m: any) => m.kind !== 'Solution'
+        (m: K8sManifest) => m.kind !== 'Solution'
       );
       expect(nonSolutionResources.length).toBeGreaterThan(0);
 
@@ -926,17 +934,18 @@ describe.concurrent('Recommend Tool Integration', () => {
       const maxWaitMs = 60000;
       const pollIntervalMs = 2000;
       let ownerRefFound = false;
-      let deployedResource: any;
+      let deployedResource: K8sManifest | undefined;
 
       for (let waited = 0; waited < maxWaitMs; waited += pollIntervalMs) {
         const resourceResult = await integrationTest.kubectl(
           `get ${firstResource.kind} ${firstResource.name} -n ${namespace} -o json`
         );
-        deployedResource = JSON.parse(resourceResult);
+        deployedResource = JSON.parse(resourceResult) as K8sManifest;
 
         // Check if Solution ownerReference exists
-        const hasOwnerRef = deployedResource.metadata.ownerReferences?.some(
-          (ref: any) => ref.kind === 'Solution' && ref.name === solutionCRName
+        const hasOwnerRef = deployedResource.metadata?.ownerReferences?.some(
+          (ref: OwnerReference) =>
+            ref.kind === 'Solution' && ref.name === solutionCRName
         );
 
         if (hasOwnerRef) {
@@ -951,7 +960,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Note: controller=false because Solution is a tracker, not a lifecycle controller
       // Actual resource controllers (like CNPG) remain as controller=true
       expect(ownerRefFound).toBe(true);
-      expect(deployedResource.metadata.ownerReferences).toEqual(
+      expect(deployedResource?.metadata?.ownerReferences).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             apiVersion: 'dot-ai.devopstoolkit.live/v1alpha1',
@@ -1086,7 +1095,7 @@ describe.concurrent('Recommend Tool Integration', () => {
        * assertion still cleans up the branch, PR and files it left behind.
        */
       const recordForCleanup = (response: {
-        data?: { result?: { gitPush?: Record<string, any> } };
+        data?: { result?: { gitPush?: GitPushResult } };
       }) => {
         const gitPush = response.data?.result?.gitPush;
         if (!gitPush) return;
@@ -1136,7 +1145,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         });
 
         const capabilitySolution = solutionsResponse.data.result.solutions.find(
-          (s: any) => s.type !== 'helm'
+          (s: SolutionSummary) => s.type !== 'helm'
         );
         expect(capabilitySolution).toBeDefined();
 
@@ -1162,8 +1171,8 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        const requiredAnswers: Record<string, any> = {};
-        chooseResponse.data.result.questions.forEach((question: any) => {
+        const requiredAnswers: Record<string, unknown> = {};
+        chooseResponse.data.result.questions.forEach((question: Question) => {
           if (question.id === 'outputFormat') {
             requiredAnswers[question.id] = 'raw';
           } else if (question.id === 'outputPath') {
@@ -1296,7 +1305,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         expect(pushedFile).not.toBeNull();
         const pushedContent = Buffer.from(
           pushedFile!.content!,
-          pushedFile!.encoding!
+          pushedFile!.encoding! as BufferEncoding
         ).toString('utf8');
         expect(pushedContent).toContain('apiVersion:');
         expect(pushedContent).toContain('kind:');
@@ -1847,7 +1856,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Find the prometheus-community chart and validate its score
       const solutions = helmResponse.data.result.solutions;
       const prometheusCommunityChart = solutions.find(
-        (s: any) => s.chart?.repositoryName === 'prometheus-community'
+        (s: SolutionSummary) =>
+          s.chart?.repositoryName === 'prometheus-community'
       );
 
       expect(prometheusCommunityChart).toBeDefined();
@@ -1901,7 +1911,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Validate question structure - each question must have suggestedAnswer for cluster-aware defaults
       const requiredQuestions = chooseResponse.data.result.questions;
-      requiredQuestions.forEach((q: any) => {
+      requiredQuestions.forEach((q: Question) => {
         expect(q).toMatchObject({
           id: expect.any(String),
           question: expect.any(String),
@@ -1915,10 +1925,10 @@ describe.concurrent('Recommend Tool Integration', () => {
       // PACKAGING QUESTIONS VALIDATION: Helm solutions should NOT have outputFormat/outputPath
       // These are only for capability-based solutions where we package raw manifests
       const outputFormatQuestion = requiredQuestions.find(
-        (q: any) => q.id === 'outputFormat'
+        (q: Question) => q.id === 'outputFormat'
       );
       const outputPathQuestion = requiredQuestions.find(
-        (q: any) => q.id === 'outputPath'
+        (q: Question) => q.id === 'outputPath'
       );
       expect(outputFormatQuestion).toBeUndefined();
       expect(outputPathQuestion).toBeUndefined();
@@ -1928,17 +1938,17 @@ describe.concurrent('Recommend Tool Integration', () => {
       const allQuestions = [...requiredQuestions];
 
       // Helper to build answers from questions using suggested values
-      const buildAnswers = (questions: any[]) => {
-        const answers: Record<string, any> = {};
-        questions.forEach((q: any) => {
+      const buildAnswers = (questions: Question[]) => {
+        const answers: Record<string, unknown> = {};
+        questions.forEach((q: Question) => {
           answers[q.id] = validAnswerFor(q);
         });
         return answers;
       };
 
       // Helper to validate question structure
-      const validateQuestions = (questions: any[]) => {
-        questions.forEach((q: any) => {
+      const validateQuestions = (questions: Question[]) => {
+        questions.forEach((q: Question) => {
           expect(q).toMatchObject({
             id: expect.any(String),
             question: expect.any(String),
@@ -2022,7 +2032,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(advancedQuestions.length).toBeGreaterThan(0);
 
       // Namespace question - fundamental for any Helm installation (MUST exist)
-      const questionTexts = allQuestions.map((q: any) =>
+      const questionTexts = allQuestions.map((q: Question) =>
         `${q.id} ${q.question}`.toLowerCase()
       );
       const hasNamespaceQuestion = questionTexts.some(text =>
@@ -2227,10 +2237,10 @@ describe.concurrent('Recommend Tool Integration', () => {
           );
           const secrets = JSON.parse(helmHistory);
           if (secrets.items?.length > 0) {
-            const states = secrets.items.map((s: any) => ({
-              name: s.metadata.name,
-              status: s.metadata.labels?.status || 'unknown',
-              version: s.metadata.labels?.version || 'unknown',
+            const states = secrets.items.map((s: K8sManifest) => ({
+              name: s.metadata?.name,
+              status: s.metadata?.labels?.status || 'unknown',
+              version: s.metadata?.labels?.version || 'unknown',
             }));
             diagnostics += `\n--- Release "${releaseName}" Secrets ---\n${JSON.stringify(states, null, 2)}\n`;
           }
@@ -2332,7 +2342,9 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Find a capability-based solution (type: 'single' or 'combination', not 'helm')
       const solutions = solutionsResponse.data.result.solutions;
-      const capabilitySolution = solutions.find((s: any) => s.type !== 'helm');
+      const capabilitySolution = solutions.find(
+        (s: SolutionSummary) => s.type !== 'helm'
+      );
       expect(capabilitySolution).toBeDefined();
 
       const solutionId = capabilitySolution.solutionId;
@@ -2360,9 +2372,9 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 3: Answer required questions with outputFormat: 'helm'
       const requiredQuestions = chooseResponse.data.result.questions;
-      const requiredAnswers: Record<string, any> = {};
+      const requiredAnswers: Record<string, unknown> = {};
 
-      requiredQuestions.forEach((q: any) => {
+      requiredQuestions.forEach((q: Question) => {
         if (q.id === 'outputFormat') {
           requiredAnswers[q.id] = 'helm'; // Select Helm packaging
         } else if (q.id === 'outputPath') {
@@ -2475,11 +2487,13 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Validate Helm chart file structure
       const files = generateResponse.data.result.files;
-      const chartYaml = files.find((f: any) => f.relativePath === 'Chart.yaml');
-      const valuesYaml = files.find(
-        (f: any) => f.relativePath === 'values.yaml'
+      const chartYaml = files.find(
+        (f: GeneratedFile) => f.relativePath === 'Chart.yaml'
       );
-      const templateFiles = files.filter((f: any) =>
+      const valuesYaml = files.find(
+        (f: GeneratedFile) => f.relativePath === 'values.yaml'
+      );
+      const templateFiles = files.filter((f: GeneratedFile) =>
         f.relativePath.startsWith('templates/')
       );
 
@@ -2496,7 +2510,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Template files should contain Helm templating syntax
       const hasHelmSyntax = templateFiles.some(
-        (f: any) =>
+        (f: GeneratedFile) =>
           f.content.includes('{{ .Values.') ||
           f.content.includes('{{ .Release.')
       );
@@ -2527,7 +2541,9 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Find a capability-based solution (type: 'single' or 'combination', not 'helm')
       const solutions = solutionsResponse.data.result.solutions;
-      const capabilitySolution = solutions.find((s: any) => s.type !== 'helm');
+      const capabilitySolution = solutions.find(
+        (s: SolutionSummary) => s.type !== 'helm'
+      );
       expect(capabilitySolution).toBeDefined();
 
       const solutionId = capabilitySolution.solutionId;
@@ -2555,9 +2571,9 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 3: Answer required questions with outputFormat: 'kustomize'
       const requiredQuestions = chooseResponse.data.result.questions;
-      const requiredAnswers: Record<string, any> = {};
+      const requiredAnswers: Record<string, unknown> = {};
 
-      requiredQuestions.forEach((q: any) => {
+      requiredQuestions.forEach((q: Question) => {
         if (q.id === 'outputFormat') {
           requiredAnswers[q.id] = 'kustomize'; // Select Kustomize packaging
         } else if (q.id === 'outputPath') {
@@ -2674,16 +2690,17 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Validate Kustomize file structure
       const files = generateResponse.data.result.files;
       const rootKustomization = files.find(
-        (f: any) => f.relativePath === 'kustomization.yaml'
+        (f: GeneratedFile) => f.relativePath === 'kustomization.yaml'
       );
       const productionOverlay = files.find(
-        (f: any) => f.relativePath === 'overlays/production/kustomization.yaml'
+        (f: GeneratedFile) =>
+          f.relativePath === 'overlays/production/kustomization.yaml'
       );
       const baseKustomization = files.find(
-        (f: any) => f.relativePath === 'base/kustomization.yaml'
+        (f: GeneratedFile) => f.relativePath === 'base/kustomization.yaml'
       );
       const baseResources = files.filter(
-        (f: any) =>
+        (f: GeneratedFile) =>
           f.relativePath.startsWith('base/') &&
           f.relativePath !== 'base/kustomization.yaml'
       );
@@ -2711,7 +2728,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(baseResources.length).toBeGreaterThan(0);
 
       // Base resources should be valid Kubernetes manifests with image without tag
-      const deploymentFile = baseResources.find((f: any) =>
+      const deploymentFile = baseResources.find((f: GeneratedFile) =>
         f.content.includes('kind: Deployment')
       );
       expect(deploymentFile).toBeDefined();
@@ -2733,11 +2750,11 @@ describe.concurrent('Recommend Tool Integration', () => {
       // SOLUTION CR VALIDATION: Verify Solution CR is in overlay (not base) since it has namespace-specific references
       const yaml = await import('js-yaml');
       const overlayResources = files.filter(
-        (f: any) =>
+        (f: GeneratedFile) =>
           f.relativePath.startsWith('overlays/production/') &&
           f.relativePath !== 'overlays/production/kustomization.yaml'
       );
-      const solutionFile = overlayResources.find((f: any) =>
+      const solutionFile = overlayResources.find((f: GeneratedFile) =>
         f.content.includes('kind: Solution')
       );
       expect(solutionFile).toBeDefined();
@@ -2747,10 +2764,10 @@ describe.concurrent('Recommend Tool Integration', () => {
         /resources:[\s\S]*solution\.yaml/
       );
 
-      const parsedSolution = yaml.loadAll(solutionFile.content);
-      const solutionCR = parsedSolution.find(
-        (m: any) => m?.kind === 'Solution'
-      );
+      const parsedSolution = yaml.loadAll(
+        solutionFile.content
+      ) as Array<K8sManifest | null>;
+      const solutionCR = parsedSolution.find(m => m?.kind === 'Solution');
       expect(solutionCR).toBeDefined();
 
       // Verify Solution CR structure

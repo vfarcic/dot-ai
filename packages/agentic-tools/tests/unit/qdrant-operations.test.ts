@@ -44,7 +44,9 @@ describe('Qdrant Operations', () => {
 
   beforeEach(() => {
     mockClient = createMockClient();
-    mockGetQdrantClient.mockReturnValue(mockClient as any);
+    mockGetQdrantClient.mockReturnValue(
+      mockClient as unknown as ReturnType<typeof clientModule.getQdrantClient>
+    );
     mockGetQdrantConfig.mockReturnValue({
       url: 'http://localhost:6333',
       hasApiKey: false,

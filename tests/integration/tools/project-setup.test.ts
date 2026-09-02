@@ -8,6 +8,7 @@
 
 import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
+import type { RepoFile } from '../helpers/api-shapes.js';
 
 describe.concurrent('Project Setup Tool Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -204,12 +205,14 @@ describe.concurrent('Project Setup Tool Integration', () => {
       const legalFiles = generateLegalResponse.data.result.files;
       expect(legalFiles).toHaveLength(2); // LICENSE + NOTICE (conditional on Apache-2.0)
 
-      const licenseFile = legalFiles.find((f: any) => f.path === 'LICENSE');
+      const licenseFile = legalFiles.find(
+        (f: RepoFile) => f.path === 'LICENSE'
+      );
       expect(licenseFile).toBeDefined();
       expect(licenseFile.content).toContain('Apache License');
       expect(licenseFile.content).toContain('2025');
 
-      const noticeFile = legalFiles.find((f: any) => f.path === 'NOTICE');
+      const noticeFile = legalFiles.find((f: RepoFile) => f.path === 'NOTICE');
       expect(noticeFile).toBeDefined();
       expect(noticeFile.content).toContain(`Test Project ${testId}`);
       expect(noticeFile.content).toContain('2025');
@@ -384,7 +387,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify CODE_OF_CONDUCT.md content
       const conductFile = files.find(
-        (f: any) => f.path === 'CODE_OF_CONDUCT.md'
+        (f: RepoFile) => f.path === 'CODE_OF_CONDUCT.md'
       );
       expect(conductFile).toBeDefined();
       expect(conductFile.content).toContain(
@@ -394,7 +397,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify CONTRIBUTING.md content
       const contributingFile = files.find(
-        (f: any) => f.path === 'CONTRIBUTING.md'
+        (f: RepoFile) => f.path === 'CONTRIBUTING.md'
       );
       expect(contributingFile).toBeDefined();
       expect(contributingFile.content).toContain(
@@ -416,7 +419,9 @@ describe.concurrent('Project Setup Tool Integration', () => {
       );
 
       // Verify SECURITY.md content
-      const securityFile = files.find((f: any) => f.path === 'SECURITY.md');
+      const securityFile = files.find(
+        (f: RepoFile) => f.path === 'SECURITY.md'
+      );
       expect(securityFile).toBeDefined();
       expect(securityFile.content).toContain('Security Policy');
       expect(securityFile.content).toContain('security@test.com');
@@ -424,7 +429,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify docs/MAINTAINERS.md content
       const maintainersFile = files.find(
-        (f: any) => f.path === 'docs/MAINTAINERS.md'
+        (f: RepoFile) => f.path === 'docs/MAINTAINERS.md'
       );
       expect(maintainersFile).toBeDefined();
       expect(maintainersFile.content).toContain('Test Maintainer');
@@ -433,7 +438,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify docs/GOVERNANCE.md content
       const governanceFile = files.find(
-        (f: any) => f.path === 'docs/GOVERNANCE.md'
+        (f: RepoFile) => f.path === 'docs/GOVERNANCE.md'
       );
       expect(governanceFile).toBeDefined();
       expect(governanceFile.content).toContain('Project Governance');
@@ -442,7 +447,9 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(governanceFile.content).toContain('1 year');
 
       // Verify docs/ROADMAP.md content
-      const roadmapFile = files.find((f: any) => f.path === 'docs/ROADMAP.md');
+      const roadmapFile = files.find(
+        (f: RepoFile) => f.path === 'docs/ROADMAP.md'
+      );
       expect(roadmapFile).toBeDefined();
       expect(roadmapFile.content).toContain('Roadmap');
       expect(roadmapFile.content).toContain(`Governance Test ${testId}`);
@@ -551,7 +558,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(files).toHaveLength(2);
 
       // Verify SUPPORT.md content
-      const supportFile = files.find((f: any) => f.path === 'SUPPORT.md');
+      const supportFile = files.find((f: RepoFile) => f.path === 'SUPPORT.md');
       expect(supportFile).toBeDefined();
       expect(supportFile.content).toContain('# Support');
       expect(supportFile.content).toContain(`Community Test ${testId}`);
@@ -566,7 +573,9 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(supportFile.content).toContain('security@test.com');
 
       // Verify ADOPTERS.md content
-      const adoptersFile = files.find((f: any) => f.path === 'ADOPTERS.md');
+      const adoptersFile = files.find(
+        (f: RepoFile) => f.path === 'ADOPTERS.md'
+      );
       expect(adoptersFile).toBeDefined();
       expect(adoptersFile.content).toContain('# Adopters');
       expect(adoptersFile.content).toContain(`Community Test ${testId}`);
@@ -868,7 +877,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify bug_report.yml content
       const bugReportFile = files.find(
-        (f: any) => f.path === '.github/ISSUE_TEMPLATE/bug_report.yml'
+        (f: RepoFile) => f.path === '.github/ISSUE_TEMPLATE/bug_report.yml'
       );
       expect(bugReportFile).toBeDefined();
       expect(bugReportFile.content).toContain('name: Bug Report');
@@ -880,7 +889,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify feature_request.yml content
       const featureRequestFile = files.find(
-        (f: any) => f.path === '.github/ISSUE_TEMPLATE/feature_request.yml'
+        (f: RepoFile) => f.path === '.github/ISSUE_TEMPLATE/feature_request.yml'
       );
       expect(featureRequestFile).toBeDefined();
       expect(featureRequestFile.content).toContain('name: Feature Request');
@@ -892,7 +901,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify config.yml content
       const configFile = files.find(
-        (f: any) => f.path === '.github/ISSUE_TEMPLATE/config.yml'
+        (f: RepoFile) => f.path === '.github/ISSUE_TEMPLATE/config.yml'
       );
       expect(configFile).toBeDefined();
       expect(configFile.content).toContain('blank_issues_enabled: false');
@@ -1197,7 +1206,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify CODEOWNERS content
       const codeownersFile = files.find(
-        (f: any) => f.path === '.github/CODEOWNERS'
+        (f: RepoFile) => f.path === '.github/CODEOWNERS'
       );
       expect(codeownersFile).toBeDefined();
       expect(codeownersFile.content).toContain('# CODEOWNERS');
@@ -1210,7 +1219,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify FUNDING.yml content (conditionally generated because enableFunding: 'yes')
       const fundingFile = files.find(
-        (f: any) => f.path === '.github/FUNDING.yml'
+        (f: RepoFile) => f.path === '.github/FUNDING.yml'
       );
       expect(fundingFile).toBeDefined();
       expect(fundingFile.content).toContain('# Funding links for this project');
@@ -1223,7 +1232,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify release.yml content
       const releaseFile = files.find(
-        (f: any) => f.path === '.github/release.yml'
+        (f: RepoFile) => f.path === '.github/release.yml'
       );
       expect(releaseFile).toBeDefined();
       expect(releaseFile.content).toContain('# Release notes configuration');
@@ -1300,13 +1309,13 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify FUNDING.yml was excluded
       const fundingFile = files.find(
-        (f: any) => f.path === '.github/FUNDING.yml'
+        (f: RepoFile) => f.path === '.github/FUNDING.yml'
       );
       expect(fundingFile).toBeUndefined();
 
       // Verify CODEOWNERS content
       const codeownersFile = files.find(
-        (f: any) => f.path === '.github/CODEOWNERS'
+        (f: RepoFile) => f.path === '.github/CODEOWNERS'
       );
       expect(codeownersFile).toBeDefined();
       expect(codeownersFile.content).toContain('# CODEOWNERS');
@@ -1317,7 +1326,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify release.yml content
       const releaseFile = files.find(
-        (f: any) => f.path === '.github/release.yml'
+        (f: RepoFile) => f.path === '.github/release.yml'
       );
       expect(releaseFile).toBeDefined();
       expect(releaseFile.content).toContain('# Release notes configuration');
@@ -1567,7 +1576,9 @@ describe.concurrent('Project Setup Tool Integration', () => {
       expect(files).toHaveLength(4);
 
       // Verify Renovate configuration
-      const renovateFile = files.find((f: any) => f.path === 'renovate.json');
+      const renovateFile = files.find(
+        (f: RepoFile) => f.path === 'renovate.json'
+      );
       expect(renovateFile).toBeDefined();
       const renovateContent = JSON.parse(renovateFile.content);
       expect(renovateContent).toMatchObject({
@@ -1584,7 +1595,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify Labeler configuration
       const labelerConfigFile = files.find(
-        (f: any) => f.path === '.github/labeler.yml'
+        (f: RepoFile) => f.path === '.github/labeler.yml'
       );
       expect(labelerConfigFile).toBeDefined();
       expect(labelerConfigFile.content).toContain('documentation:');
@@ -1601,7 +1612,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify Labeler workflow
       const labelerWorkflowFile = files.find(
-        (f: any) => f.path === '.github/workflows/labeler.yml'
+        (f: RepoFile) => f.path === '.github/workflows/labeler.yml'
       );
       expect(labelerWorkflowFile).toBeDefined();
       expect(labelerWorkflowFile.content).toContain(
@@ -1615,7 +1626,7 @@ describe.concurrent('Project Setup Tool Integration', () => {
 
       // Verify Stale bot workflow
       const staleFile = files.find(
-        (f: any) => f.path === '.github/workflows/stale.yml'
+        (f: RepoFile) => f.path === '.github/workflows/stale.yml'
       );
       expect(staleFile).toBeDefined();
       expect(staleFile.content).toContain('name: Close Stale Issues and PRs');

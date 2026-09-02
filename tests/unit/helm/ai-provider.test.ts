@@ -8,6 +8,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
+import { isNamedK8sDoc } from './k8s-doc.js';
 import { execSync } from 'child_process';
 import * as yaml from 'js-yaml';
 
@@ -60,13 +61,9 @@ describe.concurrent(
       const docs = parseYamlDocs(output);
       const deployment = docs.find(
         d =>
-          typeof d === 'object' &&
-          d !== null &&
-          'kind' in d &&
+          isNamedK8sDoc(d) &&
           d.kind === 'Deployment' &&
-          'metadata' in d &&
-          typeof (d as any).metadata?.name === 'string' &&
-          (d as any).metadata.name === 'test-ai-dot-ai'
+          d.metadata.name === 'test-ai-dot-ai'
       ) as DeploymentResource | undefined;
       expect(deployment).toBeDefined();
       return deployment!;
