@@ -28,10 +28,10 @@ export async function handleInvoke(
         code: 'UNKNOWN_TOOL',
         message: `Tool '${tool}' is not implemented`,
         details: {
-          availableTools: Object.keys(TOOL_HANDLERS)
-        }
+          availableTools: Object.keys(TOOL_HANDLERS),
+        },
       },
-      state
+      state,
     };
   }
 
@@ -41,7 +41,7 @@ export async function handleInvoke(
       sessionId,
       success: true,
       result,
-      state
+      state,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -53,10 +53,10 @@ export async function handleInvoke(
         message: errorMessage,
         details: {
           tool,
-          args
-        }
+          args,
+        },
       },
-      state
+      state,
     };
   }
 }

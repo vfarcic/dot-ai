@@ -100,7 +100,8 @@ export const knowledgeChunk: KnowledgeTool = {
         },
         uri: {
           type: 'string',
-          description: 'Document URI for deterministic ID generation (e.g., https://github.com/org/repo/blob/main/docs/guide.md)',
+          description:
+            'Document URI for deterministic ID generation (e.g., https://github.com/org/repo/blob/main/docs/guide.md)',
         },
         maxChunkSize: {
           type: 'number',
@@ -108,13 +109,16 @@ export const knowledgeChunk: KnowledgeTool = {
         },
         chunkOverlap: {
           type: 'number',
-          description: 'Number of overlapping characters between chunks (default: 200)',
+          description:
+            'Number of overlapping characters between chunks (default: 200)',
         },
       },
       required: ['content', 'uri'],
     },
   },
-  handler: async (args: Record<string, unknown>): Promise<KnowledgeToolResult> => {
+  handler: async (
+    args: Record<string, unknown>
+  ): Promise<KnowledgeToolResult> => {
     const content = args.content as string | undefined;
     const uri = args.uri as string | undefined;
     const maxChunkSize = (args.maxChunkSize as number) ?? 1000;
@@ -122,15 +126,28 @@ export const knowledgeChunk: KnowledgeTool = {
 
     // Validate required parameters
     if (!uri) {
-      return errorResult('Missing required parameter: uri', 'knowledge_chunk requires uri parameter');
+      return errorResult(
+        'Missing required parameter: uri',
+        'knowledge_chunk requires uri parameter'
+      );
     }
 
     // Validate chunk parameters
     if (!Number.isInteger(maxChunkSize) || maxChunkSize < 1) {
-      return errorResult('Invalid maxChunkSize', 'maxChunkSize must be a positive integer');
+      return errorResult(
+        'Invalid maxChunkSize',
+        'maxChunkSize must be a positive integer'
+      );
     }
-    if (!Number.isInteger(chunkOverlap) || chunkOverlap < 0 || chunkOverlap >= maxChunkSize) {
-      return errorResult('Invalid chunkOverlap', 'chunkOverlap must be >= 0 and < maxChunkSize');
+    if (
+      !Number.isInteger(chunkOverlap) ||
+      chunkOverlap < 0 ||
+      chunkOverlap >= maxChunkSize
+    ) {
+      return errorResult(
+        'Invalid chunkOverlap',
+        'chunkOverlap must be >= 0 and < maxChunkSize'
+      );
     }
 
     // Handle empty or missing content

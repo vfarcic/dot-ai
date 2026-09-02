@@ -153,17 +153,19 @@ Non-JSON block:
   });
 
   it('should extract tool call from raw JSON without code blocks (fallback)', () => {
-    const content = '{ "tool": "fallback_tool", "arguments": { "arg": "val" } }';
+    const content =
+      '{ "tool": "fallback_tool", "arguments": { "arg": "val" } }';
     const result = extractToolCalls(content);
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
       tool: 'fallback_tool',
-      arguments: { arg: 'val' }
+      arguments: { arg: 'val' },
     });
   });
 
   it('should extract tool call from raw JSON embedded in text (fallback)', () => {
-    const content = 'I will use this tool: { "tool": "embedded_tool", "arguments": {} } to do something.';
+    const content =
+      'I will use this tool: { "tool": "embedded_tool", "arguments": {} } to do something.';
     const result = extractToolCalls(content);
     expect(result).toHaveLength(1);
     expect(result[0].tool).toBe('embedded_tool');

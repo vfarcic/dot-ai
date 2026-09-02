@@ -31,11 +31,13 @@ const QueryParamsSchema = z.object({
 
 const VisualizationResponseSchema = z.object({
   title: z.string(),
-  visualizations: z.array(z.object({
-    id: z.string(),
-    label: z.string(),
-    type: z.string(),
-  })),
+  visualizations: z.array(
+    z.object({
+      id: z.string(),
+      label: z.string(),
+      type: z.string(),
+    })
+  ),
   insights: z.array(z.string()),
 });
 
@@ -99,7 +101,9 @@ describe('RestRouteRegistry', () => {
       });
 
       expect(registry.getRouteCount()).toBe(1);
-      expect(registry.hasRoute('GET', '/api/v1/visualize/:sessionId')).toBe(true);
+      expect(registry.hasRoute('GET', '/api/v1/visualize/:sessionId')).toBe(
+        true
+      );
     });
 
     test('should register routes with different methods on same path', () => {
@@ -249,17 +253,26 @@ describe('RestRouteRegistry', () => {
     });
 
     test('should extract params with special characters', () => {
-      const match = registry.findRoute('GET', '/api/v1/visualize/session-123+session-456');
+      const match = registry.findRoute(
+        'GET',
+        '/api/v1/visualize/session-123+session-456'
+      );
       expect(match).not.toBeNull();
       expect(match!.params).toEqual({ sessionId: 'session-123+session-456' });
     });
 
     test('should match different routes with same pattern', () => {
-      const vizMatch = registry.findRoute('GET', '/api/v1/visualize/viz-session');
+      const vizMatch = registry.findRoute(
+        'GET',
+        '/api/v1/visualize/viz-session'
+      );
       expect(vizMatch!.route.path).toBe('/api/v1/visualize/:sessionId');
       expect(vizMatch!.params).toEqual({ sessionId: 'viz-session' });
 
-      const sessionMatch = registry.findRoute('GET', '/api/v1/sessions/sess-abc');
+      const sessionMatch = registry.findRoute(
+        'GET',
+        '/api/v1/sessions/sess-abc'
+      );
       expect(sessionMatch!.route.path).toBe('/api/v1/sessions/:sessionId');
       expect(sessionMatch!.params).toEqual({ sessionId: 'sess-abc' });
     });
@@ -298,7 +311,10 @@ describe('RestRouteRegistry', () => {
     });
 
     test('should extract multiple path parameters', () => {
-      const match = registry.findRoute('GET', '/api/v1/namespaces/default/resources/my-pod');
+      const match = registry.findRoute(
+        'GET',
+        '/api/v1/namespaces/default/resources/my-pod'
+      );
       expect(match).not.toBeNull();
       expect(match!.params).toEqual({
         namespace: 'default',
@@ -307,7 +323,10 @@ describe('RestRouteRegistry', () => {
     });
 
     test('should preserve parameter order', () => {
-      const match = registry.findRoute('GET', '/api/v1/namespaces/kube-system/resources/coredns');
+      const match = registry.findRoute(
+        'GET',
+        '/api/v1/namespaces/kube-system/resources/coredns'
+      );
       expect(match!.params.namespace).toBe('kube-system');
       expect(match!.params.resourceName).toBe('coredns');
     });
@@ -347,12 +366,20 @@ describe('RestRouteRegistry', () => {
     });
 
     test('should get error response schema', () => {
-      const schema = registry.getErrorResponseSchema('GET', '/api/v1/test/:id', 404);
+      const schema = registry.getErrorResponseSchema(
+        'GET',
+        '/api/v1/test/:id',
+        404
+      );
       expect(schema).toBe(notFoundErrorSchema);
     });
 
     test('should return null for non-existent error status', () => {
-      const schema = registry.getErrorResponseSchema('GET', '/api/v1/test/:id', 500);
+      const schema = registry.getErrorResponseSchema(
+        'GET',
+        '/api/v1/test/:id',
+        500
+      );
       expect(schema).toBeNull();
     });
   });

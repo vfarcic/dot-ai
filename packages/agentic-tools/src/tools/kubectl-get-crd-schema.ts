@@ -32,17 +32,27 @@ export const kubectlGetCrdSchema: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
-    const crdName = requireParam<string>(args, 'crdName', 'kubectl_get_crd_schema');
+  handler: withValidation(async args => {
+    const crdName = requireParam<string>(
+      args,
+      'crdName',
+      'kubectl_get_crd_schema'
+    );
 
     const cmdArgs = ['get', 'crd', crdName, '-o', 'json'];
 
     try {
       const output = await executeKubectl(cmdArgs);
-      return successResult(output, `Successfully retrieved CRD schema for ${crdName}`);
+      return successResult(
+        output,
+        `Successfully retrieved CRD schema for ${crdName}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Failed to get CRD schema for ${crdName}: ${message}`);
+      return errorResult(
+        message,
+        `Failed to get CRD schema for ${crdName}: ${message}`
+      );
     }
   }),
 };

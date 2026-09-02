@@ -731,9 +731,13 @@ describe('User Prompts Loader Override', () => {
         ['just above fc00::/7', 'http://[fe00::1]/x.git'],
         ['IPv4-mapped public', 'http://[::ffff:140.82.121.4]/x.git'],
       ])('allows %s (%s)', async (_label, repoUrl) => {
-        const prompts = await loadUserPrompts(makeCapturingLogger().logger, false, {
-          repoUrl,
-        });
+        const prompts = await loadUserPrompts(
+          makeCapturingLogger().logger,
+          false,
+          {
+            repoUrl,
+          }
+        );
         expect(prompts).toMatchObject([{ name: 'prd-581-test' }]);
         expect(cloneRepo).toHaveBeenCalledTimes(1);
       });

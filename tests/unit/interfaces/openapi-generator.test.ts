@@ -94,16 +94,16 @@ describe('OpenApiGenerator', () => {
 
       const spec = generator.generateSpec();
 
-      const listParams = (spec.paths['/api/v1/prompts'].get
-        .parameters ?? []) as OpenApiParameter[];
+      const listParams = (spec.paths['/api/v1/prompts'].get.parameters ??
+        []) as OpenApiParameter[];
       const renderParams = (spec.paths['/api/v1/prompts/{promptName}'].post
         .parameters ?? []) as OpenApiParameter[];
 
       const listSource = listParams.find(
-        (p) => p.name === 'source' && p.in === 'query'
+        p => p.name === 'source' && p.in === 'query'
       );
       const renderSource = renderParams.find(
-        (p) => p.name === 'source' && p.in === 'query'
+        p => p.name === 'source' && p.in === 'query'
       );
 
       expect(listSource).toBeDefined();

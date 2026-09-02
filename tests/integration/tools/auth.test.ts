@@ -537,9 +537,17 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
     const authorizeRes = await rawHttp(authorizeUrl.toString());
     expect(authorizeRes.statusCode).toBe(302);
 
-    let currentUrl = fixTestPort(authorizeRes.headers.location!, mcpBaseUrl, dexIssuerUrl);
+    let currentUrl = fixTestPort(
+      authorizeRes.headers.location!,
+      mcpBaseUrl,
+      dexIssuerUrl
+    );
     let dexRes = await rawHttp(currentUrl);
-    for (let i = 0; i < 5 && dexRes.statusCode >= 300 && dexRes.statusCode < 400; i++) {
+    for (
+      let i = 0;
+      i < 5 && dexRes.statusCode >= 300 && dexRes.statusCode < 400;
+      i++
+    ) {
       currentUrl = fixTestPort(
         dexRes.headers.location!.startsWith('http')
           ? dexRes.headers.location!
@@ -560,7 +568,10 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
       ? fixTestPort(
           actionMatch[1].replace(/&amp;/g, '&').startsWith('http')
             ? actionMatch[1].replace(/&amp;/g, '&')
-            : new URL(actionMatch[1].replace(/&amp;/g, '&'), currentUrl).toString(),
+            : new URL(
+                actionMatch[1].replace(/&amp;/g, '&'),
+                currentUrl
+              ).toString(),
           mcpBaseUrl,
           dexIssuerUrl
         )
@@ -592,7 +603,11 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
 
       const requestUrl = fixTestPort(absoluteUrl, mcpBaseUrl, dexIssuerUrl);
       const res = await rawHttp(requestUrl);
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      if (
+        res.statusCode >= 300 &&
+        res.statusCode < 400 &&
+        res.headers.location
+      ) {
         nextLocation = res.headers.location;
         continue;
       }
@@ -629,7 +644,9 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
     // Verify the JWT contains the correct expiry
     const jwtParts = tokenData.access_token.split('.');
     expect(jwtParts).toHaveLength(3);
-    const payload = JSON.parse(Buffer.from(jwtParts[1], 'base64url').toString());
+    const payload = JSON.parse(
+      Buffer.from(jwtParts[1], 'base64url').toString()
+    );
     const expectedExp = Math.floor(Date.now() / 1000) + requestedExpiry;
     expect(payload.exp).toBeGreaterThanOrEqual(expectedExp - 5); // Allow 5s clock skew
     expect(payload.exp).toBeLessThanOrEqual(expectedExp + 5);

@@ -46,7 +46,7 @@ export class IntegrationTest {
 
     const response = await this.k8sApi.createNamespacedPod({
       namespace: this.namespace,
-      body: pod
+      body: pod,
     });
     return response;
   }
@@ -65,7 +65,7 @@ export class IntegrationTest {
       try {
         const pod = await this.k8sApi.readNamespacedPod({
           name: podName,
-          namespace: this.namespace
+          namespace: this.namespace,
         });
 
         if (pod.status?.phase === condition) {
@@ -75,7 +75,8 @@ export class IntegrationTest {
         // Check for CrashLoopBackOff condition
         if (condition === 'Failed' && pod.status?.containerStatuses) {
           const crashLooping = pod.status.containerStatuses.some(
-            (status: any) => status.state?.waiting?.reason === 'CrashLoopBackOff'
+            (status: any) =>
+              status.state?.waiting?.reason === 'CrashLoopBackOff'
           );
           if (crashLooping) {
             return pod;
@@ -88,13 +89,18 @@ export class IntegrationTest {
       await this.sleep(1000); // Wait 1 second before next check
     }
 
-    throw new Error(`Timeout waiting for pod ${podName} to reach condition ${condition}`);
+    throw new Error(
+      `Timeout waiting for pod ${podName} to reach condition ${condition}`
+    );
   }
 
   /**
    * Wait for a deployment to be ready
    */
-  async waitForDeploymentReady(deploymentName: string, timeoutMs: number = 60000): Promise<void> {
+  async waitForDeploymentReady(
+    deploymentName: string,
+    timeoutMs: number = 60000
+  ): Promise<void> {
     const appsV1Api = this.kc.makeApiClient(k8s.AppsV1Api);
     const startTime = Date.now();
 
@@ -102,10 +108,13 @@ export class IntegrationTest {
       try {
         const deployment = await appsV1Api.readNamespacedDeployment({
           name: deploymentName,
-          namespace: this.namespace
+          namespace: this.namespace,
         });
 
-        if (deployment.status?.readyReplicas && deployment.status.readyReplicas > 0) {
+        if (
+          deployment.status?.readyReplicas &&
+          deployment.status.readyReplicas > 0
+        ) {
           return;
         }
       } catch (error) {
@@ -115,7 +124,9 @@ export class IntegrationTest {
       await this.sleep(2000); // Wait 2 seconds before next check
     }
 
-    throw new Error(`Timeout waiting for deployment ${deploymentName} to be ready`);
+    throw new Error(
+      `Timeout waiting for deployment ${deploymentName} to be ready`
+    );
   }
 
   /**
@@ -151,7 +162,7 @@ export class IntegrationTest {
    */
   async getPods(): Promise<k8s.V1Pod[]> {
     const response = await this.k8sApi.listNamespacedPod({
-      namespace: this.namespace
+      namespace: this.namespace,
     });
     return response.items || [];
   }
@@ -168,7 +179,7 @@ export class IntegrationTest {
     try {
       const output = execSync(`kubectl --kubeconfig=${kubeconfig} ${command}`, {
         encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
       return output;
     } catch (error: any) {
@@ -182,7 +193,7 @@ export class IntegrationTest {
    * Helper to sleep for specified milliseconds
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
@@ -211,12 +222,15 @@ export class IntegrationTest {
   ): Promise<boolean> {
     for (let i = 0; i < maxAttempts; i++) {
       await this.sleep(intervalMs);
-      const response = await this.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'progress',
-        sessionId,
-        interaction_id: `progress_poll_${i}`
-      });
+      const response = await this.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'capabilities',
+          operation: 'progress',
+          sessionId,
+          interaction_id: `progress_poll_${i}`,
+        }
+      );
       const status = response.data?.result?.progress?.status;
       if (status === 'complete' || status === 'completed') {
         return true;

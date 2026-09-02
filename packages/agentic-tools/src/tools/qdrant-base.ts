@@ -44,7 +44,11 @@ export class QdrantValidationError extends Error {
 /**
  * Require a parameter, throwing QdrantValidationError if missing
  */
-export function requireQdrantParam<T>(args: Record<string, unknown>, param: string, toolName: string): T {
+export function requireQdrantParam<T>(
+  args: Record<string, unknown>,
+  param: string,
+  toolName: string
+): T {
   const value = args[param];
   if (value === undefined || value === null || value === '') {
     throw new QdrantValidationError(param, toolName);
@@ -55,13 +59,17 @@ export function requireQdrantParam<T>(args: Record<string, unknown>, param: stri
 /**
  * Require a numeric array parameter (for embeddings)
  */
-export function requireEmbeddingParam(args: Record<string, unknown>, param: string, toolName: string): number[] {
+export function requireEmbeddingParam(
+  args: Record<string, unknown>,
+  param: string,
+  toolName: string
+): number[] {
   const value = args[param];
   if (!Array.isArray(value) || value.length === 0) {
     throw new QdrantValidationError(param, toolName);
   }
   // Validate all elements are numbers
-  if (!value.every((v) => typeof v === 'number')) {
+  if (!value.every(v => typeof v === 'number')) {
     throw new QdrantValidationError(param, toolName);
   }
   return value as number[];
@@ -70,7 +78,11 @@ export function requireEmbeddingParam(args: Record<string, unknown>, param: stri
 /**
  * Get an optional parameter with a default value
  */
-export function optionalQdrantParam<T>(args: Record<string, unknown>, param: string, defaultValue: T): T {
+export function optionalQdrantParam<T>(
+  args: Record<string, unknown>,
+  param: string,
+  defaultValue: T
+): T {
   const value = args[param];
   if (value === undefined || value === null) {
     return defaultValue;
@@ -81,14 +93,20 @@ export function optionalQdrantParam<T>(args: Record<string, unknown>, param: str
 /**
  * Create a successful tool result
  */
-export function qdrantSuccessResult(data: unknown, message: string): QdrantToolResult {
+export function qdrantSuccessResult(
+  data: unknown,
+  message: string
+): QdrantToolResult {
   return { success: true, data, message };
 }
 
 /**
  * Create an error tool result
  */
-export function qdrantErrorResult(error: string, message: string): QdrantToolResult {
+export function qdrantErrorResult(
+  error: string,
+  message: string
+): QdrantToolResult {
   return { success: false, error, message };
 }
 

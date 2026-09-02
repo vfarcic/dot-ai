@@ -26,7 +26,8 @@ export const kubectlDelete: KubectlTool = {
       properties: {
         kind: {
           type: 'string',
-          description: 'Resource kind (e.g., Pod, Deployment, Service). Required if manifest is not provided.',
+          description:
+            'Resource kind (e.g., Pod, Deployment, Service). Required if manifest is not provided.',
         },
         name: {
           type: 'string',
@@ -34,22 +35,32 @@ export const kubectlDelete: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace for the resource. Omit for cluster-scoped resources.',
+          description:
+            'Kubernetes namespace for the resource. Omit for cluster-scoped resources.',
         },
         manifest: {
           type: 'string',
-          description: 'YAML manifest of resources to delete. If provided, kind and name are ignored.',
+          description:
+            'YAML manifest of resources to delete. If provided, kind and name are ignored.',
         },
       },
       required: [],
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const kind = optionalParam<string | undefined>(args, 'kind', undefined);
     const name = optionalParam<string | undefined>(args, 'name', undefined);
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
-    const manifest = optionalParam<string | undefined>(args, 'manifest', undefined);
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
+    const manifest = optionalParam<string | undefined>(
+      args,
+      'manifest',
+      undefined
+    );
 
     let cmdArgs: string[];
     let stdinInput: string | undefined;
@@ -73,10 +84,18 @@ export const kubectlDelete: KubectlTool = {
     }
 
     try {
-      const output = await executeKubectl(cmdArgs, stdinInput ? { stdin: stdinInput } : undefined);
-      const resourceDesc = manifest ? 'resources from manifest' : `${kind}/${name}`;
+      const output = await executeKubectl(
+        cmdArgs,
+        stdinInput ? { stdin: stdinInput } : undefined
+      );
+      const resourceDesc = manifest
+        ? 'resources from manifest'
+        : `${kind}/${name}`;
       const nsMessage = namespace ? ` in namespace ${namespace}` : '';
-      return successResult(output, `Successfully deleted ${resourceDesc}${nsMessage}`);
+      return successResult(
+        output,
+        `Successfully deleted ${resourceDesc}${nsMessage}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Delete failed: ${message}`);

@@ -89,15 +89,21 @@ The narwhal metrics server collects and aggregates resource utilization data for
 
       // ============ STEP 1: INGEST documents ============
       // 1a: Multi-chunk document WITHOUT sourceIdentifier (serves as control for deleteBySource)
-      const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        uri: testUri,
-        content: originalContent,
-        metadata: originalMetadata,
-        interaction_id: `workflow_ingest_${testId}`,
-      });
+      const ingestResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'ingest',
+          uri: testUri,
+          content: originalContent,
+          metadata: originalMetadata,
+          interaction_id: `workflow_ingest_${testId}`,
+        }
+      );
 
-      expect(ingestResponse, `Ingest: ${JSON.stringify(ingestResponse, null, 2)}`).toMatchObject({
+      expect(
+        ingestResponse,
+        `Ingest: ${JSON.stringify(ingestResponse, null, 2)}`
+      ).toMatchObject({
         success: true,
         data: {
           result: {
@@ -136,12 +142,15 @@ The narwhal metrics server collects and aggregates resource utilization data for
       // First test with semantically related terms (NOT exact keywords)
       // Content: "narwhal deployment patterns", "container orchestration", "rolling updates"
       // Query: "container management application deployment" (related concepts)
-      const semanticSearchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: 'container management application deployment orchestration',
-        limit: 10,
-        interaction_id: `workflow_search_semantic_${testId}`,
-      });
+      const semanticSearchResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: 'container management application deployment orchestration',
+          limit: 10,
+          interaction_id: `workflow_search_semantic_${testId}`,
+        }
+      );
 
       expect(semanticSearchResponse).toMatchObject({
         success: true,
@@ -159,32 +168,44 @@ The narwhal metrics server collects and aggregates resource utilization data for
       expect(semanticResult.chunks[0].score).toBeGreaterThanOrEqual(0.5);
 
       // Verify our test document appears in results (may not be first due to other test data)
-      const ourChunks = semanticResult.chunks.filter((c: { uri: string }) => c.uri === testUri);
+      const ourChunks = semanticResult.chunks.filter(
+        (c: { uri: string }) => c.uri === testUri
+      );
       expect(ourChunks.length).toBeGreaterThan(0);
 
       // Test with uriFilter for exact document isolation
-      const filteredSearchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: 'deployment scaling orchestration',
-        limit: 10,
-        uriFilter: testUri,
-        interaction_id: `workflow_search_filtered_${testId}`,
-      });
+      const filteredSearchResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: 'deployment scaling orchestration',
+          limit: 10,
+          uriFilter: testUri,
+          interaction_id: `workflow_search_filtered_${testId}`,
+        }
+      );
 
-      expect(filteredSearchResponse.data.result.chunks.length).toBeGreaterThan(0);
+      expect(filteredSearchResponse.data.result.chunks.length).toBeGreaterThan(
+        0
+      );
       // All results should be from our test URI
-      filteredSearchResponse.data.result.chunks.forEach((chunk: { uri: string }) => {
-        expect(chunk.uri).toBe(testUri);
-      });
+      filteredSearchResponse.data.result.chunks.forEach(
+        (chunk: { uri: string }) => {
+          expect(chunk.uri).toBe(testUri);
+        }
+      );
 
       // Search with limit=1 should respect the limit
-      const limitedSearch = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: 'deployment scaling',
-        limit: 1,
-        uriFilter: testUri,
-        interaction_id: `workflow_search_limit_${testId}`,
-      });
+      const limitedSearch = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: 'deployment scaling',
+          limit: 1,
+          uriFilter: testUri,
+          interaction_id: `workflow_search_limit_${testId}`,
+        }
+      );
       expect(limitedSearch.data.result.chunks.length).toBeLessThanOrEqual(1);
 
       // ============ STEP 4: RE-INGEST - update with SHORTER content (auto-deletes old chunks first) ============
@@ -192,24 +213,33 @@ The narwhal metrics server collects and aggregates resource utilization data for
       // Auto-delete-before-ingest should remove all 3 old chunks, then insert 2 new ones
 
       // 4a: Verify we have 3 chunks BEFORE re-ingest
-      const searchBeforeReIngest = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `narwhal ${testId}`,
-        limit: 10,
-        uriFilter: testUri,
-        interaction_id: `workflow_search_before_reingest_${testId}`,
-      });
+      const searchBeforeReIngest = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: `narwhal ${testId}`,
+          limit: 10,
+          uriFilter: testUri,
+          interaction_id: `workflow_search_before_reingest_${testId}`,
+        }
+      );
       const chunksBeforeReIngest = searchBeforeReIngest.data.result.chunks;
-      expect(chunksBeforeReIngest.length, 'Should have 3 chunks before re-ingest').toBe(3);
+      expect(
+        chunksBeforeReIngest.length,
+        'Should have 3 chunks before re-ingest'
+      ).toBe(3);
 
       // 4b: Re-ingest with shorter content (2 chunks instead of 3)
-      const reIngestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        uri: testUri,
-        content: updatedContent,
-        metadata: updatedMetadata,
-        interaction_id: `workflow_reingest_${testId}`,
-      });
+      const reIngestResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'ingest',
+          uri: testUri,
+          content: updatedContent,
+          metadata: updatedMetadata,
+          interaction_id: `workflow_reingest_${testId}`,
+        }
+      );
 
       expect(reIngestResponse).toMatchObject({
         success: true,
@@ -225,40 +255,49 @@ The narwhal metrics server collects and aggregates resource utilization data for
       });
 
       // 4c: Verify we have exactly 2 chunks AFTER re-ingest (old 3 deleted, new 2 inserted)
-      const searchAfterReIngest = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `narwhal ${testId}`,
-        limit: 10,
-        uriFilter: testUri,
-        interaction_id: `workflow_search_after_reingest_${testId}`,
-      });
+      const searchAfterReIngest = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: `narwhal ${testId}`,
+          limit: 10,
+          uriFilter: testUri,
+          interaction_id: `workflow_search_after_reingest_${testId}`,
+        }
+      );
       const chunksAfterReIngest = searchAfterReIngest.data.result.chunks;
       expect(
         chunksAfterReIngest.length,
         `Auto-delete bug: Expected 2 chunks after re-ingest, but found ${chunksAfterReIngest.length}. ` +
-        `Old chunks may not have been deleted before inserting new ones.`
+          `Old chunks may not have been deleted before inserting new ones.`
       ).toBe(2);
 
       // 4d: Verify source docs (different URIs) are NOT affected by re-ingest
-      const sourceDoc1Search = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `narwhal source document ${testId}`,
-        limit: 5,
-        uriFilter: sourceDoc1Uri,
-        interaction_id: `workflow_verify_source1_${testId}`,
-      });
+      const sourceDoc1Search = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: `narwhal source document ${testId}`,
+          limit: 5,
+          uriFilter: sourceDoc1Uri,
+          interaction_id: `workflow_verify_source1_${testId}`,
+        }
+      );
       expect(
         sourceDoc1Search.data.result.chunks.length,
         'Source doc 1 should NOT be affected by re-ingesting testUri'
       ).toBeGreaterThan(0);
 
-      const sourceDoc2Search = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `narwhal source document ${testId}`,
-        limit: 5,
-        uriFilter: sourceDoc2Uri,
-        interaction_id: `workflow_verify_source2_${testId}`,
-      });
+      const sourceDoc2Search = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: `narwhal source document ${testId}`,
+          limit: 5,
+          uriFilter: sourceDoc2Uri,
+          interaction_id: `workflow_verify_source2_${testId}`,
+        }
+      );
       expect(
         sourceDoc2Search.data.result.chunks.length,
         'Source doc 2 should NOT be affected by re-ingesting testUri'
@@ -266,17 +305,21 @@ The narwhal metrics server collects and aggregates resource utilization data for
 
       // ============ STEP 5: DELETE BY SOURCE - HTTP endpoint for bulk cleanup ============
       // Verify all docs (control + source) are searchable before deleteBySource
-      const searchBeforeDeleteBySource = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `narwhal ${testId}`,
-        limit: 10,
-        interaction_id: `workflow_search_before_source_delete_${testId}`,
-      });
+      const searchBeforeDeleteBySource = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: `narwhal ${testId}`,
+          limit: 10,
+          interaction_id: `workflow_search_before_source_delete_${testId}`,
+        }
+      );
 
       const allTestUris = [testUri, sourceDoc1Uri, sourceDoc2Uri];
-      const chunksBeforeSourceDelete = searchBeforeDeleteBySource.data.result.chunks.filter(
-        (c: { uri: string }) => allTestUris.includes(c.uri)
-      );
+      const chunksBeforeSourceDelete =
+        searchBeforeDeleteBySource.data.result.chunks.filter(
+          (c: { uri: string }) => allTestUris.includes(c.uri)
+        );
       expect(chunksBeforeSourceDelete.length).toBeGreaterThanOrEqual(4); // 2 from testUri (after re-ingest) + 2 source docs
 
       // Call DELETE /api/v1/knowledge/source/:sourceIdentifier (URL-encode the /)
@@ -285,7 +328,10 @@ The narwhal metrics server collects and aggregates resource utilization data for
         `/api/v1/knowledge/source/${encodedSourceId}`
       );
 
-      expect(deleteBySourceResponse, `DeleteBySource: ${JSON.stringify(deleteBySourceResponse, null, 2)}`).toMatchObject({
+      expect(
+        deleteBySourceResponse,
+        `DeleteBySource: ${JSON.stringify(deleteBySourceResponse, null, 2)}`
+      ).toMatchObject({
         success: true,
         data: {
           sourceIdentifier,
@@ -294,33 +340,51 @@ The narwhal metrics server collects and aggregates resource utilization data for
       });
 
       // Verify: source docs deleted, control doc (testUri) remains
-      const searchAfterDeleteBySource = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: `narwhal ${testId}`,
-        limit: 10,
-        interaction_id: `workflow_search_after_source_delete_${testId}`,
-      });
+      const searchAfterDeleteBySource = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: `narwhal ${testId}`,
+          limit: 10,
+          interaction_id: `workflow_search_after_source_delete_${testId}`,
+        }
+      );
 
       // Source docs should be gone
-      const sourceDocsAfter = searchAfterDeleteBySource.data.result.chunks.filter(
-        (c: { uri: string }) => c.uri === sourceDoc1Uri || c.uri === sourceDoc2Uri
-      );
-      expect(sourceDocsAfter, 'Source docs should be deleted by deleteBySource').toHaveLength(0);
+      const sourceDocsAfter =
+        searchAfterDeleteBySource.data.result.chunks.filter(
+          (c: { uri: string }) =>
+            c.uri === sourceDoc1Uri || c.uri === sourceDoc2Uri
+        );
+      expect(
+        sourceDocsAfter,
+        'Source docs should be deleted by deleteBySource'
+      ).toHaveLength(0);
 
       // Control doc (testUri, no sourceIdentifier) should still exist
-      const controlDocsAfter = searchAfterDeleteBySource.data.result.chunks.filter(
-        (c: { uri: string }) => c.uri === testUri
-      );
-      expect(controlDocsAfter.length, 'Control doc without sourceIdentifier should survive deleteBySource').toBeGreaterThan(0);
+      const controlDocsAfter =
+        searchAfterDeleteBySource.data.result.chunks.filter(
+          (c: { uri: string }) => c.uri === testUri
+        );
+      expect(
+        controlDocsAfter.length,
+        'Control doc without sourceIdentifier should survive deleteBySource'
+      ).toBeGreaterThan(0);
 
       // ============ STEP 6: DELETE BY URI - remove control document ============
-      const deleteResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'deleteByUri',
-        uri: testUri,
-        interaction_id: `workflow_delete_${testId}`,
-      });
+      const deleteResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'deleteByUri',
+          uri: testUri,
+          interaction_id: `workflow_delete_${testId}`,
+        }
+      );
 
-      expect(deleteResponse, `Delete: ${JSON.stringify(deleteResponse, null, 2)}`).toMatchObject({
+      expect(
+        deleteResponse,
+        `Delete: ${JSON.stringify(deleteResponse, null, 2)}`
+      ).toMatchObject({
         success: true,
         data: {
           result: {
@@ -336,30 +400,36 @@ The narwhal metrics server collects and aggregates resource utilization data for
       // ============ STEP 7: VERIFY DELETION via uriFilter search ============
       // Search with uriFilter targeting deleted URI should return empty results
       // This is reliable because testUri includes unique testId, so no interference from concurrent tests
-      const searchAfterDelete = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: 'deployment scaling orchestration',
-        limit: 10,
-        uriFilter: testUri,
-        interaction_id: `workflow_search_deleted_${testId}`,
-      });
+      const searchAfterDelete = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: 'deployment scaling orchestration',
+          limit: 10,
+          uriFilter: testUri,
+          interaction_id: `workflow_search_deleted_${testId}`,
+        }
+      );
 
       // CRITICAL: Verify the specific chunks we deleted are actually gone
       // If this fails, it means delete reported success but chunks are still in the index
       expect(
         searchAfterDelete.data.result.chunks,
         `Delete bug: Expected 0 chunks for deleted URI, but found ${searchAfterDelete.data.result.chunks.length}. ` +
-        `Delete reported ${deleteResponse.data.result.chunksDeleted} chunks deleted but they still exist. ` +
-        `Chunk IDs found: ${JSON.stringify(searchAfterDelete.data.result.chunks.map((c: { id: string }) => c.id))}`
+          `Delete reported ${deleteResponse.data.result.chunksDeleted} chunks deleted but they still exist. ` +
+          `Chunk IDs found: ${JSON.stringify(searchAfterDelete.data.result.chunks.map((c: { id: string }) => c.id))}`
       ).toHaveLength(0);
 
       // ============ STEP 8: DELETE non-existent URI/source returns 0 ============
       const nonExistentUri = `https://github.com/test-org/test-repo/blob/main/docs/never-existed-${testId}.md`;
-      const deleteNonExistent = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'deleteByUri',
-        uri: nonExistentUri,
-        interaction_id: `workflow_delete_nonexistent_${testId}`,
-      });
+      const deleteNonExistent = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'deleteByUri',
+          uri: nonExistentUri,
+          interaction_id: `workflow_delete_nonexistent_${testId}`,
+        }
+      );
 
       expect(deleteNonExistent).toMatchObject({
         success: true,
@@ -396,12 +466,15 @@ The narwhal metrics server collects and aggregates resource utilization data for
       const testId = Date.now();
       const testUri = `https://github.com/test-org/test-repo/blob/main/docs/empty-${testId}.md`;
 
-      const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        uri: testUri,
-        content: '   \n\n   ',
-        interaction_id: `edge_empty_${testId}`,
-      });
+      const ingestResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'ingest',
+          uri: testUri,
+          content: '   \n\n   ',
+          interaction_id: `edge_empty_${testId}`,
+        }
+      );
 
       expect(ingestResponse).toMatchObject({
         success: true,
@@ -459,12 +532,15 @@ Homemade bread baking requires proper yeast activation and dough proofing techni
       });
 
       // Search with limit=2 - should return top 2 most relevant, exclude recipes
-      const searchResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        query: 'kubernetes deployment strategies',
-        limit: 2,
-        interaction_id: `limit_search_${testId}`,
-      });
+      const searchResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          query: 'kubernetes deployment strategies',
+          limit: 2,
+          interaction_id: `limit_search_${testId}`,
+        }
+      );
 
       expect(searchResponse).toMatchObject({
         success: true,
@@ -482,7 +558,9 @@ Homemade bread baking requires proper yeast activation and dough proofing techni
       expect(result.chunks.length).toBe(2);
 
       // Results should be ordered by score (descending)
-      expect(result.chunks[0].score).toBeGreaterThanOrEqual(result.chunks[1].score);
+      expect(result.chunks[0].score).toBeGreaterThanOrEqual(
+        result.chunks[1].score
+      );
 
       // The recipes document (low relevance) should NOT be in top 2 results
       const resultUris = result.chunks.map((c: { uri: string }) => c.uri);
@@ -511,11 +589,14 @@ Homemade bread baking requires proper yeast activation and dough proofing techni
     test('should return error for ingest without content', async () => {
       const testId = Date.now();
 
-      const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        uri: `https://github.com/test-org/test-repo/blob/main/docs/test-${testId}.md`,
-        interaction_id: `error_no_content_${testId}`,
-      });
+      const errorResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'ingest',
+          uri: `https://github.com/test-org/test-repo/blob/main/docs/test-${testId}.md`,
+          interaction_id: `error_no_content_${testId}`,
+        }
+      );
 
       expect(errorResponse).toMatchObject({
         success: true,
@@ -535,11 +616,14 @@ Homemade bread baking requires proper yeast activation and dough proofing techni
     test('should return error for ingest without uri', async () => {
       const testId = Date.now();
 
-      const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        content: 'Some content',
-        interaction_id: `error_no_uri_${testId}`,
-      });
+      const errorResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'ingest',
+          content: 'Some content',
+          interaction_id: `error_no_uri_${testId}`,
+        }
+      );
 
       expect(errorResponse).toMatchObject({
         success: true,
@@ -559,10 +643,13 @@ Homemade bread baking requires proper yeast activation and dough proofing techni
     test('should return error for search without query', async () => {
       const testId = Date.now();
 
-      const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'search',
-        interaction_id: `error_no_query_${testId}`,
-      });
+      const errorResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'search',
+          interaction_id: `error_no_query_${testId}`,
+        }
+      );
 
       expect(errorResponse).toMatchObject({
         success: true,
@@ -582,10 +669,13 @@ Homemade bread baking requires proper yeast activation and dough proofing techni
     test('should return error for deleteByUri without uri', async () => {
       const testId = Date.now();
 
-      const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'deleteByUri',
-        interaction_id: `error_delete_no_uri_${testId}`,
-      });
+      const errorResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'deleteByUri',
+          interaction_id: `error_delete_no_uri_${testId}`,
+        }
+      );
 
       expect(errorResponse).toMatchObject({
         success: true,
@@ -626,9 +716,12 @@ Employees must return company vehicles with at least half a tank of fuel.`;
       });
 
       // Ask a question about a specific fact
-      const response = await integrationTest.httpClient.post('/api/v1/knowledge/ask', {
-        query: `What color is the company car? ${testId}`,
-      });
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/knowledge/ask',
+        {
+          query: `What color is the company car? ${testId}`,
+        }
+      );
 
       expect(response).toMatchObject({
         success: true,
@@ -647,7 +740,9 @@ Employees must return company vehicles with at least half a tank of fuel.`;
       expect(answer).toContain('blue');
 
       // Verify sources include the policy document
-      const sourceUris = response.data.sources.map((s: { uri: string }) => s.uri);
+      const sourceUris = response.data.sources.map(
+        (s: { uri: string }) => s.uri
+      );
       expect(sourceUris).toContain(policyUri);
 
       // Cleanup
@@ -658,9 +753,12 @@ Employees must return company vehicles with at least half a tank of fuel.`;
     }, 120000);
 
     test('should return 400 for missing query', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/knowledge/ask', {
-        limit: 10,
-      });
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/knowledge/ask',
+        {
+          limit: 10,
+        }
+      );
 
       expect(response).toMatchObject({
         success: false,

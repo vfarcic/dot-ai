@@ -30,19 +30,25 @@ export const helmHistory: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace where the release is installed (default: "default")',
+          description:
+            'Kubernetes namespace where the release is installed (default: "default")',
         },
         max: {
           type: 'number',
-          description: 'Maximum number of revisions to return (optional, returns all by default)',
+          description:
+            'Maximum number of revisions to return (optional, returns all by default)',
         },
       },
       required: ['releaseName'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const releaseName = requireParam<string>(args, 'releaseName', 'helm_history');
+  handler: withValidation(async args => {
+    const releaseName = requireParam<string>(
+      args,
+      'releaseName',
+      'helm_history'
+    );
     const namespace = optionalParam<string>(args, 'namespace', 'default');
     const max = optionalParam<number | undefined>(args, 'max', undefined);
 
@@ -65,7 +71,10 @@ export const helmHistory: KubectlTool = {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Failed to get history for release "${releaseName}": ${message}`);
+      return errorResult(
+        message,
+        `Failed to get history for release "${releaseName}": ${message}`
+      );
     }
   }),
 };

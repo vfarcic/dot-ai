@@ -51,19 +51,25 @@ spec:
 EOF`);
 
       // Wait for deployment to be ready
-      await integrationTest.kubectl(`wait --for=condition=available --timeout=60s deployment/test-api -n ${testNamespace}`);
+      await integrationTest.kubectl(
+        `wait --for=condition=available --timeout=60s deployment/test-api -n ${testNamespace}`
+      );
 
       // Verify deployment is running with correct image
-      const deploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${testNamespace} -o json`);
+      const deploymentJson = await integrationTest.kubectl(
+        `get deployment test-api -n ${testNamespace} -o json`
+      );
       const deployment = JSON.parse(deploymentJson);
-      expect(deployment.spec.template.spec.containers[0].image).toBe('nginx:1.19');
+      expect(deployment.spec.template.spec.containers[0].image).toBe(
+        'nginx:1.19'
+      );
 
       // PHASE 1: AI Analysis - Request operation
       const analysisResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/operate',
         {
           intent: `update test-api deployment in ${testNamespace} namespace to nginx:1.20 with zero downtime`,
-          interaction_id: `operate_test_${testId}`
+          interaction_id: `operate_test_${testId}`,
         }
       );
 
@@ -75,7 +81,9 @@ EOF`);
             status: 'awaiting_user_approval',
             sessionId: expect.stringMatching(/^opr-\d+-[a-f0-9]{8}$/), // Session ID format: opr-{timestamp}-{uuid8}
             // PRD #320: Operate tool returns visualizationUrl
-            visualizationUrl: expect.stringMatching(/^https:\/\/dot-ai-ui\.test\.local\/v\/opr-\d+-[a-f0-9]+$/),
+            visualizationUrl: expect.stringMatching(
+              /^https:\/\/dot-ai-ui\.test\.local\/v\/opr-\d+-[a-f0-9]+$/
+            ),
             analysis: {
               summary: expect.stringContaining('nginx'), // Should mention nginx in analysis
               proposedChanges: {
@@ -86,39 +94,43 @@ EOF`);
                     name: 'test-api',
                     namespace: testNamespace,
                     changes: expect.stringContaining('nginx:1.20'), // Should mention new version
-                    rationale: expect.any(String)
-                  })
+                    rationale: expect.any(String),
+                  }),
                 ]),
-                delete: expect.any(Array) // Should be empty for update operation
+                delete: expect.any(Array), // Should be empty for update operation
               },
               commands: expect.arrayContaining([
-                expect.stringContaining('kubectl') // Should have kubectl commands
+                expect.stringContaining('kubectl'), // Should have kubectl commands
               ]),
               dryRunValidation: {
                 status: 'success', // AI should validate with dry-run
-                details: expect.any(String) // AI-generated description of dry-run result
+                details: expect.any(String), // AI-generated description of dry-run result
               },
               patternsApplied: expect.any(Array), // May be empty if no patterns match
               capabilitiesUsed: expect.any(Array), // May be empty for simple update
               policiesChecked: expect.any(Array), // May be empty if no policies match
               risks: {
                 level: expect.stringMatching(/low|medium|high/),
-                description: expect.any(String)
+                description: expect.any(String),
               },
-              validationIntent: expect.any(String) // AI provides validation guidance
+              validationIntent: expect.any(String), // AI provides validation guidance
             },
             message: expect.stringContaining('proposal'),
-            agentInstructions: expect.stringMatching(/executeChoice.*impact_analysis|impact_analysis.*executeChoice/) // PRD #405 M2: Should mention both execution and impact analysis options
+            agentInstructions: expect.stringMatching(
+              /executeChoice.*impact_analysis|impact_analysis.*executeChoice/
+            ), // PRD #405 M2: Should mention both execution and impact analysis options
           },
-          tool: 'operate'
-        }
+          tool: 'operate',
+        },
       };
 
       expect(analysisResponse).toMatchObject(expectedAnalysisResponse);
 
       // PRD #320: Verify visualization URL is present in response (not embedded in message)
       expect(analysisResponse.data.result.visualizationUrl).toBeTruthy();
-      expect(analysisResponse.data.result.visualizationUrl).toMatch(/^https?:\/\//);
+      expect(analysisResponse.data.result.visualizationUrl).toMatch(
+        /^https?:\/\//
+      );
 
       // Extract session ID for next phase
       const sessionId = analysisResponse.data.result.sessionId;
@@ -127,16 +139,20 @@ EOF`);
       // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 2: Verify original deployment unchanged (no execution yet)
-      const unchangedDeploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${testNamespace} -o json`);
+      const unchangedDeploymentJson = await integrationTest.kubectl(
+        `get deployment test-api -n ${testNamespace} -o json`
+      );
       const unchangedDeployment = JSON.parse(unchangedDeploymentJson);
-      expect(unchangedDeployment.spec.template.spec.containers[0].image).toBe('nginx:1.19'); // Still old version
+      expect(unchangedDeployment.spec.template.spec.containers[0].image).toBe(
+        'nginx:1.19'
+      ); // Still old version
 
       // PHASE 3: Execute approved changes (session existence is implicitly validated by this succeeding)
       const executionResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/operate',
         {
           sessionId,
-          executeChoice: 1 // Execute via MCP
+          executeChoice: 1, // Execute via MCP
         }
       );
 
@@ -153,14 +169,16 @@ EOF`);
                   command: expect.stringContaining('kubectl'),
                   success: true,
                   output: expect.any(String),
-                  timestamp: expect.any(String)
-                })
+                  timestamp: expect.any(String),
+                }),
               ]),
-              validation: expect.stringMatching(/Validation successful|Validation completed/) // Should have real validation result
+              validation: expect.stringMatching(
+                /Validation successful|Validation completed/
+              ), // Should have real validation result
             },
-            message: expect.stringContaining('executed successfully')
-          }
-        }
+            message: expect.stringContaining('executed successfully'),
+          },
+        },
       };
 
       expect(executionResponse).toMatchObject(expectedExecutionResponse);
@@ -173,10 +191,13 @@ EOF`);
       // Wait a moment for k8s to propagate changes
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      const updatedDeploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${testNamespace} -o json`);
+      const updatedDeploymentJson = await integrationTest.kubectl(
+        `get deployment test-api -n ${testNamespace} -o json`
+      );
       const updatedDeployment = JSON.parse(updatedDeploymentJson);
-      expect(updatedDeployment.spec.template.spec.containers[0].image).toBe('nginx:1.20'); // Should be updated to 1.20
-
+      expect(updatedDeployment.spec.template.spec.containers[0].image).toBe(
+        'nginx:1.20'
+      ); // Should be updated to 1.20
     }, 300000); // 5 minute timeout for full workflow (analysis + execution)
 
     test('should apply organizational patterns: scale with HPA creation', async () => {
@@ -196,12 +217,15 @@ EOF`);
         `Pattern rationale: routing every scale operation through an HPA keeps replica management declarative and consistent across the platform. ` +
         `Suggested resource: HorizontalPodAutoscaler (autoscaling/v2). This is a mandatory platform scaling pattern adopted by all teams.`;
 
-      const ingestResponse = await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'ingest',
-        uri: patternUri,
-        content: patternContent,
-        metadata: { testId, type: 'pattern' }
-      });
+      const ingestResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'ingest',
+          uri: patternUri,
+          content: patternContent,
+          metadata: { testId, type: 'pattern' },
+        }
+      );
 
       expect(
         ingestResponse.data.result.success,
@@ -236,22 +260,32 @@ spec:
 EOF`);
 
       // Wait for deployment to be ready
-      await integrationTest.kubectl(`wait --for=condition=available --timeout=60s deployment/test-api -n ${patternNamespace}`);
+      await integrationTest.kubectl(
+        `wait --for=condition=available --timeout=60s deployment/test-api -n ${patternNamespace}`
+      );
 
       // PHASE 1: AI Analysis - Request scaling operation
       const analysisResponse = await integrationTest.httpClient.post(
         '/api/v1/tools/operate',
         {
           intent: `scale test-api deployment in ${patternNamespace} namespace to 4 replicas`,
-          interaction_id: `operate_pattern_test_${testId}`
+          interaction_id: `operate_pattern_test_${testId}`,
         }
       );
 
       // Validate response structure
-      expect(analysisResponse.success, `Operate analysis failed: ${JSON.stringify(analysisResponse.error || analysisResponse.data?.result?.error || 'no error field')}`).toBe(true);
-      expect(analysisResponse.data.result.status, `Unexpected status: ${analysisResponse.data?.result?.status}, message: ${analysisResponse.data?.result?.message || 'none'}`).toBe('awaiting_user_approval');
+      expect(
+        analysisResponse.success,
+        `Operate analysis failed: ${JSON.stringify(analysisResponse.error || analysisResponse.data?.result?.error || 'no error field')}`
+      ).toBe(true);
+      expect(
+        analysisResponse.data.result.status,
+        `Unexpected status: ${analysisResponse.data?.result?.status}, message: ${analysisResponse.data?.result?.message || 'none'}`
+      ).toBe('awaiting_user_approval');
       // PRD #320: Verify visualizationUrl is present (full visualization testing done in first test)
-      expect(analysisResponse.data.result.visualizationUrl).toMatch(/^https:\/\/dot-ai-ui\.test\.local\/v\/opr-/);
+      expect(analysisResponse.data.result.visualizationUrl).toMatch(
+        /^https:\/\/dot-ai-ui\.test\.local\/v\/opr-/
+      );
 
       const analysis = analysisResponse.data.result.analysis;
 
@@ -260,10 +294,11 @@ EOF`);
       expect(analysis.patternsApplied.length).toBeGreaterThan(0);
 
       // patternsApplied is an array of strings (pattern names/descriptions)
-      const appliedPattern = analysis.patternsApplied.find((p: string) =>
-        p.toLowerCase().includes('horizontal') ||
-        p.toLowerCase().includes('hpa') ||
-        p.toLowerCase().includes('scaling')
+      const appliedPattern = analysis.patternsApplied.find(
+        (p: string) =>
+          p.toLowerCase().includes('horizontal') ||
+          p.toLowerCase().includes('hpa') ||
+          p.toLowerCase().includes('scaling')
       );
       expect(appliedPattern).toBeDefined();
 
@@ -271,11 +306,13 @@ EOF`);
       const proposedChanges = analysis.proposedChanges;
 
       // Should create HPA with min=4, max=4 (pattern says even if both are the same)
-      const hpaCreation = proposedChanges.create.find((change: any) =>
-        change.kind === 'HorizontalPodAutoscaler'
+      const hpaCreation = proposedChanges.create.find(
+        (change: any) => change.kind === 'HorizontalPodAutoscaler'
       );
       expect(hpaCreation).toBeDefined();
-      expect(hpaCreation.rationale).toMatch(/pattern|hpa|horizontal|scaling|autoscal/i);
+      expect(hpaCreation.rationale).toMatch(
+        /pattern|hpa|horizontal|scaling|autoscal/i
+      );
 
       // Verify manifest has namespace and correct replica counts
       expect(hpaCreation.manifest).toBeDefined();
@@ -285,8 +322,11 @@ EOF`);
       expect(hpaCreation.manifest).toMatch(/maxReplicas:\s*\d+/);
 
       // PHASE 4: Verify commands include HPA creation (no manual scaling needed - HPA manages replicas)
-      const hasHpaCommand = analysis.commands.some((cmd: string) =>
-        cmd.includes('HorizontalPodAutoscaler') || cmd.includes('autoscaling') || cmd.includes('hpa')
+      const hasHpaCommand = analysis.commands.some(
+        (cmd: string) =>
+          cmd.includes('HorizontalPodAutoscaler') ||
+          cmd.includes('autoscaling') ||
+          cmd.includes('hpa')
       );
       expect(hasHpaCommand).toBe(true);
 
@@ -296,7 +336,7 @@ EOF`);
         '/api/v1/tools/operate',
         {
           sessionId: operateSessionId,
-          executeChoice: 1 // Execute via MCP
+          executeChoice: 1, // Execute via MCP
         }
       );
 
@@ -304,7 +344,10 @@ EOF`);
       expect(executionResponse.success).toBe(true);
       // Debug: log execution response if status is not success
       if (executionResponse.data.result.status !== 'success') {
-        console.log('Execution failed. Response:', JSON.stringify(executionResponse.data.result, null, 2));
+        console.log(
+          'Execution failed. Response:',
+          JSON.stringify(executionResponse.data.result, null, 2)
+        );
       }
       expect(executionResponse.data.result.status).toBe('success');
       expect(executionResponse.data.result.execution.results).toBeDefined();
@@ -313,14 +356,16 @@ EOF`);
       // Wait for k8s to propagate changes
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      const hpaJson = await integrationTest.kubectl(`get hpa -n ${patternNamespace} -o json`);
+      const hpaJson = await integrationTest.kubectl(
+        `get hpa -n ${patternNamespace} -o json`
+      );
       const hpaList = JSON.parse(hpaJson);
       expect(hpaList.items).toBeDefined();
       expect(hpaList.items.length).toBeGreaterThan(0);
 
       // Find the HPA for test-api
-      const testApiHpa = hpaList.items.find((hpa: any) =>
-        hpa.spec.scaleTargetRef.name === 'test-api'
+      const testApiHpa = hpaList.items.find(
+        (hpa: any) => hpa.spec.scaleTargetRef.name === 'test-api'
       );
       expect(testApiHpa).toBeDefined();
       expect(testApiHpa.spec.minReplicas).toBe(4);
@@ -328,7 +373,9 @@ EOF`);
 
       // PHASE 7: Verify HPA is functional (managing deployment replicas)
       // HPA should scale deployment to at least 4 replicas (minReplicas)
-      const deploymentJson = await integrationTest.kubectl(`get deployment test-api -n ${patternNamespace} -o json`);
+      const deploymentJson = await integrationTest.kubectl(
+        `get deployment test-api -n ${patternNamespace} -o json`
+      );
       const deployment = JSON.parse(deploymentJson);
 
       // HPA should have set replicas to 4 (or will soon)
@@ -339,7 +386,7 @@ EOF`);
       // Cleanup: remove the ingested pattern from the unified knowledge base
       await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
         operation: 'deleteByUri',
-        uri: patternUri
+        uri: patternUri,
       });
     }, 300000); // 5 minute timeout for full workflow
   });
@@ -355,7 +402,10 @@ EOF`);
       // SETUP: Create namespace and a test Helm chart
       await integrationTest.kubectl(`create namespace ${helmNamespace}`);
       execSync('rm -rf ./tmp/helm-operate-test-chart', { encoding: 'utf8' });
-      execSync('helm create ./tmp/helm-operate-test-chart', { encoding: 'utf8', timeout: 30000 });
+      execSync('helm create ./tmp/helm-operate-test-chart', {
+        encoding: 'utf8',
+        timeout: 30000,
+      });
 
       // Install chart with nginx:alpine
       execSync(
@@ -377,7 +427,7 @@ EOF`);
         '/api/v1/tools/operate',
         {
           intent: `upgrade the test-app helm release in ${helmNamespace} namespace to use image tag latest`,
-          interaction_id: `operate_helm_test_${testId}`
+          interaction_id: `operate_helm_test_${testId}`,
         }
       );
 
@@ -392,29 +442,30 @@ EOF`);
               summary: expect.any(String),
               proposedChanges: expect.any(Object),
               commands: expect.arrayContaining([
-                expect.stringContaining('helm')
+                expect.stringContaining('helm'),
               ]),
               dryRunValidation: {
                 status: expect.stringMatching(/success|failed/),
-                details: expect.any(String)
+                details: expect.any(String),
               },
               risks: {
                 level: expect.stringMatching(/low|medium|high/),
-                description: expect.any(String)
-              }
+                description: expect.any(String),
+              },
             },
-            message: expect.stringContaining('proposal')
-          }
-        }
+            message: expect.stringContaining('proposal'),
+          },
+        },
       };
 
       expect(analysisResponse).toMatchObject(expectedAnalysisResponse);
 
       // KEY VALIDATION: Commands should use helm, not raw kubectl for the upgrade
       const commands: string[] = analysisResponse.data.result.analysis.commands;
-      const helmCommands = commands.filter((cmd: string) => cmd.includes('helm'));
+      const helmCommands = commands.filter((cmd: string) =>
+        cmd.includes('helm')
+      );
       expect(helmCommands.length).toBeGreaterThan(0);
-
     }, 480000);
   });
 
@@ -430,9 +481,9 @@ EOF`);
         data: {
           result: {
             status: 'failed',
-            message: expect.stringContaining('Invalid input')
-          }
-        }
+            message: expect.stringContaining('Invalid input'),
+          },
+        },
       };
 
       expect(errorResponse).toMatchObject(expectedErrorResponse);

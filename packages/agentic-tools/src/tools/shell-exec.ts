@@ -32,14 +32,15 @@ export const shellExec: KubectlTool = {
       properties: {
         command: {
           type: 'string',
-          description: 'The full shell command to execute (e.g., kubectl apply -f - <<EOF...EOF)',
+          description:
+            'The full shell command to execute (e.g., kubectl apply -f - <<EOF...EOF)',
         },
       },
       required: ['command'],
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const command = requireParam<string>(args, 'command', 'shell_exec');
 
     try {
@@ -51,7 +52,9 @@ export const shellExec: KubectlTool = {
       const stderrOutput = stderr?.trim() || '';
 
       // Include stderr in output if present (kubectl often writes to stderr)
-      const fullOutput = stderrOutput ? `${output}\n${stderrOutput}`.trim() : output;
+      const fullOutput = stderrOutput
+        ? `${output}\n${stderrOutput}`.trim()
+        : output;
 
       return successResult(fullOutput, `Command executed successfully`);
     } catch (error: any) {

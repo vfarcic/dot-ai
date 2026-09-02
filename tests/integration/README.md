@@ -61,9 +61,9 @@ Tests automatically configure the environment for isolation:
 
 ```typescript
 // tests/integration/setup.ts
-process.env.KUBECONFIG = './kubeconfig-test.yaml';  // Test cluster only
-process.env.MODEL = 'claude-haiku-4-5-20251001';    // Fast AI model (Haiku 4.5)
-process.env.DEBUG_DOT_AI = 'true';                 // Detailed logging
+process.env.KUBECONFIG = './kubeconfig-test.yaml'; // Test cluster only
+process.env.MODEL = 'claude-haiku-4-5-20251001'; // Fast AI model (Haiku 4.5)
+process.env.DEBUG_DOT_AI = 'true'; // Detailed logging
 ```
 
 ### Test Cluster Details
@@ -90,6 +90,7 @@ SKIP_CNPG=true SKIP_KYVERNO=true npm run test:integration operate
 ```
 
 **Note**: Only skip operators if your tests don't require them. For example:
+
 - `operate` tool tests: Can skip both (only needs Kubernetes + Qdrant)
 - `recommend` tool tests: Can skip both
 - `remediate` tool tests: Can skip both
@@ -133,7 +134,7 @@ describe('Your Tool Integration', () => {
   test('should validate actual behavior', async () => {
     // Use POST for tool calls (all tools require POST)
     const response = await test.httpClient.post('/api/v1/tools/your-tool', {
-      param1: 'value1'
+      param1: 'value1',
     });
 
     // Focus on behavioral validation, not just structural
@@ -151,17 +152,19 @@ describe('Your Tool Integration', () => {
 ### Behavioral vs Structural Testing
 
 **✅ Behavioral Testing (Preferred)**
+
 ```typescript
 // Test actual behavior and logical consistency
-expect(system.version.version).toMatch(/^\d+\.\d+\.\d+$/);  // Valid semver
-expect(system.kubernetes.connected).toBe(true);            // Should be connected
+expect(system.version.version).toMatch(/^\d+\.\d+\.\d+$/); // Valid semver
+expect(system.kubernetes.connected).toBe(true); // Should be connected
 expect(result.summary.kubernetesAccess).toBe('connected'); // Consistency
 ```
 
 **❌ Structural Testing (Only when necessary)**
+
 ```typescript
 // Only for dynamic/AI-generated content where behavior can't be predicted
-expect(response.meta.requestId).toBeDefined();  // Structure only
+expect(response.meta.requestId).toBeDefined(); // Structure only
 expect(system.ai.response).toContain('kubernetes'); // AI content varies
 ```
 
@@ -171,7 +174,7 @@ Each test runs in a unique namespace for perfect isolation:
 
 ```typescript
 // Automatic namespace creation: test-{workerId}-{testName}-{timestamp}
-await test.setup('crashloop');  // Creates: test-1-crashloop-1679123456789
+await test.setup('crashloop'); // Creates: test-1-crashloop-1679123456789
 
 // All resources created within test namespace
 await test.createPod('test-pod', podSpec);
@@ -187,19 +190,19 @@ await test.cleanup(); // Fires namespace deletion, returns immediately
 ```typescript
 class IntegrationTest {
   // Namespace lifecycle (automatic)
-  async setup(testName?: string): Promise<void>
-  async cleanup(): Promise<void>
+  async setup(testName?: string): Promise<void>;
+  async cleanup(): Promise<void>;
 
   // HTTP client (configured for test server)
-  httpClient: HttpRestApiClient
+  httpClient: HttpRestApiClient;
 
   // Kubernetes utilities
-  async createPod(name: string, spec: V1PodSpec): Promise<V1Pod>
-  async waitForPodCondition(name: string, condition: string): Promise<V1Pod>
-  async getPods(): Promise<V1Pod[]>
+  async createPod(name: string, spec: V1PodSpec): Promise<V1Pod>;
+  async waitForPodCondition(name: string, condition: string): Promise<V1Pod>;
+  async getPods(): Promise<V1Pod[]>;
 
   // Test scenario builders
-  async createPodWithMissingConfigMap(name: string): Promise<V1Pod>
+  async createPodWithMissingConfigMap(name: string): Promise<V1Pod>;
 }
 ```
 
@@ -208,7 +211,7 @@ class IntegrationTest {
 ```typescript
 // Configured for test server (localhost:3456)
 await test.httpClient.post('/api/v1/tools/version', {});
-await test.httpClient.get('/api/v1/health');  // Non-tool endpoints
+await test.httpClient.get('/api/v1/health'); // Non-tool endpoints
 ```
 
 ## Performance & Parallelization
@@ -219,7 +222,7 @@ Tests run in parallel with perfect isolation:
 
 ```javascript
 // jest.integration.config.js
-maxWorkers: process.env.CI ? 10 : 5  // Parallel test execution
+maxWorkers: process.env.CI ? 10 : 5; // Parallel test execution
 ```
 
 ### Fast Feedback
@@ -237,20 +240,26 @@ maxWorkers: process.env.CI ? 10 : 5  // Parallel test execution
 ## Test Categories
 
 ### Tool Tests (`tests/integration/tools/`)
+
 Test individual tools via REST API:
+
 - Input validation
 - Output format verification
 - Error handling
 - Performance baselines
 
 ### Scenario Tests (`tests/integration/scenarios/`)
+
 Real-world problem scenarios:
+
 - `crashloop-remediation.scenario.test.ts`
 - `missing-configmap.scenario.test.ts`
 - Named by business problem, not technical implementation
 
 ### Journey Tests (`tests/integration/journeys/`)
+
 End-to-end user workflows:
+
 - `deploy-application.journey.test.ts`
 - Complete user stories from intent to running pods
 
@@ -259,6 +268,7 @@ End-to-end user workflows:
 ### Common Issues
 
 **Test cluster not accessible:**
+
 ```bash
 # Check cluster status
 kind get clusters
@@ -270,6 +280,7 @@ npm run test:integration:setup
 ```
 
 **Server not responding:**
+
 ```bash
 # Check if server is running
 curl http://localhost:3456/api/v1/health
@@ -279,6 +290,7 @@ npm run test:integration:server
 ```
 
 **Tests failing due to timing:**
+
 - Tests include proper wait conditions
 - Namespace cleanup is async (don't wait for it)
 - Use `test.waitForPodCondition()` for pod readiness

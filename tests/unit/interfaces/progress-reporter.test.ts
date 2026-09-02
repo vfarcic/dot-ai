@@ -168,7 +168,8 @@ describe('startProgressHeartbeat (PRD #705 M2)', () => {
 describe('progressHeartbeatIntervalMs (PRD #705 M2)', () => {
   const original = process.env.DOT_AI_MCP_PROGRESS_INTERVAL_MS;
   afterEach(() => {
-    if (original === undefined) delete process.env.DOT_AI_MCP_PROGRESS_INTERVAL_MS;
+    if (original === undefined)
+      delete process.env.DOT_AI_MCP_PROGRESS_INTERVAL_MS;
     else process.env.DOT_AI_MCP_PROGRESS_INTERVAL_MS = original;
   });
 

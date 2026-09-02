@@ -38,11 +38,12 @@ export class HttpRestApiClient {
 
   constructor(options: HttpClientOptions = {}) {
     // Use MCP_BASE_URL from environment if set (for in-cluster testing), otherwise default to localhost
-    this.baseUrl = options.baseUrl || process.env.MCP_BASE_URL || 'http://localhost:3456';
+    this.baseUrl =
+      options.baseUrl || process.env.MCP_BASE_URL || 'http://localhost:3456';
     this.timeout = options.timeout || 1800000; // Default to 30 minutes for integration tests (slower AI providers)
     this.defaultHeaders = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
+      Accept: 'application/json',
       ...options.headers,
     };
   }
@@ -50,28 +51,42 @@ export class HttpRestApiClient {
   /**
    * Make GET request to API endpoint
    */
-  async get(path: string, headers?: Record<string, string>): Promise<RestApiResponse> {
+  async get(
+    path: string,
+    headers?: Record<string, string>
+  ): Promise<RestApiResponse> {
     return this.request('GET', path, undefined, headers);
   }
 
   /**
    * Make POST request to API endpoint
    */
-  async post(path: string, body?: any, headers?: Record<string, string>): Promise<RestApiResponse> {
+  async post(
+    path: string,
+    body?: any,
+    headers?: Record<string, string>
+  ): Promise<RestApiResponse> {
     return this.request('POST', path, body, headers);
   }
 
   /**
    * Make PUT request to API endpoint
    */
-  async put(path: string, body?: any, headers?: Record<string, string>): Promise<RestApiResponse> {
+  async put(
+    path: string,
+    body?: any,
+    headers?: Record<string, string>
+  ): Promise<RestApiResponse> {
     return this.request('PUT', path, body, headers);
   }
 
   /**
    * Make DELETE request to API endpoint
    */
-  async delete(path: string, headers?: Record<string, string>): Promise<RestApiResponse> {
+  async delete(
+    path: string,
+    headers?: Record<string, string>
+  ): Promise<RestApiResponse> {
     return this.request('DELETE', path, undefined, headers);
   }
 
@@ -89,7 +104,8 @@ export class HttpRestApiClient {
 
     const requestBody = body ? JSON.stringify(body) : undefined;
     if (requestBody) {
-      requestHeaders['Content-Length'] = Buffer.byteLength(requestBody).toString();
+      requestHeaders['Content-Length'] =
+        Buffer.byteLength(requestBody).toString();
     }
 
     const options = {
@@ -123,7 +139,7 @@ export class HttpRestApiClient {
       const req = client.request(url, options, (res: IncomingMessage) => {
         let data = '';
 
-        res.on('data', (chunk) => {
+        res.on('data', chunk => {
           data += chunk;
         });
 
@@ -135,7 +151,7 @@ export class HttpRestApiClient {
         // response) and the request-level 'error' never fires, the old no-op
         // handler left the promise to hang until the socket timeout. Settling it
         // here as a failure closes that gap.
-        res.on('error', (error) => {
+        res.on('error', error => {
           if (settled) return;
           settled = true;
           const elapsed = Date.now() - startTime;
@@ -160,7 +176,7 @@ export class HttpRestApiClient {
         });
       });
 
-      req.once('socket', (socket) => {
+      req.once('socket', socket => {
         socketAssigned = true;
         currentSocket = socket;
         // Set timeout on socket directly for more reliable timeout handling
@@ -171,14 +187,18 @@ export class HttpRestApiClient {
           const elapsed = Date.now() - startTime;
           cleanup();
           req.destroy();
-          reject(new Error(`Socket timeout after ${elapsed}ms (configured: ${this.timeout}ms, socket assigned: true)`));
+          reject(
+            new Error(
+              `Socket timeout after ${elapsed}ms (configured: ${this.timeout}ms, socket assigned: true)`
+            )
+          );
         };
         socket.once('timeout', socketTimeoutHandler);
       });
 
       req.setTimeout(this.timeout);
 
-      req.on('error', (error) => {
+      req.on('error', error => {
         // If the full response already arrived ('end' settled the promise), a
         // trailing socket reset is benign — ignore it. Only a reset BEFORE any
         // response is a real failure.
@@ -186,7 +206,11 @@ export class HttpRestApiClient {
         settled = true;
         const elapsed = Date.now() - startTime;
         cleanup();
-        reject(new Error(`Request failed after ${elapsed}ms: ${error.message} (socket assigned: ${socketAssigned})`));
+        reject(
+          new Error(
+            `Request failed after ${elapsed}ms: ${error.message} (socket assigned: ${socketAssigned})`
+          )
+        );
       });
 
       req.on('timeout', () => {
@@ -195,7 +219,11 @@ export class HttpRestApiClient {
         const elapsed = Date.now() - startTime;
         cleanup();
         req.destroy();
-        reject(new Error(`Request timeout after ${elapsed}ms (configured: ${this.timeout}ms, socket assigned: ${socketAssigned})`));
+        reject(
+          new Error(
+            `Request timeout after ${elapsed}ms (configured: ${this.timeout}ms, socket assigned: ${socketAssigned})`
+          )
+        );
       });
 
       if (requestBody) {
@@ -214,10 +242,13 @@ export class HttpRestApiClient {
     if (!data.trim()) {
       return {
         success: statusCode >= 200 && statusCode < 300,
-        error: statusCode >= 400 ? {
-          code: 'EMPTY_RESPONSE',
-          message: `HTTP ${statusCode}: Empty response`,
-        } : undefined,
+        error:
+          statusCode >= 400
+            ? {
+                code: 'EMPTY_RESPONSE',
+                message: `HTTP ${statusCode}: Empty response`,
+              }
+            : undefined,
       };
     }
 
@@ -233,21 +264,27 @@ export class HttpRestApiClient {
       return {
         success: statusCode >= 200 && statusCode < 300,
         data: parsed,
-        error: statusCode >= 400 ? {
-          code: 'HTTP_ERROR',
-          message: `HTTP ${statusCode}`,
-          details: parsed,
-        } : undefined,
+        error:
+          statusCode >= 400
+            ? {
+                code: 'HTTP_ERROR',
+                message: `HTTP ${statusCode}`,
+                details: parsed,
+              }
+            : undefined,
       };
     } catch (error) {
       // Handle non-JSON responses
       return {
         success: statusCode >= 200 && statusCode < 300,
         data: statusCode < 400 ? data : undefined,
-        error: statusCode >= 400 ? {
-          code: 'INVALID_JSON',
-          message: `HTTP ${statusCode}: ${data}`,
-        } : undefined,
+        error:
+          statusCode >= 400
+            ? {
+                code: 'INVALID_JSON',
+                message: `HTTP ${statusCode}: ${data}`,
+              }
+            : undefined,
       };
     }
   }

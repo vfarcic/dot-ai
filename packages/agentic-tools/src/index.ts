@@ -52,11 +52,14 @@ function sendError(res: ServerResponse, status: number, message: string): void {
 /**
  * Handle POST /execute requests
  */
-async function handleExecute(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleExecute(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
   let body: ExecuteRequest;
 
   try {
-    body = await parseBody(req) as ExecuteRequest;
+    body = (await parseBody(req)) as ExecuteRequest;
   } catch {
     sendError(res, 400, 'Invalid JSON body');
     return;
@@ -88,7 +91,7 @@ async function handleExecute(req: IncomingMessage, res: ServerResponse): Promise
       const response = await handleInvoke(sessionId, {
         tool: body.payload.tool,
         args: body.payload.args || {},
-        state: body.payload.state || {}
+        state: body.payload.state || {},
       });
       sendJson(res, 200, response);
       break;
@@ -102,7 +105,10 @@ async function handleExecute(req: IncomingMessage, res: ServerResponse): Promise
 /**
  * Main request handler
  */
-async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleRequest(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
   const { method, url } = req;
 
   // Health check endpoint
@@ -131,7 +137,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
  * Create and start the HTTP server
  */
 const server = createServer((req, res) => {
-  handleRequest(req, res).catch((error) => {
+  handleRequest(req, res).catch(error => {
     console.error('Unhandled error:', error);
     sendError(res, 500, 'Internal server error');
   });

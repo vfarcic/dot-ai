@@ -79,7 +79,13 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
       const result = ingestPromptsSource({
         source: 'local:team-dev',
         contentHash: 'sha256:abc',
-        files: [{ path: 'demo/SKILL.md', content: b64(skillMd('demo')), mode: '0644' }],
+        files: [
+          {
+            path: 'demo/SKILL.md',
+            content: b64(skillMd('demo')),
+            mode: '0644',
+          },
+        ],
       });
       expect(result).toEqual({
         source: 'local:team-dev',
@@ -91,27 +97,49 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
 
     test('D3: re-uploading the same { source, contentHash } short-circuits as unchanged', () => {
       const source = 'local:dedup';
-      const files = [{ path: 'd/SKILL.md', content: b64(skillMd('d')), mode: '0644' }];
-      const first = ingestPromptsSource({ source, contentHash: 'sha256:h1', files });
+      const files = [
+        { path: 'd/SKILL.md', content: b64(skillMd('d')), mode: '0644' },
+      ];
+      const first = ingestPromptsSource({
+        source,
+        contentHash: 'sha256:h1',
+        files,
+      });
       expect(first.status).toBe('ingested');
 
-      const second = ingestPromptsSource({ source, contentHash: 'sha256:h1', files });
-      expect(second).toMatchObject({ source, contentHash: 'sha256:h1', status: 'unchanged' });
+      const second = ingestPromptsSource({
+        source,
+        contentHash: 'sha256:h1',
+        files,
+      });
+      expect(second).toMatchObject({
+        source,
+        contentHash: 'sha256:h1',
+        status: 'unchanged',
+      });
 
       // A changed hash for the same identifier is processed normally.
-      const third = ingestPromptsSource({ source, contentHash: 'sha256:h2', files });
+      const third = ingestPromptsSource({
+        source,
+        contentHash: 'sha256:h2',
+        files,
+      });
       expect(third.status).toBe('ingested');
     });
 
     test('D5: rejects more than MAX_INGEST_FILES files before caching', () => {
       const files = [];
       for (let i = 0; i <= MAX_INGEST_FILES; i++) {
-        files.push({ path: `pad/file-${i}.txt`, content: b64('x'), mode: '0644' });
+        files.push({
+          path: `pad/file-${i}.txt`,
+          content: b64('x'),
+          mode: '0644',
+        });
       }
       expect(files.length).toBeGreaterThan(MAX_INGEST_FILES);
-      expect(() => ingestPromptsSource({ source: 'local:count', files })).toThrow(
-        IngestValidationError
-      );
+      expect(() =>
+        ingestPromptsSource({ source: 'local:count', files })
+      ).toThrow(IngestValidationError);
     });
 
     test('D5: rejects a manifest whose decoded payload exceeds MAX_INGEST_TOTAL_BYTES', () => {
@@ -119,7 +147,9 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
       expect(() =>
         ingestPromptsSource({
           source: 'local:size',
-          files: [{ path: 'big/SKILL.md', content: b64(oversized), mode: '0644' }],
+          files: [
+            { path: 'big/SKILL.md', content: b64(oversized), mode: '0644' },
+          ],
         })
       ).toThrow(IngestValidationError);
     });
@@ -128,7 +158,9 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
       expect(() =>
         ingestPromptsSource({
           source: 'local:zipslip',
-          files: [{ path: '../escape/SKILL.md', content: b64('hi'), mode: '0644' }],
+          files: [
+            { path: '../escape/SKILL.md', content: b64('hi'), mode: '0644' },
+          ],
         })
       ).toThrow(IngestValidationError);
       expect(() =>
@@ -140,7 +172,9 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
     });
 
     test('rejects a missing source and an empty file list', () => {
-      expect(() => ingestPromptsSource({ files: [] })).toThrow(IngestValidationError);
+      expect(() => ingestPromptsSource({ files: [] })).toThrow(
+        IngestValidationError
+      );
       expect(() =>
         ingestPromptsSource({ source: 'local:x', files: [] })
       ).toThrow(IngestValidationError);
@@ -150,9 +184,13 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
       const token = 's3cr3t_tok';
       const result = ingestPromptsSource({
         source: `https://user:${token}@gitlab.corp.internal/team/skills.git`,
-        files: [{ path: 'sec/SKILL.md', content: b64(skillMd('sec')), mode: '0644' }],
+        files: [
+          { path: 'sec/SKILL.md', content: b64(skillMd('sec')), mode: '0644' },
+        ],
       });
-      expect(result.source).toBe('https://***:***@gitlab.corp.internal/team/skills.git');
+      expect(result.source).toBe(
+        'https://***:***@gitlab.corp.internal/team/skills.git'
+      );
       expect(JSON.stringify(result)).not.toContain(token);
     });
   });
@@ -164,7 +202,12 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
         files: [
           {
             path: 'ingest-skill/SKILL.md',
-            content: b64(skillMd('ingest-skill', { description: 'desc-647', required: true })),
+            content: b64(
+              skillMd('ingest-skill', {
+                description: 'desc-647',
+                required: true,
+              })
+            ),
             mode: '0644',
           },
         ],
@@ -175,7 +218,9 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
       });
       expect(rendered).toMatchObject({
         description: 'desc-647',
-        messages: [{ role: 'user', content: { type: 'text', text: expect.any(String) } }],
+        messages: [
+          { role: 'user', content: { type: 'text', text: expect.any(String) } },
+        ],
         source: 'local:render',
       });
       const text = rendered.messages[0].content.text;
@@ -217,7 +262,13 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
     test('a cached source missing the requested skill yields Prompt not found', () => {
       ingestPromptsSource({
         source: 'local:partial',
-        files: [{ path: 'present/SKILL.md', content: b64(skillMd('present')), mode: '0644' }],
+        files: [
+          {
+            path: 'present/SKILL.md',
+            content: b64(skillMd('present')),
+            mode: '0644',
+          },
+        ],
       });
       expect(() => renderIngestedPrompt('local:partial', 'absent', {})).toThrow(
         /Prompt not found/
@@ -228,8 +279,16 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
       ingestPromptsSource({
         source: 'local:files',
         files: [
-          { path: 'withfiles/SKILL.md', content: b64(skillMd('withfiles')), mode: '0644' },
-          { path: 'withfiles/scripts/run.sh', content: b64('echo hi'), mode: '0755' },
+          {
+            path: 'withfiles/SKILL.md',
+            content: b64(skillMd('withfiles')),
+            mode: '0644',
+          },
+          {
+            path: 'withfiles/scripts/run.sh',
+            content: b64('echo hi'),
+            mode: '0755',
+          },
         ],
       });
       const rendered = renderIngestedPrompt('local:files', 'withfiles', {
@@ -257,7 +316,11 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
             mode: '0644',
           },
           // A sibling (non-SKILL.md) file is not itself an enumerable prompt.
-          { path: 'wip-experimental/scripts/run.sh', content: b64('echo hi'), mode: '0755' },
+          {
+            path: 'wip-experimental/scripts/run.sh',
+            content: b64('echo hi'),
+            mode: '0755',
+          },
         ],
       });
 

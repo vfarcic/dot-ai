@@ -11,14 +11,19 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { mockGenerateText, mockCreateAnthropic, mockJsonSchema, mockTool, mockStepCountIs } =
-  vi.hoisted(() => ({
-    mockGenerateText: vi.fn(),
-    mockCreateAnthropic: vi.fn(),
-    mockJsonSchema: vi.fn((s: unknown) => s),
-    mockTool: vi.fn((t: unknown) => t),
-    mockStepCountIs: vi.fn((n: number) => ({ stepCount: n })),
-  }));
+const {
+  mockGenerateText,
+  mockCreateAnthropic,
+  mockJsonSchema,
+  mockTool,
+  mockStepCountIs,
+} = vi.hoisted(() => ({
+  mockGenerateText: vi.fn(),
+  mockCreateAnthropic: vi.fn(),
+  mockJsonSchema: vi.fn((s: unknown) => s),
+  mockTool: vi.fn((t: unknown) => t),
+  mockStepCountIs: vi.fn((n: number) => ({ stepCount: n })),
+}));
 
 vi.mock('ai', () => ({
   generateText: mockGenerateText,
@@ -62,9 +67,10 @@ describe('VercelProvider.sendMessage maxRetries wiring', () => {
     for (const k of RETRY_ENV_KEYS) delete process.env[k];
     vi.clearAllMocks();
 
-    mockCreateAnthropic.mockReturnValue(
-      () => ({ provider: 'anthropic', modelId: 'stub' })
-    );
+    mockCreateAnthropic.mockReturnValue(() => ({
+      provider: 'anthropic',
+      modelId: 'stub',
+    }));
     mockGenerateText.mockResolvedValue({
       text: 'ok',
       usage: { inputTokens: 1, outputTokens: 1 },

@@ -49,7 +49,9 @@ describe('PluginManager', () => {
     test('should return quickly when no plugins configured', async () => {
       await pluginManager.discoverPlugins([]);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('No plugins configured for discovery');
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'No plugins configured for discovery'
+      );
       expect(pluginManager.getPendingPlugins()).toHaveLength(0);
     });
   });
@@ -95,7 +97,11 @@ describe('PluginManager', () => {
 
   describe('invokeToolOnPlugin error handling', () => {
     test('should return error for unknown plugin', async () => {
-      const result = await pluginManager.invokeToolOnPlugin('unknown_plugin', 'some_tool', {});
+      const result = await pluginManager.invokeToolOnPlugin(
+        'unknown_plugin',
+        'some_tool',
+        {}
+      );
 
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('PLUGIN_NOT_AVAILABLE');

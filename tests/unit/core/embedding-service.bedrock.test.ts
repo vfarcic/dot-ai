@@ -12,11 +12,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createMockEmbeddingModel } from './_helpers/mock-embedding-model';
 
 // Hoisted mocks — factories run before module imports.
-const { mockCreateAmazonBedrock, mockFromNodeProviderChain } =
-  vi.hoisted(() => ({
+const { mockCreateAmazonBedrock, mockFromNodeProviderChain } = vi.hoisted(
+  () => ({
     mockCreateAmazonBedrock: vi.fn(),
     mockFromNodeProviderChain: vi.fn(),
-  }));
+  })
+);
 
 vi.mock('@ai-sdk/amazon-bedrock', () => ({
   createAmazonBedrock: mockCreateAmazonBedrock,
@@ -69,7 +70,7 @@ describe('VercelEmbeddingProvider — Amazon Bedrock credential chain (PRD #694)
     expect(mockCreateAmazonBedrock).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialProvider: sentinelProvider,
-      }),
+      })
     );
   });
 
@@ -90,7 +91,7 @@ describe('VercelEmbeddingProvider — Amazon Bedrock credential chain (PRD #694)
       expect.objectContaining({
         region: 'us-east-1',
         credentialProvider: sentinelProvider,
-      }),
+      })
     );
   });
 
@@ -112,7 +113,7 @@ describe('VercelEmbeddingProvider — Amazon Bedrock credential chain (PRD #694)
       expect.objectContaining({
         region: 'eu-west-1',
         credentialProvider: sentinelProvider,
-      }),
+      })
     );
   });
 

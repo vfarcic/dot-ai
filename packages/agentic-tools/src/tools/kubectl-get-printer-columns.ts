@@ -25,54 +25,92 @@ export const kubectlGetPrinterColumns: KubectlTool = {
       properties: {
         resourcePlural: {
           type: 'string',
-          description: 'Plural name of the resource (e.g., "deployments", "pods", "clusters")',
+          description:
+            'Plural name of the resource (e.g., "deployments", "pods", "clusters")',
         },
         apiVersion: {
           type: 'string',
-          description: 'Full API version (e.g., "apps/v1", "v1", "postgresql.cnpg.io/v1")',
+          description:
+            'Full API version (e.g., "apps/v1", "v1", "postgresql.cnpg.io/v1")',
         },
       },
       required: ['resourcePlural', 'apiVersion'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const resourcePlural = requireParam<string>(args, 'resourcePlural', 'kubectl_get_printer_columns');
-    const apiVersion = requireParam<string>(args, 'apiVersion', 'kubectl_get_printer_columns');
+  handler: withValidation(async args => {
+    const resourcePlural = requireParam<string>(
+      args,
+      'resourcePlural',
+      'kubectl_get_printer_columns'
+    );
+    const apiVersion = requireParam<string>(
+      args,
+      'apiVersion',
+      'kubectl_get_printer_columns'
+    );
 
     try {
       // First check if any resources exist
       let checkOutput = '';
       try {
-        checkOutput = await executeKubectl(['get', resourcePlural, '-o', 'name', '--all-namespaces']);
+        checkOutput = await executeKubectl([
+          'get',
+          resourcePlural,
+          '-o',
+          'name',
+          '--all-namespaces',
+        ]);
       } catch {
         checkOutput = '';
       }
 
       if (!checkOutput.trim()) {
         // No resources exist - try to get columns from CRD if it's a custom resource
-        if (apiVersion.includes('/') && apiVersion !== 'apps/v1' && apiVersion !== 'v1') {
+        if (
+          apiVersion.includes('/') &&
+          apiVersion !== 'apps/v1' &&
+          apiVersion !== 'v1'
+        ) {
           // It's a CRD - get printer columns from CRD spec
           const group = apiVersion.split('/')[0];
           const crdName = `${resourcePlural}.${group}`;
 
           try {
-            const crdOutput = await executeKubectl(['get', 'crd', crdName, '-o', 'json']);
+            const crdOutput = await executeKubectl([
+              'get',
+              'crd',
+              crdName,
+              '-o',
+              'json',
+            ]);
             const crd = JSON.parse(crdOutput);
 
             // Find the version spec
             const versions = crd.spec?.versions || [];
-            const versionSpec = versions.find((v: { name: string }) => `${group}/${v.name}` === apiVersion) || versions[0];
+            const versionSpec =
+              versions.find(
+                (v: { name: string }) => `${group}/${v.name}` === apiVersion
+              ) || versions[0];
 
-            const additionalColumns = versionSpec?.additionalPrinterColumns || [];
+            const additionalColumns =
+              versionSpec?.additionalPrinterColumns || [];
 
-            const columns = additionalColumns.map((col: { name: string; type?: string; jsonPath?: string; description?: string; priority?: number }) => ({
-              name: col.name,
-              type: col.type || 'string',
-              jsonPath: col.jsonPath || '',
-              description: col.description,
-              priority: col.priority,
-            }));
+            const columns = additionalColumns.map(
+              (col: {
+                name: string;
+                type?: string;
+                jsonPath?: string;
+                description?: string;
+                priority?: number;
+              }) => ({
+                name: col.name,
+                type: col.type || 'string',
+                jsonPath: col.jsonPath || '',
+                description: col.description,
+                priority: col.priority,
+              })
+            );
 
             return successResult(
               JSON.stringify(columns),
@@ -95,12 +133,21 @@ export const kubectlGetPrinterColumns: KubectlTool = {
       }
 
       // Resources exist - get column headers from table output
-      const headerOutput = await executeKubectl(['get', resourcePlural, '--all-namespaces', '-o', 'wide']);
+      const headerOutput = await executeKubectl([
+        'get',
+        resourcePlural,
+        '--all-namespaces',
+        '-o',
+        'wide',
+      ]);
       const lines = headerOutput.trim().split('\n');
 
       if (lines.length > 0) {
         // First line is headers
-        const headers = lines[0].split(/\s{2,}/).map((h: string) => h.trim()).filter((h: string) => h);
+        const headers = lines[0]
+          .split(/\s{2,}/)
+          .map((h: string) => h.trim())
+          .filter((h: string) => h);
 
         const columns = headers.map((name: string) => ({
           name,
@@ -122,7 +169,10 @@ export const kubectlGetPrinterColumns: KubectlTool = {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Failed to get printer columns for ${resourcePlural}: ${message}`);
+      return errorResult(
+        message,
+        `Failed to get printer columns for ${resourcePlural}: ${message}`
+      );
     }
   }),
 };

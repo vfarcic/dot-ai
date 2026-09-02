@@ -338,9 +338,9 @@ describe('ingestPromptsSource hardening (PRD #647 M4 + D5)', () => {
         mode: '0644',
       });
     }
-    expect(() =>
-      ingestPromptsSource({ source, files }, noopLogger)
-    ).toThrow(PromptsSourceValidationError);
+    expect(() => ingestPromptsSource({ source, files }, noopLogger)).toThrow(
+      PromptsSourceValidationError
+    );
     expect(getIngestedPromptsSources()).not.toContain(source);
   });
 

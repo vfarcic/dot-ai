@@ -30,11 +30,13 @@ export const kubectlPatchDryrun: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace. Required for namespaced resources.',
+          description:
+            'Kubernetes namespace. Required for namespaced resources.',
         },
         patch: {
           type: 'string',
-          description: 'The patch content in JSON format (e.g., \'{"spec":{"replicas":3}}\')',
+          description:
+            'The patch content in JSON format (e.g., \'{"spec":{"replicas":3}}\')',
         },
         patchType: {
           type: 'string',
@@ -46,10 +48,18 @@ export const kubectlPatchDryrun: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
-    const resource = requireParam<string>(args, 'resource', 'kubectl_patch_dryrun');
+  handler: withValidation(async args => {
+    const resource = requireParam<string>(
+      args,
+      'resource',
+      'kubectl_patch_dryrun'
+    );
     const patch = requireParam<string>(args, 'patch', 'kubectl_patch_dryrun');
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
     const patchType = optionalParam<string>(args, 'patchType', 'strategic');
 
     const cmdArgs = ['patch', resource, '--dry-run=server'];
@@ -71,7 +81,10 @@ export const kubectlPatchDryrun: KubectlTool = {
     try {
       const output = await executeKubectl(cmdArgs);
       const nsMessage = namespace ? ` in namespace ${namespace}` : '';
-      return successResult(output, `Dry-run validation successful for patch on ${resource}${nsMessage}`);
+      return successResult(
+        output,
+        `Dry-run validation successful for patch on ${resource}${nsMessage}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Dry-run patch failed: ${message}`);

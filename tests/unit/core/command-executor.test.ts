@@ -12,10 +12,13 @@ import { executeCommands } from '../../../src/core/command-executor';
 // Mock the plugin-registry module
 vi.mock('../../../src/core/plugin-registry', () => ({
   isPluginInitialized: vi.fn(),
-  invokePluginTool: vi.fn()
+  invokePluginTool: vi.fn(),
 }));
 
-import { isPluginInitialized, invokePluginTool } from '../../../src/core/plugin-registry';
+import {
+  isPluginInitialized,
+  invokePluginTool,
+} from '../../../src/core/plugin-registry';
 
 describe('CommandExecutor', () => {
   let mockLogger: {
@@ -31,7 +34,7 @@ describe('CommandExecutor', () => {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-      debug: vi.fn()
+      debug: vi.fn(),
     };
     // Default: plugin is initialized
     vi.mocked(isPluginInitialized).mockReturnValue(true);
@@ -56,14 +59,12 @@ describe('CommandExecutor', () => {
       // Mock successful plugin responses with data field
       vi.mocked(invokePluginTool).mockResolvedValue({
         success: true,
-        result: { data: 'output' }
+        result: { data: 'output' },
       });
 
-      await executeCommands(
-        ['echo hello', 'echo world'],
-        mockLogger as any,
-        { context: 'test' }
-      );
+      await executeCommands(['echo hello', 'echo world'], mockLogger as any, {
+        context: 'test',
+      });
 
       // Per-command logs should use DEBUG
       const debugCalls = mockLogger.debug.mock.calls;
@@ -82,14 +83,12 @@ describe('CommandExecutor', () => {
       // Mock successful plugin responses with data field
       vi.mocked(invokePluginTool).mockResolvedValue({
         success: true,
-        result: { data: 'output' }
+        result: { data: 'output' },
       });
 
-      await executeCommands(
-        ['echo hello', 'echo world'],
-        mockLogger as any,
-        { context: 'test execution' }
-      );
+      await executeCommands(['echo hello', 'echo world'], mockLogger as any, {
+        context: 'test execution',
+      });
 
       // Summary logs should use INFO
       const infoCalls = mockLogger.info.mock.calls;
@@ -114,18 +113,17 @@ describe('CommandExecutor', () => {
       // Mock successful plugin response with data field
       vi.mocked(invokePluginTool).mockResolvedValue({
         success: true,
-        result: { data: 'output' }
+        result: { data: 'output' },
       });
 
-      await executeCommands(
-        ['echo hello'],
-        mockLogger as any
-      );
+      await executeCommands(['echo hello'], mockLogger as any);
 
       // INFO should NOT contain per-command logs
       const infoCalls = mockLogger.info.mock.calls;
-      const perCommandInfoLogs = infoCalls.filter((call: any[]) =>
-        call[0]?.includes('Executing command') || call[0]?.includes('Command 1 succeeded')
+      const perCommandInfoLogs = infoCalls.filter(
+        (call: any[]) =>
+          call[0]?.includes('Executing command') ||
+          call[0]?.includes('Command 1 succeeded')
       );
 
       expect(perCommandInfoLogs.length).toBe(0);
@@ -137,7 +135,7 @@ describe('CommandExecutor', () => {
       // Mock successful plugin response with data field
       vi.mocked(invokePluginTool).mockResolvedValue({
         success: true,
-        result: { data: 'output' }
+        result: { data: 'output' },
       });
 
       const { results, overallSuccess } = await executeCommands(
@@ -154,7 +152,10 @@ describe('CommandExecutor', () => {
     test('should continue on error and report failures', async () => {
       vi.mocked(invokePluginTool)
         .mockResolvedValueOnce({ success: true, result: { data: 'first' } })
-        .mockResolvedValueOnce({ success: false, error: { message: 'command failed' } })
+        .mockResolvedValueOnce({
+          success: false,
+          error: { message: 'command failed' },
+        })
         .mockResolvedValueOnce({ success: true, result: { data: 'third' } });
 
       const { results, overallSuccess } = await executeCommands(
@@ -173,13 +174,10 @@ describe('CommandExecutor', () => {
     test('should invoke plugin with correct tool name and arguments', async () => {
       vi.mocked(invokePluginTool).mockResolvedValue({
         success: true,
-        result: { data: 'output' }
+        result: { data: 'output' },
       });
 
-      await executeCommands(
-        ['kubectl get pods'],
-        mockLogger as any
-      );
+      await executeCommands(['kubectl get pods'], mockLogger as any);
 
       expect(invokePluginTool).toHaveBeenCalledWith(
         'agentic-tools',

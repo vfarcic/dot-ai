@@ -121,11 +121,7 @@ describe('extractPromptsOverride', () => {
     });
 
     test('branch with slashes/dots is preserved', () => {
-      const result = extractPromptsOverride(
-        REPO,
-        undefined,
-        'release/v1.2.3'
-      );
+      const result = extractPromptsOverride(REPO, undefined, 'release/v1.2.3');
       expect(result).toMatchObject({
         ok: true,
         override: { repoUrl: REPO, branch: 'release/v1.2.3' },
@@ -301,7 +297,12 @@ describe('extractPromptsOverride', () => {
 
   describe('credential header threading (PRD #621 M2)', () => {
     test('gitToken → override.gitToken when a repo override is present', () => {
-      const result = extractPromptsOverride(REPO, undefined, undefined, 'tok123');
+      const result = extractPromptsOverride(
+        REPO,
+        undefined,
+        undefined,
+        'tok123'
+      );
       expect(result).toEqual({
         ok: true,
         override: { repoUrl: REPO, gitToken: 'tok123' },
@@ -322,7 +323,12 @@ describe('extractPromptsOverride', () => {
     });
 
     test('absent gitToken → no gitToken key (repoUrl only)', () => {
-      const result = extractPromptsOverride(REPO, undefined, undefined, undefined);
+      const result = extractPromptsOverride(
+        REPO,
+        undefined,
+        undefined,
+        undefined
+      );
       expect(result).toEqual({ ok: true, override: { repoUrl: REPO } });
     });
 
@@ -330,12 +336,22 @@ describe('extractPromptsOverride', () => {
     // with NO ?repo= override must NOT create an override — the env-var path is
     // untouched and the token is dropped before it is ever read.
     test('gitToken with no repo (null) → override undefined (header is inert)', () => {
-      const result = extractPromptsOverride(null, undefined, undefined, 'tok123');
+      const result = extractPromptsOverride(
+        null,
+        undefined,
+        undefined,
+        'tok123'
+      );
       expect(result).toEqual({ ok: true, override: undefined });
     });
 
     test('gitToken with empty repo → override undefined (header is inert)', () => {
-      const result = extractPromptsOverride('   ', undefined, undefined, 'tok123');
+      const result = extractPromptsOverride(
+        '   ',
+        undefined,
+        undefined,
+        'tok123'
+      );
       expect(result).toEqual({ ok: true, override: undefined });
     });
   });
@@ -353,7 +369,10 @@ describe('extractPromptsOverride', () => {
       // clone-qualifying params do not apply.
       expect(result).toEqual({
         ok: true,
-        override: { repoUrl: 'local:team-dev', ingestedSource: 'local:team-dev' },
+        override: {
+          repoUrl: 'local:team-dev',
+          ingestedSource: 'local:team-dev',
+        },
       });
     });
 
@@ -367,7 +386,10 @@ describe('extractPromptsOverride', () => {
       );
       expect(result).toEqual({
         ok: true,
-        override: { repoUrl: 'local:team-dev', ingestedSource: 'local:team-dev' },
+        override: {
+          repoUrl: 'local:team-dev',
+          ingestedSource: 'local:team-dev',
+        },
       });
     });
 

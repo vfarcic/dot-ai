@@ -740,8 +740,7 @@ describe('Prompts Integration', () => {
     const gitToken = process.env.DOT_AI_GIT_TOKEN;
     // Must match DOT_AI_USER_PROMPTS_REPO from the integration infra so the
     // override changes only branch/subPath (not repoUrl) vs. the env config.
-    const promptsRepoUrl =
-      'https://github.com/vfarcic/dot-ai-test-prompts.git';
+    const promptsRepoUrl = 'https://github.com/vfarcic/dot-ai-test-prompts.git';
     const ghRepoApi =
       'https://api.github.com/repos/vfarcic/dot-ai-test-prompts';
 
@@ -1127,8 +1126,7 @@ describe('Prompts Integration', () => {
   //     redirecting git host — not available; unit-test the auth/redirect path.
   //   - LOG scrubbing (token absent from server logs): logs are not HTTP-observable.
   describe('Per-request credential header + backward-compat parity (PRD #621 M2/M3/M4)', () => {
-    const promptsRepoUrl =
-      'https://github.com/vfarcic/dot-ai-test-prompts.git';
+    const promptsRepoUrl = 'https://github.com/vfarcic/dot-ai-test-prompts.git';
     const gitToken = process.env.DOT_AI_GIT_TOKEN;
 
     // Retry an equality/presence assertion to absorb a transient concurrent
@@ -1494,7 +1492,8 @@ describe('Prompts Integration', () => {
     // just that the built-in/env set came back.
     const skillName = `wip-experimental-${runId}`;
     const argName = 'targetName';
-    const argDescription = 'The resource to deploy (substituted at render time)';
+    const argDescription =
+      'The resource to deploy (substituted at render time)';
     const description =
       'PRD 647 list-by-source fixture — a genuinely novel skill the CLI must enumerate';
 
@@ -1641,7 +1640,8 @@ describe('Prompts Integration', () => {
     // is kept comfortably below this value.
     const INGEST_MAX_RAW_BODY_BYTES = 512 * 1024; // 512 KiB
 
-    const b64 = (s: string): string => Buffer.from(s, 'utf-8').toString('base64');
+    const b64 = (s: string): string =>
+      Buffer.from(s, 'utf-8').toString('base64');
     const sha256 = (s: string): string =>
       `sha256:${createHash('sha256').update(s, 'utf-8').digest('hex')}`;
 
@@ -1676,7 +1676,9 @@ describe('Prompts Integration', () => {
         {
           source,
           contentHash: hash1,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' }],
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' },
+          ],
         }
       );
       expect(first).toMatchObject({
@@ -1693,7 +1695,9 @@ describe('Prompts Integration', () => {
         {
           source,
           contentHash: hash1,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' }],
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' },
+          ],
         }
       );
       expect(second).toMatchObject({
@@ -1710,7 +1714,9 @@ describe('Prompts Integration', () => {
         {
           source,
           contentHash: hash2,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(md2), mode: '0644' }],
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(md2), mode: '0644' },
+          ],
         }
       );
       expect(third).toMatchObject({
@@ -1814,10 +1820,18 @@ describe('Prompts Integration', () => {
       // One valid skill + enough padding files to exceed the count cap. Each file
       // is tiny, so the total payload is small (count, not size, is the trigger).
       const files = [
-        { path: `${skill}/SKILL.md`, content: b64(skillMd(skill)), mode: '0644' },
+        {
+          path: `${skill}/SKILL.md`,
+          content: b64(skillMd(skill)),
+          mode: '0644',
+        },
       ];
       for (let i = 0; i < MAX_INGEST_FILES + 50; i++) {
-        files.push({ path: `pad/file-${i}.txt`, content: b64('x'), mode: '0644' });
+        files.push({
+          path: `pad/file-${i}.txt`,
+          content: b64('x'),
+          mode: '0644',
+        });
       }
       expect(files.length).toBeGreaterThan(MAX_INGEST_FILES);
 
@@ -1849,7 +1863,9 @@ describe('Prompts Integration', () => {
         '/api/v1/prompts/sources',
         {
           source: traversalSource,
-          files: [{ path: '../escape/SKILL.md', content: b64('hi'), mode: '0644' }],
+          files: [
+            { path: '../escape/SKILL.md', content: b64('hi'), mode: '0644' },
+          ],
         }
       );
       expect(traversal).toMatchObject({
@@ -2056,7 +2072,9 @@ describe('Prompts Integration', () => {
         '/api/v1/prompts/sources',
         {
           source,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(good), mode: '0644' }],
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(good), mode: '0644' },
+          ],
         }
       );
       expect(seed).toMatchObject({
@@ -2079,7 +2097,11 @@ describe('Prompts Integration', () => {
         {
           source,
           files: [
-            { path: `${skill}/evil${'\0'}.md`, content: b64('pwned'), mode: '0644' },
+            {
+              path: `${skill}/evil${'\0'}.md`,
+              content: b64('pwned'),
+              mode: '0644',
+            },
           ],
         }
       );
@@ -2124,7 +2146,11 @@ describe('Prompts Integration', () => {
         {
           source,
           files: [
-            { path: `${skill}/SKILL.md`, content: 'not!valid!base64!', mode: '0644' },
+            {
+              path: `${skill}/SKILL.md`,
+              content: 'not!valid!base64!',
+              mode: '0644',
+            },
           ],
         }
       );
@@ -2161,7 +2187,13 @@ describe('Prompts Integration', () => {
         '/api/v1/prompts/sources',
         {
           source: credSource,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(skillMd(skill)), mode: '0644' }],
+          files: [
+            {
+              path: `${skill}/SKILL.md`,
+              content: b64(skillMd(skill)),
+              mode: '0644',
+            },
+          ],
         }
       );
       // The echoed source is the scrubbed form, and the token leaks nowhere.

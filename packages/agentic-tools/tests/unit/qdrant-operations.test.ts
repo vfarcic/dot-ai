@@ -45,7 +45,10 @@ describe('Qdrant Operations', () => {
   beforeEach(() => {
     mockClient = createMockClient();
     mockGetQdrantClient.mockReturnValue(mockClient as any);
-    mockGetQdrantConfig.mockReturnValue({ url: 'http://localhost:6333', hasApiKey: false });
+    mockGetQdrantConfig.mockReturnValue({
+      url: 'http://localhost:6333',
+      hasApiKey: false,
+    });
   });
 
   afterEach(() => {
@@ -74,7 +77,13 @@ describe('Qdrant Operations', () => {
     });
 
     it('should respect wait option', async () => {
-      await operations.store('collection', 'id', [0.1], { key: 'value' }, { wait: false });
+      await operations.store(
+        'collection',
+        'id',
+        [0.1],
+        { key: 'value' },
+        { wait: false }
+      );
 
       expect(mockClient.upsert).toHaveBeenCalledWith(
         'collection',
@@ -83,9 +92,9 @@ describe('Qdrant Operations', () => {
     });
 
     it('should throw error if embedding is empty', async () => {
-      await expect(operations.store('collection', 'id', [], { key: 'value' })).rejects.toThrow(
-        'Vector embedding is required'
-      );
+      await expect(
+        operations.store('collection', 'id', [], { key: 'value' })
+      ).rejects.toThrow('Vector embedding is required');
     });
   });
 
@@ -106,7 +115,11 @@ describe('Qdrant Operations', () => {
         with_payload: true,
       });
       expect(results).toHaveLength(2);
-      expect(results[0]).toEqual({ id: 'doc-1', score: 0.95, payload: { name: 'match1' } });
+      expect(results[0]).toEqual({
+        id: 'doc-1',
+        score: 0.95,
+        payload: { name: 'match1' },
+      });
     });
 
     it('should apply custom options', async () => {
@@ -136,7 +149,9 @@ describe('Qdrant Operations', () => {
       ];
       mockClient.scroll.mockResolvedValue({ points: mockPoints });
 
-      const filter = { must: [{ key: 'type', match: { value: 'capability' } }] };
+      const filter = {
+        must: [{ key: 'type', match: { value: 'capability' } }],
+      };
       const results = await operations.query('collection', filter);
 
       expect(mockClient.scroll).toHaveBeenCalledWith('collection', {
@@ -283,10 +298,14 @@ describe('Qdrant Operations', () => {
         collections: [{ name: 'collection' }],
       });
       mockClient.scroll.mockResolvedValue({
-        points: [{ id: 'doc-1', payload: { name: 'item1' }, vector: [0.1, 0.2] }],
+        points: [
+          { id: 'doc-1', payload: { name: 'item1' }, vector: [0.1, 0.2] },
+        ],
       });
 
-      const results = await operations.list('collection', { includeVector: true });
+      const results = await operations.list('collection', {
+        includeVector: true,
+      });
 
       expect(mockClient.scroll).toHaveBeenCalledWith(
         'collection',
@@ -310,18 +329,23 @@ describe('Qdrant Operations', () => {
     it('should create new collection if not exists', async () => {
       mockClient.getCollections.mockResolvedValue({ collections: [] });
 
-      await operations.initializeCollection('new-collection', { vectorSize: 1536 });
-
-      expect(mockClient.createCollection).toHaveBeenCalledWith('new-collection', {
-        vectors: {
-          size: 1536,
-          distance: 'Cosine',
-          on_disk: true,
-        },
-        optimizers_config: {
-          default_segment_number: 2,
-        },
+      await operations.initializeCollection('new-collection', {
+        vectorSize: 1536,
       });
+
+      expect(mockClient.createCollection).toHaveBeenCalledWith(
+        'new-collection',
+        {
+          vectors: {
+            size: 1536,
+            distance: 'Cosine',
+            on_disk: true,
+          },
+          optimizers_config: {
+            default_segment_number: 2,
+          },
+        }
+      );
     });
 
     it('should skip creation if collection exists with same dimensions', async () => {
@@ -426,7 +450,9 @@ describe('Qdrant Operations', () => {
     });
 
     it('should return false when Qdrant is unavailable', async () => {
-      mockClient.getCollections.mockRejectedValue(new Error('Connection refused'));
+      mockClient.getCollections.mockRejectedValue(
+        new Error('Connection refused')
+      );
 
       const result = await operations.healthCheck();
 
@@ -461,8 +487,12 @@ describe('Qdrant Client (integration)', () => {
 
   it('should export required functions', () => {
     // Verify the mock returns expected functions
-    const { getQdrantClient, resetQdrantClient, isClientInitialized, getQdrantConfig } =
-      clientModule;
+    const {
+      getQdrantClient,
+      resetQdrantClient,
+      isClientInitialized,
+      getQdrantConfig,
+    } = clientModule;
 
     expect(typeof getQdrantClient).toBe('function');
     expect(typeof resetQdrantClient).toBe('function');

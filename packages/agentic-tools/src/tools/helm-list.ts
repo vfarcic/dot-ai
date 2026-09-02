@@ -25,25 +25,36 @@ export const helmList: KubectlTool = {
       properties: {
         namespace: {
           type: 'string',
-          description: 'Namespace to list releases from. Omit for all namespaces.',
+          description:
+            'Namespace to list releases from. Omit for all namespaces.',
         },
         filter: {
           type: 'string',
-          description: 'Filter releases by name using a regex pattern (optional)',
+          description:
+            'Filter releases by name using a regex pattern (optional)',
         },
         allNamespaces: {
           type: 'boolean',
-          description: 'List releases across all namespaces (default: true when no namespace specified)',
+          description:
+            'List releases across all namespaces (default: true when no namespace specified)',
         },
       },
       required: [],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+  handler: withValidation(async args => {
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
     const filter = optionalParam<string | undefined>(args, 'filter', undefined);
-    const allNamespaces = optionalParam<boolean | undefined>(args, 'allNamespaces', undefined);
+    const allNamespaces = optionalParam<boolean | undefined>(
+      args,
+      'allNamespaces',
+      undefined
+    );
 
     const cmdArgs = ['list', '-o', 'json'];
 
@@ -63,10 +74,7 @@ export const helmList: KubectlTool = {
       });
 
       const releaseCount = output ? JSON.parse(output).length : 0;
-      return successResult(
-        output,
-        `Found ${releaseCount} Helm release(s)`
-      );
+      return successResult(output, `Found ${releaseCount} Helm release(s)`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Failed to list Helm releases: ${message}`);

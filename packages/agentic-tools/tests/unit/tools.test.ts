@@ -20,7 +20,7 @@ vi.mock('../../src/tools/base', async () => {
 
 describe('Tool Definitions', () => {
   it('should have all required kubectl tools', () => {
-    const toolNames = TOOLS.map((t) => t.name);
+    const toolNames = TOOLS.map(t => t.name);
 
     expect(toolNames).toContain('kubectl_api_resources');
     expect(toolNames).toContain('kubectl_get');
@@ -87,7 +87,9 @@ describe('Tool Handlers', () => {
 
   describe('kubectl_api_resources', () => {
     it('should call kubectl api-resources', async () => {
-      mockExecuteKubectl.mockResolvedValue('NAME SHORTNAMES APIVERSION NAMESPACED KIND');
+      mockExecuteKubectl.mockResolvedValue(
+        'NAME SHORTNAMES APIVERSION NAMESPACED KIND'
+      );
 
       const handler = TOOL_HANDLERS['kubectl_api_resources'];
       const result = await handler({});
@@ -130,7 +132,12 @@ describe('Tool Handlers', () => {
       const handler = TOOL_HANDLERS['kubectl_get'];
       await handler({ resource: 'pods', namespace: 'kube-system' });
 
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(['get', 'pods', '-n', 'kube-system']);
+      expect(mockExecuteKubectl).toHaveBeenCalledWith([
+        'get',
+        'pods',
+        '-n',
+        'kube-system',
+      ]);
     });
 
     it('should strip output format args', async () => {
@@ -142,7 +149,11 @@ describe('Tool Handlers', () => {
         args: ['--selector=app=test', '-o=json', '--output=yaml'],
       });
 
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(['get', 'pods', '--selector=app=test']);
+      expect(mockExecuteKubectl).toHaveBeenCalledWith([
+        'get',
+        'pods',
+        '--selector=app=test',
+      ]);
     });
   });
 
@@ -161,9 +172,17 @@ describe('Tool Handlers', () => {
       mockExecuteKubectl.mockResolvedValue('Name: my-pod\nNamespace: default');
 
       const handler = TOOL_HANDLERS['kubectl_describe'];
-      const result = await handler({ resource: 'pod/my-pod', namespace: 'default' });
+      const result = await handler({
+        resource: 'pod/my-pod',
+        namespace: 'default',
+      });
 
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(['describe', 'pod/my-pod', '-n', 'default']);
+      expect(mockExecuteKubectl).toHaveBeenCalledWith([
+        'describe',
+        'pod/my-pod',
+        '-n',
+        'default',
+      ]);
       expect(result).toMatchObject({
         success: true,
       });
@@ -193,7 +212,12 @@ describe('Tool Handlers', () => {
       const handler = TOOL_HANDLERS['kubectl_logs'];
       await handler({ resource: 'my-pod', namespace: 'default' });
 
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(['logs', 'my-pod', '-n', 'default']);
+      expect(mockExecuteKubectl).toHaveBeenCalledWith([
+        'logs',
+        'my-pod',
+        '-n',
+        'default',
+      ]);
     });
 
     it('should pass additional args', async () => {
@@ -233,7 +257,12 @@ describe('Tool Handlers', () => {
       const handler = TOOL_HANDLERS['kubectl_events'];
       await handler({ namespace: 'kube-system' });
 
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(['get', 'events', '-n', 'kube-system']);
+      expect(mockExecuteKubectl).toHaveBeenCalledWith([
+        'get',
+        'events',
+        '-n',
+        'kube-system',
+      ]);
     });
   });
 
@@ -255,7 +284,9 @@ describe('Tool Handlers', () => {
     });
 
     it('should call kubectl patch with dry-run', async () => {
-      mockExecuteKubectl.mockResolvedValue('deployment.apps/my-app patched (dry run)');
+      mockExecuteKubectl.mockResolvedValue(
+        'deployment.apps/my-app patched (dry run)'
+      );
 
       const handler = TOOL_HANDLERS['kubectl_patch_dryrun'];
       await handler({
@@ -305,7 +336,8 @@ describe('Tool Handlers', () => {
     it('should call kubectl apply with dry-run and stdin', async () => {
       mockExecuteKubectl.mockResolvedValue('configmap/test created (dry run)');
 
-      const manifest = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test';
+      const manifest =
+        'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test';
       const handler = TOOL_HANDLERS['kubectl_apply_dryrun'];
       await handler({ manifest });
 
@@ -355,7 +387,9 @@ describe('Tool Handlers', () => {
     });
 
     it('should call kubectl get crd with json output', async () => {
-      mockExecuteKubectl.mockResolvedValue('{"apiVersion":"apiextensions.k8s.io/v1"}');
+      mockExecuteKubectl.mockResolvedValue(
+        '{"apiVersion":"apiextensions.k8s.io/v1"}'
+      );
 
       const handler = TOOL_HANDLERS['kubectl_get_crd_schema'];
       await handler({ crdName: 'clusters.postgresql.cnpg.io' });
@@ -382,11 +416,18 @@ describe('Tool Handlers', () => {
     });
 
     it('should return full resource as JSON', async () => {
-      const mockResource = { apiVersion: 'v1', kind: 'Pod', metadata: { name: 'test' } };
+      const mockResource = {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'test' },
+      };
       mockExecuteKubectl.mockResolvedValue(JSON.stringify(mockResource));
 
       const handler = TOOL_HANDLERS['kubectl_get_resource_json'];
-      const result = await handler({ resource: 'pod/test', namespace: 'default' });
+      const result = await handler({
+        resource: 'pod/test',
+        namespace: 'default',
+      });
 
       expect(mockExecuteKubectl).toHaveBeenCalledWith([
         'get',
@@ -412,7 +453,10 @@ describe('Tool Handlers', () => {
       mockExecuteKubectl.mockResolvedValue(JSON.stringify(mockResource));
 
       const handler = TOOL_HANDLERS['kubectl_get_resource_json'];
-      const result = (await handler({ resource: 'pod/test', field: 'spec' })) as {
+      const result = (await handler({
+        resource: 'pod/test',
+        field: 'spec',
+      })) as {
         success: boolean;
         data: string;
       };
@@ -427,7 +471,10 @@ describe('Tool Handlers', () => {
       mockExecuteKubectl.mockResolvedValue(JSON.stringify(mockResource));
 
       const handler = TOOL_HANDLERS['kubectl_get_resource_json'];
-      const result = await handler({ resource: 'pod/test', field: 'nonexistent' });
+      const result = await handler({
+        resource: 'pod/test',
+        field: 'nonexistent',
+      });
 
       expect(result).toMatchObject({
         success: false,
@@ -447,7 +494,10 @@ describe('Tool Handlers', () => {
       const handler = TOOL_HANDLERS['kubectl_version'];
       const result = await handler({});
 
-      expect(mockExecuteKubectl).toHaveBeenCalledWith(['version', '--output=json']);
+      expect(mockExecuteKubectl).toHaveBeenCalledWith([
+        'version',
+        '--output=json',
+      ]);
       expect(result).toMatchObject({
         success: true,
         data: expect.stringContaining('serverVersion'),
@@ -483,7 +533,9 @@ describe('Base utilities', () => {
 
     it('should quote strings with special characters', () => {
       expect(base.escapeShellArg('hello world')).toBe('"hello world"');
-      expect(base.escapeShellArg('{"key":"value"}')).toBe('"{\\"key\\":\\"value\\"}"');
+      expect(base.escapeShellArg('{"key":"value"}')).toBe(
+        '"{\\"key\\":\\"value\\"}"'
+      );
     });
 
     it('should handle empty strings', () => {
@@ -493,7 +545,12 @@ describe('Base utilities', () => {
 
   describe('stripOutputFormatArgs', () => {
     it('should remove output format flags', () => {
-      const args = ['--selector=app=test', '-o=json', '--output=yaml', '--show-labels'];
+      const args = [
+        '--selector=app=test',
+        '-o=json',
+        '--output=yaml',
+        '--show-labels',
+      ];
       const result = base.stripOutputFormatArgs(args);
 
       expect(result).toEqual(['--selector=app=test', '--show-labels']);

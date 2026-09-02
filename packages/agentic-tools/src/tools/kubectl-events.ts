@@ -23,7 +23,8 @@ export const kubectlEvents: KubectlTool = {
       properties: {
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace to get events from. Omit for cluster-wide events.',
+          description:
+            'Kubernetes namespace to get events from. Omit for cluster-wide events.',
         },
         args: {
           type: 'array',
@@ -36,8 +37,12 @@ export const kubectlEvents: KubectlTool = {
     },
   },
 
-  handler: async (args) => {
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+  handler: async args => {
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
     const extraArgs = optionalParam<string[]>(args, 'args', []);
 
     const cmdArgs = ['get', 'events'];
@@ -50,7 +55,9 @@ export const kubectlEvents: KubectlTool = {
 
     try {
       const output = await executeKubectl(cmdArgs);
-      const nsMessage = namespace ? ` in namespace ${namespace}` : ' (cluster-wide)';
+      const nsMessage = namespace
+        ? ` in namespace ${namespace}`
+        : ' (cluster-wide)';
       return successResult(output, `Successfully retrieved events${nsMessage}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

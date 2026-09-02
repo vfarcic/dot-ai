@@ -30,7 +30,7 @@ describe.concurrent('Impact Analysis Tool Integration', () => {
       try {
         execSync(`kubectl create namespace ${ns}`, {
           env: { ...process.env, KUBECONFIG: kubeconfig },
-          stdio: 'pipe'
+          stdio: 'pipe',
         });
       } catch {
         // Ignore if already exists
@@ -55,7 +55,7 @@ spec:
     try {
       execSync(`echo '${cnpgClusterYaml}' | kubectl apply -f -`, {
         env: { ...process.env, KUBECONFIG: kubeconfig },
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
     } catch {
       // Ignore if CNPG CRD not ready
@@ -87,7 +87,7 @@ spec:
     try {
       execSync(`echo '${argoAppYaml}' | kubectl apply -f -`, {
         env: { ...process.env, KUBECONFIG: kubeconfig },
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
     } catch {
       // Ignore if Argo CD not ready
@@ -132,7 +132,7 @@ spec:
       '/api/v1/tools/impact_analysis',
       {
         input: `kubectl delete cluster test-pg -n ${testNamespace}`,
-        interaction_id: 'impact_kubectl_delete_cluster'
+        interaction_id: 'impact_kubectl_delete_cluster',
       }
     );
 
@@ -148,14 +148,16 @@ spec:
           safe: expect.any(Boolean),
           summary: expect.stringMatching(/test-pg/i),
           sessionId: expect.stringMatching(/^imp-\d+-[a-f0-9]+$/),
-          agentInstructions: expect.any(String)
-        }
+          agentInstructions: expect.any(String),
+        },
       },
       meta: {
-        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+        ),
         requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     });
 
     // Deleting parent Cluster should surface child resources
@@ -171,7 +173,7 @@ spec:
       '/api/v1/tools/impact_analysis',
       {
         input: `I want to delete the persistent volume claim used by the test-pg postgres database in the ${testNamespace} namespace`,
-        interaction_id: 'impact_text_delete_pvc'
+        interaction_id: 'impact_text_delete_pvc',
       }
     );
 
@@ -185,14 +187,16 @@ spec:
           safe: expect.any(Boolean),
           summary: expect.stringMatching(/test-pg/i),
           sessionId: expect.stringMatching(/^imp-\d+-[a-f0-9]+$/),
-          agentInstructions: expect.any(String)
-        }
+          agentInstructions: expect.any(String),
+        },
       },
       meta: {
-        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+        ),
         requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     });
 
     // Deleting child PVC should trace upward to parent Cluster and sibling resources
@@ -208,7 +212,7 @@ spec:
       '/api/v1/tools/impact_analysis',
       {
         input: `In repo ${testRepoUrl}, the file ${fixturePath}/cluster.yaml will be changed to set spec.instances from 2 to 1.`,
-        interaction_id: 'impact_gitops_scale_down'
+        interaction_id: 'impact_gitops_scale_down',
       }
     );
 
@@ -224,14 +228,16 @@ spec:
           safe: expect.any(Boolean),
           summary: expect.stringMatching(/gitops-pg/i),
           sessionId: expect.stringMatching(/^imp-\d+-[a-f0-9]+$/),
-          agentInstructions: expect.any(String)
-        }
+          agentInstructions: expect.any(String),
+        },
       },
       meta: {
-        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+        ),
         requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     });
 
     // Scaling from 2→1 should mention replica/instance impact and HA considerations
@@ -245,7 +251,7 @@ spec:
     const response = await integrationTest.httpClient.post(
       '/api/v1/tools/impact_analysis',
       {
-        interaction_id: 'impact_error_missing_input'
+        interaction_id: 'impact_error_missing_input',
       }
     );
 
@@ -253,13 +259,15 @@ spec:
       success: false,
       error: {
         code: 'EXECUTION_ERROR',
-        message: expect.stringContaining('Input is required')
+        message: expect.stringContaining('Input is required'),
       },
       meta: {
-        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        timestamp: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+        ),
         requestId: expect.stringMatching(/^rest_\d+_\d+$/),
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     });
   }, 30000);
 });

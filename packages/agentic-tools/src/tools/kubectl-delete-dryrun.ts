@@ -30,16 +30,25 @@ export const kubectlDeleteDryrun: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace. Required for namespaced resources.',
+          description:
+            'Kubernetes namespace. Required for namespaced resources.',
         },
       },
       required: ['resource'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const resource = requireParam<string>(args, 'resource', 'kubectl_delete_dryrun');
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+  handler: withValidation(async args => {
+    const resource = requireParam<string>(
+      args,
+      'resource',
+      'kubectl_delete_dryrun'
+    );
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
 
     const cmdArgs = ['delete', resource, '--dry-run=server'];
 
@@ -50,7 +59,10 @@ export const kubectlDeleteDryrun: KubectlTool = {
     try {
       const output = await executeKubectl(cmdArgs);
       const nsMessage = namespace ? ` in namespace ${namespace}` : '';
-      return successResult(output, `Dry-run validation successful for delete on ${resource}${nsMessage}`);
+      return successResult(
+        output,
+        `Dry-run validation successful for delete on ${resource}${nsMessage}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Dry-run delete failed: ${message}`);

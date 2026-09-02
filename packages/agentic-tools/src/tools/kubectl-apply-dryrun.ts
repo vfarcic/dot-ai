@@ -37,9 +37,17 @@ export const kubectlApplyDryrun: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
-    const manifest = requireParam<string>(args, 'manifest', 'kubectl_apply_dryrun');
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+  handler: withValidation(async args => {
+    const manifest = requireParam<string>(
+      args,
+      'manifest',
+      'kubectl_apply_dryrun'
+    );
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
 
     const cmdArgs = ['apply', '--dry-run=server', '-f', '-'];
 
@@ -50,7 +58,10 @@ export const kubectlApplyDryrun: KubectlTool = {
     try {
       const output = await executeKubectl(cmdArgs, { stdin: manifest });
       const nsMessage = namespace ? ` in namespace ${namespace}` : '';
-      return successResult(output, `Dry-run validation successful for apply${nsMessage}`);
+      return successResult(
+        output,
+        `Dry-run validation successful for apply${nsMessage}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Dry-run apply failed: ${message}`);
