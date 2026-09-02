@@ -96,6 +96,7 @@ function fixTestPort(
 }
 
 describe.concurrent('Authentication Integration', () => {
+  const integrationTest = new IntegrationTest();
   const unauthenticatedClient = new HttpRestApiClient();
   const badTokenClient = new HttpRestApiClient({
     headers: { Authorization: 'Bearer wrong-token-value' },
@@ -130,6 +131,18 @@ describe.concurrent('Authentication Integration', () => {
         },
       });
     });
+
+    test('should reject unauthenticated readiness checks when auth is enabled', async () => {
+      const response = await unauthenticatedClient.get('/readyz');
+
+      expect(response).toMatchObject({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: expect.stringContaining('Authentication required'),
+        },
+      });
+    });
   });
 
   describe('Public Endpoints', () => {
@@ -139,6 +152,24 @@ describe.concurrent('Authentication Integration', () => {
       expect(response).toMatchObject({
         success: true,
         data: { status: 'ok' },
+      });
+    });
+
+  });
+
+  describe('Readiness Endpoint', () => {
+    test('should allow authenticated access and report scan readiness', async () => {
+      const response = await integrationTest.httpClient.get('/readyz');
+
+      expect(response).toMatchObject({
+        success: true,
+        data: {
+          ready: true,
+          vectorDBHealthy: true,
+          collectionAccessible: true,
+          embeddingsRequired: true,
+          embeddingHealthy: true,
+        },
       });
     });
   });

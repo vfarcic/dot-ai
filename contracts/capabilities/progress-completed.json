@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "data": {
+    "result": {
+      "success": true,
+      "operation": "progress",
+      "dataType": "capabilities",
+      "sessionId": "cap-scan-contract",
+      "progress": {
+        "status": "completed",
+        "current": 2,
+        "total": 2,
+        "percentage": 100,
+        "currentResource": "resourcegroups.azure.upbound.io",
+        "startedAt": "2024-01-01T00:00:00.000Z",
+        "lastUpdated": "2024-01-01T00:00:00.000Z",
+        "completedAt": "2024-01-01T00:00:00.000Z",
+        "totalProcessingTime": "3s"
+      },
+      "sessionInfo": {
+        "currentStep": "complete",
+        "processingMode": "auto",
+        "resourceCount": "all resources",
+        "startedAt": "2024-01-01T00:00:00.000Z",
+        "lastActivity": "2024-01-01T00:00:00.000Z"
+      },
+      "message": "Capability scan completed successfully",
+      "display": {
+        "summary": "✅ Scan complete: processed 2 resources in 3s",
+        "currentResource": "resourcegroups.azure.upbound.io",
+        "timeline": {
+          "started": "2024-01-01T00:00:00.000Z",
+          "lastUpdate": "2024-01-01T00:00:00.000Z",
+          "completed": "2024-01-01T00:00:00.000Z"
+        }
+      },
+      "clientInstructions": {
+        "behavior": "Display capability scan progress in a clean, readable format",
+        "requirement": "Show progress information in separate lines, not as a single condensed line",
+        "format": "Completion format: Status, total processed, processing time on separate lines",
+        "example": "✅ Capability Scan Complete\n📊 Processed: X resources\n⏰ Processing time: X minutes",
+        "prohibit": "Do not display all progress information on a single line"
+      }
+    },
+    "tool": "manageOrgData",
+    "executionTime": 0
+  },
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00.000Z",
+    "requestId": "contract-fixture",
+    "version": "0.0.0-contract"
+  }
+}

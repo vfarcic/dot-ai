@@ -21,7 +21,8 @@
       "[ -f .env ] && source ./.env || true"
     ],
     "scripts": {
-      "agent": ["claude"],
+      "agent":        ["claude"],
+      "agent-oc":     ["opencode"],
       "agent-tester": ["claude"],
       "agent-medium": ["claude --model sonnet"]
     }

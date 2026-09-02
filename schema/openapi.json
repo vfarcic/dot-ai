@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "2.2.1",
+    "version": "2.2.2",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -287,6 +287,7 @@
                 "response": "example response",
                 "id": "example id",
                 "limit": 42,
+                "identityOnly": false,
                 "resource": {
                   "kind": "example kind",
                   "group": "example group",
@@ -2844,8 +2845,14 @@
             "type": "string"
           },
           "limit": {
-            "description": "Maximum number of items to return (default: 10)",
-            "type": "number"
+            "description": "Maximum number of items to return (must be an integer; default: 10, maximum: 10000). The response carries an explicit truncated flag, the authoritative completeness signal; totalCount equals returnedCount when not truncated and is a best-effort figure otherwise.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "identityOnly": {
+            "description": "For list: return only identity fields (id, resourceName) instead of full capability records. Keeps the payload proportional to the number of resources for machine consumers such as the controller.",
+            "type": "boolean"
           },
           "resource": {
             "description": "Kubernetes resource reference (for capabilities operations)",

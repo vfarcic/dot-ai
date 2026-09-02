@@ -24,6 +24,7 @@ function createMockClient() {
     scroll: vi.fn().mockResolvedValue({ points: [] }),
     retrieve: vi.fn().mockResolvedValue([]),
     delete: vi.fn().mockResolvedValue(undefined),
+    count: vi.fn().mockResolvedValue({ count: 0 }),
     getCollections: vi.fn().mockResolvedValue({ collections: [] }),
     getCollection: vi.fn().mockResolvedValue({
       points_count: 0,
@@ -459,6 +460,29 @@ describe('Qdrant Operations', () => {
       const result = await operations.healthCheck();
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe('count', () => {
+    it('should return 0 without querying when the collection does not exist', async () => {
+      mockClient.getCollections.mockResolvedValue({ collections: [] });
+
+      const result = await operations.count('nonexistent');
+
+      expect(result).toBe(0);
+      expect(mockClient.count).not.toHaveBeenCalled();
+    });
+
+    it('should return the exact count when the collection exists', async () => {
+      mockClient.getCollections.mockResolvedValue({
+        collections: [{ name: 'collection' }],
+      });
+      mockClient.count.mockResolvedValue({ count: 42 });
+
+      const result = await operations.count('collection');
+
+      expect(result).toBe(42);
+      expect(mockClient.count).toHaveBeenCalledWith('collection', { exact: true });
     });
   });
 

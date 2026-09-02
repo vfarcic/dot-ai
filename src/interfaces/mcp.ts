@@ -28,6 +28,7 @@ import {
   VERSION_TOOL_DESCRIPTION,
   VERSION_TOOL_INPUT_SCHEMA,
   handleVersionTool,
+  getCapabilityReadiness,
 } from '../tools/version';
 import {
   ORGANIZATIONAL_DATA_TOOL_NAME,
@@ -806,6 +807,28 @@ export class MCPServer {
 
             // Propagate identity to all downstream tool handlers (PRD #380)
             await requestContext.run({ identity: authIdentity }, async () => {
+              // Queryable scan-readiness endpoint (PRD #714 M4). It follows the
+              // server's normal auth policy and is not wired to the chart probe.
+              if (req.url === '/readyz' && req.method === 'GET') {
+                const readiness = await getCapabilityReadiness();
+                const body = {
+                  ready: readiness.ready,
+                  vectorDBHealthy: readiness.vectorDBHealthy,
+                  collectionAccessible: readiness.collectionAccessible,
+                  embeddingsRequired: readiness.embeddingsRequired,
+                  embeddingHealthy: readiness.embeddingHealthy,
+                  storedCount: readiness.storedCount,
+                  error: readiness.error,
+                  checkedAt: readiness.checkedAt,
+                };
+                res.writeHead(readiness.ready ? 200 : 503, {
+                  'Content-Type': 'application/json',
+                });
+                res.end(JSON.stringify(body));
+                endSpan(readiness.ready ? 200 : 503);
+                return;
+              }
+
               // Parse request body for POST requests
               let body: unknown = undefined;
               if (req.method === 'POST') {

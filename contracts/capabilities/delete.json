@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "data": {
+    "result": {
+      "success": true,
+      "operation": "delete",
+      "dataType": "capabilities",
+      "deletedCapability": {
+        "id": "17c5105f-e215-ae9b-b3bf-58b608abb3b7",
+        "resourceName": "sqls.devopstoolkit.live"
+      },
+      "message": "Capability deleted: sqls.devopstoolkit.live"
+    },
+    "tool": "manageOrgData",
+    "executionTime": 0
+  },
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00.000Z",
+    "requestId": "contract-fixture",
+    "version": "0.0.0-contract"
+  }
+}
