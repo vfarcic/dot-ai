@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [2.3.1] - 2026-09-02
+
+### Bug Fixes
+
+- Fixed Copilot test gates keying on GitHub token *presence* rather than *shape*, so an ambient classic or fine-grained PAT no longer un-skips live Copilot tests that cannot pass with it. The env-chain lookup now lives in one exported helper shared by the credential resolver and every test gate, so the two cannot drift apart. Also documented that `GH_TOKEN` and `GITHUB_TOKEN` are general-purpose GitHub credentials which the resolver will spend on Copilot inference if they hold a supported token — set `GITHUB_COPILOT_TOKEN` to keep the credential explicit. ([#759](https://github.com/vfarcic/dot-ai/issues/759))
+
+### Other Changes
+
+- Integration test reliability: the test harness now forwards a supported GitHub Copilot token from the host into the deployed pod, so the documented `AI_PROVIDER=copilot npm run test:integration copilot-provider` command actually works instead of deploying a server with no credential. Separately, the recommend workflow tests no longer feed an AI-suggested answer back verbatim when it falls outside the option list the AI generated for that same question — a mismatch that failed the Helm workflow test with `validation_failed` for reasons unrelated to the workflow. ([#783](https://github.com/vfarcic/dot-ai/issues/783))
+- `tests/` is now covered by lint, format, and typecheck. Previously every quality gate stopped at `src/` — `npm run lint` was `eslint src/`, `npm run format` was `prettier --write src/`, and `tsconfig.json` excluded `**/*.test.ts` — so for a test-only change the checks a contributor is asked to run passed without ever examining the file that changed. New `format:check` and `typecheck` scripts run in CI alongside the linter, and the same gates now cover `packages/agentic-tools`. ([#784](https://github.com/vfarcic/dot-ai/issues/784))
+
+
 ## [2.3.0] - 2026-08-22
 
 ### Features
