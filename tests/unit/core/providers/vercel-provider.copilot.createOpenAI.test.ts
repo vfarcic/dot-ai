@@ -36,8 +36,10 @@ const {
 } = vi.hoisted(() => {
   // OpenAI path: provider.chat(model)
   const mockChatFn = vi.fn();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockOpenAIProvider: any = vi.fn();
+  // Callable *and* carries .chat — the SDK's OpenAI provider shape.
+  const mockOpenAIProvider = vi.fn() as ReturnType<typeof vi.fn> & {
+    chat: typeof mockChatFn;
+  };
   mockOpenAIProvider.chat = mockChatFn;
   const mockCreateOpenAI = vi.fn(() => mockOpenAIProvider);
 
@@ -45,8 +47,7 @@ const {
   const mockAnthropicModelFn = vi.fn((..._args: unknown[]) => ({
     modelId: 'claude-sonnet-4.6',
   }));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockAnthropicProvider: any = vi.fn((...args: unknown[]) =>
+  const mockAnthropicProvider = vi.fn((...args: unknown[]) =>
     mockAnthropicModelFn(...args)
   );
   const mockCreateAnthropic = vi.fn(() => mockAnthropicProvider);

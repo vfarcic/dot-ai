@@ -259,32 +259,32 @@ describe('Resource Sync Endpoint Integration', () => {
       // - resync-app updated (changed labels)
       // - resync-config removed (not in incoming set)
       // - resync-secret added (new resource)
-      const resyncResponse = await integrationTest.httpClient.post(
-        '/api/v1/resources/sync',
-        {
-          upserts: [
-            {
-              namespace: 'default',
-              name: `resync-app-${testId}`,
-              kind: 'Deployment',
-              apiVersion: 'apps/v1',
-              labels: { app: 'resync-test', version: 'v2' }, // Updated labels
-              createdAt: '2025-12-19T10:00:00Z',
-              updatedAt: '2025-12-19T12:00:00Z', // Updated timestamp
-            },
-            {
-              namespace: 'default',
-              name: `resync-secret-${testId}`,
-              kind: 'Secret',
-              apiVersion: 'v1',
-              labels: { type: 'secret' },
-              createdAt: '2025-12-19T11:00:00Z',
-              updatedAt: '2025-12-19T11:00:00Z',
-            },
-          ],
-          isResync: true, // Trigger diff-based sync
-        }
-      );
+      const resyncResponse = await integrationTest.httpClient.post<{
+        upserted: number;
+        deleted: number;
+      }>('/api/v1/resources/sync', {
+        upserts: [
+          {
+            namespace: 'default',
+            name: `resync-app-${testId}`,
+            kind: 'Deployment',
+            apiVersion: 'apps/v1',
+            labels: { app: 'resync-test', version: 'v2' }, // Updated labels
+            createdAt: '2025-12-19T10:00:00Z',
+            updatedAt: '2025-12-19T12:00:00Z', // Updated timestamp
+          },
+          {
+            namespace: 'default',
+            name: `resync-secret-${testId}`,
+            kind: 'Secret',
+            apiVersion: 'v1',
+            labels: { type: 'secret' },
+            createdAt: '2025-12-19T11:00:00Z',
+            updatedAt: '2025-12-19T11:00:00Z',
+          },
+        ],
+        isResync: true, // Trigger diff-based sync
+      });
 
       // Validate specific resources are present (tolerates extras from concurrent tests)
       expect(resyncResponse).toMatchObject({
@@ -327,8 +327,8 @@ describe('Resource Sync Endpoint Integration', () => {
       });
 
       // Validate minimum counts (may be higher due to concurrent tests)
-      expect(resyncResponse.data.upserted).toBeGreaterThanOrEqual(2);
-      expect(resyncResponse.data.deleted).toBeGreaterThanOrEqual(1);
+      expect(resyncResponse.data!.upserted).toBeGreaterThanOrEqual(2);
+      expect(resyncResponse.data!.deleted).toBeGreaterThanOrEqual(1);
 
       // Clean up resync test resources
       await integrationTest.httpClient.post('/api/v1/resources/sync', {

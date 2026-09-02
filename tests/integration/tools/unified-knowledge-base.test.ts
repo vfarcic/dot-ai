@@ -16,21 +16,33 @@
 
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
+import type { ToolEnvelope } from '../helpers/api-shapes.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function callTool(
+async function callTool<T = unknown>(
   client: IntegrationTest['httpClient'],
   tool: string,
   params: Record<string, unknown>
 ) {
-  return client.post(`/api/v1/tools/${tool}`, params);
+  return client.post<T>(`/api/v1/tools/${tool}`, params);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function atLeast(min: number): any {
+/**
+ * A vitest asymmetric matcher for "a number >= min".
+ *
+ * The return type is the matcher's own structural shape, not `any`: vitest
+ * accepts anything implementing asymmetricMatch wherever a value is expected,
+ * so the cast at the use site is what makes it interchangeable with a literal.
+ */
+interface AtLeastMatcher {
+  asymmetricMatch: (actual: unknown) => boolean;
+  toString: () => string;
+}
+
+function atLeast(min: number): AtLeastMatcher {
   return {
     asymmetricMatch: (actual: unknown) =>
       typeof actual === 'number' && actual >= min,
@@ -94,7 +106,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
       });
 
       // Search for the document
-      const searchResponse = await callTool(
+      const searchResponse = await callTool<ToolEnvelope<{ chunks: unknown }>>(
         integrationTest.httpClient,
         'manageKnowledge',
         {
@@ -162,7 +174,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
         data: { result: { success: true, operation: 'ingest' } },
       });
 
-      const searchResponse = await callTool(
+      const searchResponse = await callTool<ToolEnvelope<{ chunks: unknown }>>(
         integrationTest.httpClient,
         'manageKnowledge',
         {
@@ -229,7 +241,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
         data: { result: { success: true, operation: 'ingest' } },
       });
 
-      const searchResponse = await callTool(
+      const searchResponse = await callTool<ToolEnvelope<{ chunks: unknown }>>(
         integrationTest.httpClient,
         'manageKnowledge',
         {
@@ -258,7 +270,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
 
       // General documents should have neither the policy nor pattern tag.
       const ourDoc = (
-        searchResponse.data.result.chunks as Array<{
+        searchResponse.data!.result.chunks as Array<{
           uri: string;
           tags?: string[];
         }>
@@ -330,7 +342,7 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
       // unified knowledge-base collection. We verify the knowledge was stored
       // by searching directly — operate's internal embedContext call uses
       // the same collection.
-      const searchResponse = await callTool(
+      const searchResponse = await callTool<ToolEnvelope<{ chunks: unknown }>>(
         integrationTest.httpClient,
         'manageKnowledge',
         {
@@ -399,15 +411,13 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
 
           const expectedUri = `legacy://patterns/${seedId}`;
 
-          const searchResponse = await callTool(
-            integrationTest.httpClient,
-            'manageKnowledge',
-            {
-              operation: 'search',
-              query: `${seedMarker} horizontal pod autoscaler scaling pattern`,
-              limit: 10,
-            }
-          );
+          const searchResponse = await callTool<
+            ToolEnvelope<{ chunks: unknown }>
+          >(integrationTest.httpClient, 'manageKnowledge', {
+            operation: 'search',
+            query: `${seedMarker} horizontal pod autoscaler scaling pattern`,
+            limit: 10,
+          });
 
           expect(searchResponse).toMatchObject({
             success: true,
@@ -429,11 +439,11 @@ describe.concurrent('PRD #375 Unified Knowledge Base - Migration & E2E', () => {
           });
 
           // The legacy collection must be gone after a successful migration.
-          const versionResponse = await callTool(
-            integrationTest.httpClient,
-            'version',
-            {}
-          );
+          const versionResponse = await callTool<
+            ToolEnvelope<{
+              system?: { vectorDB?: { collections?: Record<string, unknown> } };
+            }>
+          >(integrationTest.httpClient, 'version', {});
           const collections =
             versionResponse.data?.result?.system?.vectorDB?.collections ?? {};
           expect(collections).not.toHaveProperty('patterns');

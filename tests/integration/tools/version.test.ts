@@ -10,6 +10,51 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 import packageJson from '../../../package.json';
+
+/**
+ * What this file reads off `data`.
+ *
+ * A compile-time view of the reads, so a typo in a property path fails the
+ * build. Fields are declared present because each read follows a
+ * `toMatchObject` assertion that already proved presence at runtime — that is
+ * where the actual checking lives. Optional chaining at the call sites still
+ * works and is left as written.
+ */
+interface VersionPayload {
+  title: string;
+  toolsUsed: string[];
+  insights: string[];
+  visualizations: Array<{ type: string; content: string; title: string }>;
+  result: {
+    visualizationUrl: string;
+    status: string;
+    summary: Record<string, unknown>;
+    system: {
+      plugins: {
+        pluginCount: number;
+        toolCount: number;
+        plugins: Array<{ name: string }>;
+      };
+      kubernetes: {
+        connected: boolean;
+        error?: string;
+        clusterInfo: { version: string; context: string };
+      };
+      kyverno: {
+        installed: boolean;
+        policyGenerationReady: boolean;
+        error?: string;
+        reason?: string;
+      };
+      mcpServers: {
+        serverCount: number;
+        toolCount: number;
+        servers: Array<{ name: string; connected: boolean }>;
+      };
+      vectorDB: { collections: Record<string, unknown> };
+    };
+  };
+}
 // Read the constant from source, not dist/: every other test does, and the
 // dist/ import made typechecking depend on a prior build (#784).
 import { CURRENT_MODELS } from '../../../src/core/model-config.js';
@@ -48,22 +93,25 @@ describe.concurrent('Version Tool Integration', () => {
     // When all tests ran together, other tests (e.g. resource-sync) created it.
     // In an isolated cluster, we must create it explicitly.
     beforeAll(async () => {
-      await integrationTest.httpClient.post('/api/v1/resources/sync', {
-        upserts: [
-          {
-            namespace: 'default',
-            name: 'version-test-seed',
-            kind: 'ConfigMap',
-            apiVersion: 'v1',
-            apiGroup: '',
-            labels: {},
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ],
-        deletes: [],
-        isResync: false,
-      });
+      await integrationTest.httpClient.post<VersionPayload>(
+        '/api/v1/resources/sync',
+        {
+          upserts: [
+            {
+              namespace: 'default',
+              name: 'version-test-seed',
+              kind: 'ConfigMap',
+              apiVersion: 'v1',
+              apiGroup: '',
+              labels: {},
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+          deletes: [],
+          isResync: false,
+        }
+      );
     }, 30000);
 
     test('should return comprehensive system status with correct structure', async () => {
@@ -208,7 +256,7 @@ describe.concurrent('Version Tool Integration', () => {
       };
 
       // Call version tool via REST API (POST request as required)
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<VersionPayload>(
         '/api/v1/tools/version',
         {
           interaction_id: `system_status_${Date.now()}`,
@@ -285,9 +333,10 @@ describe.concurrent('Version Tool Integration', () => {
       // PRD #320: Verify visualization endpoint works
       // NOTE: This is the ONLY test that validates the visualization endpoint since
       // the version tool is fastest. Other tools just verify visualizationUrl is returned.
-      const visualizationUrl = response.data.result.visualizationUrl;
+      const visualizationUrl = response.data!.result.visualizationUrl;
       const vizPath = `/api/v1/visualize/${visualizationUrl.split('/v/')[1]}`;
-      const vizResponse = await integrationTest.httpClient.get(vizPath);
+      const vizResponse =
+        await integrationTest.httpClient.get<VersionPayload>(vizPath);
 
       const expectedVizResponse = {
         success: true,
@@ -310,21 +359,22 @@ describe.concurrent('Version Tool Integration', () => {
       expect(vizResponse).toMatchObject(expectedVizResponse);
 
       // Verify visualization is not a fallback error
-      expect(vizResponse.data.insights[0]).not.toContain(
+      expect(vizResponse.data!.insights[0]).not.toContain(
         'AI visualization generation failed'
       );
 
       // PRD #320 Milestone 2.6: Verify validate_mermaid called if Mermaid diagrams present
-      const hasMermaid = vizResponse.data.visualizations.some(
+      const hasMermaid = vizResponse.data!.visualizations.some(
         (v: { type: string }) => v.type === 'mermaid'
       );
       if (hasMermaid) {
-        expect(vizResponse.data.toolsUsed).toContain('validate_mermaid');
+        expect(vizResponse.data!.toolsUsed).toContain('validate_mermaid');
       }
 
       // Verify caching - second request should return cached data instantly
       const cacheStartTime = Date.now();
-      const cachedVizResponse = await integrationTest.httpClient.get(vizPath);
+      const cachedVizResponse =
+        await integrationTest.httpClient.get<VersionPayload>(vizPath);
       const cachedResponseTime = Date.now() - cacheStartTime;
 
       // Cached response should be fast (< 1 second vs ~40+ seconds for generation)
@@ -332,25 +382,26 @@ describe.concurrent('Version Tool Integration', () => {
 
       // Cached response should have same structure and content
       expect(cachedVizResponse).toMatchObject(expectedVizResponse);
-      expect(cachedVizResponse.data.title).toBe(vizResponse.data.title);
-      expect(cachedVizResponse.data.visualizations.length).toBe(
-        vizResponse.data.visualizations.length
+      expect(cachedVizResponse.data!.title).toBe(vizResponse.data!.title);
+      expect(cachedVizResponse.data!.visualizations.length).toBe(
+        vizResponse.data!.visualizations.length
       );
-      expect(cachedVizResponse.data.insights.length).toBe(
-        vizResponse.data.insights.length
+      expect(cachedVizResponse.data!.insights.length).toBe(
+        vizResponse.data!.insights.length
       );
       // toolsUsed is optional - only compare if present in original response
-      if (vizResponse.data.toolsUsed) {
-        expect(cachedVizResponse.data.toolsUsed).toEqual(
-          vizResponse.data.toolsUsed
+      if (vizResponse.data!.toolsUsed) {
+        expect(cachedVizResponse.data!.toolsUsed).toEqual(
+          vizResponse.data!.toolsUsed
         );
       }
 
       // PRD #320 Milestone 2.8: Verify ?reload=true bypasses cache and regenerates
       const reloadStartTime = Date.now();
-      const reloadVizResponse = await integrationTest.httpClient.get(
-        `${vizPath}?reload=true`
-      );
+      const reloadVizResponse =
+        await integrationTest.httpClient.get<VersionPayload>(
+          `${vizPath}?reload=true`
+        );
       const reloadResponseTime = Date.now() - reloadStartTime;
 
       // Reload response should take longer than cached (regenerating via AI)
@@ -359,13 +410,13 @@ describe.concurrent('Version Tool Integration', () => {
 
       // Reload response should have valid structure (AI regenerated)
       expect(reloadVizResponse).toMatchObject(expectedVizResponse);
-      expect(reloadVizResponse.data.title).toBeDefined();
-      expect(reloadVizResponse.data.visualizations.length).toBeGreaterThan(0);
+      expect(reloadVizResponse.data!.title).toBeDefined();
+      expect(reloadVizResponse.data!.visualizations.length).toBeGreaterThan(0);
 
       // Verify reload actually regenerated - toolsUsed may be populated if AI called tools
       // (toolsUsed is optional and depends on what tools the AI uses during generation)
-      if (reloadVizResponse.data.toolsUsed) {
-        expect(Array.isArray(reloadVizResponse.data.toolsUsed)).toBe(true);
+      if (reloadVizResponse.data!.toolsUsed) {
+        expect(Array.isArray(reloadVizResponse.data!.toolsUsed)).toBe(true);
       }
     }, 300000); // Increased timeout for visualization generation + cache + reload tests
 
@@ -387,7 +438,7 @@ describe.concurrent('Version Tool Integration', () => {
       };
 
       // Test that GET method is not allowed
-      const response = await integrationTest.httpClient.get(
+      const response = await integrationTest.httpClient.get<VersionPayload>(
         '/api/v1/tools/version'
       );
 
@@ -428,7 +479,7 @@ describe.concurrent('Version Tool Integration', () => {
         },
       };
 
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<VersionPayload>(
         '/api/v1/tools/version',
         {
           interaction_id: `test_environment_validation_${Date.now()}`,
@@ -458,7 +509,7 @@ describe.concurrent('Version Tool Integration', () => {
         },
       };
 
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<VersionPayload>(
         '/api/v1/tools/nonexistent',
         {}
       );

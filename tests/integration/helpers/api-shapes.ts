@@ -21,6 +21,7 @@ export interface SolutionSummary {
   type: string;
   score?: number;
   description?: string;
+  reasons?: string[];
   chart?: {
     repositoryName?: string;
     chartName?: string;
@@ -75,10 +76,11 @@ export interface RepoFile {
 export interface GitPushResult {
   filesPushed?: string[];
   branch?: string;
-  commitSha?: string;
+  /** Present on every successful push. */
+  commitSha: string;
   pullRequest?: {
-    number?: number;
-    branch?: string;
+    number: number;
+    branch: string;
     url?: string;
   };
 }
@@ -157,12 +159,17 @@ export interface RemediationAction {
   description?: string;
   command?: string;
   risk?: string;
-  gitSource?: unknown;
+  /** Present only for GitOps-managed resources (PRD #407). */
+  gitSource?: {
+    repoURL: string;
+    files: Array<{ path: string; content: string }>;
+  };
 }
 
 /** One entry in the remediate execution `results` array. */
 export interface CommandExecutionResult {
   success: boolean;
+  action?: string;
   command?: string;
   output?: string;
   error?: string;
@@ -174,6 +181,8 @@ export interface ProposedChange {
   name?: string;
   namespace?: string;
   rationale?: string;
+  /** Rendered YAML for the change, when the tool includes it. */
+  manifest?: string;
 }
 
 /** A HorizontalPodAutoscaler as the operate tests read it back. */
@@ -184,4 +193,59 @@ export interface HpaResource {
     maxReplicas?: number;
     scaleTargetRef?: { kind?: string; name?: string };
   };
+}
+
+/**
+ * The `{ tool, result }` envelope most tool responses put in `data`.
+ *
+ * `RestApiResponse.data` is a type parameter rather than `any`, so a caller
+ * that reads properties off the payload names the shape it expects:
+ * `post<ToolEnvelope<{ summary: string }>>(...)`. A caller that only hands the
+ * whole response to `toMatchObject` needs nothing.
+ */
+export interface ToolEnvelope<R> {
+  tool?: string;
+  result: R;
+}
+
+/** `GET /api/v1/tools` — the tool discovery listing. */
+export interface ToolListPayload {
+  tools: Array<{ name: string; description?: string }>;
+  total: number;
+}
+
+/** manageOrgData capabilities `progress` result. */
+export interface CapabilityProgressResult {
+  progress?: {
+    status?: string;
+    total?: number;
+    successfulResources?: number;
+    failedResources?: number;
+    totalProcessingTime?: string;
+    errors?: unknown;
+  };
+}
+
+/** OAuth protected-resource / authorization-server metadata documents. */
+export interface OAuthResourceMetadata {
+  authorization_servers?: string[];
+  resource?: string;
+}
+export interface OAuthServerMetadata {
+  issuer?: string;
+  authorization_endpoint?: string;
+  token_endpoint?: string;
+}
+
+/** `POST /register` — dynamic client registration. */
+export interface OAuthRegistrationPayload {
+  client_id?: string;
+  client_secret?: string;
+  redirect_uris?: string[];
+}
+
+/** User management listing. */
+export interface UserListPayload {
+  users: Array<{ email: string; name?: string }>;
+  total: number;
 }

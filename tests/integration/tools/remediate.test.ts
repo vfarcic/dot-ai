@@ -15,6 +15,30 @@ import type {
   RemediationAction,
 } from '../helpers/api-shapes.js';
 
+/**
+ * What this file reads off `data`. Fields are declared present because each
+ * read follows a `toMatchObject` assertion that proved presence at runtime.
+ */
+interface RemediatePayload {
+  executionTime: number;
+  sessions: Array<Record<string, unknown>>;
+  result: {
+    status: string;
+    sessionId: string;
+    visualizationUrl: string;
+    error?: string;
+    executionChoices: unknown;
+    results: CommandExecutionResult[];
+    pullRequest: { number: number; url?: string; branch?: string };
+    analysis: {
+      confidence: number;
+      rootCause: string;
+    };
+    investigation: { dataGathered: string[]; iterations: unknown };
+    remediation: { actions: RemediationAction[] };
+  };
+}
+
 const SSE_BASE_URL = process.env.MCP_BASE_URL || 'http://localhost:3456';
 
 /**
@@ -152,13 +176,14 @@ EOF`);
       });
 
       // PHASE 1: AI Investigation
-      const investigationResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/remediate',
-        {
-          issue: `my app in ${testNamespace} namespace is crashing`,
-          interaction_id: 'manual_analyze',
-        }
-      );
+      const investigationResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: `my app in ${testNamespace} namespace is crashing`,
+            interaction_id: 'manual_analyze',
+          }
+        );
 
       // Validate investigation response (based on actual curl inspection)
       const expectedInvestigationResponse = {
@@ -236,22 +261,22 @@ EOF`);
       ).toMatchObject(expectedInvestigationResponse);
 
       // PRD #320: Verify visualization URL is present in response (not embedded in message)
-      expect(investigationResponse.data.result.visualizationUrl).toBeTruthy();
-      expect(investigationResponse.data.result.visualizationUrl).toMatch(
+      expect(investigationResponse.data!.result.visualizationUrl).toBeTruthy();
+      expect(investigationResponse.data!.result.visualizationUrl).toMatch(
         /^https?:\/\//
       );
 
       // Extract sessionId for execution
-      const sessionId = investigationResponse.data.result.sessionId;
+      const sessionId = investigationResponse.data!.result.sessionId;
       const remediationActions =
-        investigationResponse.data.result.remediation.actions;
+        investigationResponse.data!.result.remediation.actions;
 
       // Verify AI found OOM issue and memory-related remediation
       expect(
-        investigationResponse.data.result.analysis.rootCause.toLowerCase()
+        investigationResponse.data!.result.analysis.rootCause.toLowerCase()
       ).toMatch(/oom|memory/);
       expect(
-        investigationResponse.data.result.analysis.confidence
+        investigationResponse.data!.result.analysis.confidence
       ).toBeGreaterThan(0.8);
       expect(remediationActions.length).toBeGreaterThan(0);
 
@@ -263,9 +288,10 @@ EOF`);
 
       // SESSION RETRIEVAL: Test GET /api/v1/sessions/{sessionId} for URL sharing/refresh support
       const sessionStartTime = Date.now();
-      const sessionResponse = await integrationTest.httpClient.get(
-        `/api/v1/sessions/${sessionId}`
-      );
+      const sessionResponse =
+        await integrationTest.httpClient.get<RemediatePayload>(
+          `/api/v1/sessions/${sessionId}`
+        );
       const sessionRetrievalTime = Date.now() - sessionStartTime;
 
       // Should be fast (no AI call - just file read)
@@ -310,7 +336,9 @@ EOF`);
 
       // SESSION LIST: Test GET /api/v1/sessions (PRD #425)
       const listResponse =
-        await integrationTest.httpClient.get('/api/v1/sessions');
+        await integrationTest.httpClient.get<RemediatePayload>(
+          '/api/v1/sessions'
+        );
 
       expect(listResponse).toMatchObject({
         success: true,
@@ -328,7 +356,7 @@ EOF`);
       });
 
       // Verify our session appears in the list
-      const sessions = listResponse.data.sessions as Array<
+      const sessions = listResponse.data!.sessions as Array<
         Record<string, unknown>
       >;
       const ourSession = sessions.find(s => s.sessionId === sessionId);
@@ -348,11 +376,12 @@ EOF`);
       expect(ourSession).not.toHaveProperty('data');
 
       // Verify status filtering works
-      const filteredResponse = await integrationTest.httpClient.get(
-        '/api/v1/sessions?status=analysis_complete'
-      );
+      const filteredResponse =
+        await integrationTest.httpClient.get<RemediatePayload>(
+          '/api/v1/sessions?status=analysis_complete'
+        );
       expect(filteredResponse.success).toBe(true);
-      const filteredSessions = filteredResponse.data.sessions as Array<
+      const filteredSessions = filteredResponse.data!.sessions as Array<
         Record<string, unknown>
       >;
       for (const s of filteredSessions) {
@@ -361,9 +390,10 @@ EOF`);
       expect(filteredSessions.some(s => s.sessionId === sessionId)).toBe(true);
 
       // Verify pagination works
-      const paginatedResponse = await integrationTest.httpClient.get(
-        '/api/v1/sessions?limit=1&offset=0'
-      );
+      const paginatedResponse =
+        await integrationTest.httpClient.get<RemediatePayload>(
+          '/api/v1/sessions?limit=1&offset=0'
+        );
       expect(paginatedResponse).toMatchObject({
         success: true,
         data: {
@@ -372,12 +402,13 @@ EOF`);
           offset: 0,
         },
       });
-      expect(paginatedResponse.data.sessions.length).toBeLessThanOrEqual(1);
+      expect(paginatedResponse.data!.sessions.length).toBeLessThanOrEqual(1);
 
       // Verify empty filter returns no results
-      const emptyResponse = await integrationTest.httpClient.get(
-        '/api/v1/sessions?status=nonexistent_status_xyz'
-      );
+      const emptyResponse =
+        await integrationTest.httpClient.get<RemediatePayload>(
+          '/api/v1/sessions?status=nonexistent_status_xyz'
+        );
       expect(emptyResponse).toMatchObject({
         success: true,
         data: {
@@ -389,15 +420,16 @@ EOF`);
       // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 2: Execute remediation via MCP (choice 1)
-      const executionResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/remediate',
-        {
-          executeChoice: 1,
-          sessionId,
-          mode: 'manual',
-          interaction_id: 'manual_execute',
-        }
-      );
+      const executionResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            executeChoice: 1,
+            sessionId,
+            mode: 'manual',
+            interaction_id: 'manual_execute',
+          }
+        );
 
       // Execution response status is either 'success' or 'awaiting_user_approval'.
       // Cluster state is verified directly in Phase 3 regardless of status.
@@ -444,11 +476,11 @@ EOF`);
 
       // Status: 'success' when validation confirms fix, 'awaiting_user_approval' when AI wants more investigation
       expect(['success', 'awaiting_user_approval']).toContain(
-        executionResponse.data.result.status
+        executionResponse.data!.result.status
       );
 
       // Verify all remediation commands succeeded
-      const results = executionResponse.data.result.results;
+      const results = executionResponse.data!.result.results;
       results.forEach((result: CommandExecutionResult) => {
         expect(result.success).toBe(true);
       });
@@ -524,7 +556,9 @@ EOF`);
 
       // Verify server is still healthy after SSE disconnect
       const healthResponse =
-        await integrationTest.httpClient.get('/api/v1/sessions');
+        await integrationTest.httpClient.get<RemediatePayload>(
+          '/api/v1/sessions'
+        );
       expect(healthResponse.success).toBe(true);
     }, 1200000); // 20 minute timeout for AI investigation + execution + validation (accommodates slower AI models like Gemini)
   });
@@ -605,16 +639,17 @@ EOF`);
       expect(restartCount).toBeGreaterThan(0);
 
       // PHASE 1: Call remediate with automatic mode (single call auto-executes everything)
-      const autoResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/remediate',
-        {
-          issue: `auto-test-app deployment in ${autoNamespace} namespace is crashing`,
-          mode: 'automatic',
-          confidenceThreshold: 0.1, // Very low threshold ensures auto-execution - we're testing the mechanism, not AI confidence
-          maxRiskLevel: 'high', // Allow any risk level - we're testing auto-execution works when thresholds are met
-          interaction_id: 'automatic_analyze_execute',
-        }
-      );
+      const autoResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: `auto-test-app deployment in ${autoNamespace} namespace is crashing`,
+            mode: 'automatic',
+            confidenceThreshold: 0.1, // Very low threshold ensures auto-execution - we're testing the mechanism, not AI confidence
+            maxRiskLevel: 'high', // Allow any risk level - we're testing auto-execution works when thresholds are met
+            interaction_id: 'automatic_analyze_execute',
+          }
+        );
 
       // Validate automatic execution response
       const expectedAutoResponse = {
@@ -641,16 +676,16 @@ EOF`);
       ).toMatchObject(expectedAutoResponse);
 
       // Verify execution was automatic (no executionChoices)
-      expect(autoResponse.data.result.executionChoices).toBeUndefined();
+      expect(autoResponse.data!.result.executionChoices).toBeUndefined();
 
       // Verify all remediation commands succeeded
-      const results = autoResponse.data.result.results;
+      const results = autoResponse.data!.result.results;
       results.forEach((result: CommandExecutionResult) => {
         expect(result.success).toBe(true);
       });
 
       // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
-      const autoActions = autoResponse.data.result.remediation?.actions || [];
+      const autoActions = autoResponse.data!.result.remediation?.actions || [];
       const autoGitSourceActions = autoActions.filter(
         (a: RemediationAction) => a.gitSource
       );
@@ -760,13 +795,14 @@ EOF`);
       expect(podInErrorState).toBe(true);
 
       // PHASE 1: AI Investigation (manual mode to inspect Helm tool usage)
-      const investigationResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/remediate',
-        {
-          issue: `helm release test-nginx in ${helmNamespace} namespace was upgraded and is now failing`,
-          interaction_id: 'helm_investigate',
-        }
-      );
+      const investigationResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: `helm release test-nginx in ${helmNamespace} namespace was upgraded and is now failing`,
+            interaction_id: 'helm_investigate',
+          }
+        );
 
       expect(
         investigationResponse,
@@ -841,7 +877,7 @@ EOF`);
 
       // KEY VALIDATION: AI used at least one Helm investigation tool
       const dataGathered: string[] =
-        investigationResponse.data.result.investigation.dataGathered;
+        investigationResponse.data!.result.investigation.dataGathered;
       const helmToolCalls = dataGathered.filter((entry: string) =>
         entry.startsWith('helm_')
       );
@@ -849,33 +885,34 @@ EOF`);
 
       // Verify AI identified the issue with reasonable confidence
       expect(
-        investigationResponse.data.result.analysis.confidence
+        investigationResponse.data!.result.analysis.confidence
       ).toBeGreaterThanOrEqual(0.7);
       expect(
-        investigationResponse.data.result.analysis.rootCause.toLowerCase()
+        investigationResponse.data!.result.analysis.rootCause.toLowerCase()
       ).toMatch(/image|pull|helm|upgrade|fail/);
       expect(
-        investigationResponse.data.result.remediation.actions.length
+        investigationResponse.data!.result.remediation.actions.length
       ).toBeGreaterThan(0);
 
       // PRD #407: Non-GitOps resources should NOT have gitSource in remediation actions
       const helmGitSourceActions =
-        investigationResponse.data.result.remediation.actions.filter(
+        investigationResponse.data!.result.remediation.actions.filter(
           (a: RemediationAction) => a.gitSource
         );
       expect(helmGitSourceActions.length).toBe(0);
 
       // PHASE 2: Execute remediation via MCP (choice 1)
-      const sessionId = investigationResponse.data.result.sessionId;
-      const executionResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/remediate',
-        {
-          executeChoice: 1,
-          sessionId,
-          mode: 'manual',
-          interaction_id: 'helm_execute',
-        }
-      );
+      const sessionId = investigationResponse.data!.result.sessionId;
+      const executionResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            executeChoice: 1,
+            sessionId,
+            mode: 'manual',
+            interaction_id: 'helm_execute',
+          }
+        );
 
       expect(executionResponse).toMatchObject({
         success: true,
@@ -900,7 +937,7 @@ EOF`);
         },
       });
 
-      const results = executionResponse.data.result.results;
+      const results = executionResponse.data!.result.results;
       results.forEach((result: { success: boolean }) => {
         expect(result).toMatchObject({ success: true });
       });
@@ -1029,13 +1066,14 @@ EOF`);
       ).toBe(true);
 
       // INVESTIGATION: Call remediate with issue description that encourages metrics usage
-      const investigationResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/remediate',
-        {
-          issue: `Pods in ${mcpNamespace} namespace keep crashing. Check the memory metrics from prometheus to understand the actual memory usage trends before suggesting fixes.`,
-          interaction_id: 'mcp_prometheus_investigate',
-        }
-      );
+      const investigationResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: `Pods in ${mcpNamespace} namespace keep crashing. Check the memory metrics from prometheus to understand the actual memory usage trends before suggesting fixes.`,
+            interaction_id: 'mcp_prometheus_investigate',
+          }
+        );
 
       // Validate standard investigation response structure
       const expectedResponse = {
@@ -1080,7 +1118,7 @@ EOF`);
 
       // KEY VALIDATION: AI used at least one Prometheus MCP tool
       const dataGathered: string[] =
-        investigationResponse.data.result.investigation.dataGathered;
+        investigationResponse.data!.result.investigation.dataGathered;
       const prometheusToolCalls = dataGathered.filter((entry: string) =>
         entry.startsWith('prometheus__')
       );
@@ -1094,13 +1132,13 @@ EOF`);
 
       // Verify AI identified memory/OOM as root cause
       expect(
-        investigationResponse.data.result.analysis.rootCause.toLowerCase()
+        investigationResponse.data!.result.analysis.rootCause.toLowerCase()
       ).toMatch(/oom|memory/);
       expect(
-        investigationResponse.data.result.analysis.confidence
+        investigationResponse.data!.result.analysis.confidence
       ).toBeGreaterThan(0.7);
       expect(
-        investigationResponse.data.result.remediation.actions.length
+        investigationResponse.data!.result.remediation.actions.length
       ).toBeGreaterThan(0);
     }, 1200000); // 20 minute timeout
   });
@@ -1187,7 +1225,7 @@ EOF`);
       expect(podInErrorState).toBe(true);
 
       // PHASE 1: AI Investigation
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<RemediatePayload>(
         '/api/v1/tools/remediate',
         {
           issue: `deployment gitops-test-app in ${argoNamespace} namespace has pods failing with ImagePullBackOff`,
@@ -1229,16 +1267,14 @@ EOF`);
         },
       });
 
-      const { investigation, analysis, remediation } = response.data.result;
+      const { investigation, analysis, remediation } = response.data!.result;
       expect(investigation.iterations).toBeGreaterThan(0);
       expect(analysis.confidence).toBeGreaterThanOrEqual(0.5);
-      expect(response.data.executionTime).toBeGreaterThan(0);
+      expect(response.data!.executionTime).toBeGreaterThan(0);
 
       // PRD #407: AI should detect Argo CD management and return gitSource
       const actions = remediation.actions;
-      const gitSourceActions = actions.filter(
-        (a: Record<string, unknown>) => a.gitSource
-      );
+      const gitSourceActions = actions.filter(a => a.gitSource);
       expect(
         gitSourceActions.length,
         `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`
@@ -1246,9 +1282,9 @@ EOF`);
 
       // Verify gitSource points to the correct repo and file
       const gitAction = gitSourceActions[0];
-      expect(gitAction.gitSource.repoURL).toContain('dot-ai');
-      expect(gitAction.gitSource.files.length).toBeGreaterThan(0);
-      expect(gitAction.gitSource.files[0]).toMatchObject({
+      expect(gitAction.gitSource!.repoURL).toContain('dot-ai');
+      expect(gitAction.gitSource!.files.length).toBeGreaterThan(0);
+      expect(gitAction.gitSource!.files[0]).toMatchObject({
         path: expect.stringContaining('deployment.yaml'),
         content: expect.any(String),
         description: expect.any(String),
@@ -1256,7 +1292,7 @@ EOF`);
 
       // PRD #407: AI should have used git_clone and fs_read/fs_list during investigation
       const dataGathered: string[] =
-        response.data.result.investigation.dataGathered;
+        response.data!.result.investigation.dataGathered;
       const gitToolCalls = dataGathered.filter((entry: string) =>
         entry.startsWith('git_clone')
       );
@@ -1275,15 +1311,16 @@ EOF`);
       ).toBeGreaterThan(0);
 
       // PRD #408: Execute remediation — should create a PR instead of running kubectl
-      const sessionId = response.data.result.sessionId;
-      const executionResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/remediate',
-        {
-          sessionId,
-          executeChoice: 1,
-          interaction_id: 'gitops_argocd_execute',
-        }
-      );
+      const sessionId = response.data!.result.sessionId;
+      const executionResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            sessionId,
+            executeChoice: 1,
+            interaction_id: 'gitops_argocd_execute',
+          }
+        );
 
       expect(executionResponse).toMatchObject({
         success: true,
@@ -1307,18 +1344,18 @@ EOF`);
         },
       });
 
-      const execResult = executionResponse.data.result;
+      const execResult = executionResponse.data!.result;
 
       // Verify results array contains PR creation entry
-      const prCreatedResult = execResult.results.find((r: { action: string }) =>
-        r.action.includes('PR created')
+      const prCreatedResult = execResult.results.find(r =>
+        r.action?.includes('PR created')
       );
       expect(
         prCreatedResult,
         `Expected a result with 'PR created' but got: ${JSON.stringify(execResult.results, null, 2)}`
       ).toBeDefined();
-      expect(prCreatedResult.success).toBe(true);
-      expect(prCreatedResult.output).toContain(
+      expect(prCreatedResult!.success).toBe(true);
+      expect(prCreatedResult!.output).toContain(
         `PR #${execResult.pullRequest.number}`
       );
 
@@ -1327,11 +1364,11 @@ EOF`);
       // in the base branch already match the desired state, so nothing was
       // pushed and no PR was opened (decision 3). It is not a kubectl action.
       const kubectlResults = execResult.results.filter(
-        (r: { action: string }) =>
-          !r.action.includes('PR created') &&
-          !r.action.includes('gitSource') &&
-          !r.action.includes('branch pushed') &&
-          !r.action.includes('no changes needed')
+        r =>
+          !r.action?.includes('PR created') &&
+          !r.action?.includes('gitSource') &&
+          !r.action?.includes('branch pushed') &&
+          !r.action?.includes('no changes needed')
       );
       expect(
         kubectlResults.length,
@@ -1510,7 +1547,7 @@ EOF`);
       expect(podInErrorState).toBe(true);
 
       // PHASE 1: AI Investigation
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<RemediatePayload>(
         '/api/v1/tools/remediate',
         {
           issue: `deployment gitops-test-app in ${fluxNamespace} namespace has pods failing with ImagePullBackOff`,
@@ -1552,16 +1589,14 @@ EOF`);
         },
       });
 
-      const { investigation, analysis, remediation } = response.data.result;
+      const { investigation, analysis, remediation } = response.data!.result;
       expect(investigation.iterations).toBeGreaterThan(0);
       expect(analysis.confidence).toBeGreaterThanOrEqual(0.5);
-      expect(response.data.executionTime).toBeGreaterThan(0);
+      expect(response.data!.executionTime).toBeGreaterThan(0);
 
       // PRD #407: AI should detect Flux management and return gitSource
       const actions = remediation.actions;
-      const gitSourceActions = actions.filter(
-        (a: Record<string, unknown>) => a.gitSource
-      );
+      const gitSourceActions = actions.filter(a => a.gitSource);
       expect(
         gitSourceActions.length,
         `Expected gitSource in actions but got: ${JSON.stringify(actions, null, 2)}`
@@ -1569,9 +1604,9 @@ EOF`);
 
       // Verify gitSource points to the correct repo and file
       const gitAction = gitSourceActions[0];
-      expect(gitAction.gitSource.repoURL).toContain('dot-ai');
-      expect(gitAction.gitSource.files.length).toBeGreaterThan(0);
-      expect(gitAction.gitSource.files[0]).toMatchObject({
+      expect(gitAction.gitSource!.repoURL).toContain('dot-ai');
+      expect(gitAction.gitSource!.files.length).toBeGreaterThan(0);
+      expect(gitAction.gitSource!.files[0]).toMatchObject({
         path: expect.stringContaining('deployment.yaml'),
         content: expect.any(String),
         description: expect.any(String),
@@ -1579,7 +1614,7 @@ EOF`);
 
       // PRD #407: AI should have used git_clone and fs_read/fs_list during investigation
       const dataGathered: string[] =
-        response.data.result.investigation.dataGathered;
+        response.data!.result.investigation.dataGathered;
       const gitToolCalls = dataGathered.filter((entry: string) =>
         entry.startsWith('git_clone')
       );

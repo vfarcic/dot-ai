@@ -10,20 +10,18 @@ import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
 
-export interface RestApiResponse {
+/**
+ * A tool response off the wire.
+ *
+ * `data` is the tool-specific payload, so it is a type parameter rather than
+ * `any`: a caller that reads properties off it names the shape it expects
+ * (`post<VersionPayload>(...)`), and one that only hands the whole response to
+ * `toMatchObject` can ignore it. Defaulting to `unknown` keeps the second case
+ * free while making the first explicit.
+ */
+export interface RestApiResponse<T = unknown> {
   success: boolean;
-  /**
-   * The tool-specific response payload, straight off the wire.
-   *
-   * This is the one deliberate `any` left in tests/. It is untyped JSON at an
-   * HTTP boundary, and every integration test reads it as
-   * `response.data.result.<something>` for a different tool. Typing it as
-   * `unknown` produces 392 narrowing errors across 33 files, and the fix would
-   * be ~400 casts — strictly worse code than one documented exception. Assert
-   * on the shape you expect with `toMatchObject` instead.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data?: any;
+  data?: T;
   error?: {
     code: string;
     message: string;
@@ -62,54 +60,54 @@ export class HttpRestApiClient {
   /**
    * Make GET request to API endpoint
    */
-  async get(
+  async get<T = unknown>(
     path: string,
     headers?: Record<string, string>
-  ): Promise<RestApiResponse> {
-    return this.request('GET', path, undefined, headers);
+  ): Promise<RestApiResponse<T>> {
+    return this.request<T>('GET', path, undefined, headers);
   }
 
   /**
    * Make POST request to API endpoint
    */
-  async post(
+  async post<T = unknown>(
     path: string,
     body?: unknown,
     headers?: Record<string, string>
-  ): Promise<RestApiResponse> {
-    return this.request('POST', path, body, headers);
+  ): Promise<RestApiResponse<T>> {
+    return this.request<T>('POST', path, body, headers);
   }
 
   /**
    * Make PUT request to API endpoint
    */
-  async put(
+  async put<T = unknown>(
     path: string,
     body?: unknown,
     headers?: Record<string, string>
-  ): Promise<RestApiResponse> {
-    return this.request('PUT', path, body, headers);
+  ): Promise<RestApiResponse<T>> {
+    return this.request<T>('PUT', path, body, headers);
   }
 
   /**
    * Make DELETE request to API endpoint
    */
-  async delete(
+  async delete<T = unknown>(
     path: string,
     headers?: Record<string, string>
-  ): Promise<RestApiResponse> {
-    return this.request('DELETE', path, undefined, headers);
+  ): Promise<RestApiResponse<T>> {
+    return this.request<T>('DELETE', path, undefined, headers);
   }
 
   /**
    * Make generic HTTP request
    */
-  private async request(
+  private async request<T = unknown>(
     method: string,
     path: string,
     body?: unknown,
     headers?: Record<string, string>
-  ): Promise<RestApiResponse> {
+  ): Promise<RestApiResponse<T>> {
     const url = new URL(path, this.baseUrl);
     const requestHeaders = { ...this.defaultHeaders, ...headers };
 
@@ -179,7 +177,10 @@ export class HttpRestApiClient {
           settled = true;
           cleanup();
           try {
-            const response = this.parseResponse(data, res.statusCode || 500);
+            const response = this.parseResponse(
+              data,
+              res.statusCode || 500
+            ) as RestApiResponse<T>;
             resolve(response);
           } catch (error) {
             reject(new Error(`Failed to parse response: ${error}`));

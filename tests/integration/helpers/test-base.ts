@@ -9,6 +9,7 @@
  */
 
 import { HttpRestApiClient } from './http-client.js';
+import type { CapabilityProgressResult, ToolEnvelope } from './api-shapes.js';
 import * as k8s from '@kubernetes/client-node';
 
 export class IntegrationTest {
@@ -222,15 +223,14 @@ export class IntegrationTest {
   ): Promise<boolean> {
     for (let i = 0; i < maxAttempts; i++) {
       await this.sleep(intervalMs);
-      const response = await this.httpClient.post(
-        '/api/v1/tools/manageOrgData',
-        {
-          dataType: 'capabilities',
-          operation: 'progress',
-          sessionId,
-          interaction_id: `progress_poll_${i}`,
-        }
-      );
+      const response = await this.httpClient.post<
+        ToolEnvelope<CapabilityProgressResult>
+      >('/api/v1/tools/manageOrgData', {
+        dataType: 'capabilities',
+        operation: 'progress',
+        sessionId,
+        interaction_id: `progress_poll_${i}`,
+      });
       const status = response.data?.result?.progress?.status;
       if (status === 'complete' || status === 'completed') {
         return true;

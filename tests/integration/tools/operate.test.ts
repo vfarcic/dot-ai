@@ -10,6 +10,31 @@ import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 import type { HpaResource, ProposedChange } from '../helpers/api-shapes.js';
 
+/**
+ * What this file reads off `data`. Fields are declared present because each
+ * read follows a `toMatchObject` assertion that proved presence at runtime.
+ */
+interface OperatePayload {
+  result: {
+    status: string;
+    success: boolean;
+    sessionId: string;
+    visualizationUrl: string;
+    message?: string;
+    error?: string;
+    analysis: {
+      patternsApplied: string[];
+      commands: string[];
+      proposedChanges: {
+        create: ProposedChange[];
+        update?: ProposedChange[];
+        delete?: ProposedChange[];
+      };
+    };
+    execution: { results: unknown[]; validation: unknown };
+  };
+}
+
 describe.concurrent('Operate Tool Integration', () => {
   const integrationTest = new IntegrationTest();
   const testNamespace = 'operate-test';
@@ -66,13 +91,14 @@ EOF`);
       );
 
       // PHASE 1: AI Analysis - Request operation
-      const analysisResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/operate',
-        {
-          intent: `update test-api deployment in ${testNamespace} namespace to nginx:1.20 with zero downtime`,
-          interaction_id: `operate_test_${testId}`,
-        }
-      );
+      const analysisResponse =
+        await integrationTest.httpClient.post<OperatePayload>(
+          '/api/v1/tools/operate',
+          {
+            intent: `update test-api deployment in ${testNamespace} namespace to nginx:1.20 with zero downtime`,
+            interaction_id: `operate_test_${testId}`,
+          }
+        );
 
       // Validate response structure with specific expectations
       const expectedAnalysisResponse = {
@@ -128,13 +154,13 @@ EOF`);
       expect(analysisResponse).toMatchObject(expectedAnalysisResponse);
 
       // PRD #320: Verify visualization URL is present in response (not embedded in message)
-      expect(analysisResponse.data.result.visualizationUrl).toBeTruthy();
-      expect(analysisResponse.data.result.visualizationUrl).toMatch(
+      expect(analysisResponse.data!.result.visualizationUrl).toBeTruthy();
+      expect(analysisResponse.data!.result.visualizationUrl).toMatch(
         /^https?:\/\//
       );
 
       // Extract session ID for next phase
-      const sessionId = analysisResponse.data.result.sessionId;
+      const sessionId = analysisResponse.data!.result.sessionId;
       expect(sessionId).toBeTruthy();
 
       // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
@@ -149,13 +175,14 @@ EOF`);
       ); // Still old version
 
       // PHASE 3: Execute approved changes (session existence is implicitly validated by this succeeding)
-      const executionResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/operate',
-        {
-          sessionId,
-          executeChoice: 1, // Execute via MCP
-        }
-      );
+      const executionResponse =
+        await integrationTest.httpClient.post<OperatePayload>(
+          '/api/v1/tools/operate',
+          {
+            sessionId,
+            executeChoice: 1, // Execute via MCP
+          }
+        );
 
       // Validate execution response structure
       const expectedExecutionResponse = {
@@ -185,7 +212,7 @@ EOF`);
       expect(executionResponse).toMatchObject(expectedExecutionResponse);
 
       // Verify validation ran (not the placeholder message)
-      const validation = executionResponse.data.result.execution.validation;
+      const validation = executionResponse.data!.result.execution.validation;
       expect(validation).not.toContain('coming in future milestone');
 
       // PHASE 4: Validate deployment actually updated
@@ -218,18 +245,19 @@ EOF`);
         `Pattern rationale: routing every scale operation through an HPA keeps replica management declarative and consistent across the platform. ` +
         `Suggested resource: HorizontalPodAutoscaler (autoscaling/v2). This is a mandatory platform scaling pattern adopted by all teams.`;
 
-      const ingestResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/manageKnowledge',
-        {
-          operation: 'ingest',
-          uri: patternUri,
-          content: patternContent,
-          metadata: { testId, type: 'pattern' },
-        }
-      );
+      const ingestResponse =
+        await integrationTest.httpClient.post<OperatePayload>(
+          '/api/v1/tools/manageKnowledge',
+          {
+            operation: 'ingest',
+            uri: patternUri,
+            content: patternContent,
+            metadata: { testId, type: 'pattern' },
+          }
+        );
 
       expect(
-        ingestResponse.data.result.success,
+        ingestResponse.data!.result.success,
         `Pattern ingest failed: ${JSON.stringify(ingestResponse.data?.result?.error ?? 'no error')}`
       ).toBe(true);
 
@@ -266,13 +294,14 @@ EOF`);
       );
 
       // PHASE 1: AI Analysis - Request scaling operation
-      const analysisResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/operate',
-        {
-          intent: `scale test-api deployment in ${patternNamespace} namespace to 4 replicas`,
-          interaction_id: `operate_pattern_test_${testId}`,
-        }
-      );
+      const analysisResponse =
+        await integrationTest.httpClient.post<OperatePayload>(
+          '/api/v1/tools/operate',
+          {
+            intent: `scale test-api deployment in ${patternNamespace} namespace to 4 replicas`,
+            interaction_id: `operate_pattern_test_${testId}`,
+          }
+        );
 
       // Validate response structure
       expect(
@@ -280,15 +309,15 @@ EOF`);
         `Operate analysis failed: ${JSON.stringify(analysisResponse.error || analysisResponse.data?.result?.error || 'no error field')}`
       ).toBe(true);
       expect(
-        analysisResponse.data.result.status,
+        analysisResponse.data!.result.status,
         `Unexpected status: ${analysisResponse.data?.result?.status}, message: ${analysisResponse.data?.result?.message || 'none'}`
       ).toBe('awaiting_user_approval');
       // PRD #320: Verify visualizationUrl is present (full visualization testing done in first test)
-      expect(analysisResponse.data.result.visualizationUrl).toMatch(
+      expect(analysisResponse.data!.result.visualizationUrl).toMatch(
         /^https:\/\/dot-ai-ui\.test\.local\/v\/opr-/
       );
 
-      const analysis = analysisResponse.data.result.analysis;
+      const analysis = analysisResponse.data!.result.analysis;
 
       // PHASE 2: Verify pattern was applied
       expect(analysis.patternsApplied).toBeInstanceOf(Array);
@@ -311,16 +340,16 @@ EOF`);
         (change: ProposedChange) => change.kind === 'HorizontalPodAutoscaler'
       );
       expect(hpaCreation).toBeDefined();
-      expect(hpaCreation.rationale).toMatch(
+      expect(hpaCreation!.rationale).toMatch(
         /pattern|hpa|horizontal|scaling|autoscal/i
       );
 
       // Verify manifest has namespace and correct replica counts
-      expect(hpaCreation.manifest).toBeDefined();
-      expect(hpaCreation.manifest).toContain(`namespace: ${patternNamespace}`);
-      expect(hpaCreation.manifest).toMatch(/minReplicas:\s*4/);
+      expect(hpaCreation!.manifest).toBeDefined();
+      expect(hpaCreation!.manifest).toContain(`namespace: ${patternNamespace}`);
+      expect(hpaCreation!.manifest).toMatch(/minReplicas:\s*4/);
       // maxReplicas should be >= minReplicas (AI may choose a reasonable default)
-      expect(hpaCreation.manifest).toMatch(/maxReplicas:\s*\d+/);
+      expect(hpaCreation!.manifest).toMatch(/maxReplicas:\s*\d+/);
 
       // PHASE 4: Verify commands include HPA creation (no manual scaling needed - HPA manages replicas)
       const hasHpaCommand = analysis.commands.some(
@@ -332,26 +361,27 @@ EOF`);
       expect(hasHpaCommand).toBe(true);
 
       // PHASE 5: Execute approved changes
-      const operateSessionId = analysisResponse.data.result.sessionId;
-      const executionResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/operate',
-        {
-          sessionId: operateSessionId,
-          executeChoice: 1, // Execute via MCP
-        }
-      );
+      const operateSessionId = analysisResponse.data!.result.sessionId;
+      const executionResponse =
+        await integrationTest.httpClient.post<OperatePayload>(
+          '/api/v1/tools/operate',
+          {
+            sessionId: operateSessionId,
+            executeChoice: 1, // Execute via MCP
+          }
+        );
 
       // Validate execution response structure
       expect(executionResponse.success).toBe(true);
       // Debug: log execution response if status is not success
-      if (executionResponse.data.result.status !== 'success') {
+      if (executionResponse.data!.result.status !== 'success') {
         console.log(
           'Execution failed. Response:',
-          JSON.stringify(executionResponse.data.result, null, 2)
+          JSON.stringify(executionResponse.data!.result, null, 2)
         );
       }
-      expect(executionResponse.data.result.status).toBe('success');
-      expect(executionResponse.data.result.execution.results).toBeDefined();
+      expect(executionResponse.data!.result.status).toBe('success');
+      expect(executionResponse.data!.result.execution.results).toBeDefined();
 
       // PHASE 6: Verify HPA actually created in cluster
       // Wait for k8s to propagate changes
@@ -386,10 +416,13 @@ EOF`);
       expect(testApiHpa.spec.scaleTargetRef.name).toBe('test-api');
 
       // Cleanup: remove the ingested pattern from the unified knowledge base
-      await integrationTest.httpClient.post('/api/v1/tools/manageKnowledge', {
-        operation: 'deleteByUri',
-        uri: patternUri,
-      });
+      await integrationTest.httpClient.post<OperatePayload>(
+        '/api/v1/tools/manageKnowledge',
+        {
+          operation: 'deleteByUri',
+          uri: patternUri,
+        }
+      );
     }, 300000); // 5 minute timeout for full workflow
   });
 
@@ -425,13 +458,14 @@ EOF`);
       expect(releases[0].name).toBe('test-app');
 
       // PHASE 1: AI Analysis - Request upgrade of Helm release
-      const analysisResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/operate',
-        {
-          intent: `upgrade the test-app helm release in ${helmNamespace} namespace to use image tag latest`,
-          interaction_id: `operate_helm_test_${testId}`,
-        }
-      );
+      const analysisResponse =
+        await integrationTest.httpClient.post<OperatePayload>(
+          '/api/v1/tools/operate',
+          {
+            intent: `upgrade the test-app helm release in ${helmNamespace} namespace to use image tag latest`,
+            interaction_id: `operate_helm_test_${testId}`,
+          }
+        );
 
       // Validate analysis response
       const expectedAnalysisResponse = {
@@ -463,7 +497,8 @@ EOF`);
       expect(analysisResponse).toMatchObject(expectedAnalysisResponse);
 
       // KEY VALIDATION: Commands should use helm, not raw kubectl for the upgrade
-      const commands: string[] = analysisResponse.data.result.analysis.commands;
+      const commands: string[] =
+        analysisResponse.data!.result.analysis.commands;
       const helmCommands = commands.filter((cmd: string) =>
         cmd.includes('helm')
       );
@@ -473,10 +508,11 @@ EOF`);
 
   describe('Error Handling', () => {
     test('should handle missing intent parameter', async () => {
-      const errorResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/operate',
-        {} // Missing intent
-      );
+      const errorResponse =
+        await integrationTest.httpClient.post<OperatePayload>(
+          '/api/v1/tools/operate',
+          {} // Missing intent
+        );
 
       const expectedErrorResponse = {
         success: true,

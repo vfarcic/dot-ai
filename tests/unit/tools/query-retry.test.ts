@@ -9,16 +9,12 @@
  */
 
 import { describe, test, expect, vi } from 'vitest';
+import { createNoopLogger } from '../helpers/mock-logger.js';
+import type { Logger } from '../../../src/core/error-handling.js';
 import { runQueryLoopWithRetry } from '../../../src/tools/query.js';
 
-// Only `.warn` is exercised; a loose stub keeps the test free of the real logger.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const noopLogger: any = {
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-  debug: () => {},
-};
+// Only `.warn` is exercised; the shared helper supplies a complete Logger.
+const noopLogger: Logger = createNoopLogger();
 
 // Minimal AgenticResult-shaped value for the retry logic (only `status` matters).
 function mkResult(
