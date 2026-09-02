@@ -55,7 +55,7 @@ describe.concurrent('Query Tool Integration', () => {
         env: { ...process.env, KUBECONFIG: kubeconfig },
         stdio: 'pipe',
       });
-    } catch (e) {
+    } catch {
       // Ignore if already exists
     }
 
@@ -80,7 +80,7 @@ spec:
         env: { ...process.env, KUBECONFIG: kubeconfig },
         stdio: 'pipe',
       });
-    } catch (e) {
+    } catch {
       // Ignore if CNPG CRD not ready
     }
 

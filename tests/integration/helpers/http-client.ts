@@ -273,7 +273,7 @@ export class HttpRestApiClient {
               }
             : undefined,
       };
-    } catch (error) {
+    } catch {
       // Handle non-JSON responses
       return {
         success: statusCode >= 200 && statusCode < 300,

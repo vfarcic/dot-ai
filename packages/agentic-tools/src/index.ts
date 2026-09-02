@@ -27,7 +27,7 @@ async function parseBody(req: IncomingMessage): Promise<unknown> {
         const body = Buffer.concat(chunks).toString('utf8');
         resolve(body ? JSON.parse(body) : {});
       } catch (error) {
-        reject(new Error('Invalid JSON body'));
+        reject(new Error('Invalid JSON body', { cause: error }));
       }
     });
     req.on('error', reject);

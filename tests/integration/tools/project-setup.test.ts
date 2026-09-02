@@ -6,7 +6,7 @@
  * Validates discovery, file scanning, and iterative file generation.
  */
 
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 
 describe.concurrent('Project Setup Tool Integration', () => {

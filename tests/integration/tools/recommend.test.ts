@@ -327,8 +327,6 @@ describe.concurrent('Recommend Tool Integration', () => {
 
   describe('Recommendation Workflow', () => {
     test('should complete full workflow: intent refinement → solutions → choose → answer → generate → deploy', async () => {
-      let manifestPath: string;
-
       // PHASE 1: Request recommendations without final flag (intent refinement)
       // NOTE: Testing default stage behavior - no stage parameter defaults to 'recommend'
       // Vague intent (< 100 chars) triggers heuristic-based guidance response (PRD #22)
@@ -2218,7 +2216,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             'get secrets -A -l owner=helm -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type --no-headers'
           );
           diagnostics += `\n--- Helm Release Secrets ---\n${helmList}\n`;
-        } catch (e) {
+        } catch {
           diagnostics += `\n--- Helm Release Secrets: Failed to retrieve ---\n`;
         }
 
@@ -2236,7 +2234,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             }));
             diagnostics += `\n--- Release "${releaseName}" Secrets ---\n${JSON.stringify(states, null, 2)}\n`;
           }
-        } catch (e) {
+        } catch {
           diagnostics += `\n--- Release Secrets: Failed to retrieve ---\n`;
         }
 
@@ -2246,7 +2244,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             `get events -n ${helmNamespace} --sort-by='.lastTimestamp' -o custom-columns=TIME:.lastTimestamp,TYPE:.type,REASON:.reason,MESSAGE:.message --no-headers 2>/dev/null | tail -10`
           );
           diagnostics += `\n--- Recent Events in ${helmNamespace} ---\n${events}\n`;
-        } catch (e) {
+        } catch {
           diagnostics += `\n--- Events: Failed to retrieve ---\n`;
         }
 

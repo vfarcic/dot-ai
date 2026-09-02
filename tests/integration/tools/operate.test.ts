@@ -377,6 +377,7 @@ EOF`);
         `get deployment test-api -n ${patternNamespace} -o json`
       );
       const deployment = JSON.parse(deploymentJson);
+      expect(deployment.metadata.name).toBe('test-api');
 
       // HPA should have set replicas to 4 (or will soon)
       // Note: HPA reconciliation may take a moment, so we check the HPA's scaleTargetRef is correct

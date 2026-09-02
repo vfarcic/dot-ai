@@ -765,10 +765,8 @@ describe('Prompts Integration', () => {
     // Two-stage tracking so teardown is robust to PARTIAL setup: the branch is
     // created before the file is committed, so if the commit (or anything after
     // branch creation) throws, afterAll must still delete the branch or it is
-    // orphaned on the remote. fixtureBranchCreated gates cleanup; fixtureReady
-    // gates the happy-path tests.
+    // orphaned on the remote. fixtureBranchCreated gates cleanup.
     let fixtureBranchCreated = false;
-    let fixtureReady = false;
 
     async function ghApi(method: string, apiPath: string, body?: unknown) {
       return fetch(`${ghRepoApi}${apiPath}`, {
@@ -836,7 +834,6 @@ describe('Prompts Integration', () => {
       });
       expect(fileRes.ok).toBe(true);
 
-      fixtureReady = true;
     });
 
     afterAll(async () => {

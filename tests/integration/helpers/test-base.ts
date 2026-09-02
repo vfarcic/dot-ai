@@ -82,7 +82,7 @@ export class IntegrationTest {
             return pod;
           }
         }
-      } catch (error) {
+      } catch {
         // Pod might not exist yet, continue waiting
       }
 
@@ -117,7 +117,7 @@ export class IntegrationTest {
         ) {
           return;
         }
-      } catch (error) {
+      } catch {
         // Deployment might not exist yet, continue waiting
       }
 

@@ -11,8 +11,6 @@ import {
   SESSION_EVENTS,
   SessionEvent,
   SessionEventBus,
-  SessionEventType,
-  SessionEventHandler,
 } from '../../../src/core/session-events';
 
 describe('SessionEventBus', () => {

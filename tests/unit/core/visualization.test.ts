@@ -4,7 +4,7 @@
  * Tests for shared visualization utilities (PRD #320)
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, afterEach } from 'vitest';
 import {
   getVisualizationUrl,
   getPromptForTool,

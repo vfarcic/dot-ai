@@ -195,12 +195,13 @@ export async function executeKubectl(
     if (error instanceof Error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         throw new Error(
-          "kubectl binary not found. Please install kubectl and ensure it's in your PATH."
+          "kubectl binary not found. Please install kubectl and ensure it's in your PATH.",
+          { cause: error }
         );
       }
       throw error;
     }
-    throw new Error(String(error));
+    throw new Error(String(error), { cause: error });
   }
 }
 
@@ -365,12 +366,13 @@ export async function executeHelm(
     if (error instanceof Error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         throw new Error(
-          "helm binary not found. Please install helm and ensure it's in your PATH."
+          "helm binary not found. Please install helm and ensure it's in your PATH.",
+          { cause: error }
         );
       }
       throw error;
     }
-    throw new Error(String(error));
+    throw new Error(String(error), { cause: error });
   }
 }
 

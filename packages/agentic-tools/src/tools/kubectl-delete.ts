@@ -10,7 +10,6 @@ import {
   executeKubectl,
   successResult,
   errorResult,
-  requireParam,
   optionalParam,
   withValidation,
 } from './base';
