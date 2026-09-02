@@ -10,7 +10,9 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 import packageJson from '../../../package.json';
-import { CURRENT_MODELS } from '../../../dist/core/model-config.js';
+// Read the constant from source, not dist/: every other test does, and the
+// dist/ import made typechecking depend on a prior build (#784).
+import { CURRENT_MODELS } from '../../../src/core/model-config.js';
 
 describe.concurrent('Version Tool Integration', () => {
   const integrationTest = new IntegrationTest();
