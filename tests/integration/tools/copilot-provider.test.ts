@@ -10,12 +10,13 @@
  * Run with:
  *   AI_PROVIDER=copilot GITHUB_COPILOT_TOKEN=gho_... npm run test:integration copilot-provider
  *
- * KNOWN LIMITATION (#783): the above command does not work yet. The integration
- * harness never puts a Copilot credential into the deployed pod, so the server
- * falls back to NoOpAIProvider and the two assertions below cannot hold. Until
- * #783 is fixed these tests can only skip (no token) or fail (token present) —
- * they cannot pass. This group also has no entry in the ci.yml integration
- * matrix, so it never runs in CI.
+ * The harness forwards the first supported token from that chain into the
+ * deployed pod's GITHUB_COPILOT_TOKEN (#783), so the gate below and the pod
+ * agree: if the gate opens, the server has the credential.
+ *
+ * Note this group has no entry in the ci.yml integration matrix — running it
+ * would need a real gho_/ghu_ token as a repository secret — so it is a
+ * local, opt-in suite only.
  *
  * PRD #587: GitHub Copilot Provider
  */

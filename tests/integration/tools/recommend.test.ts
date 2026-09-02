@@ -22,6 +22,32 @@ import { IntegrationTest } from '../helpers/test-base.js';
 import { HttpRestApiClient } from '../helpers/http-client.js';
 import { signJwt } from '../../../src/interfaces/oauth/jwt.js';
 
+/**
+ * Pick a *valid* answer for an AI-generated question.
+ *
+ * Questions and their suggestedAnswer are both AI-generated, and the two can
+ * disagree: the model sometimes suggests a value outside the `options` list it
+ * generated for the same question. Feeding that straight back produces
+ * `status: "stage_error"` / `validation_failed` and fails the workflow test for
+ * a reason that has nothing to do with the workflow. Observed in CI on a
+ * storage-class question: `must be one of: standard (default)`.
+ *
+ * `select` is the only type validated against `options`
+ * (src/tools/answer-question.ts), so that is the only case needing a fallback.
+ * Anything else passes the suggestion through unchanged.
+ */
+function validAnswerFor(question: any): any {
+  const { type, options, suggestedAnswer } = question;
+
+  if (type === 'select' && Array.isArray(options) && options.length > 0) {
+    if (!options.includes(suggestedAnswer)) {
+      return options[0];
+    }
+  }
+
+  return suggestedAnswer;
+}
+
 describe.concurrent('Recommend Tool Integration', () => {
   const integrationTest = new IntegrationTest();
   const gitToken = process.env.DOT_AI_GIT_TOKEN;
@@ -570,7 +596,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         if (q.id === 'outputFormat') {
           requiredAnswers[q.id] = 'raw'; // Use raw format for main workflow
         } else {
-          requiredAnswers[q.id] = q.suggestedAnswer;
+          requiredAnswers[q.id] = validAnswerFor(q);
         }
       });
 
@@ -1145,7 +1171,7 @@ describe.concurrent('Recommend Tool Integration', () => {
           } else if (question.id === 'outputPath') {
             requiredAnswers[question.id] = './gitops-manifests';
           } else {
-            requiredAnswers[question.id] = question.suggestedAnswer;
+            requiredAnswers[question.id] = validAnswerFor(question);
           }
         });
 
@@ -1907,7 +1933,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       const buildAnswers = (questions: any[]) => {
         const answers: Record<string, any> = {};
         questions.forEach((q: any) => {
-          answers[q.id] = q.suggestedAnswer;
+          answers[q.id] = validAnswerFor(q);
         });
         return answers;
       };
@@ -2344,7 +2370,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         } else if (q.id === 'outputPath') {
           requiredAnswers[q.id] = './my-nginx-chart';
         } else {
-          requiredAnswers[q.id] = q.suggestedAnswer;
+          requiredAnswers[q.id] = validAnswerFor(q);
         }
       });
 
@@ -2539,7 +2565,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         } else if (q.id === 'outputPath') {
           requiredAnswers[q.id] = './my-nginx-kustomize';
         } else {
-          requiredAnswers[q.id] = q.suggestedAnswer;
+          requiredAnswers[q.id] = validAnswerFor(q);
         }
       });
 

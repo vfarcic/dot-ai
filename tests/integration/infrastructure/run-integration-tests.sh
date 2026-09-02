@@ -520,6 +520,21 @@ OPENAI_KEY_VALUE="${OPENAI_API_KEY}"
 if [[ "${USE_LOCAL_EMBEDDINGS}" == "true" ]]; then
     OPENAI_KEY_VALUE="${OPENAI_API_KEY:-unused}"
 fi
+# Copilot credential (#783). The deployed pod reads only GITHUB_COPILOT_TOKEN —
+# charts/templates/deployment.yaml maps just secrets.copilot.keyName — while the
+# host-side gate in tests/integration/tools/copilot-provider.test.ts accepts a
+# supported token in any of the three env vars the resolver walks. Forward the
+# first supported one so the gate and the pod agree; otherwise a developer with
+# only GH_TOKEN set opens the gate against a pod that has no credential.
+# Prefixes mirror SUPPORTED_PREFIXES in src/core/providers/copilot-token-exchanger.ts.
+COPILOT_TOKEN_VALUE=""
+for copilot_candidate in "${GITHUB_COPILOT_TOKEN:-}" "${GH_TOKEN:-}" "${GITHUB_TOKEN:-}"; do
+    if [[ "${copilot_candidate}" == gho_* || "${copilot_candidate}" == ghu_* ]]; then
+        COPILOT_TOKEN_VALUE="${copilot_candidate}"
+        break
+    fi
+done
+
 kubectl create secret generic dot-ai-secrets \
     --namespace dot-ai \
     --from-literal=anthropic-api-key="${DOT_AI_ANTHROPIC_API_KEY:-$ANTHROPIC_API_KEY}" \
@@ -528,6 +543,7 @@ kubectl create secret generic dot-ai-secrets \
     --from-literal=xai-api-key="${XAI_API_KEY}" \
     --from-literal=moonshot-api-key="${MOONSHOT_API_KEY}" \
     --from-literal=alibaba-api-key="${ALIBABA_API_KEY}" \
+    --from-literal=copilot-token="${COPILOT_TOKEN_VALUE}" \
     --from-literal=auth-token="${TEST_AUTH_TOKEN}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
