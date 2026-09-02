@@ -128,13 +128,25 @@ export interface TelemetryService {
   isEnabled(): boolean;
 
   /** Track a telemetry event */
-  trackEvent(event: TelemetryEventName, properties: TelemetryEventProperties): void;
+  trackEvent(
+    event: TelemetryEventName,
+    properties: TelemetryEventProperties
+  ): void;
 
   /** Track tool execution */
-  trackToolExecution(tool: string, success: boolean, durationMs: number, mcpClient?: McpClientInfo): void;
+  trackToolExecution(
+    tool: string,
+    success: boolean,
+    durationMs: number,
+    mcpClient?: McpClientInfo
+  ): void;
 
   /** Track tool error */
-  trackToolError(tool: string, errorType: string, mcpClient?: McpClientInfo): void;
+  trackToolError(
+    tool: string,
+    errorType: string,
+    mcpClient?: McpClientInfo
+  ): void;
 
   /** Track server start */
   trackServerStart(k8sVersion?: string, deploymentMethod?: string): void;

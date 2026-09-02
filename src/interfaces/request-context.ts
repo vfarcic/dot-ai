@@ -112,7 +112,11 @@ export function buildProgressReporter(
 ): ProgressChannel | undefined {
   const progressToken = extra?._meta?.progressToken;
   const sendNotification = extra?.sendNotification;
-  if (progressToken === undefined || progressToken === null || !sendNotification) {
+  if (
+    progressToken === undefined ||
+    progressToken === null ||
+    !sendNotification
+  ) {
     return undefined;
   }
 

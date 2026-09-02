@@ -1,6 +1,6 @@
 /**
  * Workflow Engine Module
- * 
+ *
  * Handles workflow creation, execution, and templates
  */
 
@@ -66,21 +66,58 @@ export class WorkflowEngine {
         name: 'web-app',
         description: 'Deploy a web application with service and ingress',
         parameters: [
-          { name: 'appName', type: 'string', required: true, description: 'Application name' },
-          { name: 'image', type: 'string', required: true, description: 'Container image' },
-          { name: 'domain', type: 'string', required: false, description: 'Domain name' },
-          { name: 'replicas', type: 'number', required: false, description: 'Number of replicas', default: 1 }
-        ]
+          {
+            name: 'appName',
+            type: 'string',
+            required: true,
+            description: 'Application name',
+          },
+          {
+            name: 'image',
+            type: 'string',
+            required: true,
+            description: 'Container image',
+          },
+          {
+            name: 'domain',
+            type: 'string',
+            required: false,
+            description: 'Domain name',
+          },
+          {
+            name: 'replicas',
+            type: 'number',
+            required: false,
+            description: 'Number of replicas',
+            default: 1,
+          },
+        ],
       },
       {
         name: 'database',
         description: 'Deploy a database with persistent storage',
         parameters: [
-          { name: 'dbName', type: 'string', required: true, description: 'Database name' },
-          { name: 'dbType', type: 'string', required: true, description: 'Database type (mysql, postgres, etc.)' },
-          { name: 'storageSize', type: 'string', required: false, description: 'Storage size', default: '10Gi' }
-        ]
-      }
+          {
+            name: 'dbName',
+            type: 'string',
+            required: true,
+            description: 'Database name',
+          },
+          {
+            name: 'dbType',
+            type: 'string',
+            required: true,
+            description: 'Database type (mysql, postgres, etc.)',
+          },
+          {
+            name: 'storageSize',
+            type: 'string',
+            required: false,
+            description: 'Storage size',
+            default: '10Gi',
+          },
+        ],
+      },
     ];
   }
 
@@ -91,10 +128,10 @@ export class WorkflowEngine {
 
   async createDeploymentWorkflow(spec: WorkflowSpec): Promise<string> {
     this.validateSpec(spec);
-    
+
     const workflowId = this.generateId();
     this.workflows.set(workflowId, spec);
-    
+
     return workflowId;
   }
 
@@ -102,10 +139,12 @@ export class WorkflowEngine {
     if (typeof spec.replicas === 'string' && spec.replicas === 'invalid') {
       throw new Error('Invalid workflow specification: Invalid replicas value');
     }
-    
+
     // Add more validation as needed
     if (!spec.app && !spec.image) {
-      throw new Error('Invalid workflow specification: Missing required fields');
+      throw new Error(
+        'Invalid workflow specification: Missing required fields'
+      );
     }
   }
 
@@ -119,7 +158,7 @@ export class WorkflowEngine {
     const execution: WorkflowExecution = {
       id: executionId,
       status: 'running',
-      steps: []
+      steps: [],
     };
 
     try {
@@ -128,26 +167,30 @@ export class WorkflowEngine {
       execution.status = 'completed';
     } catch (error) {
       execution.status = 'failed';
-      execution.error = error instanceof Error ? error.message : 'Unknown error';
+      execution.error =
+        error instanceof Error ? error.message : 'Unknown error';
     }
 
     this.executions.set(executionId, execution);
     return execution;
   }
 
-  private async executeSteps(execution: WorkflowExecution, spec: WorkflowSpec): Promise<void> {
+  private async executeSteps(
+    execution: WorkflowExecution,
+    spec: WorkflowSpec
+  ): Promise<void> {
     const steps = this.generateSteps(spec);
-    
+
     for (const step of steps) {
       execution.steps.push(step);
-      
+
       // Simulate step execution
       if (spec.image === 'invalid:image') {
         step.status = 'failed';
         step.error = 'Invalid image';
         throw new Error('Step failed: Invalid image');
       }
-      
+
       // Simulate successful step
       await new Promise(resolve => setTimeout(resolve, 10)); // Small delay
       step.status = 'completed';
@@ -160,7 +203,7 @@ export class WorkflowEngine {
       { name: 'validate-config', status: 'pending' },
       { name: 'create-deployment', status: 'pending' },
       { name: 'create-service', status: 'pending' },
-      { name: 'verify-deployment', status: 'pending' }
+      { name: 'verify-deployment', status: 'pending' },
     ];
 
     return steps;
@@ -195,7 +238,7 @@ export class WorkflowEngine {
 
     // Convert template parameters to workflow spec
     const spec: WorkflowSpec = { ...params.parameters };
-    
+
     return this.createDeploymentWorkflow(spec);
   }
 
@@ -203,13 +246,16 @@ export class WorkflowEngine {
     return `wf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  async initializeWorkflow(config: { appName: string; requirements?: string }): Promise<string> {
+  async initializeWorkflow(config: {
+    appName: string;
+    requirements?: string;
+  }): Promise<string> {
     const workflowId = this.generateId();
     const spec: WorkflowSpec = {
       app: config.appName,
-      requirements: config.requirements
+      requirements: config.requirements,
     };
-    
+
     this.workflows.set(workflowId, spec);
     return workflowId;
   }
@@ -231,4 +277,4 @@ export class WorkflowEngine {
   isInitialized(): boolean {
     return this.initialized;
   }
-} 
+}

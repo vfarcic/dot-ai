@@ -5,7 +5,12 @@
  * and validates results using remediate tool
  */
 
-import { Logger, ErrorHandler, ErrorCategory, ErrorSeverity } from '../core/error-handling';
+import {
+  Logger,
+  ErrorHandler,
+  ErrorCategory,
+  ErrorSeverity,
+} from '../core/error-handling';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { executeCommands } from '../core/command-executor';
 import { OperateSessionData, ExecutionResult, OperateOutput } from './operate';
@@ -39,7 +44,11 @@ export async function executeOperations(
     }
 
     // Check if already executed
-    if (session.data.status === 'executing' || session.data.status === 'executed_successfully' || session.data.status === 'executed_with_errors') {
+    if (
+      session.data.status === 'executing' ||
+      session.data.status === 'executed_successfully' ||
+      session.data.status === 'executed_with_errors'
+    ) {
       throw ErrorHandler.createError(
         ErrorCategory.VALIDATION,
         ErrorSeverity.MEDIUM,
@@ -54,7 +63,7 @@ export async function executeOperations(
     logger.info('Loaded session for execution', {
       sessionId,
       commandCount: session.data.commands.length,
-      intent: session.data.intent
+      intent: session.data.intent,
     });
 
     // 2. Execute commands using shared executor (PRD #359: via unified plugin registry)
@@ -64,7 +73,7 @@ export async function executeOperations(
       {
         sessionId,
         context: 'operation',
-        logMetadata: { intent: session.data.intent }
+        logMetadata: { intent: session.data.intent },
       }
     );
 
@@ -74,7 +83,7 @@ export async function executeOperations(
       success: r.success,
       output: r.output,
       error: r.error,
-      timestamp: r.timestamp
+      timestamp: r.timestamp,
     }));
 
     // 3. Run validation via remediate tool (only if commands succeeded)
@@ -83,7 +92,7 @@ export async function executeOperations(
     if (overallSuccess && session.data.validationIntent) {
       logger.info('Running post-execution validation via remediate', {
         sessionId,
-        validationIntent: session.data.validationIntent
+        validationIntent: session.data.validationIntent,
       });
 
       try {
@@ -92,20 +101,22 @@ export async function executeOperations(
         const validationResponse = await handleRemediateTool({
           issue: session.data.validationIntent,
           executedCommands: session.data.commands,
-          interaction_id: session.data.interaction_id
+          interaction_id: session.data.interaction_id,
         });
 
         // Extract validation result from remediate response
         const validationData = JSON.parse(validationResponse.content[0].text);
 
-        if (validationData.status === 'resolved' || validationData.status === 'no_issue_found') {
+        if (
+          validationData.status === 'resolved' ||
+          validationData.status === 'no_issue_found'
+        ) {
           validationSummary = `Validation successful: ${validationData.message || 'Operations completed as expected.'}`;
         } else {
           validationSummary = `Validation completed with confidence ${Math.round((validationData.analysis?.confidence || 0) * 100)}%: ${validationData.analysis?.rootCause || 'See validation details'}`;
         }
 
         logger.info('Validation completed', { sessionId, validationSummary });
-
       } catch (error) {
         logger.error('Validation failed', error as Error, { sessionId });
         validationSummary = `Validation encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Manual verification recommended.`;
@@ -113,17 +124,19 @@ export async function executeOperations(
     }
 
     // 4. Update session with execution results
-    const finalStatus = overallSuccess ? 'executed_successfully' : 'executed_with_errors';
+    const finalStatus = overallSuccess
+      ? 'executed_successfully'
+      : 'executed_with_errors';
     sessionManager.updateSession(sessionId, {
       status: finalStatus,
-      executionResults
+      executionResults,
     });
 
     logger.info('Execution completed', {
       sessionId,
       finalStatus,
       successCount: executionResults.filter(r => r.success).length,
-      failureCount: executionResults.filter(r => !r.success).length
+      failureCount: executionResults.filter(r => !r.success).length,
     });
 
     // 5. Return execution results with validation
@@ -132,13 +145,12 @@ export async function executeOperations(
       sessionId,
       execution: {
         results: executionResults,
-        validation: validationSummary
+        validation: validationSummary,
       },
       message: overallSuccess
         ? `All ${executionResults.length} command(s) executed successfully. ${validationSummary}`
-        : `${executionResults.filter(r => !r.success).length} of ${executionResults.length} command(s) failed. See execution results for details.`
+        : `${executionResults.filter(r => !r.success).length} of ${executionResults.length} command(s) failed. See execution results for details.`,
     };
-
   } catch (error) {
     logger.error('Execution failed', error as Error, { sessionId });
 
@@ -156,7 +168,7 @@ export async function executeOperations(
       {
         operation: 'execute_operations',
         component: 'OperateExecutionTool',
-        sessionId
+        sessionId,
       }
     );
   }

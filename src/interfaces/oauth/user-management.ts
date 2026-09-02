@@ -55,15 +55,15 @@ function getDexClient(): unknown {
       defaults: true,
       oneofs: true,
     });
-    const proto = grpc.loadPackageDefinition(packageDef) as Record<string, unknown>;
+    const proto = grpc.loadPackageDefinition(packageDef) as Record<
+      string,
+      unknown
+    >;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const DexService = (proto.api as any).Dex;
 
     const endpoint = getDexGrpcEndpoint();
-    dexClient = new DexService(
-      endpoint,
-      grpc.credentials.createInsecure()
-    );
+    dexClient = new DexService(endpoint, grpc.credentials.createInsecure());
   }
   return dexClient;
 }
@@ -95,13 +95,17 @@ function grpcCall<TReq, TResp>(method: string, request: TReq): Promise<TResp> {
   const client = getDexClient() as Record<string, (...args: any[]) => void>;
   const deadline = new Date(Date.now() + GRPC_DEADLINE_MS);
   return new Promise((resolve, reject) => {
-    client[method](request, { deadline }, (err: grpc.ServiceError | null, response: TResp) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(response);
+    client[method](
+      request,
+      { deadline },
+      (err: grpc.ServiceError | null, response: TResp) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(response);
+        }
       }
-    });
+    );
   });
 }
 
@@ -150,7 +154,7 @@ export async function listUsers(): Promise<UserEntry[]> {
     {}
   );
 
-  return (resp.passwords ?? []).map((p) => ({ email: p.email }));
+  return (resp.passwords ?? []).map(p => ({ email: p.email }));
 }
 
 /**

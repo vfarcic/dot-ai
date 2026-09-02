@@ -13,9 +13,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { OAuthClientProvider, OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth.js';
+import type {
+  OAuthClientProvider,
+  OAuthDiscoveryState,
+} from '@modelcontextprotocol/sdk/client/auth.js';
 import { ClientCredentialsProvider } from '@modelcontextprotocol/sdk/client/auth-extensions.js';
-import type { OAuthTokens, OAuthClientMetadata } from '@modelcontextprotocol/sdk/shared/auth.js';
+import type {
+  OAuthTokens,
+  OAuthClientMetadata,
+} from '@modelcontextprotocol/sdk/shared/auth.js';
 import {
   McpServerConfig,
   McpServerAuthConfig,
@@ -53,7 +59,9 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
     this.token = token;
   }
 
-  get redirectUrl(): undefined { return undefined; }
+  get redirectUrl(): undefined {
+    return undefined;
+  }
 
   get clientMetadata(): OAuthClientMetadata {
     return {
@@ -62,7 +70,9 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
     };
   }
 
-  clientInformation() { return undefined; }
+  clientInformation() {
+    return undefined;
+  }
 
   async tokens(): Promise<OAuthTokens> {
     return {
@@ -71,21 +81,35 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
     };
   }
 
-  async saveTokens(_tokens?: OAuthTokens): Promise<void> { /* static token — nothing to save */ }
-  async redirectToAuthorization(): Promise<void> { /* non-interactive — no redirect */ }
-  async saveCodeVerifier(_verifier?: string): Promise<void> { /* no PKCE for static tokens */ }
+  async saveTokens(_tokens?: OAuthTokens): Promise<void> {
+    /* static token — nothing to save */
+  }
+  async redirectToAuthorization(): Promise<void> {
+    /* non-interactive — no redirect */
+  }
+  async saveCodeVerifier(_verifier?: string): Promise<void> {
+    /* no PKCE for static tokens */
+  }
   // Returns empty string because the SDK type requires string (not undefined).
   // Static tokens do not use PKCE, so the verifier is never meaningful.
-  async codeVerifier(): Promise<string> { return ''; }
+  async codeVerifier(): Promise<string> {
+    return '';
+  }
 
-  async invalidateCredentials(_scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
+  async invalidateCredentials(
+    _scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'
+  ): Promise<void> {
     // No-op for all scopes: static tokens are pre-provisioned and cannot be refreshed.
     // 'client'/'verifier' are for interactive OAuth (authorization_code + PKCE).
     // 'tokens'/'discovery' have no effect since the token is fixed at construction.
   }
 
-  async saveDiscoveryState(_state: OAuthDiscoveryState): Promise<void> { /* no-op for static tokens */ }
-  async discoveryState(): Promise<OAuthDiscoveryState | undefined> { return undefined; }
+  async saveDiscoveryState(_state: OAuthDiscoveryState): Promise<void> {
+    /* no-op for static tokens */
+  }
+  async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
+    return undefined;
+  }
 }
 
 /**
@@ -103,17 +127,23 @@ export function resolveTransportAuth(
 ): Pick<StreamableHTTPClientTransportOptions, 'authProvider' | 'requestInit'> {
   if (!auth) return {};
 
-  const result: Pick<StreamableHTTPClientTransportOptions, 'authProvider' | 'requestInit'> = {};
+  const result: Pick<
+    StreamableHTTPClientTransportOptions,
+    'authProvider' | 'requestInit'
+  > = {};
 
   // M1: Static token → authProvider
   if (auth.tokenEnvVar) {
     const token = process.env[auth.tokenEnvVar];
     if (token) {
       result.authProvider = new StaticTokenAuthProvider(token);
-      logger.info('MCP server auth configured via authProvider (static token)', {
-        server: serverName,
-        envVar: auth.tokenEnvVar,
-      });
+      logger.info(
+        'MCP server auth configured via authProvider (static token)',
+        {
+          server: serverName,
+          envVar: auth.tokenEnvVar,
+        }
+      );
     } else {
       throw new Error(
         `MCP server '${serverName}' auth.tokenEnvVar references env var '${auth.tokenEnvVar}' but it is empty or unset — fix the K8s Secret or remove the auth config`
@@ -127,13 +157,19 @@ export function resolveTransportAuth(
     if (headersJson) {
       try {
         const headers = JSON.parse(headersJson);
-        if (typeof headers !== 'object' || headers === null || Array.isArray(headers)) {
+        if (
+          typeof headers !== 'object' ||
+          headers === null ||
+          Array.isArray(headers)
+        ) {
           throw new Error('Headers must be a JSON object of key-value pairs');
         }
         // Validate all header values are strings — non-string values cause HTTP errors
         for (const [key, value] of Object.entries(headers)) {
           if (typeof value !== 'string') {
-            throw new Error(`Header "${key}" value must be a string, got ${typeof value}`);
+            throw new Error(
+              `Header "${key}" value must be a string, got ${typeof value}`
+            );
           }
         }
         result.requestInit = { headers };
@@ -172,12 +208,15 @@ export function resolveTransportAuth(
         clientName: 'dot-ai',
         scope: auth.oauth.scope,
       });
-      logger.info('MCP server auth configured via authProvider (OAuth client_credentials)', {
-        server: serverName,
-        clientId: auth.oauth.clientId,
-        clientSecretEnvVar: auth.oauth.clientSecretEnvVar,
-        scope: auth.oauth.scope,
-      });
+      logger.info(
+        'MCP server auth configured via authProvider (OAuth client_credentials)',
+        {
+          server: serverName,
+          clientId: auth.oauth.clientId,
+          clientSecretEnvVar: auth.oauth.clientSecretEnvVar,
+          scope: auth.oauth.scope,
+        }
+      );
     } else {
       throw new Error(
         `MCP server '${serverName}' auth.oauth.clientSecretEnvVar references env var '${auth.oauth.clientSecretEnvVar}' but it is empty or unset — fix the K8s Secret or remove the auth config`
@@ -201,10 +240,12 @@ export class McpClientManager {
   private readonly clients: Map<string, Client> = new Map();
 
   /** Transport instances keyed by server name (needed for cleanup) */
-  private readonly transports: Map<string, StreamableHTTPClientTransport> = new Map();
+  private readonly transports: Map<string, StreamableHTTPClientTransport> =
+    new Map();
 
   /** Discovered server metadata keyed by server name */
-  private readonly discoveredServers: Map<string, DiscoveredMcpServer> = new Map();
+  private readonly discoveredServers: Map<string, DiscoveredMcpServer> =
+    new Map();
 
   /** Maps namespaced tool name → server name for routing */
   private readonly toolToServer: Map<string, string> = new Map();
@@ -251,7 +292,11 @@ export class McpClientManager {
       );
     }
 
-    const validOperations: McpAttachableOperation[] = ['remediate', 'operate', 'query'];
+    const validOperations: McpAttachableOperation[] = [
+      'remediate',
+      'operate',
+      'query',
+    ];
 
     return parsed.map((s, index) => {
       if (!s || typeof s !== 'object') {
@@ -287,7 +332,10 @@ export class McpClientManager {
         const rawAuth = s.auth as Record<string, unknown>;
         auth = {};
         if ('tokenEnvVar' in rawAuth) {
-          if (typeof rawAuth.tokenEnvVar !== 'string' || rawAuth.tokenEnvVar.trim() === '') {
+          if (
+            typeof rawAuth.tokenEnvVar !== 'string' ||
+            rawAuth.tokenEnvVar.trim() === ''
+          ) {
             throw new Error(
               `MCP server at index ${index} (${serverLabel}) auth.tokenEnvVar must be a non-empty string`
             );
@@ -295,7 +343,10 @@ export class McpClientManager {
           auth.tokenEnvVar = rawAuth.tokenEnvVar;
         }
         if ('headersEnvVar' in rawAuth) {
-          if (typeof rawAuth.headersEnvVar !== 'string' || rawAuth.headersEnvVar.trim() === '') {
+          if (
+            typeof rawAuth.headersEnvVar !== 'string' ||
+            rawAuth.headersEnvVar.trim() === ''
+          ) {
             throw new Error(
               `MCP server at index ${index} (${serverLabel}) auth.headersEnvVar must be a non-empty string`
             );
@@ -304,7 +355,11 @@ export class McpClientManager {
         }
         // M4: OAuth client_credentials config
         if ('oauth' in rawAuth) {
-          if (!rawAuth.oauth || typeof rawAuth.oauth !== 'object' || Array.isArray(rawAuth.oauth)) {
+          if (
+            !rawAuth.oauth ||
+            typeof rawAuth.oauth !== 'object' ||
+            Array.isArray(rawAuth.oauth)
+          ) {
             throw new Error(
               `MCP server at index ${index} (${serverLabel}) auth.oauth must be an object`
             );
@@ -315,12 +370,18 @@ export class McpClientManager {
               `MCP server at index ${index} (${serverLabel}) auth.oauth is missing required 'clientId' field`
             );
           }
-          if (!rawOAuth.clientSecretEnvVar || typeof rawOAuth.clientSecretEnvVar !== 'string') {
+          if (
+            !rawOAuth.clientSecretEnvVar ||
+            typeof rawOAuth.clientSecretEnvVar !== 'string'
+          ) {
             throw new Error(
               `MCP server at index ${index} (${serverLabel}) auth.oauth is missing required 'clientSecretEnvVar' field`
             );
           }
-          if ('scope' in rawOAuth && (typeof rawOAuth.scope !== 'string' || rawOAuth.scope.trim() === '')) {
+          if (
+            'scope' in rawOAuth &&
+            (typeof rawOAuth.scope !== 'string' || rawOAuth.scope.trim() === '')
+          ) {
             throw new Error(
               `MCP server at index ${index} (${serverLabel}) auth.oauth.scope must be a non-empty string`
             );
@@ -328,7 +389,8 @@ export class McpClientManager {
           auth.oauth = {
             clientId: rawOAuth.clientId,
             clientSecretEnvVar: rawOAuth.clientSecretEnvVar,
-            scope: typeof rawOAuth.scope === 'string' ? rawOAuth.scope : undefined,
+            scope:
+              typeof rawOAuth.scope === 'string' ? rawOAuth.scope : undefined,
           };
         }
         // Fail-fast: auth block present but no valid fields configured
@@ -382,9 +444,10 @@ export class McpClientManager {
     results.forEach((result, index) => {
       const config = configs[index];
       if (result.status === 'rejected') {
-        const error = result.reason instanceof Error
-          ? result.reason.message
-          : String(result.reason);
+        const error =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason);
         failed.push({ name: config.name, error });
       }
     });
@@ -416,7 +479,11 @@ export class McpClientManager {
     });
 
     // Resolve authentication options from config + env vars (PRD #414)
-    const authOptions = resolveTransportAuth(config.auth, config.name, this.logger);
+    const authOptions = resolveTransportAuth(
+      config.auth,
+      config.name,
+      this.logger
+    );
 
     const transport = new StreamableHTTPClientTransport(
       new URL(config.endpoint),
@@ -439,14 +506,21 @@ export class McpClientManager {
     // Connect with timeout
     const connectPromise = client.connect(transport);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Connection timed out after ${timeout}ms`)), timeout)
+      setTimeout(
+        () => reject(new Error(`Connection timed out after ${timeout}ms`)),
+        timeout
+      )
     );
 
     try {
       await Promise.race([connectPromise, timeoutPromise]);
     } catch (err) {
       // Clean up transport on failure
-      try { await transport.close(); } catch { /* ignore cleanup errors */ }
+      try {
+        await transport.close();
+      } catch {
+        /* ignore cleanup errors */
+      }
       throw new Error(
         `Failed to connect to MCP server '${config.name}' at ${config.endpoint}: ${err instanceof Error ? err.message : String(err)}`,
         { cause: err }
@@ -462,12 +536,18 @@ export class McpClientManager {
         description: t.description,
         inputSchema: {
           type: t.inputSchema.type,
-          properties: t.inputSchema.properties as Record<string, unknown> | undefined,
+          properties: t.inputSchema.properties as
+            | Record<string, unknown>
+            | undefined,
           required: t.inputSchema.required,
         },
       }));
     } catch (err) {
-      try { await transport.close(); } catch { /* ignore cleanup errors */ }
+      try {
+        await transport.close();
+      } catch {
+        /* ignore cleanup errors */
+      }
       throw new Error(
         `Failed to list tools from MCP server '${config.name}': ${err instanceof Error ? err.message : String(err)}`,
         { cause: err }
@@ -505,7 +585,9 @@ export class McpClientManager {
       name: config.name,
       version: client.getServerVersion()?.version,
       tools: tools.map(t => t.name),
-      namespacedTools: tools.map(t => `${config.name}${TOOL_NAME_SEPARATOR}${t.name}`),
+      namespacedTools: tools.map(
+        t => `${config.name}${TOOL_NAME_SEPARATOR}${t.name}`
+      ),
     });
   }
 
@@ -591,12 +673,16 @@ export class McpClientManager {
           });
 
           // Extract text content from MCP response
-          const contentArray = result.content as Array<{ type: string; text?: string }>;
+          const contentArray = result.content as Array<{
+            type: string;
+            text?: string;
+          }>;
           if (result.isError) {
-            const errorText = contentArray
-              ?.filter(c => c.type === 'text')
-              .map(c => c.text)
-              .join('\n') || 'Unknown MCP tool error';
+            const errorText =
+              contentArray
+                ?.filter(c => c.type === 'text')
+                .map(c => c.text)
+                .join('\n') || 'Unknown MCP tool error';
             return `Error: ${errorText}`;
           }
 
@@ -609,11 +695,10 @@ export class McpClientManager {
           return textContent || '';
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          this.logger.error(
-            'MCP tool invocation failed',
-            new Error(message),
-            { tool: toolName, server: this.toolToServer.get(toolName) }
-          );
+          this.logger.error('MCP tool invocation failed', new Error(message), {
+            tool: toolName,
+            server: this.toolToServer.get(toolName),
+          });
           return `Error: ${message}`;
         }
       }

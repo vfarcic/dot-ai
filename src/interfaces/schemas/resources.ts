@@ -14,7 +14,13 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, BadRequestErrorSchema, NotFoundErrorSchema, ServiceUnavailableErrorSchema, InternalServerErrorSchema } from './common';
+import {
+  createSuccessResponseSchema,
+  BadRequestErrorSchema,
+  NotFoundErrorSchema,
+  ServiceUnavailableErrorSchema,
+  InternalServerErrorSchema,
+} from './common';
 
 /**
  * Resource kind with count
@@ -23,7 +29,10 @@ export const ResourceKindSchema = z.object({
   kind: z.string().describe('Resource kind (e.g., "Pod", "Deployment")'),
   apiVersion: z.string().describe('API version (e.g., "v1", "apps/v1")'),
   count: z.number().describe('Number of resources of this kind'),
-  apiGroup: z.string().optional().describe('API group (e.g., "apps", "networking.k8s.io")'),
+  apiGroup: z
+    .string()
+    .optional()
+    .describe('API group (e.g., "apps", "networking.k8s.io")'),
 });
 
 export type ResourceKind = z.infer<typeof ResourceKindSchema>;
@@ -33,12 +42,16 @@ export type ResourceKind = z.infer<typeof ResourceKindSchema>;
  * GET /api/v1/resources/kinds
  */
 export const ResourceKindsDataSchema = z.object({
-  kinds: z.array(ResourceKindSchema).describe('List of resource kinds with counts'),
+  kinds: z
+    .array(ResourceKindSchema)
+    .describe('List of resource kinds with counts'),
 });
 
 export type ResourceKindsData = z.infer<typeof ResourceKindsDataSchema>;
 
-export const ResourceKindsResponseSchema = createSuccessResponseSchema(ResourceKindsDataSchema);
+export const ResourceKindsResponseSchema = createSuccessResponseSchema(
+  ResourceKindsDataSchema
+);
 
 export type ResourceKindsResponse = z.infer<typeof ResourceKindsResponseSchema>;
 
@@ -47,13 +60,22 @@ export type ResourceKindsResponse = z.infer<typeof ResourceKindsResponseSchema>;
  */
 export const ResourceSummarySchema = z.object({
   name: z.string().describe('Resource name'),
-  namespace: z.string().optional().describe('Namespace (for namespaced resources)'),
+  namespace: z
+    .string()
+    .optional()
+    .describe('Namespace (for namespaced resources)'),
   kind: z.string().describe('Resource kind'),
   apiVersion: z.string().describe('API version'),
   apiGroup: z.string().optional().describe('API group'),
-  labels: z.record(z.string(), z.string()).optional().describe('Resource labels'),
+  labels: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe('Resource labels'),
   createdAt: z.string().optional().describe('Creation timestamp'),
-  score: z.number().optional().describe('Search relevance score (for search results)'),
+  score: z
+    .number()
+    .optional()
+    .describe('Search relevance score (for search results)'),
   status: z.any().optional().describe('Live status from Kubernetes API'),
 });
 
@@ -72,9 +94,13 @@ export const ResourceSearchDataSchema = z.object({
 
 export type ResourceSearchData = z.infer<typeof ResourceSearchDataSchema>;
 
-export const ResourceSearchResponseSchema = createSuccessResponseSchema(ResourceSearchDataSchema);
+export const ResourceSearchResponseSchema = createSuccessResponseSchema(
+  ResourceSearchDataSchema
+);
 
-export type ResourceSearchResponse = z.infer<typeof ResourceSearchResponseSchema>;
+export type ResourceSearchResponse = z.infer<
+  typeof ResourceSearchResponseSchema
+>;
 
 /**
  * Resource list response data
@@ -89,7 +115,9 @@ export const ResourceListDataSchema = z.object({
 
 export type ResourceListData = z.infer<typeof ResourceListDataSchema>;
 
-export const ResourceListResponseSchema = createSuccessResponseSchema(ResourceListDataSchema);
+export const ResourceListResponseSchema = createSuccessResponseSchema(
+  ResourceListDataSchema
+);
 
 export type ResourceListResponse = z.infer<typeof ResourceListResponseSchema>;
 
@@ -98,14 +126,20 @@ export type ResourceListResponse = z.infer<typeof ResourceListResponseSchema>;
  * GET /api/v1/resource
  */
 export const SingleResourceDataSchema = z.object({
-  resource: z.record(z.string(), z.any()).describe('Full Kubernetes resource object'),
+  resource: z
+    .record(z.string(), z.any())
+    .describe('Full Kubernetes resource object'),
 });
 
 export type SingleResourceData = z.infer<typeof SingleResourceDataSchema>;
 
-export const SingleResourceResponseSchema = createSuccessResponseSchema(SingleResourceDataSchema);
+export const SingleResourceResponseSchema = createSuccessResponseSchema(
+  SingleResourceDataSchema
+);
 
-export type SingleResourceResponse = z.infer<typeof SingleResourceResponseSchema>;
+export type SingleResourceResponse = z.infer<
+  typeof SingleResourceResponseSchema
+>;
 
 /**
  * Namespaces response data
@@ -117,7 +151,8 @@ export const NamespacesDataSchema = z.object({
 
 export type NamespacesData = z.infer<typeof NamespacesDataSchema>;
 
-export const NamespacesResponseSchema = createSuccessResponseSchema(NamespacesDataSchema);
+export const NamespacesResponseSchema =
+  createSuccessResponseSchema(NamespacesDataSchema);
 
 export type NamespacesResponse = z.infer<typeof NamespacesResponseSchema>;
 
@@ -126,9 +161,22 @@ export type NamespacesResponse = z.infer<typeof NamespacesResponseSchema>;
  * POST /api/v1/resources/sync
  */
 export const ResourceSyncRequestSchema = z.object({
-  upserts: z.array(z.record(z.string(), z.any())).optional().describe('Resources to upsert'),
-  deletes: z.array(z.record(z.string(), z.any())).optional().describe('Resources to delete (requires namespace, name, kind, apiVersion)'),
-  isResync: z.boolean().optional().describe('When true, performs full reconciliation - deletes resources not in upserts list'),
+  upserts: z
+    .array(z.record(z.string(), z.any()))
+    .optional()
+    .describe('Resources to upsert'),
+  deletes: z
+    .array(z.record(z.string(), z.any()))
+    .optional()
+    .describe(
+      'Resources to delete (requires namespace, name, kind, apiVersion)'
+    ),
+  isResync: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, performs full reconciliation - deletes resources not in upserts list'
+    ),
 });
 
 export type ResourceSyncRequest = z.infer<typeof ResourceSyncRequestSchema>;
@@ -145,7 +193,9 @@ export const ResourceSyncDataSchema = z.object({
 
 export type ResourceSyncData = z.infer<typeof ResourceSyncDataSchema>;
 
-export const ResourceSyncResponseSchema = createSuccessResponseSchema(ResourceSyncDataSchema);
+export const ResourceSyncResponseSchema = createSuccessResponseSchema(
+  ResourceSyncDataSchema
+);
 
 export type ResourceSyncResponse = z.infer<typeof ResourceSyncResponseSchema>;
 
@@ -162,19 +212,25 @@ export const ResourceNotFoundErrorSchema = NotFoundErrorSchema.extend({
 
 export const ResourceBadRequestErrorSchema = BadRequestErrorSchema.extend({
   error: z.object({
-    code: z.enum(['BAD_REQUEST', 'MISSING_PARAMETER', 'INVALID_PARAMETER', 'VALIDATION_ERROR']),
+    code: z.enum([
+      'BAD_REQUEST',
+      'MISSING_PARAMETER',
+      'INVALID_PARAMETER',
+      'VALIDATION_ERROR',
+    ]),
     message: z.string(),
     details: z.any().optional(),
   }),
 });
 
-export const ResourcePluginUnavailableErrorSchema = ServiceUnavailableErrorSchema.extend({
-  error: z.object({
-    code: z.literal('PLUGIN_UNAVAILABLE'),
-    message: z.string(),
-    details: z.any().optional(),
-  }),
-});
+export const ResourcePluginUnavailableErrorSchema =
+  ServiceUnavailableErrorSchema.extend({
+    error: z.object({
+      code: z.literal('PLUGIN_UNAVAILABLE'),
+      message: z.string(),
+      details: z.any().optional(),
+    }),
+  });
 
 export const ResourceKindsErrorSchema = InternalServerErrorSchema.extend({
   error: z.object({

@@ -10,12 +10,13 @@ import {
   AIProvider,
   AIResponse,
   AgenticResult,
-  ToolLoopConfig
+  ToolLoopConfig,
 } from '../ai-provider.interface';
 import { AI_SERVICE_ERROR_TEMPLATES } from '../constants';
 
 export class NoOpAIProvider implements AIProvider {
-  private static readonly ERROR_MESSAGE = AI_SERVICE_ERROR_TEMPLATES.PROVIDER_NOT_AVAILABLE;
+  private static readonly ERROR_MESSAGE =
+    AI_SERVICE_ERROR_TEMPLATES.PROVIDER_NOT_AVAILABLE;
 
   /**
    * Creates a NoOp provider that doesn't require API keys

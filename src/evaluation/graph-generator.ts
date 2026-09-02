@@ -41,17 +41,21 @@ export class GraphGenerator {
 
     // Define all available graphs
     const allGraphs: Record<string, () => Promise<GraphGenerationResult>> = {
-      'performance-tiers': () => this.generatePerformanceTiersGraph(modelPerformances),
-      'cost-vs-quality': () => this.generateCostVsQualityGraph(modelPerformances),
-      'reliability-comparison': () => this.generateReliabilityComparisonGraph(modelPerformances),
-      'tool-performance-heatmap': () => this.generateToolPerformanceHeatmap(modelPerformances),
-      'context-window-correlation': () => this.generateContextWindowCorrelationGraph(modelPerformances)
+      'performance-tiers': () =>
+        this.generatePerformanceTiersGraph(modelPerformances),
+      'cost-vs-quality': () =>
+        this.generateCostVsQualityGraph(modelPerformances),
+      'reliability-comparison': () =>
+        this.generateReliabilityComparisonGraph(modelPerformances),
+      'tool-performance-heatmap': () =>
+        this.generateToolPerformanceHeatmap(modelPerformances),
+      'context-window-correlation': () =>
+        this.generateContextWindowCorrelationGraph(modelPerformances),
     };
 
     // If specific graphs requested, only generate those
-    const graphsToGenerate = graphNames && graphNames.length > 0
-      ? graphNames
-      : Object.keys(allGraphs);
+    const graphsToGenerate =
+      graphNames && graphNames.length > 0 ? graphNames : Object.keys(allGraphs);
 
     // Generate requested graphs
     for (const graphName of graphsToGenerate) {
@@ -68,7 +72,9 @@ export class GraphGenerator {
   /**
    * Graph 1: Performance Tiers - Grouped bar chart showing score, reliability, and consistency
    */
-  private async generatePerformanceTiersGraph(modelPerformances: ModelPerformance[]): Promise<GraphGenerationResult> {
+  private async generatePerformanceTiersGraph(
+    modelPerformances: ModelPerformance[]
+  ): Promise<GraphGenerationResult> {
     try {
       // Sort by average score descending, take top 10 models
       const topModels = modelPerformances
@@ -91,79 +97,83 @@ export class GraphGenerator {
               data: scores,
               backgroundColor: 'rgba(54, 162, 235, 0.9)',
               borderColor: 'rgba(54, 162, 235, 1)',
-              borderWidth: 1
+              borderWidth: 1,
             },
             {
               label: 'Reliability',
               data: reliability,
               backgroundColor: 'rgba(75, 192, 192, 0.9)',
               borderColor: 'rgba(75, 192, 192, 1)',
-              borderWidth: 1
+              borderWidth: 1,
             },
             {
               label: 'Consistency',
               data: consistency,
               backgroundColor: 'rgba(153, 102, 255, 0.9)',
               borderColor: 'rgba(153, 102, 255, 1)',
-              borderWidth: 1
-            }
-          ]
+              borderWidth: 1,
+            },
+          ],
         },
         options: {
           plugins: {
             datalabels: {
-              display: false
-            }
+              display: false,
+            },
           },
           title: {
             display: true,
             text: 'Model Performance Tiers: Score, Reliability, and Consistency',
             fontSize: 18,
             fontColor: '#FFFFFF',
-            fontStyle: 'bold'
+            fontStyle: 'bold',
           },
           scales: {
-            yAxes: [{
-              ticks: {
-                beginAtZero: true,
-                max: 1.0,
-                stepSize: 0.1,
-                fontColor: '#FFFFFF',
-                fontSize: 12
+            yAxes: [
+              {
+                ticks: {
+                  beginAtZero: true,
+                  max: 1.0,
+                  stepSize: 0.1,
+                  fontColor: '#FFFFFF',
+                  fontSize: 12,
+                },
+                scaleLabel: {
+                  display: true,
+                  labelString: 'Score (0-1)',
+                  fontColor: '#FFFFFF',
+                  fontSize: 14,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.2)',
+                  zeroLineColor: 'rgba(255, 255, 255, 0.4)',
+                },
               },
-              scaleLabel: {
-                display: true,
-                labelString: 'Score (0-1)',
-                fontColor: '#FFFFFF',
-                fontSize: 14
+            ],
+            xAxes: [
+              {
+                ticks: {
+                  autoSkip: false,
+                  maxRotation: 45,
+                  minRotation: 45,
+                  fontColor: '#FFFFFF',
+                  fontSize: 11,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.1)',
+                },
               },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                zeroLineColor: 'rgba(255, 255, 255, 0.4)'
-              }
-            }],
-            xAxes: [{
-              ticks: {
-                autoSkip: false,
-                maxRotation: 45,
-                minRotation: 45,
-                fontColor: '#FFFFFF',
-                fontSize: 11
-              },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            }]
+            ],
           },
           legend: {
             display: true,
             position: 'top',
             labels: {
               fontColor: '#FFFFFF',
-              fontSize: 13
-            }
-          }
-        }
+              fontSize: 13,
+            },
+          },
+        },
       };
 
       const outputPath = path.join(this.outputDir, 'performance-tiers.png');
@@ -171,12 +181,12 @@ export class GraphGenerator {
 
       return {
         success: true,
-        graphPath: outputPath
+        graphPath: outputPath,
       };
     } catch (error) {
       return {
         success: false,
-        error: `Failed to generate performance tiers graph: ${error}`
+        error: `Failed to generate performance tiers graph: ${error}`,
       };
     }
   }
@@ -184,12 +194,16 @@ export class GraphGenerator {
   /**
    * Graph 2: Cost vs Quality - Line chart showing input/output cost range per model
    */
-  private async generateCostVsQualityGraph(modelPerformances: ModelPerformance[]): Promise<GraphGenerationResult> {
+  private async generateCostVsQualityGraph(
+    modelPerformances: ModelPerformance[]
+  ): Promise<GraphGenerationResult> {
     try {
       // Filter out models with no pricing data and sort by quality score descending
       const modelsWithPricing = modelPerformances
-        .filter(m =>
-          m.pricing.input_cost_per_million_tokens > 0 || m.pricing.output_cost_per_million_tokens > 0
+        .filter(
+          m =>
+            m.pricing.input_cost_per_million_tokens > 0 ||
+            m.pricing.output_cost_per_million_tokens > 0
         )
         .sort((a, b) => b.averageScore - a.averageScore);
 
@@ -204,7 +218,7 @@ export class GraphGenerator {
           label: this.cleanModelName(m.modelId),
           data: [
             { x: inputCost, y: m.averageScore },
-            { x: outputCost, y: m.averageScore }
+            { x: outputCost, y: m.averageScore },
           ],
           borderColor: color,
           backgroundColor: color,
@@ -213,7 +227,7 @@ export class GraphGenerator {
           pointHoverRadius: 7,
           fill: false,
           showLine: true,
-          tension: 0
+          tension: 0,
         };
       });
 
@@ -223,56 +237,60 @@ export class GraphGenerator {
         options: {
           plugins: {
             datalabels: {
-              display: false
-            }
+              display: false,
+            },
           },
           title: {
             display: true,
             text: 'Cost vs Quality Analysis (line shows input → output cost range)',
             fontSize: 18,
             fontColor: '#FFFFFF',
-            fontStyle: 'bold'
+            fontStyle: 'bold',
           },
           scales: {
-            xAxes: [{
-              type: 'linear',
-              scaleLabel: {
-                display: true,
-                labelString: 'Cost per 1M Tokens in $ (Input ← → Output)',
-                fontColor: '#FFFFFF',
-                fontSize: 14
-              },
-              ticks: {
-                callback: function(value: number) {
-                  return '$' + value;
+            xAxes: [
+              {
+                type: 'linear',
+                scaleLabel: {
+                  display: true,
+                  labelString: 'Cost per 1M Tokens in $ (Input ← → Output)',
+                  fontColor: '#FFFFFF',
+                  fontSize: 14,
                 },
-                fontColor: '#FFFFFF',
-                fontSize: 12
+                ticks: {
+                  callback: function (value: number) {
+                    return '$' + value;
+                  },
+                  fontColor: '#FFFFFF',
+                  fontSize: 12,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.2)',
+                  zeroLineColor: 'rgba(255, 255, 255, 0.4)',
+                },
               },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                zeroLineColor: 'rgba(255, 255, 255, 0.4)'
-              }
-            }],
-            yAxes: [{
-              scaleLabel: {
-                display: true,
-                labelString: 'Overall Score',
-                fontColor: '#FFFFFF',
-                fontSize: 14
+            ],
+            yAxes: [
+              {
+                scaleLabel: {
+                  display: true,
+                  labelString: 'Overall Score',
+                  fontColor: '#FFFFFF',
+                  fontSize: 14,
+                },
+                ticks: {
+                  beginAtZero: false,
+                  min: 0.3,
+                  max: 1.0,
+                  fontColor: '#FFFFFF',
+                  fontSize: 12,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.2)',
+                  zeroLineColor: 'rgba(255, 255, 255, 0.4)',
+                },
               },
-              ticks: {
-                beginAtZero: false,
-                min: 0.3,
-                max: 1.0,
-                fontColor: '#FFFFFF',
-                fontSize: 12
-              },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                zeroLineColor: 'rgba(255, 255, 255, 0.4)'
-              }
-            }]
+            ],
           },
           legend: {
             display: true,
@@ -281,10 +299,10 @@ export class GraphGenerator {
               fontColor: '#FFFFFF',
               fontSize: 10,
               boxWidth: 15,
-              usePointStyle: true
-            }
-          }
-        }
+              usePointStyle: true,
+            },
+          },
+        },
       };
 
       const outputPath = path.join(this.outputDir, 'cost-vs-quality.png');
@@ -292,12 +310,12 @@ export class GraphGenerator {
 
       return {
         success: true,
-        graphPath: outputPath
+        graphPath: outputPath,
       };
     } catch (error) {
       return {
         success: false,
-        error: `Failed to generate cost vs quality graph: ${error}`
+        error: `Failed to generate cost vs quality graph: ${error}`,
       };
     }
   }
@@ -305,11 +323,14 @@ export class GraphGenerator {
   /**
    * Graph 3: Reliability Comparison - Bar chart with reliability scores
    */
-  private async generateReliabilityComparisonGraph(modelPerformances: ModelPerformance[]): Promise<GraphGenerationResult> {
+  private async generateReliabilityComparisonGraph(
+    modelPerformances: ModelPerformance[]
+  ): Promise<GraphGenerationResult> {
     try {
       // Sort by reliability descending
-      const sortedModels = modelPerformances
-        .sort((a, b) => b.reliabilityScore - a.reliabilityScore);
+      const sortedModels = modelPerformances.sort(
+        (a, b) => b.reliabilityScore - a.reliabilityScore
+      );
 
       const labels = sortedModels.map(m => this.cleanModelName(m.modelId));
       const reliabilityScores = sortedModels.map(m => m.reliabilityScore);
@@ -318,97 +339,106 @@ export class GraphGenerator {
       const datasets = [
         {
           label: 'High Reliability (≥0.9)',
-          data: reliabilityScores.map(score => score >= 0.9 ? score : null),
+          data: reliabilityScores.map(score => (score >= 0.9 ? score : null)),
           backgroundColor: 'rgba(75, 192, 192, 0.8)',
-          borderWidth: 1
+          borderWidth: 1,
         },
         {
           label: 'Medium Reliability (0.7-0.9)',
-          data: reliabilityScores.map(score => score >= 0.7 && score < 0.9 ? score : null),
+          data: reliabilityScores.map(score =>
+            score >= 0.7 && score < 0.9 ? score : null
+          ),
           backgroundColor: 'rgba(255, 206, 86, 0.8)',
-          borderWidth: 1
+          borderWidth: 1,
         },
         {
           label: 'Low Reliability (<0.7)',
-          data: reliabilityScores.map(score => score < 0.7 ? score : null),
+          data: reliabilityScores.map(score => (score < 0.7 ? score : null)),
           backgroundColor: 'rgba(255, 99, 132, 0.8)',
-          borderWidth: 1
-        }
+          borderWidth: 1,
+        },
       ];
 
       const chartConfig = {
         type: 'horizontalBar',
         data: {
           labels,
-          datasets
+          datasets,
         },
         options: {
           plugins: {
             datalabels: {
-              display: false
-            }
+              display: false,
+            },
           },
           title: {
             display: true,
             text: 'Model Reliability Comparison',
             fontSize: 18,
             fontColor: '#FFFFFF',
-            fontStyle: 'bold'
+            fontStyle: 'bold',
           },
           scales: {
-            xAxes: [{
-              stacked: true,
-              ticks: {
-                beginAtZero: true,
-                max: 1.0,
-                stepSize: 0.1,
-                fontColor: '#FFFFFF',
-                fontSize: 12
+            xAxes: [
+              {
+                stacked: true,
+                ticks: {
+                  beginAtZero: true,
+                  max: 1.0,
+                  stepSize: 0.1,
+                  fontColor: '#FFFFFF',
+                  fontSize: 12,
+                },
+                scaleLabel: {
+                  display: true,
+                  labelString: 'Reliability Score (0-1)',
+                  fontColor: '#FFFFFF',
+                  fontSize: 14,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.2)',
+                  zeroLineColor: 'rgba(255, 255, 255, 0.4)',
+                },
               },
-              scaleLabel: {
-                display: true,
-                labelString: 'Reliability Score (0-1)',
-                fontColor: '#FFFFFF',
-                fontSize: 14
+            ],
+            yAxes: [
+              {
+                stacked: true,
+                ticks: {
+                  fontColor: '#FFFFFF',
+                  fontSize: 11,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.1)',
+                },
               },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                zeroLineColor: 'rgba(255, 255, 255, 0.4)'
-              }
-            }],
-            yAxes: [{
-              stacked: true,
-              ticks: {
-                fontColor: '#FFFFFF',
-                fontSize: 11
-              },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            }]
+            ],
           },
           legend: {
             display: true,
             position: 'top',
             labels: {
               fontColor: '#FFFFFF',
-              fontSize: 12
-            }
-          }
-        }
+              fontSize: 12,
+            },
+          },
+        },
       };
 
-      const outputPath = path.join(this.outputDir, 'reliability-comparison.png');
+      const outputPath = path.join(
+        this.outputDir,
+        'reliability-comparison.png'
+      );
       await this.downloadChart(chartConfig, outputPath);
 
       return {
         success: true,
-        graphPath: outputPath
+        graphPath: outputPath,
       };
     } catch (error) {
       return {
         success: false,
-        error: `Failed to generate reliability comparison graph: ${error}`
+        error: `Failed to generate reliability comparison graph: ${error}`,
       };
     }
   }
@@ -416,7 +446,9 @@ export class GraphGenerator {
   /**
    * Graph 4: Tool Performance Heatmap - Shows model scores per tool
    */
-  private async generateToolPerformanceHeatmap(modelPerformances: ModelPerformance[]): Promise<GraphGenerationResult> {
+  private async generateToolPerformanceHeatmap(
+    modelPerformances: ModelPerformance[]
+  ): Promise<GraphGenerationResult> {
     try {
       // Get all unique tool names
       const toolNames = new Set<string>();
@@ -437,82 +469,89 @@ export class GraphGenerator {
         label: tool.charAt(0).toUpperCase() + tool.slice(1),
         data: sortedModels.map(m => m.toolScores[tool] || 0),
         backgroundColor: this.getToolColor(idx),
-        borderWidth: 1
+        borderWidth: 1,
       }));
 
       const chartConfig = {
         type: 'horizontalBar',
         data: {
           labels,
-          datasets
+          datasets,
         },
         options: {
           plugins: {
             datalabels: {
-              display: false
-            }
+              display: false,
+            },
           },
           title: {
             display: true,
             text: 'Tool-Specific Performance Patterns',
             fontSize: 18,
             fontColor: '#FFFFFF',
-            fontStyle: 'bold'
+            fontStyle: 'bold',
           },
           scales: {
-            xAxes: [{
-              stacked: false,
-              ticks: {
-                beginAtZero: true,
-                max: 1.0,
-                stepSize: 0.2,
-                fontColor: '#FFFFFF',
-                fontSize: 12
+            xAxes: [
+              {
+                stacked: false,
+                ticks: {
+                  beginAtZero: true,
+                  max: 1.0,
+                  stepSize: 0.2,
+                  fontColor: '#FFFFFF',
+                  fontSize: 12,
+                },
+                scaleLabel: {
+                  display: true,
+                  labelString: 'Tool Score',
+                  fontColor: '#FFFFFF',
+                  fontSize: 14,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.2)',
+                  zeroLineColor: 'rgba(255, 255, 255, 0.4)',
+                },
               },
-              scaleLabel: {
-                display: true,
-                labelString: 'Tool Score',
-                fontColor: '#FFFFFF',
-                fontSize: 14
+            ],
+            yAxes: [
+              {
+                stacked: false,
+                ticks: {
+                  fontColor: '#FFFFFF',
+                  fontSize: 11,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.1)',
+                },
               },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                zeroLineColor: 'rgba(255, 255, 255, 0.4)'
-              }
-            }],
-            yAxes: [{
-              stacked: false,
-              ticks: {
-                fontColor: '#FFFFFF',
-                fontSize: 11
-              },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.1)'
-              }
-            }]
+            ],
           },
           legend: {
             display: true,
             position: 'right',
             labels: {
               fontColor: '#FFFFFF',
-              fontSize: 12
-            }
-          }
-        }
+              fontSize: 12,
+            },
+          },
+        },
       };
 
-      const outputPath = path.join(this.outputDir, 'tool-performance-heatmap.png');
+      const outputPath = path.join(
+        this.outputDir,
+        'tool-performance-heatmap.png'
+      );
       await this.downloadChart(chartConfig, outputPath);
 
       return {
         success: true,
-        graphPath: outputPath
+        graphPath: outputPath,
       };
     } catch (error) {
       return {
         success: false,
-        error: `Failed to generate tool performance heatmap: ${error}`
+        error: `Failed to generate tool performance heatmap: ${error}`,
       };
     }
   }
@@ -520,26 +559,30 @@ export class GraphGenerator {
   /**
    * Graph 5: Context Window Correlation - Scatter plot showing context window vs performance
    */
-  private async generateContextWindowCorrelationGraph(modelPerformances: ModelPerformance[]): Promise<GraphGenerationResult> {
+  private async generateContextWindowCorrelationGraph(
+    modelPerformances: ModelPerformance[]
+  ): Promise<GraphGenerationResult> {
     try {
-      const scatterData = modelPerformances.map((m) => ({
+      const scatterData = modelPerformances.map(m => ({
         x: m.capabilities.context_window / 1000, // Convert to thousands for readability
         y: m.averageScore,
         r: 8,
-        label: this.cleanModelName(m.modelId)
+        label: this.cleanModelName(m.modelId),
       }));
 
       const chartConfig = {
         type: 'scatter',
         data: {
-          datasets: [{
-            label: 'Models',
-            data: scatterData,
-            backgroundColor: 'rgba(153, 102, 255, 0.7)',
-            borderColor: 'rgba(153, 102, 255, 1)',
-            borderWidth: 2,
-            pointRadius: 10
-          }]
+          datasets: [
+            {
+              label: 'Models',
+              data: scatterData,
+              backgroundColor: 'rgba(153, 102, 255, 0.7)',
+              borderColor: 'rgba(153, 102, 255, 1)',
+              borderWidth: 2,
+              pointRadius: 10,
+            },
+          ],
         },
         options: {
           layout: {
@@ -547,8 +590,8 @@ export class GraphGenerator {
               right: 300,
               left: 20,
               top: 20,
-              bottom: 20
-            }
+              bottom: 20,
+            },
           },
           plugins: {
             datalabels: {
@@ -557,86 +600,100 @@ export class GraphGenerator {
               offset: 12,
               color: '#FFFFFF',
               font: {
-                size: 20
+                size: 20,
               },
-              formatter: (value: { label?: string }) => value.label
-            }
+              formatter: (value: { label?: string }) => value.label,
+            },
           },
           title: {
             display: true,
             text: 'Context Window Size vs Performance',
             fontSize: 18,
             fontColor: '#FFFFFF',
-            fontStyle: 'bold'
+            fontStyle: 'bold',
           },
           scales: {
-            xAxes: [{
-              type: 'linear',
-              scaleLabel: {
-                display: true,
-                labelString: 'Context Window Size (K tokens)',
-                fontColor: '#FFFFFF',
-                fontSize: 14
+            xAxes: [
+              {
+                type: 'linear',
+                scaleLabel: {
+                  display: true,
+                  labelString: 'Context Window Size (K tokens)',
+                  fontColor: '#FFFFFF',
+                  fontSize: 14,
+                },
+                ticks: {
+                  callback: (value: number) => value + 'K',
+                  fontColor: '#FFFFFF',
+                  fontSize: 12,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.2)',
+                  zeroLineColor: 'rgba(255, 255, 255, 0.4)',
+                },
               },
-              ticks: {
-                callback: (value: number) => value + 'K',
-                fontColor: '#FFFFFF',
-                fontSize: 12
+            ],
+            yAxes: [
+              {
+                scaleLabel: {
+                  display: true,
+                  labelString: 'Overall Score',
+                  fontColor: '#FFFFFF',
+                  fontSize: 14,
+                },
+                ticks: {
+                  beginAtZero: false,
+                  min: 0.3,
+                  max: 1.0,
+                  fontColor: '#FFFFFF',
+                  fontSize: 12,
+                },
+                gridLines: {
+                  color: 'rgba(255, 255, 255, 0.2)',
+                  zeroLineColor: 'rgba(255, 255, 255, 0.4)',
+                },
               },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                zeroLineColor: 'rgba(255, 255, 255, 0.4)'
-              }
-            }],
-            yAxes: [{
-              scaleLabel: {
-                display: true,
-                labelString: 'Overall Score',
-                fontColor: '#FFFFFF',
-                fontSize: 14
-              },
-              ticks: {
-                beginAtZero: false,
-                min: 0.3,
-                max: 1.0,
-                fontColor: '#FFFFFF',
-                fontSize: 12
-              },
-              gridLines: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                zeroLineColor: 'rgba(255, 255, 255, 0.4)'
-              }
-            }]
+            ],
           },
           legend: {
-            display: false
+            display: false,
           },
           tooltips: {
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
             titleFontColor: '#FFFFFF',
             bodyFontColor: '#FFFFFF',
             callbacks: {
-              label: (tooltipItem: { datasetIndex: number; index: number }, data: { datasets: Array<{ data: Array<{ label: string; x: number; y: number }> }> }) => {
+              label: (
+                tooltipItem: { datasetIndex: number; index: number },
+                data: {
+                  datasets: Array<{
+                    data: Array<{ label: string; x: number; y: number }>;
+                  }>;
+                }
+              ) => {
                 const dataset = data.datasets[tooltipItem.datasetIndex];
                 const point = dataset.data[tooltipItem.index];
                 return `${point.label}: ${point.y.toFixed(3)} (${Math.round(point.x)}K tokens)`;
-              }
-            }
-          }
-        }
+              },
+            },
+          },
+        },
       };
 
-      const outputPath = path.join(this.outputDir, 'context-window-correlation.png');
+      const outputPath = path.join(
+        this.outputDir,
+        'context-window-correlation.png'
+      );
       await this.downloadChart(chartConfig, outputPath, 1400, 700);
 
       return {
         success: true,
-        graphPath: outputPath
+        graphPath: outputPath,
       };
     } catch (error) {
       return {
         success: false,
-        error: `Failed to generate context window correlation graph: ${error}`
+        error: `Failed to generate context window correlation graph: ${error}`,
       };
     }
   }
@@ -644,33 +701,42 @@ export class GraphGenerator {
   /**
    * Downloads a chart from QuickChart.io API and saves it as PNG
    */
-  private async downloadChart(chartConfig: Record<string, unknown>, outputPath: string, width = 1000, height = 600): Promise<void> {
+  private async downloadChart(
+    chartConfig: Record<string, unknown>,
+    outputPath: string,
+    width = 1000,
+    height = 600
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const chartJson = JSON.stringify(chartConfig);
       const url = `${this.quickchartBaseUrl}?c=${encodeURIComponent(chartJson)}&width=${width}&height=${height}&format=png&backgroundColor=black`;
 
-      https.get(url, (response) => {
-        if (response.statusCode !== 200) {
-          reject(new Error(`QuickChart API returned status ${response.statusCode}`));
-          return;
-        }
+      https
+        .get(url, response => {
+          if (response.statusCode !== 200) {
+            reject(
+              new Error(`QuickChart API returned status ${response.statusCode}`)
+            );
+            return;
+          }
 
-        const fileStream = fs.createWriteStream(outputPath);
-        response.pipe(fileStream);
+          const fileStream = fs.createWriteStream(outputPath);
+          response.pipe(fileStream);
 
-        fileStream.on('finish', () => {
-          fileStream.close();
-          console.log(`✅ Graph saved: ${outputPath}`);
-          resolve();
-        });
+          fileStream.on('finish', () => {
+            fileStream.close();
+            console.log(`✅ Graph saved: ${outputPath}`);
+            resolve();
+          });
 
-        fileStream.on('error', (err) => {
-          fs.unlink(outputPath, () => {}); // Clean up partial file
+          fileStream.on('error', err => {
+            fs.unlink(outputPath, () => {}); // Clean up partial file
+            reject(err);
+          });
+        })
+        .on('error', err => {
           reject(err);
         });
-      }).on('error', (err) => {
-        reject(err);
-      });
     });
   }
 
@@ -690,16 +756,16 @@ export class GraphGenerator {
    */
   private getToolColor(index: number): string {
     const colors = [
-      'rgba(255, 99, 132, 0.8)',   // Red
-      'rgba(54, 162, 235, 0.8)',   // Blue
-      'rgba(255, 206, 86, 0.8)',   // Yellow
-      'rgba(75, 192, 192, 0.8)',   // Green
-      'rgba(153, 102, 255, 0.8)',  // Purple
-      'rgba(255, 159, 64, 0.8)',   // Orange
-      'rgba(199, 199, 199, 0.8)',  // Grey
-      'rgba(83, 102, 255, 0.8)',   // Indigo
-      'rgba(255, 99, 255, 0.8)',   // Pink
-      'rgba(99, 255, 132, 0.8)'    // Light Green
+      'rgba(255, 99, 132, 0.8)', // Red
+      'rgba(54, 162, 235, 0.8)', // Blue
+      'rgba(255, 206, 86, 0.8)', // Yellow
+      'rgba(75, 192, 192, 0.8)', // Green
+      'rgba(153, 102, 255, 0.8)', // Purple
+      'rgba(255, 159, 64, 0.8)', // Orange
+      'rgba(199, 199, 199, 0.8)', // Grey
+      'rgba(83, 102, 255, 0.8)', // Indigo
+      'rgba(255, 99, 255, 0.8)', // Pink
+      'rgba(99, 255, 132, 0.8)', // Light Green
     ];
     return colors[index % colors.length];
   }

@@ -12,7 +12,9 @@ import { createSuccessResponseSchema, ErrorResponseSchema } from './common';
  * Delete by source response data
  */
 export const DeleteBySourceDataSchema = z.object({
-  sourceIdentifier: z.string().describe('The source identifier that was deleted'),
+  sourceIdentifier: z
+    .string()
+    .describe('The source identifier that was deleted'),
   chunksDeleted: z.number().describe('Number of chunks deleted'),
 });
 
@@ -21,9 +23,13 @@ export type DeleteBySourceData = z.infer<typeof DeleteBySourceDataSchema>;
 /**
  * Delete by source success response
  */
-export const DeleteBySourceResponseSchema = createSuccessResponseSchema(DeleteBySourceDataSchema);
+export const DeleteBySourceResponseSchema = createSuccessResponseSchema(
+  DeleteBySourceDataSchema
+);
 
-export type DeleteBySourceResponse = z.infer<typeof DeleteBySourceResponseSchema>;
+export type DeleteBySourceResponse = z.infer<
+  typeof DeleteBySourceResponseSchema
+>;
 
 /**
  * Delete by source error responses
@@ -36,13 +42,14 @@ export const DeleteBySourceBadRequestErrorSchema = ErrorResponseSchema.extend({
   }),
 });
 
-export const DeleteBySourcePluginUnavailableErrorSchema = ErrorResponseSchema.extend({
-  error: z.object({
-    code: z.literal('PLUGIN_UNAVAILABLE'),
-    message: z.string(),
-    details: z.unknown().optional(),
-  }),
-});
+export const DeleteBySourcePluginUnavailableErrorSchema =
+  ErrorResponseSchema.extend({
+    error: z.object({
+      code: z.literal('PLUGIN_UNAVAILABLE'),
+      message: z.string(),
+      details: z.unknown().optional(),
+    }),
+  });
 
 export const DeleteBySourceErrorSchema = ErrorResponseSchema.extend({
   error: z.object({
@@ -61,9 +68,19 @@ export const DeleteBySourceErrorSchema = ErrorResponseSchema.extend({
  * Knowledge Ask request body
  */
 export const KnowledgeAskRequestSchema = z.object({
-  query: z.string().min(1).describe('The question to answer from the knowledge base'),
-  limit: z.number().optional().default(20).describe('Maximum chunks to retrieve (default: 20)'),
-  uriFilter: z.string().optional().describe('Optional: filter to specific document URI'),
+  query: z
+    .string()
+    .min(1)
+    .describe('The question to answer from the knowledge base'),
+  limit: z
+    .number()
+    .optional()
+    .default(20)
+    .describe('Maximum chunks to retrieve (default: 20)'),
+  uriFilter: z
+    .string()
+    .optional()
+    .describe('Optional: filter to specific document URI'),
 });
 
 export type KnowledgeAskRequest = z.infer<typeof KnowledgeAskRequestSchema>;
@@ -73,7 +90,10 @@ export type KnowledgeAskRequest = z.infer<typeof KnowledgeAskRequestSchema>;
  */
 export const KnowledgeAskSourceSchema = z.object({
   uri: z.string().describe('Source document URI'),
-  title: z.string().optional().describe('Document title if available from metadata'),
+  title: z
+    .string()
+    .optional()
+    .describe('Document title if available from metadata'),
 });
 
 export type KnowledgeAskSource = z.infer<typeof KnowledgeAskSourceSchema>;
@@ -95,8 +115,12 @@ export type KnowledgeAskChunk = z.infer<typeof KnowledgeAskChunkSchema>;
  */
 export const KnowledgeAskDataSchema = z.object({
   answer: z.string().describe('AI-synthesized answer to the question'),
-  sources: z.array(KnowledgeAskSourceSchema).describe('Deduplicated source documents used'),
-  chunks: z.array(KnowledgeAskChunkSchema).describe('Original chunks for transparency'),
+  sources: z
+    .array(KnowledgeAskSourceSchema)
+    .describe('Deduplicated source documents used'),
+  chunks: z
+    .array(KnowledgeAskChunkSchema)
+    .describe('Original chunks for transparency'),
 });
 
 export type KnowledgeAskData = z.infer<typeof KnowledgeAskDataSchema>;
@@ -104,7 +128,9 @@ export type KnowledgeAskData = z.infer<typeof KnowledgeAskDataSchema>;
 /**
  * Knowledge Ask success response
  */
-export const KnowledgeAskResponseSchema = createSuccessResponseSchema(KnowledgeAskDataSchema);
+export const KnowledgeAskResponseSchema = createSuccessResponseSchema(
+  KnowledgeAskDataSchema
+);
 
 export type KnowledgeAskResponse = z.infer<typeof KnowledgeAskResponseSchema>;
 
@@ -127,13 +153,14 @@ export const KnowledgeAskAIUnavailableErrorSchema = ErrorResponseSchema.extend({
   }),
 });
 
-export const KnowledgeAskPluginUnavailableErrorSchema = ErrorResponseSchema.extend({
-  error: z.object({
-    code: z.literal('PLUGIN_UNAVAILABLE'),
-    message: z.string(),
-    details: z.unknown().optional(),
-  }),
-});
+export const KnowledgeAskPluginUnavailableErrorSchema =
+  ErrorResponseSchema.extend({
+    error: z.object({
+      code: z.literal('PLUGIN_UNAVAILABLE'),
+      message: z.string(),
+      details: z.unknown().optional(),
+    }),
+  });
 
 export const KnowledgeAskErrorSchema = ErrorResponseSchema.extend({
   error: z.object({

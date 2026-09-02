@@ -44,7 +44,7 @@
     "start:mcp": "node dist/mcp/server.js",
     "lint": "eslint src/ tests/ packages/*/src packages/*/tests",
     "format": "prettier --write src/ tests/ packages/*/src packages/*/tests",
-    "format:check": "prettier --check tests/ packages/*/src packages/*/tests",
+    "format:check": "prettier --check src/ tests/ packages/*/src packages/*/tests",
     "typecheck": "tsc -p tsconfig.tests.json",
     "audit": "npm audit",
     "version:dev": "npm version patch --preid=devel --prerelease",

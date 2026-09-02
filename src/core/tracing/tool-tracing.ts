@@ -50,22 +50,19 @@ export async function withToolTracing<T, A = unknown>(
 
   // Create INTERNAL span for tool execution
   // Using INTERNAL kind since this is business logic within the server process
-  const span = tracer.startSpan(
-    `execute_tool ${toolName}`,
-    {
-      kind: SpanKind.INTERNAL,
-      attributes: {
-        // GenAI semantic conventions for tool execution
-        'gen_ai.tool.name': toolName,
-        'gen_ai.tool.input': JSON.stringify(args, null, 2),
-        // MCP client info (if available)
-        ...(options?.mcpClient && {
-          'mcp.client.name': options.mcpClient.name,
-          'mcp.client.version': options.mcpClient.version,
-        }),
-      },
-    }
-  );
+  const span = tracer.startSpan(`execute_tool ${toolName}`, {
+    kind: SpanKind.INTERNAL,
+    attributes: {
+      // GenAI semantic conventions for tool execution
+      'gen_ai.tool.name': toolName,
+      'gen_ai.tool.input': JSON.stringify(args, null, 2),
+      // MCP client info (if available)
+      ...(options?.mcpClient && {
+        'mcp.client.name': options.mcpClient.name,
+        'mcp.client.version': options.mcpClient.version,
+      }),
+    },
+  });
 
   // Execute handler within active span context
   // This ensures any child spans (AI calls, K8s operations) become children of this span
@@ -83,7 +80,12 @@ export async function withToolTracing<T, A = unknown>(
       span.setStatus({ code: SpanStatusCode.OK });
 
       // Track telemetry (fire-and-forget, async)
-      getTelemetry().trackToolExecution(toolName, true, duration, options?.mcpClient);
+      getTelemetry().trackToolExecution(
+        toolName,
+        true,
+        duration,
+        options?.mcpClient
+      );
 
       return result;
     } catch (error) {
@@ -98,7 +100,12 @@ export async function withToolTracing<T, A = unknown>(
       });
 
       // Track telemetry for failed execution (fire-and-forget, async)
-      getTelemetry().trackToolExecution(toolName, false, duration, options?.mcpClient);
+      getTelemetry().trackToolExecution(
+        toolName,
+        false,
+        duration,
+        options?.mcpClient
+      );
       getTelemetry().trackToolError(toolName, errorType, options?.mcpClient);
 
       // Re-throw to preserve original error handling behavior

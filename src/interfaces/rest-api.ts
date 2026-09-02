@@ -30,10 +30,7 @@ import {
   UserPromptsOverrideError,
 } from '../core/user-prompts-loader';
 import { scrubCredentials } from '../core/git-utils';
-import {
-  GIT_TOKEN_HEADER_LC,
-  REST_CORS_ALLOW_HEADERS,
-} from './cors-headers';
+import { GIT_TOKEN_HEADER_LC, REST_CORS_ALLOW_HEADERS } from './cors-headers';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import {
   getSessionEventBus,
@@ -165,9 +162,7 @@ export function sanitizeRequestUrlForLogging(
 function coerceOverrideStringParam(
   value: unknown,
   name: 'path' | 'branch'
-):
-  | { ok: true; value: string | undefined }
-  | { ok: false; message: string } {
+): { ok: true; value: string | undefined } | { ok: false; message: string } {
   if (value === undefined || value === null) {
     return { ok: true, value: undefined };
   }

@@ -1,6 +1,6 @@
 /**
  * DevOps AI Toolkit Main Entry Point
- * 
+ *
  * Universal Kubernetes application deployment agent with MCP interface
  */
 
@@ -10,7 +10,9 @@ export * from './core';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'));
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, '../package.json'), 'utf8')
+);
 export const version = packageJson.version;
 export const name = packageJson.name.replace('@vfarcic/', '');
 
@@ -18,4 +20,4 @@ export const name = packageJson.name.replace('@vfarcic/', '');
 export default {
   version,
   name,
-}; 
+};

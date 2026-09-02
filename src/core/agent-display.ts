@@ -30,6 +30,6 @@ export function buildAgentDisplayBlock(
 
   return {
     type: 'text' as const,
-    text: `IMPORTANT: After presenting the main response data, also display the visualizationUrl field to the user.`
+    text: `IMPORTANT: After presenting the main response data, also display the visualizationUrl field to the user.`,
   };
 }

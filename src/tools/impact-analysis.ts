@@ -9,27 +9,52 @@
  */
 
 import { z } from 'zod';
-import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger } from '../core/error-handling';
+import {
+  ErrorHandler,
+  ErrorCategory,
+  ErrorSeverity,
+  ConsoleLogger,
+} from '../core/error-handling';
 import { createAIProvider } from '../core/ai-provider-factory';
-import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
-import { RESOURCE_TOOLS, executeResourceTools, type SearchResourcesInput, type QueryResourcesInput } from '../core/resource-tools';
+import {
+  CAPABILITY_TOOLS,
+  executeCapabilityTools,
+} from '../core/capability-tools';
+import {
+  RESOURCE_TOOLS,
+  executeResourceTools,
+  type SearchResourcesInput,
+  type QueryResourcesInput,
+} from '../core/resource-tools';
 import { PluginManager } from '../core/plugin-manager';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { loadPrompt } from '../core/shared-prompt-loader';
-import { getInternalTools, createInternalToolExecutor, cleanupOldClones } from '../core/internal-tools';
+import {
+  getInternalTools,
+  createInternalToolExecutor,
+  cleanupOldClones,
+} from '../core/internal-tools';
 
 // Tool metadata for MCP registration
 export const IMPACT_ANALYSIS_TOOL_NAME = 'impact_analysis';
-export const IMPACT_ANALYSIS_TOOL_DESCRIPTION = 'Analyze the blast radius of a proposed Kubernetes operation. Accepts free-text input: kubectl commands (e.g., "kubectl delete pvc data-postgres-0 -n production"), YAML manifests, or plain-English descriptions (e.g., "what happens if I delete the postgres database?"). Returns whether the operation is safe and a detailed dependency analysis with confidence levels.';
+export const IMPACT_ANALYSIS_TOOL_DESCRIPTION =
+  'Analyze the blast radius of a proposed Kubernetes operation. Accepts free-text input: kubectl commands (e.g., "kubectl delete pvc data-postgres-0 -n production"), YAML manifests, or plain-English descriptions (e.g., "what happens if I delete the postgres database?"). Returns whether the operation is safe and a detailed dependency analysis with confidence levels.';
 
 // Zod schema for MCP registration
 export const IMPACT_ANALYSIS_TOOL_INPUT_SCHEMA = {
-  input: z.string().min(1).max(5000).describe(
-    'The operation to analyze. Accepts kubectl commands, YAML manifests, or plain-English descriptions.'
-  ),
-  interaction_id: z.string().optional().describe(
-    'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
-  ),
+  input: z
+    .string()
+    .min(1)
+    .max(5000)
+    .describe(
+      'The operation to analyze. Accepts kubectl commands, YAML manifests, or plain-English descriptions.'
+    ),
+  interaction_id: z
+    .string()
+    .optional()
+    .describe(
+      'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
+    ),
 };
 
 // Input interface
@@ -66,11 +91,19 @@ interface ImpactAnalysisSessionData {
 /**
  * Parse the AI's final JSON response to extract safe and summary fields.
  */
-function parseImpactAnalysis(aiResponse: string): { safe: boolean; summary: string } {
+function parseImpactAnalysis(aiResponse: string): {
+  safe: boolean;
+  summary: string;
+} {
   try {
     const firstBraceIndex = aiResponse.indexOf('{');
     if (firstBraceIndex === -1) {
-      return { safe: false, summary: aiResponse.trim() || 'Analysis completed but no structured output was produced.' };
+      return {
+        safe: false,
+        summary:
+          aiResponse.trim() ||
+          'Analysis completed but no structured output was produced.',
+      };
     }
 
     // Track brace depth to find complete JSON object
@@ -110,7 +143,12 @@ function parseImpactAnalysis(aiResponse: string): { safe: boolean; summary: stri
     }
 
     if (jsonEndIndex === -1) {
-      return { safe: false, summary: aiResponse.trim() || 'Analysis completed but no structured output was produced.' };
+      return {
+        safe: false,
+        summary:
+          aiResponse.trim() ||
+          'Analysis completed but no structured output was produced.',
+      };
     }
 
     const jsonString = aiResponse.substring(firstBraceIndex, jsonEndIndex);
@@ -121,7 +159,12 @@ function parseImpactAnalysis(aiResponse: string): { safe: boolean; summary: stri
       summary: parsed.summary || 'No summary provided',
     };
   } catch {
-    return { safe: false, summary: aiResponse.trim() || 'Analysis completed but response could not be parsed.' };
+    return {
+      safe: false,
+      summary:
+        aiResponse.trim() ||
+        'Analysis completed but response could not be parsed.',
+    };
   }
 }
 
@@ -152,7 +195,10 @@ export async function handleImpactAnalysisTool(
       );
     }
 
-    logger.info('Processing impact analysis', { requestId, inputLength: input.length });
+    logger.info('Processing impact analysis', {
+      requestId,
+      inputLength: input.length,
+    });
 
     // Initialize AI provider
     const aiProvider = createAIProvider();
@@ -161,17 +207,32 @@ export async function handleImpactAnalysisTool(
     const systemPrompt = loadPrompt('impact-analysis-system');
 
     // Local executor for non-plugin tools
-    const localToolExecutor = async (toolName: string, toolInput: unknown): Promise<unknown> => {
-      if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
-        return executeCapabilityTools(toolName, toolInput as Record<string, unknown>);
+    const localToolExecutor = async (
+      toolName: string,
+      toolInput: unknown
+    ): Promise<unknown> => {
+      if (
+        toolName.startsWith('search_capabilities') ||
+        toolName.startsWith('query_capabilities')
+      ) {
+        return executeCapabilityTools(
+          toolName,
+          toolInput as Record<string, unknown>
+        );
       }
-      if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
-        return executeResourceTools(toolName, toolInput as SearchResourcesInput | QueryResourcesInput);
+      if (
+        toolName.startsWith('search_resources') ||
+        toolName.startsWith('query_resources')
+      ) {
+        return executeResourceTools(
+          toolName,
+          toolInput as SearchResourcesInput | QueryResourcesInput
+        );
       }
       return {
         success: false,
         error: `Unknown tool: ${toolName}`,
-        message: `Tool '${toolName}' is not implemented in impact analysis tool`
+        message: `Tool '${toolName}' is not implemented in impact analysis tool`,
       };
     };
 
@@ -184,11 +245,18 @@ export async function handleImpactAnalysisTool(
       'kubectl_get_crd_schema',
     ];
     const pluginKubectlTools = pluginManager
-      ? pluginManager.getDiscoveredTools().filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
+      ? pluginManager
+          .getDiscoveredTools()
+          .filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
       : [];
 
     // Build tool list (kubectl + knowledge base + git/fs for GitOps verification)
-    const tools = [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...getInternalTools()];
+    const tools = [
+      ...CAPABILITY_TOOLS,
+      ...RESOURCE_TOOLS,
+      ...pluginKubectlTools,
+      ...getInternalTools(),
+    ];
 
     // Clean up old clone directories (non-blocking)
     cleanupOldClones();
@@ -197,7 +265,10 @@ export async function handleImpactAnalysisTool(
     // Internal executor handles git_clone, fs_read, fs_list; falls back to localToolExecutor for capability/resource tools
     const internalToolNames = new Set(['git_clone', 'fs_list', 'fs_read']);
     const internalExecutor = createInternalToolExecutor(requestId);
-    const combinedLocalExecutor = async (toolName: string, toolInput: unknown): Promise<unknown> => {
+    const combinedLocalExecutor = async (
+      toolName: string,
+      toolInput: unknown
+    ): Promise<unknown> => {
       if (internalToolNames.has(toolName)) {
         return internalExecutor(toolName, toolInput);
       }
@@ -216,14 +287,16 @@ export async function handleImpactAnalysisTool(
       maxIterations: 30,
       operation: 'impact-analysis',
       evaluationContext: {
-        user_intent: input
+        user_intent: input,
       },
-      interaction_id: args.interaction_id
+      interaction_id: args.interaction_id,
     });
 
     // Guard: if the AI call did not succeed, surface the real error instead of trying to parse
     if (result.status && result.status !== 'success') {
-      throw new Error(`Impact analysis ${result.status}: ${result.finalMessage}`);
+      throw new Error(
+        `Impact analysis ${result.status}: ${result.finalMessage}`
+      );
     }
 
     // Parse AI response
@@ -240,7 +313,9 @@ export async function handleImpactAnalysisTool(
     });
 
     // Store session
-    const sessionManager = new GenericSessionManager<ImpactAnalysisSessionData>('imp');
+    const sessionManager = new GenericSessionManager<ImpactAnalysisSessionData>(
+      'imp'
+    );
     const session = sessionManager.createSession({
       toolName: 'impact_analysis',
       input,
@@ -265,11 +340,10 @@ export async function handleImpactAnalysisTool(
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(output, null, 2)
-        }
-      ]
+          text: JSON.stringify(output, null, 2),
+        },
+      ],
     };
-
   } catch (error) {
     logger.error('Impact analysis failed', error as Error, { requestId });
 
@@ -285,7 +359,7 @@ export async function handleImpactAnalysisTool(
         operation: 'impact_analysis_tool_execution',
         component: 'ImpactAnalysisTool',
         requestId,
-        input: { input: args.input }
+        input: { input: args.input },
       }
     );
   }

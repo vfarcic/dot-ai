@@ -944,9 +944,8 @@ export async function handleCapabilityCRUD(
   logger: Logger,
   requestId: string
 ): Promise<CapabilityOperationResponse> {
-  const listLimit = operation === 'list'
-    ? resolveCapabilityListLimit(args.limit)
-    : undefined;
+  const listLimit =
+    operation === 'list' ? resolveCapabilityListLimit(args.limit) : undefined;
   if (listLimit && !listLimit.valid) return listLimit.response;
   if (operation === 'list') {
     const projectionError = validateCapabilityListProjection(args.identityOnly);

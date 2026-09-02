@@ -12,7 +12,10 @@ import {
 } from '../core/error-handling';
 import { AIProvider } from '../core/ai-provider.interface';
 import { createAIProvider } from '../core/ai-provider-factory';
-import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
+import {
+  isMcpClientInitialized,
+  getMcpClientManager,
+} from '../core/mcp-client-registry';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { buildAgentDisplayBlock } from '../core/index';
 import {
@@ -180,7 +183,11 @@ export interface ExecutionChoice {
 }
 
 export interface RemediateOutput {
-  status: 'success' | 'failed' | 'awaiting_user_approval' | 'partially_resolved';
+  status:
+    | 'success'
+    | 'failed'
+    | 'awaiting_user_approval'
+    | 'partially_resolved';
   sessionId: string;
   investigation: {
     iterations: number;
@@ -305,16 +312,13 @@ async function conductInvestigation(
 
     const allTools = [...kubectlTools, ...getInternalTools(), ...mcpTools];
 
-    logger.debug(
-      'Starting toolLoop with investigation tools',
-      {
-        requestId,
-        sessionId: session.sessionId,
-        toolCount: allTools.length,
-        mcpToolCount: mcpTools.length,
-        tools: allTools.map(t => t.name),
-      }
-    );
+    logger.debug('Starting toolLoop with investigation tools', {
+      requestId,
+      sessionId: session.sessionId,
+      toolCount: allTools.length,
+      mcpToolCount: mcpTools.length,
+      tools: allTools.map(t => t.name),
+    });
 
     // PRD #407: Clean up old clone directories (non-blocking)
     cleanupOldClones();
@@ -355,7 +359,9 @@ async function conductInvestigation(
 
     // Guard: if the AI call did not succeed, surface the real error instead of trying to parse
     if (result.status && result.status !== 'success') {
-      throw new Error(`Remediation investigation ${result.status}: ${result.finalMessage}`);
+      throw new Error(
+        `Remediation investigation ${result.status}: ${result.finalMessage}`
+      );
     }
 
     // Parse final response as JSON (AI returns final analysis in JSON format)
@@ -687,7 +693,8 @@ async function executeUserChoice(
                   {
                     status: 'success',
                     sessionId: sessionId,
-                    message: 'GitOps remediation detected - use automatic execution (choice 1) for PR creation',
+                    message:
+                      'GitOps remediation detected - use automatic execution (choice 1) for PR creation',
                     remediation: session.data.finalAnalysis.remediation,
                     instructions: {
                       nextSteps: [
@@ -1017,7 +1024,7 @@ async function executeRemediationCommands(
 
         const prInput: GitCreatePrInput = {
           repoPath: action.gitSource.repoPath,
-          files: action.gitSource.files.map((f) => ({
+          files: action.gitSource.files.map(f => ({
             path: f.path,
             content: f.content,
           })),
@@ -1176,7 +1183,11 @@ async function executeRemediationCommands(
 
   // Run automatic post-execution validation if commands were executed and all succeeded
   let validationResult = null;
-  if (overallSuccess && executedCommandCount > 0 && finalAnalysis.validationIntent) {
+  if (
+    overallSuccess &&
+    executedCommandCount > 0 &&
+    finalAnalysis.validationIntent
+  ) {
     const validationIntent = finalAnalysis.validationIntent;
 
     try {

@@ -5,7 +5,10 @@
  * Provides session metadata interfaces, URL generation, and prompt selection.
  */
 
-import { VisualizationType, VisualizationResponse } from '../interfaces/rest-api';
+import {
+  VisualizationType,
+  VisualizationResponse,
+} from '../interfaces/rest-api';
 
 /**
  * Visualization mode prefix - when present in intent, return visualization data directly
@@ -26,7 +29,7 @@ export interface CachedVisualization {
     content: unknown;
   }>;
   insights: string[];
-  toolsUsed?: string[];  // Tools called during visualization generation
+  toolsUsed?: string[]; // Tools called during visualization generation
   generatedAt: string;
 }
 
@@ -72,7 +75,9 @@ export function getPromptForTool(_toolName: string): string {
  * @param sessionIds - Single session ID or array of session IDs to include in URL
  * @returns Visualization URL or undefined if not configured
  */
-export function getVisualizationUrl(sessionIds: string | string[]): string | undefined {
+export function getVisualizationUrl(
+  sessionIds: string | string[]
+): string | undefined {
   const baseUrl = process.env.WEB_UI_BASE_URL;
   if (!baseUrl) {
     return undefined;
@@ -80,7 +85,9 @@ export function getVisualizationUrl(sessionIds: string | string[]): string | und
   // Remove trailing slash if present, then append /v/{sessionId(s)}
   const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
   // Join multiple session IDs with + separator
-  const sessionPath = Array.isArray(sessionIds) ? sessionIds.join('+') : sessionIds;
+  const sessionPath = Array.isArray(sessionIds)
+    ? sessionIds.join('+')
+    : sessionIds;
   return `${normalizedBaseUrl}/v/${sessionPath}`;
 }
 
@@ -135,7 +142,10 @@ export function getToolNameFromPrefix(prefix: string): string | undefined {
  * @returns Parsed VisualizationResponse
  * @throws Error if parsing or validation fails
  */
-export function parseVisualizationResponse(aiResponse: string, toolsUsed?: string[]): VisualizationResponse {
+export function parseVisualizationResponse(
+  aiResponse: string,
+  toolsUsed?: string[]
+): VisualizationResponse {
   // Extract JSON from response - it may have text before/after the JSON block
   let jsonContent = aiResponse.trim();
 
@@ -155,36 +165,52 @@ export function parseVisualizationResponse(aiResponse: string, toolsUsed?: strin
   const parsed = JSON.parse(jsonContent);
 
   // Validate required fields
-  if (!parsed.title || !Array.isArray(parsed.visualizations) || !Array.isArray(parsed.insights)) {
+  if (
+    !parsed.title ||
+    !Array.isArray(parsed.visualizations) ||
+    !Array.isArray(parsed.insights)
+  ) {
     throw new Error('Invalid visualization response structure');
   }
 
   // Validate each visualization has required fields
   for (const viz of parsed.visualizations) {
     if (!viz.id || !viz.label || !viz.type || viz.content === undefined) {
-      throw new Error(`Invalid visualization: missing required fields in ${JSON.stringify(viz)}`);
+      throw new Error(
+        `Invalid visualization: missing required fields in ${JSON.stringify(viz)}`
+      );
     }
-    if (!['mermaid', 'cards', 'code', 'table', 'diff', 'bar-chart'].includes(viz.type)) {
+    if (
+      !['mermaid', 'cards', 'code', 'table', 'diff', 'bar-chart'].includes(
+        viz.type
+      )
+    ) {
       throw new Error(`Invalid visualization type: ${viz.type}`);
     }
   }
 
   // Normalize insights to strings if they are objects
-  const normalizedInsights = parsed.insights.map((insight: string | { title?: string; description?: string; severity?: string }) => {
-    if (typeof insight === 'string') {
-      return insight;
+  const normalizedInsights = parsed.insights.map(
+    (
+      insight:
+        | string
+        | { title?: string; description?: string; severity?: string }
+    ) => {
+      if (typeof insight === 'string') {
+        return insight;
+      }
+      // Convert object insights to string format
+      if (insight.title && insight.description) {
+        const severity = insight.severity ? ` [${insight.severity}]` : '';
+        return `${insight.title}${severity}: ${insight.description}`;
+      }
+      return String(insight);
     }
-    // Convert object insights to string format
-    if (insight.title && insight.description) {
-      const severity = insight.severity ? ` [${insight.severity}]` : '';
-      return `${insight.title}${severity}: ${insight.description}`;
-    }
-    return String(insight);
-  });
+  );
 
   return {
     ...parsed,
     insights: normalizedInsights,
-    ...(toolsUsed && { toolsUsed })
+    ...(toolsUsed && { toolsUsed }),
   } as VisualizationResponse;
 }

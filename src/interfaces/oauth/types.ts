@@ -99,8 +99,8 @@ export interface TokenResponse {
  * to-server token exchange uses tokenEndpoint (in-cluster service URL).
  */
 export interface DexConfig {
-  issuerUrl: string;       // External Dex URL (for browser authorize redirects)
-  tokenEndpoint: string;   // Dex token endpoint (in-cluster URL for k8s, or issuerUrl/token for local dev)
+  issuerUrl: string; // External Dex URL (for browser authorize redirects)
+  tokenEndpoint: string; // Dex token endpoint (in-cluster URL for k8s, or issuerUrl/token for local dev)
   clientId: string;
   clientSecret: string;
 }

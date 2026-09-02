@@ -56,31 +56,35 @@ export async function exchangeDexCode(
   const tokenUrl = new URL(dexConfig.tokenEndpoint);
   const transport = tokenUrl.protocol === 'https:' ? https : http;
 
-  const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-    const req = transport.request(
-      tokenUrl,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(body).toString(),
+  const response = await new Promise<{ statusCode: number; body: string }>(
+    (resolve, reject) => {
+      const req = transport.request(
+        tokenUrl,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(body).toString(),
+          },
         },
-      },
-      (res) => {
-        let data = '';
-        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
-        res.on('end', () => {
-          resolve({ statusCode: res.statusCode ?? 0, body: data });
-        });
-      }
-    );
-    req.setTimeout(10_000, () => {
-      req.destroy(new Error('Dex token exchange timed out'));
-    });
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
+        res => {
+          let data = '';
+          res.on('data', (chunk: Buffer) => {
+            data += chunk.toString();
+          });
+          res.on('end', () => {
+            resolve({ statusCode: res.statusCode ?? 0, body: data });
+          });
+        }
+      );
+      req.setTimeout(10_000, () => {
+        req.destroy(new Error('Dex token exchange timed out'));
+      });
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    }
+  );
 
   if (response.statusCode !== 200) {
     throw new Error(
@@ -114,7 +118,9 @@ export function parseIdToken(idToken: string): {
   if (parts.length !== 3) {
     throw new Error('Invalid JWT format — expected 3 segments');
   }
-  const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  const payload = JSON.parse(
+    Buffer.from(parts[1], 'base64url').toString('utf8')
+  );
   const now = Math.floor(Date.now() / 1000);
   if (typeof payload.exp !== 'number' || payload.exp <= now) {
     throw new Error('ID token is expired or missing exp claim');
@@ -126,7 +132,10 @@ export function parseIdToken(idToken: string): {
     throw new Error('ID token email claim must be a string');
   }
   if (payload.groups !== undefined) {
-    if (!Array.isArray(payload.groups) || !payload.groups.every((g: unknown) => typeof g === 'string')) {
+    if (
+      !Array.isArray(payload.groups) ||
+      !payload.groups.every((g: unknown) => typeof g === 'string')
+    ) {
       throw new Error('ID token groups claim must be an array of strings');
     }
   }

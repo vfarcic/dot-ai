@@ -50,7 +50,7 @@ interface MermaidParseError extends Error {
 // Initialize mermaid with strict validation
 mermaid.initialize({
   securityLevel: 'strict',
-  startOnLoad: false
+  startOnLoad: false,
 });
 
 /**
@@ -78,19 +78,18 @@ Returns:
     properties: {
       diagram: {
         type: 'string',
-        description: 'The Mermaid diagram code to validate (without the ```mermaid code fence)'
-      }
+        description:
+          'The Mermaid diagram code to validate (without the ```mermaid code fence)',
+      },
     },
-    required: ['diagram']
-  }
+    required: ['diagram'],
+  },
 };
 
 /**
  * All mermaid tools for visualization
  */
-export const MERMAID_TOOLS: AITool[] = [
-  VALIDATE_MERMAID_TOOL
-];
+export const MERMAID_TOOLS: AITool[] = [VALIDATE_MERMAID_TOOL];
 
 /**
  * Execute Mermaid-related tools
@@ -107,7 +106,7 @@ export async function executeMermaidTools(
     return {
       success: false,
       error: `Unknown mermaid tool: ${toolName}`,
-      message: `Tool '${toolName}' is not a mermaid tool`
+      message: `Tool '${toolName}' is not a mermaid tool`,
     };
   }
 
@@ -117,8 +116,9 @@ export async function executeMermaidTools(
     return {
       success: false,
       valid: false,
-      error: 'Missing or invalid diagram parameter. Provide the Mermaid diagram code as a string.',
-      message: 'Invalid input'
+      error:
+        'Missing or invalid diagram parameter. Provide the Mermaid diagram code as a string.',
+      message: 'Invalid input',
     };
   }
 
@@ -132,7 +132,7 @@ export async function executeMermaidTools(
       valid: true,
       error: null,
       parseError: null,
-      message: 'Diagram syntax is valid'
+      message: 'Diagram syntax is valid',
     };
   } catch (error: unknown) {
     // Extract useful error information
@@ -140,20 +140,22 @@ export async function executeMermaidTools(
     const errorMessage = mermaidError.message || String(error);
 
     // Check if it's a parser error with detailed info
-    const parseError = mermaidError.hash ? {
-      text: mermaidError.hash.text,
-      token: mermaidError.hash.token,
-      line: mermaidError.hash.line,
-      loc: mermaidError.hash.loc,
-      expected: mermaidError.hash.expected
-    } : null;
+    const parseError = mermaidError.hash
+      ? {
+          text: mermaidError.hash.text,
+          token: mermaidError.hash.token,
+          line: mermaidError.hash.line,
+          loc: mermaidError.hash.loc,
+          expected: mermaidError.hash.expected,
+        }
+      : null;
 
     return {
       success: true, // Tool executed successfully, but diagram is invalid
       valid: false,
       error: errorMessage,
       parseError,
-      message: `Diagram validation failed: ${errorMessage}`
+      message: `Diagram validation failed: ${errorMessage}`,
     };
   }
 }

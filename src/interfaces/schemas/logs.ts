@@ -7,7 +7,12 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, BadRequestErrorSchema, ServiceUnavailableErrorSchema, InternalServerErrorSchema } from './common';
+import {
+  createSuccessResponseSchema,
+  BadRequestErrorSchema,
+  ServiceUnavailableErrorSchema,
+  InternalServerErrorSchema,
+} from './common';
 
 /**
  * Logs response data
@@ -36,13 +41,14 @@ export const LogsBadRequestErrorSchema = BadRequestErrorSchema.extend({
   }),
 });
 
-export const LogsPluginUnavailableErrorSchema = ServiceUnavailableErrorSchema.extend({
-  error: z.object({
-    code: z.literal('PLUGIN_UNAVAILABLE'),
-    message: z.string(),
-    details: z.any().optional(),
-  }),
-});
+export const LogsPluginUnavailableErrorSchema =
+  ServiceUnavailableErrorSchema.extend({
+    error: z.object({
+      code: z.literal('PLUGIN_UNAVAILABLE'),
+      message: z.string(),
+      details: z.any().optional(),
+    }),
+  });
 
 export const LogsErrorSchema = InternalServerErrorSchema.extend({
   error: z.object({

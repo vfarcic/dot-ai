@@ -1044,7 +1044,10 @@ export function getCacheDirectory(): string {
     // never unlink each other's probe — a shared name races (one caller's unlink
     // makes another's write/unlink throw), wrongly forcing the os.tmpdir()
     // fallback and splitting a single ingest's writes across filesystems.
-    const testFile = path.join(parentTmp, `.write-test-${process.pid}-${crypto.randomUUID()}`);
+    const testFile = path.join(
+      parentTmp,
+      `.write-test-${process.pid}-${crypto.randomUUID()}`
+    );
     fs.writeFileSync(testFile, 'test');
     fs.unlinkSync(testFile);
 

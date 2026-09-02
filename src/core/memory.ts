@@ -47,7 +47,7 @@ export class MemorySystem {
     const pattern: SuccessPattern = {
       type,
       config,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     const existing = this.successPatterns.get(type) || [];
@@ -55,12 +55,16 @@ export class MemorySystem {
     this.successPatterns.set(type, existing);
   }
 
-  async learnFailure(type: string, config: unknown, error: string): Promise<void> {
+  async learnFailure(
+    type: string,
+    config: unknown,
+    error: string
+  ): Promise<void> {
     const pattern: FailurePattern = {
       type,
       config,
       error,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     const existing = this.failurePatterns.get(type) || [];
@@ -76,18 +80,24 @@ export class MemorySystem {
     return this.failurePatterns.get(type) || [];
   }
 
-  async getRecommendations(type: string, partialConfig: Record<string, unknown>): Promise<Recommendation[]> {
+  async getRecommendations(
+    type: string,
+    partialConfig: Record<string, unknown>
+  ): Promise<Recommendation[]> {
     const successPatterns = await this.getSuccessPatterns(type);
     const recommendations: Recommendation[] = [];
 
     // Simple recommendation algorithm
     for (const pattern of successPatterns) {
-      const similarity = this.calculateSimilarity(partialConfig, pattern.config as Record<string, unknown>);
+      const similarity = this.calculateSimilarity(
+        partialConfig,
+        pattern.config as Record<string, unknown>
+      );
       if (similarity >= 0.5) {
         recommendations.push({
           suggestion: `Consider using configuration similar to successful ${type}`,
           confidence: similarity,
-          based_on: [`Success pattern from ${pattern.timestamp.toISOString()}`]
+          based_on: [`Success pattern from ${pattern.timestamp.toISOString()}`],
         });
       }
     }
@@ -110,7 +120,10 @@ export class MemorySystem {
     await this.store(`lessons-${type}`, lessons);
   }
 
-  private calculateSimilarity(config1: Record<string, unknown>, config2: Record<string, unknown>): number {
+  private calculateSimilarity(
+    config1: Record<string, unknown>,
+    config2: Record<string, unknown>
+  ): number {
     // Simple similarity calculation
     const keys1 = Object.keys(config1);
     const keys2 = Object.keys(config2);

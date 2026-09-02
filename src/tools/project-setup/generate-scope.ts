@@ -7,7 +7,12 @@
 
 import { ErrorHandler, Logger } from '../../core/error-handling';
 import { GenericSessionManager } from '../../core/generic-session-manager';
-import { GenerateScopeResponse, ProjectSetupSessionData, ErrorResponse, GeneratedFile } from './types';
+import {
+  GenerateScopeResponse,
+  ProjectSetupSessionData,
+  ErrorResponse,
+  GeneratedFile,
+} from './types';
 import { loadPrompt } from '../../core/shared-prompt-loader';
 
 /**
@@ -24,10 +29,16 @@ export async function handleGenerateScope(
 ): Promise<GenerateScopeResponse | ErrorResponse> {
   return await ErrorHandler.withErrorHandling(
     async () => {
-      logger.debug('Starting scope generation', { requestId, sessionId, scope });
+      logger.debug('Starting scope generation', {
+        requestId,
+        sessionId,
+        scope,
+      });
 
       // Initialize session manager
-      const sessionManager = new GenericSessionManager<ProjectSetupSessionData>('proj');
+      const sessionManager = new GenericSessionManager<ProjectSetupSessionData>(
+        'proj'
+      );
 
       // Load session
       const session = sessionManager.getSession(sessionId);
@@ -36,8 +47,8 @@ export async function handleGenerateScope(
           success: false,
           error: {
             message: `Session ${sessionId} not found`,
-            details: 'Please start a new session with step: "discover"'
-          }
+            details: 'Please start a new session with step: "discover"',
+          },
         } as ErrorResponse;
       }
 
@@ -47,8 +58,8 @@ export async function handleGenerateScope(
           success: false,
           error: {
             message: 'scope is required for generateScope step',
-            details: 'Provide the scope name (e.g., "github-community")'
-          }
+            details: 'Provide the scope name (e.g., "github-community")',
+          },
         } as ErrorResponse;
       }
 
@@ -57,8 +68,8 @@ export async function handleGenerateScope(
           success: false,
           error: {
             message: 'answers are required for generateScope step',
-            details: 'Provide answers to the questions for this scope'
-          }
+            details: 'Provide answers to the questions for this scope',
+          },
         } as ErrorResponse;
       }
 
@@ -68,8 +79,8 @@ export async function handleGenerateScope(
           success: false,
           error: {
             message: 'Invalid session state',
-            details: 'Session does not contain required data'
-          }
+            details: 'Session does not contain required data',
+          },
         } as ErrorResponse;
       }
 
@@ -79,19 +90,22 @@ export async function handleGenerateScope(
           success: false,
           error: {
             message: `Invalid scope: ${scope}`,
-            details: `Available scopes: ${Object.keys(session.data.allScopes).join(', ')}`
-          }
+            details: `Available scopes: ${Object.keys(session.data.allScopes).join(', ')}`,
+          },
         } as ErrorResponse;
       }
 
       // Get files to generate (excluding existing ones)
       const existingFiles = session.data.existingFiles;
-      const baseFiles = scopeConfig.files.filter(file => !existingFiles.includes(file));
+      const baseFiles = scopeConfig.files.filter(
+        file => !existingFiles.includes(file)
+      );
 
       // Add conditional-only files (files that exist ONLY in conditionalFiles, not in main files array)
       const conditionalFiles = scopeConfig.conditionalFiles || {};
       const conditionalOnlyFiles = Object.keys(conditionalFiles).filter(
-        file => !scopeConfig.files.includes(file) && !existingFiles.includes(file)
+        file =>
+          !scopeConfig.files.includes(file) && !existingFiles.includes(file)
       );
 
       // Combine base files and conditional-only files
@@ -106,7 +120,10 @@ export async function handleGenerateScope(
         const conditionalRule = conditionalFiles[fileName];
 
         if (conditionalRule) {
-          const shouldGenerate = evaluateCondition(conditionalRule.condition, answers);
+          const shouldGenerate = evaluateCondition(
+            conditionalRule.condition,
+            answers
+          );
 
           if (!shouldGenerate) {
             logger.info('File excluded due to conditional rule', {
@@ -114,7 +131,7 @@ export async function handleGenerateScope(
               fileName,
               scope,
               condition: conditionalRule.condition,
-              reason: conditionalRule.reason
+              reason: conditionalRule.reason,
             });
             excludedFiles.push(fileName);
             continue;
@@ -130,7 +147,7 @@ export async function handleGenerateScope(
         generatedFiles.push({
           path: fileName,
           content,
-          reason: conditionalRule ? conditionalRule.reason : undefined
+          reason: conditionalRule ? conditionalRule.reason : undefined,
         });
 
         logger.info('File generated', {
@@ -138,7 +155,7 @@ export async function handleGenerateScope(
           sessionId,
           fileName,
           scope,
-          contentLength: content.length
+          contentLength: content.length,
         });
       }
 
@@ -151,13 +168,16 @@ export async function handleGenerateScope(
         sessionId,
         scope,
         generatedCount: generatedFiles.length,
-        excludedCount: excludedFiles.length
+        excludedCount: excludedFiles.length,
       });
 
       // Process additionalInstructions template if present
       let additionalInstructions: string | undefined;
       if (scopeConfig.additionalInstructions) {
-        additionalInstructions = replaceTemplateVariables(scopeConfig.additionalInstructions, answers);
+        additionalInstructions = replaceTemplateVariables(
+          scopeConfig.additionalInstructions,
+          answers
+        );
       }
 
       return {
@@ -166,17 +186,20 @@ export async function handleGenerateScope(
         scope,
         files: generatedFiles,
         excludedFiles: excludedFiles.length > 0 ? excludedFiles : undefined,
-        instructions: `Generated ${generatedFiles.length} file(s) for scope "${scope}".\n\n` +
+        instructions:
+          `Generated ${generatedFiles.length} file(s) for scope "${scope}".\n\n` +
           `Files:\n${generatedFiles.map(f => `- ${f.path}`).join('\n')}\n\n` +
-          (excludedFiles.length > 0 ? `Excluded ${excludedFiles.length} file(s):\n${excludedFiles.map(f => `- ${f}`).join('\n')}\n\n` : '') +
+          (excludedFiles.length > 0
+            ? `Excluded ${excludedFiles.length} file(s):\n${excludedFiles.map(f => `- ${f}`).join('\n')}\n\n`
+            : '') +
           `Write these files to your repository using the Write tool.`,
-        additionalInstructions
+        additionalInstructions,
       };
     },
     {
       operation: 'project_setup_generate_scope',
       component: 'ProjectSetupTool',
-      requestId
+      requestId,
     }
   );
 }
@@ -184,7 +207,11 @@ export async function handleGenerateScope(
 /**
  * Generate file content from template using Handlebars
  */
-function generateFileContent(fileName: string, answers: Record<string, unknown>, logger: Logger): string {
+function generateFileContent(
+  fileName: string,
+  answers: Record<string, unknown>,
+  logger: Logger
+): string {
   try {
     // Load template using shared prompt loader with Handlebars support
     // Templates use .hbs extension (e.g., README.md -> README.md.hbs)
@@ -197,7 +224,9 @@ function generateFileContent(fileName: string, answers: Record<string, unknown>,
 
     return content;
   } catch (error) {
-    logger.error('Failed to generate file content', error as Error, { fileName });
+    logger.error('Failed to generate file content', error as Error, {
+      fileName,
+    });
     return `# ${fileName}\n\nError: Could not generate content for this file.\nTemplate may be missing at: assets/project-setup/templates/${fileName}.hbs\n`;
   }
 }
@@ -212,7 +241,10 @@ function generateFileContent(fileName: string, answers: Record<string, unknown>,
  * - "variableName === true" -> check if answers[variableName] is boolean true or truthy string
  * - OR conditions: "condition1 || condition2 || condition3"
  */
-function evaluateCondition(condition: string, answers: Record<string, unknown>): boolean {
+function evaluateCondition(
+  condition: string,
+  answers: Record<string, unknown>
+): boolean {
   const trimmed = condition.trim();
 
   // Handle literal boolean strings
@@ -233,10 +265,14 @@ function evaluateCondition(condition: string, answers: Record<string, unknown>):
 
     // Check for truthy values: boolean true, string "yes", string "true"
     if (expectedValue === 'true') {
-      return actualValue === true || actualValue === 'true' || actualValue === 'yes';
+      return (
+        actualValue === true || actualValue === 'true' || actualValue === 'yes'
+      );
     }
     // Check for falsy values
-    return actualValue === false || actualValue === 'false' || actualValue === 'no';
+    return (
+      actualValue === false || actualValue === 'false' || actualValue === 'no'
+    );
   }
 
   // Handle equality checks with strings: "variableName === 'value'"
@@ -254,11 +290,16 @@ function evaluateCondition(condition: string, answers: Record<string, unknown>):
  * Preprocess answers for Handlebars templates
  * Converts comma-separated strings to arrays where needed
  */
-function preprocessAnswers(answers: Record<string, unknown>): Record<string, unknown> {
+function preprocessAnswers(
+  answers: Record<string, unknown>
+): Record<string, unknown> {
   const processed = { ...answers };
 
   // Convert maintainerUsernames from comma-separated string to array
-  if (processed.maintainerUsernames && typeof processed.maintainerUsernames === 'string') {
+  if (
+    processed.maintainerUsernames &&
+    typeof processed.maintainerUsernames === 'string'
+  ) {
     processed.maintainerUsernames = processed.maintainerUsernames
       .split(',')
       .map((username: string) => username.trim())
@@ -272,7 +313,10 @@ function preprocessAnswers(answers: Record<string, unknown>): Record<string, unk
  * Replace template variables in additionalInstructions
  * Simple replacement for {{variableName}} patterns
  */
-function replaceTemplateVariables(template: string, answers: Record<string, unknown>): string {
+function replaceTemplateVariables(
+  template: string,
+  answers: Record<string, unknown>
+): string {
   let result = template;
 
   // Replace all {{variableName}} with actual values

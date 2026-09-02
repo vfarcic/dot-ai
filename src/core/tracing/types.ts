@@ -49,7 +49,10 @@ export interface TracedSpan {
   setAttributes(attributes: Record<string, string | number | boolean>): void;
 
   /** Add an event to the span */
-  addEvent(name: string, attributes?: Record<string, string | number | boolean>): void;
+  addEvent(
+    name: string,
+    attributes?: Record<string, string | number | boolean>
+  ): void;
 }
 
 /**
@@ -86,7 +89,7 @@ export enum SpanKind {
   PRODUCER = 3,
 
   /** Message consumer */
-  CONSUMER = 4
+  CONSUMER = 4,
 }
 
 /**
@@ -109,5 +112,5 @@ export const SemanticAttributes = {
   SERVER: 'server',
 
   /** Network attributes (network.peer.address, network.peer.port) */
-  NETWORK: 'network'
+  NETWORK: 'network',
 } as const;

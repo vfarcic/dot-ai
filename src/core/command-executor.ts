@@ -66,12 +66,16 @@ export async function executeCommands(
   const results: CommandExecutionResult[] = [];
   let overallSuccess = true;
 
-  const { sessionId, context = 'command execution', logMetadata = {} } = options;
+  const {
+    sessionId,
+    context = 'command execution',
+    logMetadata = {},
+  } = options;
 
   logger.info(`Starting ${context}`, {
     ...logMetadata,
     sessionId,
-    commandCount: commands.length
+    commandCount: commands.length,
   });
 
   // Execute each command sequentially
@@ -83,21 +87,25 @@ export async function executeCommands(
       logger.debug(`Executing command ${commandNum}/${commands.length}`, {
         ...logMetadata,
         sessionId,
-        command
+        command,
       });
 
       // Clean up escape sequences that AI models sometimes add
       const cleanCommand = command.replace(/\\"/g, '"');
 
       // PRD #359: Execute command via unified plugin registry
-      const response = await invokePluginTool('agentic-tools', 'shell_exec', { command: cleanCommand });
+      const response = await invokePluginTool('agentic-tools', 'shell_exec', {
+        command: cleanCommand,
+      });
 
       if (response.success) {
         // Check for nested error - plugin wraps command errors in { success: false, error: "..." }
         if (typeof response.result === 'object' && response.result !== null) {
           const result = response.result as ShellExecResult;
           if (result.success === false) {
-            throw new Error(result.error || result.message || 'Command execution failed');
+            throw new Error(
+              result.error || result.message || 'Command execution failed'
+            );
           }
         }
 
@@ -110,7 +118,9 @@ export async function executeCommands(
           } else if (typeof result === 'string') {
             output = result as unknown as string;
           } else {
-            throw new Error('Plugin returned unexpected response format - missing data field');
+            throw new Error(
+              'Plugin returned unexpected response format - missing data field'
+            );
           }
         } else {
           output = String(response.result || '');
@@ -120,46 +130,47 @@ export async function executeCommands(
           command,
           success: true,
           output: output,
-          timestamp: new Date()
+          timestamp: new Date(),
         });
 
         logger.debug(`Command ${commandNum} succeeded`, {
           ...logMetadata,
-          sessionId
+          sessionId,
         });
       } else {
-        const errorMessage = response.error?.message || 'Command execution failed';
+        const errorMessage =
+          response.error?.message || 'Command execution failed';
         overallSuccess = false;
 
         results.push({
           command,
           success: false,
           error: errorMessage,
-          timestamp: new Date()
+          timestamp: new Date(),
         });
 
         logger.error(`Command ${commandNum} failed`, new Error(errorMessage), {
           ...logMetadata,
           sessionId,
-          command
+          command,
         });
       }
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       overallSuccess = false;
 
       results.push({
         command,
         success: false,
         error: errorMessage,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       logger.error(`Command ${commandNum} failed`, error as Error, {
         ...logMetadata,
         sessionId,
-        command
+        command,
       });
 
       // Continue to next command (continue-on-error pattern)
@@ -170,7 +181,7 @@ export async function executeCommands(
     ...logMetadata,
     sessionId,
     successCount: results.filter(r => r.success).length,
-    failureCount: results.filter(r => !r.success).length
+    failureCount: results.filter(r => !r.success).length,
   });
 
   return { results, overallSuccess };

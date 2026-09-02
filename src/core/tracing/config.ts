@@ -60,7 +60,9 @@ function getSamplingProbability(): number {
 
   const probability = parseFloat(samplingEnv);
   if (isNaN(probability) || probability < 0 || probability > 1) {
-    console.warn(`Invalid OTEL_SAMPLING_PROBABILITY: ${samplingEnv}, using 1.0`);
+    console.warn(
+      `Invalid OTEL_SAMPLING_PROBABILITY: ${samplingEnv}, using 1.0`
+    );
     return 1.0;
   }
 
@@ -109,7 +111,7 @@ export function loadTracingConfig(): TracingConfig {
     otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     enabled: isTracingEnabled(),
     samplingProbability: getSamplingProbability(),
-    debug: isDebugMode()
+    debug: isDebugMode(),
   };
 
   // Log configuration in debug mode
@@ -120,7 +122,7 @@ export function loadTracingConfig(): TracingConfig {
       exporterType: config.exporterType,
       otlpEndpoint: config.otlpEndpoint,
       enabled: config.enabled,
-      samplingProbability: config.samplingProbability
+      samplingProbability: config.samplingProbability,
     });
   }
 
@@ -139,10 +141,13 @@ export function validateTracingConfig(config: TracingConfig): void {
   }
 
   // Warn about production configurations
-  if (config.exporterType === 'console' && process.env.NODE_ENV === 'production') {
+  if (
+    config.exporterType === 'console' &&
+    process.env.NODE_ENV === 'production'
+  ) {
     console.warn(
       '[Tracing] Warning: Using console exporter in production. ' +
-      'Consider using OTLP, Jaeger, or Zipkin exporter for production deployments.'
+        'Consider using OTLP, Jaeger, or Zipkin exporter for production deployments.'
     );
   }
 }

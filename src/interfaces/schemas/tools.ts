@@ -6,18 +6,28 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, NotFoundErrorSchema, BadRequestErrorSchema, InternalServerErrorSchema } from './common';
+import {
+  createSuccessResponseSchema,
+  NotFoundErrorSchema,
+  BadRequestErrorSchema,
+  InternalServerErrorSchema,
+} from './common';
 
 /**
  * Tool parameter schema
  */
 export const ToolParameterSchema = z.object({
   name: z.string().describe('Parameter name'),
-  type: z.string().describe('Parameter type (string, number, boolean, object, array)'),
+  type: z
+    .string()
+    .describe('Parameter type (string, number, boolean, object, array)'),
   description: z.string().describe('Parameter description'),
   required: z.boolean().describe('Whether the parameter is required'),
   default: z.any().optional().describe('Default value if not provided'),
-  enum: z.array(z.string()).optional().describe('Allowed values for enum parameters'),
+  enum: z
+    .array(z.string())
+    .optional()
+    .describe('Allowed values for enum parameters'),
 });
 
 export type ToolParameter = z.infer<typeof ToolParameterSchema>;
@@ -31,8 +41,14 @@ export const ToolInfoSchema = z.object({
   description: z.string().describe('Tool description'),
   category: z.string().optional().describe('Tool category for grouping'),
   tags: z.array(z.string()).optional().describe('Tags for filtering'),
-  parameters: z.array(ToolParameterSchema).optional().describe('Tool parameters'),
-  inputSchema: z.record(z.string(), z.any()).optional().describe('JSON Schema for tool input'),
+  parameters: z
+    .array(ToolParameterSchema)
+    .optional()
+    .describe('Tool parameters'),
+  inputSchema: z
+    .record(z.string(), z.any())
+    .optional()
+    .describe('JSON Schema for tool input'),
 });
 
 export type ToolInfo = z.infer<typeof ToolInfoSchema>;
@@ -53,7 +69,9 @@ export type ToolDiscoveryData = z.infer<typeof ToolDiscoveryDataSchema>;
  * Tool discovery response schema
  * GET /api/v1/tools
  */
-export const ToolDiscoveryResponseSchema = createSuccessResponseSchema(ToolDiscoveryDataSchema);
+export const ToolDiscoveryResponseSchema = createSuccessResponseSchema(
+  ToolDiscoveryDataSchema
+);
 
 export type ToolDiscoveryResponse = z.infer<typeof ToolDiscoveryResponseSchema>;
 
@@ -63,7 +81,10 @@ export type ToolDiscoveryResponse = z.infer<typeof ToolDiscoveryResponseSchema>;
 export const ToolExecutionDataSchema = z.object({
   result: z.any().describe('Tool execution result'),
   tool: z.string().describe('Name of the executed tool'),
-  executionTime: z.number().optional().describe('Execution time in milliseconds'),
+  executionTime: z
+    .number()
+    .optional()
+    .describe('Execution time in milliseconds'),
 });
 
 export type ToolExecutionData = z.infer<typeof ToolExecutionDataSchema>;
@@ -72,7 +93,9 @@ export type ToolExecutionData = z.infer<typeof ToolExecutionDataSchema>;
  * Tool execution response schema
  * POST /api/v1/tools/:toolName
  */
-export const ToolExecutionResponseSchema = createSuccessResponseSchema(ToolExecutionDataSchema);
+export const ToolExecutionResponseSchema = createSuccessResponseSchema(
+  ToolExecutionDataSchema
+);
 
 export type ToolExecutionResponse = z.infer<typeof ToolExecutionResponseSchema>;
 

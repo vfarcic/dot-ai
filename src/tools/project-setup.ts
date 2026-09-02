@@ -13,16 +13,47 @@ import { randomUUID } from 'crypto';
 
 // Tool metadata for MCP registration
 export const PROJECT_SETUP_TOOL_NAME = 'projectSetup';
-export const PROJECT_SETUP_TOOL_DESCRIPTION = 'Setup project, audit repository, or generate repository files. Use this when user wants to: setup project, audit repo, check missing files, create README, add LICENSE, generate CONTRIBUTING.md, add CI/CD workflows, initialize documentation, setup governance files. Analyzes local repositories and generates missing configuration, documentation, and governance files. Does NOT handle Kubernetes deployments - use recommend for those.';
+export const PROJECT_SETUP_TOOL_DESCRIPTION =
+  'Setup project, audit repository, or generate repository files. Use this when user wants to: setup project, audit repo, check missing files, create README, add LICENSE, generate CONTRIBUTING.md, add CI/CD workflows, initialize documentation, setup governance files. Analyzes local repositories and generates missing configuration, documentation, and governance files. Does NOT handle Kubernetes deployments - use recommend for those.';
 
 // Zod schema for MCP registration
 export const PROJECT_SETUP_TOOL_INPUT_SCHEMA = {
-  step: z.enum(['discover', 'reportScan', 'generateScope']).optional().describe('Workflow step: "discover" (default) starts new session and returns file list, "reportScan" analyzes scan results, "generateScope" generates all files in a scope. Defaults to "discover" if omitted.'),
-  sessionId: z.string().optional().describe('Session ID from previous step (required for reportScan and generateScope steps)'),
-  existingFiles: z.array(z.string()).optional().describe('List of files that exist in the repository (required for first reportScan call, optional for subsequent calls with selectedScopes)'),
-  selectedScopes: z.array(z.string()).optional().describe('Scopes user chose to setup (e.g., ["readme", "legal", "github-community"]) (required for reportScan step after initial scan)'),
-  scope: z.string().optional().describe('Scope to generate (e.g., "github-community") (required for generateScope step)'),
-  answers: z.record(z.string(), z.any()).optional().describe('Answers to ALL questions for the scope (required for generateScope step)')
+  step: z
+    .enum(['discover', 'reportScan', 'generateScope'])
+    .optional()
+    .describe(
+      'Workflow step: "discover" (default) starts new session and returns file list, "reportScan" analyzes scan results, "generateScope" generates all files in a scope. Defaults to "discover" if omitted.'
+    ),
+  sessionId: z
+    .string()
+    .optional()
+    .describe(
+      'Session ID from previous step (required for reportScan and generateScope steps)'
+    ),
+  existingFiles: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'List of files that exist in the repository (required for first reportScan call, optional for subsequent calls with selectedScopes)'
+    ),
+  selectedScopes: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Scopes user chose to setup (e.g., ["readme", "legal", "github-community"]) (required for reportScan step after initial scan)'
+    ),
+  scope: z
+    .string()
+    .optional()
+    .describe(
+      'Scope to generate (e.g., "github-community") (required for generateScope step)'
+    ),
+  answers: z
+    .record(z.string(), z.any())
+    .optional()
+    .describe(
+      'Answers to ALL questions for the scope (required for generateScope step)'
+    ),
 };
 
 /**
@@ -39,7 +70,7 @@ export async function handleProjectSetupTool(
     logger.info('Project setup tool invoked', {
       requestId,
       step: args.step || 'discover',
-      sessionId: args.sessionId
+      sessionId: args.sessionId,
     });
 
     // Route based on step
@@ -60,19 +91,21 @@ export async function handleProjectSetupTool(
           success: false,
           error: {
             message: `Unknown step: ${step}`,
-            details: 'Valid steps are: discover, reportScan, generateScope'
-          }
+            details: 'Valid steps are: discover, reportScan, generateScope',
+          },
         });
     }
   } catch (error) {
-    logger.error('Project setup tool request failed', error as Error, { requestId });
+    logger.error('Project setup tool request failed', error as Error, {
+      requestId,
+    });
 
     return createErrorResponse({
       success: false,
       error: {
         message: 'Tool execution failed',
-        details: error instanceof Error ? error.message : String(error)
-      }
+        details: error instanceof Error ? error.message : String(error),
+      },
     });
   }
 }
@@ -86,10 +119,12 @@ async function handleDiscoverStep(
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   const response = await handleDiscovery(logger, requestId);
   return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify(response, null, 2)
-    }]
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(response, null, 2),
+      },
+    ],
   };
 }
 
@@ -107,8 +142,8 @@ async function handleReportScanStep(
       success: false,
       error: {
         message: 'sessionId is required for reportScan step',
-        details: 'Please provide the sessionId from the discover step'
-      }
+        details: 'Please provide the sessionId from the discover step',
+      },
     });
   }
 
@@ -121,10 +156,12 @@ async function handleReportScanStep(
   );
 
   return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify(response, null, 2)
-    }]
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(response, null, 2),
+      },
+    ],
   };
 }
 
@@ -142,8 +179,8 @@ async function handleGenerateScopeStep(
       success: false,
       error: {
         message: 'sessionId is required for generateScope step',
-        details: 'Please provide the sessionId from previous steps'
-      }
+        details: 'Please provide the sessionId from previous steps',
+      },
     });
   }
 
@@ -156,21 +193,27 @@ async function handleGenerateScopeStep(
   );
 
   return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify(response, null, 2)
-    }]
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(response, null, 2),
+      },
+    ],
   };
 }
 
 /**
  * Helper to create error response
  */
-function createErrorResponse(error: ErrorResponse): { content: Array<{ type: string; text: string }> } {
+function createErrorResponse(error: ErrorResponse): {
+  content: Array<{ type: string; text: string }>;
+} {
   return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify(error, null, 2)
-    }]
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(error, null, 2),
+      },
+    ],
   };
 }

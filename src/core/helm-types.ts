@@ -6,11 +6,11 @@
  * Helm chart information from ArtifactHub
  */
 export interface HelmChartInfo {
-  repository: string;      // e.g., "https://argoproj.github.io/argo-helm"
-  repositoryName: string;  // e.g., "argo"
-  chartName: string;       // e.g., "argo-cd"
-  version?: string;        // e.g., "5.46.0"
-  appVersion?: string;     // e.g., "2.8.0"
+  repository: string; // e.g., "https://argoproj.github.io/argo-helm"
+  repositoryName: string; // e.g., "argo"
+  chartName: string; // e.g., "argo-cd"
+  version?: string; // e.g., "5.46.0"
+  appVersion?: string; // e.g., "2.8.0"
   official?: boolean;
   verifiedPublisher?: boolean;
 }

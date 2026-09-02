@@ -6,7 +6,10 @@
  */
 
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { defaultResource, resourceFromAttributes } from '@opentelemetry/resources';
+import {
+  defaultResource,
+  resourceFromAttributes,
+} from '@opentelemetry/resources';
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -109,7 +112,8 @@ class OpenTelemetryTracer implements TracerService {
       case 'otlp':
         if (this.config.debug) {
           console.log('[Tracing] Using OTLP exporter', {
-            endpoint: this.config.otlpEndpoint || 'http://localhost:4318/v1/traces'
+            endpoint:
+              this.config.otlpEndpoint || 'http://localhost:4318/v1/traces',
           });
         }
         return new OTLPTraceExporter({
@@ -118,11 +122,15 @@ class OpenTelemetryTracer implements TracerService {
 
       case 'jaeger':
         // Jaeger exporter will be added in Phase 3
-        throw new Error('Jaeger exporter not yet implemented - coming in Phase 3');
+        throw new Error(
+          'Jaeger exporter not yet implemented - coming in Phase 3'
+        );
 
       case 'zipkin':
         // Zipkin exporter will be added in Phase 3
-        throw new Error('Zipkin exporter not yet implemented - coming in Phase 3');
+        throw new Error(
+          'Zipkin exporter not yet implemented - coming in Phase 3'
+        );
 
       default:
         throw new Error(`Unknown exporter type: ${this.config.exporterType}`);
@@ -139,7 +147,11 @@ class OpenTelemetryTracer implements TracerService {
   /**
    * Create a new span with utility methods
    */
-  startSpan(name: string, options?: SpanOptions, parentContext?: Context): TracedSpan {
+  startSpan(
+    name: string,
+    options?: SpanOptions,
+    parentContext?: Context
+  ): TracedSpan {
     if (!this.config.enabled) {
       // Return a no-op span if tracing is disabled
       return this.createNoOpSpan();
@@ -150,7 +162,10 @@ class OpenTelemetryTracer implements TracerService {
       this.initialize();
     }
 
-    const tracer = trace.getTracer(this.config.serviceName, this.config.serviceVersion);
+    const tracer = trace.getTracer(
+      this.config.serviceName,
+      this.config.serviceVersion
+    );
     const ctx = parentContext || context.active();
     const span = tracer.startSpan(name, options, ctx);
 
@@ -178,11 +193,16 @@ class OpenTelemetryTracer implements TracerService {
         span.end();
       },
 
-      setAttributes(attributes: Record<string, string | number | boolean>): void {
+      setAttributes(
+        attributes: Record<string, string | number | boolean>
+      ): void {
         span.setAttributes(attributes);
       },
 
-      addEvent(name: string, attributes?: Record<string, string | number | boolean>): void {
+      addEvent(
+        name: string,
+        attributes?: Record<string, string | number | boolean>
+      ): void {
         span.addEvent(name, attributes);
       },
     };

@@ -40,27 +40,31 @@ For live cluster status, use kubectl tools after finding resources.`,
     properties: {
       query: {
         type: 'string',
-        description: 'Search query matching resource names, kinds, labels, or annotations (e.g., "nginx", "frontend", "team platform")'
+        description:
+          'Search query matching resource names, kinds, labels, or annotations (e.g., "nginx", "frontend", "team platform")',
       },
       namespace: {
         type: 'string',
-        description: 'Optional: Filter results to this namespace only (exact match)'
+        description:
+          'Optional: Filter results to this namespace only (exact match)',
       },
       kind: {
         type: 'string',
-        description: 'Optional: Filter results to this resource kind only (exact match, e.g., "Deployment", "Service")'
+        description:
+          'Optional: Filter results to this resource kind only (exact match, e.g., "Deployment", "Service")',
       },
       apiVersion: {
         type: 'string',
-        description: 'Optional: Filter results to this API version only (exact match, e.g., "apps/v1", "v1")'
+        description:
+          'Optional: Filter results to this API version only (exact match, e.g., "apps/v1", "v1")',
       },
       limit: {
         type: 'number',
-        description: 'Maximum results to return (default: 10)'
-      }
+        description: 'Maximum results to return (default: 10)',
+      },
     },
-    required: ['query']
-  }
+    required: ['query'],
+  },
 };
 
 /**
@@ -98,15 +102,16 @@ Note: This queries the resource inventory in Vector DB, not live cluster state.`
     properties: {
       filter: {
         type: 'object',
-        description: 'Qdrant filter object with must/should/must_not conditions'
+        description:
+          'Qdrant filter object with must/should/must_not conditions',
       },
       limit: {
         type: 'number',
-        description: 'Maximum results to return (default: 100)'
-      }
+        description: 'Maximum results to return (default: 100)',
+      },
     },
-    required: ['filter']
-  }
+    required: ['filter'],
+  },
 };
 
 /**
@@ -115,7 +120,7 @@ Note: This queries the resource inventory in Vector DB, not live cluster state.`
  */
 export const RESOURCE_TOOLS: AITool[] = [
   SEARCH_RESOURCES_TOOL,
-  QUERY_RESOURCES_TOOL
+  QUERY_RESOURCES_TOOL,
 ];
 
 /**
@@ -131,7 +136,8 @@ let resourceService: ResourceVectorService | null = null;
  */
 export async function getResourceService(): Promise<ResourceVectorService> {
   if (!resourceService) {
-    const collectionName = process.env.QDRANT_RESOURCES_COLLECTION || 'resources';
+    const collectionName =
+      process.env.QDRANT_RESOURCES_COLLECTION || 'resources';
     resourceService = new ResourceVectorService(collectionName);
     await resourceService.initialize();
   }
@@ -191,24 +197,37 @@ interface ResourceWithId {
  * @param input - Tool input parameters
  * @returns Tool execution result
  */
-export async function executeResourceTools(toolName: string, input: SearchResourcesInput | QueryResourcesInput): Promise<ResourceToolResult> {
+export async function executeResourceTools(
+  toolName: string,
+  input: SearchResourcesInput | QueryResourcesInput
+): Promise<ResourceToolResult> {
   try {
     switch (toolName) {
       case 'search_resources': {
-        const { query, namespace, kind, apiVersion, limit = 10 } = input as SearchResourcesInput;
+        const {
+          query,
+          namespace,
+          kind,
+          apiVersion,
+          limit = 10,
+        } = input as SearchResourcesInput;
 
         if (!query) {
           return {
             success: false,
             error: VALIDATION_MESSAGES.MISSING_PARAMETER('query'),
-            message: 'search_resources requires a query parameter'
+            message: 'search_resources requires a query parameter',
           };
         }
 
         const service = await getResourceService();
 
         // Build filters from optional parameters
-        const filters: { namespace?: string; kind?: string; apiVersion?: string } = {};
+        const filters: {
+          namespace?: string;
+          kind?: string;
+          apiVersion?: string;
+        } = {};
         if (namespace) filters.namespace = namespace;
         if (kind) filters.kind = kind;
         if (apiVersion) filters.apiVersion = apiVersion;
@@ -231,19 +250,22 @@ export async function executeResourceTools(toolName: string, input: SearchResour
           labels: r.labels,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
-          score
+          score,
         }));
 
         // Build message with filter info
-        const filterInfo = Object.keys(filters).length > 0
-          ? ` (filtered by ${Object.entries(filters).map(([k, v]) => `${k}=${v}`).join(', ')})`
-          : '';
+        const filterInfo =
+          Object.keys(filters).length > 0
+            ? ` (filtered by ${Object.entries(filters)
+                .map(([k, v]) => `${k}=${v}`)
+                .join(', ')})`
+            : '';
 
         return {
           success: true,
           data: formattedResources,
           count: formattedResources.length,
-          message: `Found ${formattedResources.length} resources matching "${query}"${filterInfo}`
+          message: `Found ${formattedResources.length} resources matching "${query}"${filterInfo}`,
         };
       }
 
@@ -254,7 +276,8 @@ export async function executeResourceTools(toolName: string, input: SearchResour
           return {
             success: false,
             error: VALIDATION_MESSAGES.MISSING_PARAMETER('filter'),
-            message: 'query_resources requires a filter parameter with Qdrant filter syntax'
+            message:
+              'query_resources requires a filter parameter with Qdrant filter syntax',
           };
         }
 
@@ -271,14 +294,14 @@ export async function executeResourceTools(toolName: string, input: SearchResour
           apiGroup: r.apiGroup,
           labels: r.labels,
           createdAt: r.createdAt,
-          updatedAt: r.updatedAt
+          updatedAt: r.updatedAt,
         }));
 
         return {
           success: true,
           data: resources,
           count: resources.length,
-          message: `Found ${resources.length} resources matching filter`
+          message: `Found ${resources.length} resources matching filter`,
         };
       }
 
@@ -286,7 +309,7 @@ export async function executeResourceTools(toolName: string, input: SearchResour
         return {
           success: false,
           error: `Unknown resource tool: ${toolName}`,
-          message: `Tool '${toolName}' is not implemented`
+          message: `Tool '${toolName}' is not implemented`,
         };
     }
   } catch (error) {
@@ -294,7 +317,7 @@ export async function executeResourceTools(toolName: string, input: SearchResour
     return {
       success: false,
       error: errorMessage,
-      message: `Failed to execute ${toolName}: ${errorMessage}`
+      message: `Failed to execute ${toolName}: ${errorMessage}`,
     };
   }
 }
@@ -326,12 +349,12 @@ export interface ResourceKindInfo {
  * PRD #343: Status fetching moved to REST API layer via plugin
  */
 export interface ListResourcesOptions {
-  kind: string;           // Required: Resource kind to filter by
-  apiGroup?: string;      // Optional: API group filter
-  apiVersion?: string;    // Optional: Full apiVersion filter (e.g., "apps/v1")
-  namespace?: string;     // Optional: Namespace filter
-  limit?: number;         // Optional: Max results (default: 100, max: 1000)
-  offset?: number;        // Optional: Skip N results for pagination (default: 0)
+  kind: string; // Required: Resource kind to filter by
+  apiGroup?: string; // Optional: API group filter
+  apiVersion?: string; // Optional: Full apiVersion filter (e.g., "apps/v1")
+  namespace?: string; // Optional: Namespace filter
+  limit?: number; // Optional: Max results (default: 100, max: 1000)
+  offset?: number; // Optional: Skip N results for pagination (default: 0)
 }
 
 /**
@@ -346,7 +369,7 @@ export interface ResourceListItem {
   labels: Record<string, string>;
   createdAt: string;
   updatedAt: string;
-  status?: object;  // Raw K8s status object when includeStatus: true
+  status?: object; // Raw K8s status object when includeStatus: true
 }
 
 /**
@@ -366,7 +389,9 @@ export interface ListResourcesResult {
  * @param namespace - Optional namespace to filter by
  * @returns Array of resource kinds sorted by count descending
  */
-export async function getResourceKinds(namespace?: string): Promise<ResourceKindInfo[]> {
+export async function getResourceKinds(
+  namespace?: string
+): Promise<ResourceKindInfo[]> {
   const service = await getResourceService();
   const allResources = await service.getAllData();
 
@@ -390,7 +415,7 @@ export async function getResourceKinds(namespace?: string): Promise<ResourceKind
         kind: resource.kind,
         apiGroup,
         apiVersion: resource.apiVersion,
-        count: 1
+        count: 1,
       });
     }
   }
@@ -406,8 +431,17 @@ export async function getResourceKinds(namespace?: string): Promise<ResourceKind
  * @param options - Filter and pagination options
  * @returns Paginated list of resources
  */
-export async function listResources(options: ListResourcesOptions): Promise<ListResourcesResult> {
-  const { kind, apiGroup, apiVersion, namespace, limit = 100, offset = 0 } = options;
+export async function listResources(
+  options: ListResourcesOptions
+): Promise<ListResourcesResult> {
+  const {
+    kind,
+    apiGroup,
+    apiVersion,
+    namespace,
+    limit = 100,
+    offset = 0,
+  } = options;
 
   // Clamp limit to max 1000
   const effectiveLimit = Math.min(Math.max(1, limit), 1000);
@@ -448,7 +482,10 @@ export async function listResources(options: ListResourcesOptions): Promise<List
   const total = filtered.length;
 
   // Apply pagination
-  const paginated = filtered.slice(effectiveOffset, effectiveOffset + effectiveLimit);
+  const paginated = filtered.slice(
+    effectiveOffset,
+    effectiveOffset + effectiveLimit
+  );
 
   // Transform to response format
   const resources: ResourceListItem[] = paginated.map(r => ({
@@ -459,14 +496,14 @@ export async function listResources(options: ListResourcesOptions): Promise<List
     apiVersion: r.apiVersion,
     labels: r.labels || {},
     createdAt: r.createdAt,
-    updatedAt: r.updatedAt
+    updatedAt: r.updatedAt,
   }));
 
   return {
     resources,
     total,
     limit: effectiveLimit,
-    offset: effectiveOffset
+    offset: effectiveOffset,
   };
 }
 

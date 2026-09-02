@@ -7,7 +7,12 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, BadRequestErrorSchema, ServiceUnavailableErrorSchema, InternalServerErrorSchema } from './common';
+import {
+  createSuccessResponseSchema,
+  BadRequestErrorSchema,
+  ServiceUnavailableErrorSchema,
+  InternalServerErrorSchema,
+} from './common';
 
 /**
  * Kubernetes event involved object reference
@@ -29,9 +34,17 @@ export const KubernetesEventSchema = z.object({
   type: z.string().describe('Event type (Normal, Warning)'),
   reason: z.string().describe('Short reason for the event'),
   message: z.string().describe('Human-readable description'),
-  involvedObject: EventInvolvedObjectSchema.describe('Object this event is about'),
-  count: z.number().optional().describe('Number of times this event has occurred'),
-  firstTimestamp: z.string().optional().describe('First time the event occurred'),
+  involvedObject: EventInvolvedObjectSchema.describe(
+    'Object this event is about'
+  ),
+  count: z
+    .number()
+    .optional()
+    .describe('Number of times this event has occurred'),
+  firstTimestamp: z
+    .string()
+    .optional()
+    .describe('First time the event occurred'),
 });
 
 export type KubernetesEvent = z.infer<typeof KubernetesEventSchema>;
@@ -47,7 +60,8 @@ export const EventsDataSchema = z.object({
 
 export type EventsData = z.infer<typeof EventsDataSchema>;
 
-export const EventsResponseSchema = createSuccessResponseSchema(EventsDataSchema);
+export const EventsResponseSchema =
+  createSuccessResponseSchema(EventsDataSchema);
 
 export type EventsResponse = z.infer<typeof EventsResponseSchema>;
 
@@ -62,13 +76,14 @@ export const EventsBadRequestErrorSchema = BadRequestErrorSchema.extend({
   }),
 });
 
-export const EventsPluginUnavailableErrorSchema = ServiceUnavailableErrorSchema.extend({
-  error: z.object({
-    code: z.literal('PLUGIN_UNAVAILABLE'),
-    message: z.string(),
-    details: z.any().optional(),
-  }),
-});
+export const EventsPluginUnavailableErrorSchema =
+  ServiceUnavailableErrorSchema.extend({
+    error: z.object({
+      code: z.literal('PLUGIN_UNAVAILABLE'),
+      message: z.string(),
+      details: z.any().optional(),
+    }),
+  });
 
 export const EventsErrorSchema = InternalServerErrorSchema.extend({
   error: z.object({

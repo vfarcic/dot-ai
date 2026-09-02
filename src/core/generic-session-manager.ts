@@ -90,7 +90,10 @@ export class GenericSessionManager<T = unknown> {
   /**
    * Update session data (merges with existing data)
    */
-  updateSession(sessionId: string, newData: Partial<T>): GenericSession<T> | null {
+  updateSession(
+    sessionId: string,
+    newData: Partial<T>
+  ): GenericSession<T> | null {
     const session = this.getSession(sessionId);
     if (!session) {
       return null;
@@ -151,8 +154,8 @@ export class GenericSessionManager<T = unknown> {
 
       return fs
         .readdirSync(this.sessionsPath)
-        .filter((file) => file.endsWith('.json'))
-        .map((file) => file.replace('.json', ''));
+        .filter(file => file.endsWith('.json'))
+        .map(file => file.replace('.json', ''));
     } catch (error) {
       console.error('Failed to list sessions:', error);
       return [];
@@ -188,9 +191,13 @@ export class GenericSessionManager<T = unknown> {
    * outputs may have undefined fields. (PRD #320 Milestone 2.5)
    */
   private saveSession(session: GenericSession<T>): void {
-    const sessionFile = path.join(this.sessionsPath, `${session.sessionId}.json`);
+    const sessionFile = path.join(
+      this.sessionsPath,
+      `${session.sessionId}.json`
+    );
     // Convert undefined to null to preserve structure during JSON serialization
-    const replacer = (_key: string, value: unknown) => value === undefined ? null : value;
+    const replacer = (_key: string, value: unknown) =>
+      value === undefined ? null : value;
     fs.writeFileSync(sessionFile, JSON.stringify(session, replacer, 2), 'utf8');
   }
 }

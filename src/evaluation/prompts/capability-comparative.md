@@ -7,6 +7,7 @@ You are evaluating and comparing multiple AI models' capability to analyze and i
 {tool_context}
 
 ## CAPABILITY ANALYSIS SCENARIO
+
 Scenario: "{scenario_name}"
 
 ## AI RESPONSES TO COMPARE
@@ -16,23 +17,27 @@ Scenario: "{scenario_name}"
 ## EVALUATION CRITERIA
 
 ### Quality (40% weight)
+
 - **Technical Correctness**: Are the listed capabilities technically accurate for each resource?
 - **Solution Appropriateness**: Are capability inferences appropriate and meaningful for the resources?
 - **Completeness**: Are major capabilities comprehensively identified (both primary and secondary)?
 - **Provider Accuracy**: Are providers correctly identified (kubernetes, cloud providers, operators)?
 
-### Efficiency (30% weight)  
+### Efficiency (30% weight)
+
 - **Analysis Efficiency**: How efficiently did the model analyze all resources relative to output quality?
 - **Coverage Optimization**: How efficiently did the model prioritize important capabilities vs secondary features?
 - **Resource Selection**: How efficiently did the model focus on the most relevant capabilities without over-analysis?
 
 ### Performance (20% weight)
+
 - **Response Time**: How quickly did the model respond?
 - **Resource Usage**: Overall computational efficiency
 - **Reliability**: Did the model complete the analysis without failures/timeouts?
 - **Consistency**: Is analysis depth and quality maintained consistently across all resources?
 
 ### Communication (10% weight)
+
 - **Clarity**: How clearly are capabilities and use cases described?
 - **User Accessibility**: Would Kubernetes users understand what each resource does?
 - **Structure**: How well-organized and readable is the capability analysis?
@@ -49,6 +54,7 @@ Some models may have failure analysis metadata indicating they experienced timeo
 The AI responses below will include reliability context where relevant.
 
 ## MODELS BEING COMPARED
+
 {models}
 
 ## REQUIRED RESPONSE FORMAT
@@ -62,7 +68,7 @@ Provide your evaluation as a JSON object:
   "comparative_analysis": {
     "model1": {
       "quality_score": <0-1>,
-      "efficiency_score": <0-1>, 
+      "efficiency_score": <0-1>,
       "performance_score": <0-1>,
       "communication_score": <0-1>,
       "weighted_total": <calculated weighted score>,
@@ -71,7 +77,7 @@ Provide your evaluation as a JSON object:
     },
     "model2": {
       "quality_score": <0-1>,
-      "efficiency_score": <0-1>, 
+      "efficiency_score": <0-1>,
       "performance_score": <0-1>,
       "communication_score": <0-1>,
       "weighted_total": <calculated weighted score>,

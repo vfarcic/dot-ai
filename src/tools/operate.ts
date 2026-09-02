@@ -203,21 +203,30 @@ export async function embedContext(
   // Search unified knowledge base (optional - non-blocking)
   // Results include tags so AI can see which are policies, patterns, or general content
   try {
-    const knowledgeResult = await searchKnowledgeBase({ query: intent, limit: 20 });
+    const knowledgeResult = await searchKnowledgeBase({
+      query: intent,
+      limit: 20,
+    });
     if (knowledgeResult.success) {
       context.knowledgeChunks = knowledgeResult.chunks;
       logger.info(
         `Found ${context.knowledgeChunks.length} relevant knowledge chunks (unified knowledge base)`
       );
     } else {
-      logger.warn('Knowledge base search failed, continuing without organizational context', {
-        error: knowledgeResult.error,
-      });
+      logger.warn(
+        'Knowledge base search failed, continuing without organizational context',
+        {
+          error: knowledgeResult.error,
+        }
+      );
     }
   } catch (error) {
-    logger.warn('Knowledge base search failed, continuing without organizational context', {
-      error,
-    });
+    logger.warn(
+      'Knowledge base search failed, continuing without organizational context',
+      {
+        error,
+      }
+    );
   }
 
   // Search for relevant cluster capabilities (MANDATORY)
@@ -274,19 +283,27 @@ export async function embedContext(
  * Chunks include tags so the AI can interpret what type each result represents.
  * Tags: "policy" = enforcement rule, "pattern" = reusable architecture, [] = general content.
  */
-export function formatKnowledgeContext(chunks: KnowledgeSearchResultItem[]): string {
+export function formatKnowledgeContext(
+  chunks: KnowledgeSearchResultItem[]
+): string {
   if (chunks.length === 0) {
     return 'No relevant organizational knowledge found matching this intent.';
   }
 
   let formatted = '';
   chunks.forEach((chunk, index) => {
-    const typeLabel = chunk.tags.length > 0
-      ? chunk.tags.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' + ')
-      : 'General';
+    const typeLabel =
+      chunk.tags.length > 0
+        ? chunk.tags
+            .map(t => t.charAt(0).toUpperCase() + t.slice(1))
+            .join(' + ')
+        : 'General';
     formatted += `### Knowledge ${index + 1} [${typeLabel}]\n\n`;
     formatted += `**Source:** ${chunk.uri}\n\n`;
-    formatted += (chunk.content.length > 300 ? chunk.content.substring(0, 300) + '...' : chunk.content) + '\n\n';
+    formatted +=
+      (chunk.content.length > 300
+        ? chunk.content.substring(0, 300) + '...'
+        : chunk.content) + '\n\n';
     if (index < chunks.length - 1) {
       formatted += '---\n\n';
     }

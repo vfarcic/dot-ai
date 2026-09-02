@@ -7,6 +7,7 @@ You are evaluating and comparing multiple AI models' ability to manage Kubernete
 {tool_context}
 
 ## POLICY MANAGEMENT SCENARIO
+
 Scenario: "{scenario_name}"
 
 ## AI RESPONSES TO COMPARE
@@ -16,24 +17,28 @@ Scenario: "{scenario_name}"
 ## EVALUATION CRITERIA
 
 ### Quality (40% weight)
+
 - **Policy Correctness**: Are the policy intents technically correct and enforceable in Kubernetes environments?
 - **Security Alignment**: Do the policies follow Kubernetes and security best practices (RBAC, PSS, Network Policies)?
 - **Compliance Accuracy**: How well do the policies address regulatory and organizational compliance requirements?
 - **Completeness**: Does the policy intent capture all essential aspects for the governance scenario?
 
 ### Efficiency (30% weight)
+
 - **Workflow Efficiency**: How efficiently did the model progress through the policy creation/management workflow?
 - **Policy Structure**: How efficiently did the model organize policy intents with proper categorization?
 - **Rule Optimization**: How efficiently did the model identify relevant policy rules and constraints?
 - **Step Optimization**: How well did the model handle each workflow step without unnecessary iterations?
 
 ### Performance (20% weight)
+
 - **Response Time**: How quickly did the model respond throughout the policy workflow?
 - **Resource Usage**: Overall computational efficiency during policy intent management
 - **Reliability**: Did the model complete the policy workflow without failures/timeouts?
 - **Consistency**: Is policy quality maintained consistently across all workflow steps?
 
 ### Communication (10% weight)
+
 - **Clarity**: How clearly are policy intents, rationale, and enforcement strategies explained?
 - **User Experience**: How well does the model guide users through the policy creation process?
 - **Structure**: How well-organized and readable are the policy definitions and compliance explanations?
@@ -50,6 +55,7 @@ Some models may have failure analysis metadata indicating they experienced timeo
 The AI responses below will include reliability context where relevant.
 
 ## MODELS BEING COMPARED
+
 {models}
 
 ## REQUIRED RESPONSE FORMAT
@@ -63,7 +69,7 @@ Provide your evaluation as a JSON object:
   "comparative_analysis": {
     "model1": {
       "quality_score": <0-1>,
-      "efficiency_score": <0-1>, 
+      "efficiency_score": <0-1>,
       "performance_score": <0-1>,
       "communication_score": <0-1>,
       "weighted_total": <calculated weighted score>,
@@ -72,7 +78,7 @@ Provide your evaluation as a JSON object:
     },
     "model2": {
       "quality_score": <0-1>,
-      "efficiency_score": <0-1>, 
+      "efficiency_score": <0-1>,
       "performance_score": <0-1>,
       "communication_score": <0-1>,
       "weighted_total": <calculated weighted score>,
