@@ -68,7 +68,7 @@ export function createMockEmbeddingModel(
     modelId: options.modelId ?? 'mock-model',
     maxEmbeddingsPerCall: options.maxEmbeddingsPerCall ?? Infinity,
     doEmbed: async ({ values }) => ({
-      embeddings: values.map((v) => buildEmbeddingVector(v, dimensions)),
+      embeddings: values.map(v => buildEmbeddingVector(v, dimensions)),
       usage: { tokens: options.tokens ?? values.length },
       warnings: [],
     }),

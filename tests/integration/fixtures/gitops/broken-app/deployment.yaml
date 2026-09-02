@@ -15,7 +15,7 @@ spec:
         app: gitops-test-app
     spec:
       containers:
-      - name: app
-        image: nginx:v999-nonexistent
-        ports:
-        - containerPort: 80
+        - name: app
+          image: nginx:v999-nonexistent
+          ports:
+            - containerPort: 80

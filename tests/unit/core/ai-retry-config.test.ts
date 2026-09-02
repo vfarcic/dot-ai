@@ -87,21 +87,21 @@ describe('ai-retry-config: getMaxRetries', () => {
   });
 
   it('ignores invalid global values and falls back to the per-op default', () => {
-    expect(
-      getMaxRetries('embeddings', { DOT_AI_AI_MAX_RETRIES: 'abc' })
-    ).toBe(__defaults.embeddings);
-    expect(
-      getMaxRetries('chat', { DOT_AI_AI_MAX_RETRIES: '   ' })
-    ).toBe(__defaults.chat);
-    expect(
-      getMaxRetries('tool_loop', { DOT_AI_AI_MAX_RETRIES: '' })
-    ).toBe(__defaults.tool_loop);
+    expect(getMaxRetries('embeddings', { DOT_AI_AI_MAX_RETRIES: 'abc' })).toBe(
+      __defaults.embeddings
+    );
+    expect(getMaxRetries('chat', { DOT_AI_AI_MAX_RETRIES: '   ' })).toBe(
+      __defaults.chat
+    );
+    expect(getMaxRetries('tool_loop', { DOT_AI_AI_MAX_RETRIES: '' })).toBe(
+      __defaults.tool_loop
+    );
   });
 
   it('trims whitespace around valid values', () => {
-    expect(
-      getMaxRetries('chat', { DOT_AI_AI_MAX_RETRIES_CHAT: '  3  ' })
-    ).toBe(3);
+    expect(getMaxRetries('chat', { DOT_AI_AI_MAX_RETRIES_CHAT: '  3  ' })).toBe(
+      3
+    );
   });
 
   it('reads from process.env by default', () => {

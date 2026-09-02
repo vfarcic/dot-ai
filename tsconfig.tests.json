@@ -1,0 +1,16 @@
+{
+  "//": "Typecheck-only config for tests/. The root tsconfig cannot cover them: it sets rootDir './src' and excludes '**/*.test.ts'. Wired into CI as `npm run typecheck` (#784). Covers this package only: packages/agentic-tools is not an npm workspace, so its deps are not installed by the root `npm ci` and it typechecks in its own CI step instead.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

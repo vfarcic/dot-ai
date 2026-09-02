@@ -21,6 +21,79 @@ import * as k8s from '@kubernetes/client-node';
 import { IntegrationTest } from '../helpers/test-base.js';
 import { HttpRestApiClient } from '../helpers/http-client.js';
 import { signJwt } from '../../../src/interfaces/oauth/jwt.js';
+import type {
+  GeneratedFile,
+  GitPushResult,
+  K8sManifest,
+  OwnerReference,
+  Question,
+  SolutionSummary,
+} from '../helpers/api-shapes.js';
+
+/**
+ * What this file reads off `data`. Fields are declared present because each
+ * read follows a `toMatchObject` assertion that proved presence at runtime.
+ */
+interface RecommendPayload {
+  data?: { allSolutions: SolutionSummary[] };
+  result: {
+    status: string;
+    success: boolean;
+    sessionId: string;
+    solutionId: string;
+    namespace: string;
+    message: string;
+    guidance: string;
+    agentInstructions: string;
+    visualizationUrl: string;
+    releaseName: string;
+    helmCommand: string;
+    error?: string;
+    solutions: SolutionSummary[];
+    questions: Question[];
+    files: GeneratedFile[];
+    gitPush: GitPushResult;
+  };
+}
+
+/**
+ * Pick a *valid* answer for an AI-generated question.
+ *
+ * Questions and their suggestedAnswer are both AI-generated, and the two can
+ * disagree: the model sometimes suggests a value outside the `options` list it
+ * generated for the same question. Feeding that straight back produces
+ * `status: "stage_error"` / `validation_failed` and fails the workflow test for
+ * a reason that has nothing to do with the workflow. Observed in CI on a
+ * storage-class question: `must be one of: standard (default)`.
+ *
+ * `select` is the only type validated against `options`
+ * (src/tools/answer-question.ts), so that is the only case needing a fallback.
+ * Anything else passes the suggestion through unchanged.
+ *
+ * An *empty* suggestion is left alone unless the question is required.
+ * validateAnswer returns early for undefined/null/'' on a non-required
+ * question, so empty already passes — substituting options[0] there would
+ * submit a choice the test never intended instead of leaving the question
+ * unanswered. A required question with an empty answer genuinely is rejected
+ * (answer-question.ts:136-141), so that case does need the fallback.
+ */
+function validAnswerFor(question: Question): unknown {
+  const { type, options, suggestedAnswer } = question;
+
+  if (type === 'select' && Array.isArray(options) && options.length > 0) {
+    const isEmptyAnswer =
+      suggestedAnswer === undefined ||
+      suggestedAnswer === null ||
+      suggestedAnswer === '';
+    const needsAnswer = !isEmptyAnswer || question.validation?.required;
+
+    if (needsAnswer && !options.includes(suggestedAnswer as string)) {
+      return options[0];
+    }
+  }
+
+  return suggestedAnswer;
+}
 
 describe.concurrent('Recommend Tool Integration', () => {
   const integrationTest = new IntegrationTest();
@@ -79,7 +152,7 @@ describe.concurrent('Recommend Tool Integration', () => {
     }
 
     expect(response.ok).toBe(true);
-    return response.json();
+    return response.json() as Promise<GitHubFileContent>;
   }
 
   // ─── GitHub pull request helpers (PRD #710 M2 PR mode) ───
@@ -301,19 +374,18 @@ describe.concurrent('Recommend Tool Integration', () => {
 
   describe('Recommendation Workflow', () => {
     test('should complete full workflow: intent refinement → solutions → choose → answer → generate → deploy', async () => {
-      let manifestPath: string;
-
       // PHASE 1: Request recommendations without final flag (intent refinement)
       // NOTE: Testing default stage behavior - no stage parameter defaults to 'recommend'
       // Vague intent (< 100 chars) triggers heuristic-based guidance response (PRD #22)
-      const refinementResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          intent: 'deploy database',
-          // stage omitted - should default to 'recommend'
-          interaction_id: 'refinement_phase',
-        }
-      );
+      const refinementResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            intent: 'deploy database',
+            // stage omitted - should default to 'recommend'
+            interaction_id: 'refinement_phase',
+          }
+        );
 
       // Validate intent refinement response structure (heuristic-based, no AI call)
       const expectedRefinementResponse = {
@@ -340,22 +412,23 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(refinementResponse).toMatchObject(expectedRefinementResponse);
 
       // Validate guidance content includes key sections
-      const guidance = refinementResponse.data.result.guidance;
+      const guidance = refinementResponse.data!.result.guidance;
       expect(guidance).toContain('Analyze Available Context');
       expect(guidance).toContain('Perform Deep Analysis');
       expect(guidance).toContain('Discuss With User');
       expect(guidance).toContain('final: true');
 
       // PHASE 2: Request recommendations with refined intent and final=true (solutions)
-      const solutionsResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'recommend', // Explicit stage parameter
-          intent: 'deploy postgresql database',
-          final: true,
-          interaction_id: 'solution_assembly_phase',
-        }
-      );
+      const solutionsResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'recommend', // Explicit stage parameter
+            intent: 'deploy postgresql database',
+            final: true,
+            interaction_id: 'solution_assembly_phase',
+          }
+        );
 
       // Validate solutions response structure (based on actual API inspection)
       // PRD #320: Recommend tool returns visualizationUrl with multiple session IDs joined by +
@@ -401,23 +474,24 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(solutionsResponse).toMatchObject(expectedSolutionsResponse);
 
       // PRD #320: Verify visualization URL contains all solution session IDs
-      const solutionIds = solutionsResponse.data.result.solutions.map(
-        (s: any) => s.solutionId
+      const solutionIds = solutionsResponse.data!.result.solutions.map(
+        (s: SolutionSummary) => s.solutionId
       );
-      const visualizationUrl = solutionsResponse.data.result.visualizationUrl;
+      const visualizationUrl = solutionsResponse.data!.result.visualizationUrl;
       const urlSessionIds = visualizationUrl.split('/v/')[1].split('+');
       expect(urlSessionIds).toEqual(solutionIds);
 
       // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // Extract solutionId for next phase
-      const solutionId = solutionsResponse.data.result.solutions[0].solutionId;
+      const solutionId = solutionsResponse.data!.result.solutions[0].solutionId;
 
       // SESSION STATE VALIDATION: Verify session persistence for UI page refresh
       const sessionStartTime = Date.now();
-      const sessionResponse = await integrationTest.httpClient.get(
-        `/api/v1/sessions/${solutionId}`
-      );
+      const sessionResponse =
+        await integrationTest.httpClient.get<RecommendPayload>(
+          `/api/v1/sessions/${solutionId}`
+        );
       const sessionResponseTime = Date.now() - sessionStartTime;
 
       // Validate session retrieval is fast (< 1000ms indicates reading from cache, not AI call)
@@ -474,20 +548,21 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(sessionResponse).toMatchObject(expectedSessionResponse);
 
       // Validate allSolutions contains all solution IDs from the response
-      const sessionAllSolutions = sessionResponse.data.data.allSolutions.map(
-        (s: any) => s.solutionId
+      const sessionAllSolutions = sessionResponse.data!.data!.allSolutions.map(
+        (s: SolutionSummary) => s.solutionId
       );
       expect(sessionAllSolutions).toEqual(solutionIds);
 
       // PHASE 3: Call chooseSolution stage with solutionId
-      const chooseResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'chooseSolution',
-          solutionId,
-          interaction_id: 'choose_solution_phase',
-        }
-      );
+      const chooseResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'chooseSolution',
+            solutionId,
+            interaction_id: 'choose_solution_phase',
+          }
+        );
 
       // Validate chooseSolution response structure (based on actual API inspection)
       const expectedChooseResponse = {
@@ -522,10 +597,10 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(chooseResponse).toMatchObject(expectedChooseResponse);
 
       // CRITICAL: Validate that all questions have suggestedAnswer field
-      const requiredQuestions = chooseResponse.data.result.questions;
+      const requiredQuestions = chooseResponse.data!.result.questions;
       expect(requiredQuestions.length).toBeGreaterThan(0);
 
-      requiredQuestions.forEach((q: any) => {
+      requiredQuestions.forEach((q: Question) => {
         expect(q).toMatchObject({
           id: expect.any(String),
           question: expect.any(String),
@@ -538,10 +613,10 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PACKAGING QUESTIONS VALIDATION: Capability-based solutions must have outputFormat and outputPath
       const outputFormatQuestion = requiredQuestions.find(
-        (q: any) => q.id === 'outputFormat'
+        (q: Question) => q.id === 'outputFormat'
       );
       const outputPathQuestion = requiredQuestions.find(
-        (q: any) => q.id === 'outputPath'
+        (q: Question) => q.id === 'outputPath'
       );
 
       expect(outputFormatQuestion).toBeDefined();
@@ -565,24 +640,25 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 4: Answer required stage questions using suggestedAnswers
       // Explicitly use 'raw' format for main workflow test (kustomize/helm have dedicated tests)
-      const requiredAnswers: Record<string, any> = {};
-      requiredQuestions.forEach((q: any) => {
+      const requiredAnswers: Record<string, unknown> = {};
+      requiredQuestions.forEach((q: Question) => {
         if (q.id === 'outputFormat') {
           requiredAnswers[q.id] = 'raw'; // Use raw format for main workflow
         } else {
-          requiredAnswers[q.id] = q.suggestedAnswer;
+          requiredAnswers[q.id] = validAnswerFor(q);
         }
       });
 
-      const answerRequiredResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:required', // Combined stage routing
-          solutionId,
-          answers: requiredAnswers,
-          interaction_id: 'answer_required_phase',
-        }
-      );
+      const answerRequiredResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:required', // Combined stage routing
+            solutionId,
+            answers: requiredAnswers,
+            interaction_id: 'answer_required_phase',
+          }
+        );
 
       // Validate answerQuestion response (should return next stage questions).
       // The diagnostic message surfaces the actual result (or error) so an
@@ -610,15 +686,16 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // PHASE 5: Skip basic stage (empty answers)
-      const skipBasicResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:basic', // Combined stage routing
-          solutionId,
-          answers: {},
-          interaction_id: 'skip_basic_phase',
-        }
-      );
+      const skipBasicResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:basic', // Combined stage routing
+            solutionId,
+            answers: {},
+            interaction_id: 'skip_basic_phase',
+          }
+        );
 
       // Validate skip basic response (based on actual API inspection)
       const expectedSkipBasicResponse = {
@@ -647,15 +724,16 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(skipBasicResponse).toMatchObject(expectedSkipBasicResponse);
 
       // PHASE 6: Skip advanced stage (empty answers)
-      const skipAdvancedResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:advanced', // Combined stage routing
-          solutionId,
-          answers: {},
-          interaction_id: 'skip_advanced_phase',
-        }
-      );
+      const skipAdvancedResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:advanced', // Combined stage routing
+            solutionId,
+            answers: {},
+            interaction_id: 'skip_advanced_phase',
+          }
+        );
 
       // Validate skip advanced response (based on actual API inspection)
       const expectedSkipAdvancedResponse = {
@@ -682,15 +760,16 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(skipAdvancedResponse).toMatchObject(expectedSkipAdvancedResponse);
 
       // PHASE 7: Complete open stage with N/A
-      const completeOpenResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:open', // Combined stage routing
-          solutionId,
-          answers: { open: 'N/A' },
-          interaction_id: 'complete_open_phase',
-        }
-      );
+      const completeOpenResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:open', // Combined stage routing
+            solutionId,
+            answers: { open: 'N/A' },
+            interaction_id: 'complete_open_phase',
+          }
+        );
 
       // Validate open stage completion response (based on actual API inspection)
       const expectedCompleteOpenResponse = {
@@ -718,14 +797,15 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(completeOpenResponse).toMatchObject(expectedCompleteOpenResponse);
 
       // PHASE 8: Generate manifests
-      const generateResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'generateManifests',
-          solutionId,
-          interaction_id: 'generate_manifests_phase',
-        }
-      );
+      const generateResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'generateManifests',
+            solutionId,
+            interaction_id: 'generate_manifests_phase',
+          }
+        );
 
       // Validate generateManifests response (based on actual API inspection)
       // Raw format returns a single manifests.yaml file
@@ -772,25 +852,25 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(generateResponse).toMatchObject(expectedGenerateResponse);
 
       // Verify raw format contains single manifests.yaml file
-      const files = generateResponse.data.result.files;
+      const files = generateResponse.data!.result.files;
       const manifestFile = files.find(
-        (f: any) => f.relativePath === 'manifests.yaml'
+        (f: GeneratedFile) => f.relativePath === 'manifests.yaml'
       );
       expect(manifestFile).toBeDefined();
-      expect(manifestFile.content).toContain('apiVersion:');
-      expect(manifestFile.content).toContain('kind:');
-      expect(manifestFile.content).toContain('metadata:');
+      expect(manifestFile!.content).toContain('apiVersion:');
+      expect(manifestFile!.content).toContain('kind:');
+      expect(manifestFile!.content).toContain('metadata:');
 
       // For raw format, all manifests are in a single file
-      const manifests = manifestFile.content;
+      const manifests = manifestFile!.content;
 
       // SOLUTION CR VALIDATION: Verify Solution CR is included and properly structured
       const yaml = await import('js-yaml');
       // For raw format, parse the single manifests.yaml file
-      const parsedManifests = yaml.loadAll(manifests);
-      const solutionCR = parsedManifests.find(
-        (m: any) => m?.kind === 'Solution'
-      );
+      const parsedManifests = yaml.loadAll(
+        manifests
+      ) as Array<K8sManifest | null>;
+      const solutionCR = parsedManifests.find(m => m?.kind === 'Solution');
 
       // Extract namespace from answers (default to 'default' if not specified)
       const namespace = requiredAnswers.namespace || 'default';
@@ -828,14 +908,15 @@ describe.concurrent('Recommend Tool Integration', () => {
       // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
       // PHASE 9: Deploy manifests to cluster
-      const deployResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'deployManifests',
-          solutionId,
-          interaction_id: 'deploy_manifests_phase',
-        }
-      );
+      const deployResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'deployManifests',
+            solutionId,
+            interaction_id: 'deploy_manifests_phase',
+          }
+        );
 
       // Validate deployManifests response (based on actual API inspection)
       const expectedDeployResponse = {
@@ -871,12 +952,12 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 10: Verify resources were created in the cluster
       // Parse manifests to verify each resource exists
-      const deployedManifests = yaml.loadAll(manifests);
+      const deployedManifests = yaml.loadAll(manifests) as K8sManifest[];
       expect(deployedManifests.length).toBeGreaterThan(0);
 
       // Verify at least one non-Solution resource was deployed
       const nonSolutionResources = deployedManifests.filter(
-        (m: any) => m.kind !== 'Solution'
+        (m: K8sManifest) => m.kind !== 'Solution'
       );
       expect(nonSolutionResources.length).toBeGreaterThan(0);
 
@@ -902,17 +983,18 @@ describe.concurrent('Recommend Tool Integration', () => {
       const maxWaitMs = 60000;
       const pollIntervalMs = 2000;
       let ownerRefFound = false;
-      let deployedResource: any;
+      let deployedResource: K8sManifest | undefined;
 
       for (let waited = 0; waited < maxWaitMs; waited += pollIntervalMs) {
         const resourceResult = await integrationTest.kubectl(
           `get ${firstResource.kind} ${firstResource.name} -n ${namespace} -o json`
         );
-        deployedResource = JSON.parse(resourceResult);
+        deployedResource = JSON.parse(resourceResult) as K8sManifest;
 
         // Check if Solution ownerReference exists
-        const hasOwnerRef = deployedResource.metadata.ownerReferences?.some(
-          (ref: any) => ref.kind === 'Solution' && ref.name === solutionCRName
+        const hasOwnerRef = deployedResource.metadata?.ownerReferences?.some(
+          (ref: OwnerReference) =>
+            ref.kind === 'Solution' && ref.name === solutionCRName
         );
 
         if (hasOwnerRef) {
@@ -927,7 +1009,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       // Note: controller=false because Solution is a tracker, not a lifecycle controller
       // Actual resource controllers (like CNPG) remain as controller=true
       expect(ownerRefFound).toBe(true);
-      expect(deployedResource.metadata.ownerReferences).toEqual(
+      expect(deployedResource?.metadata?.ownerReferences).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             apiVersion: 'dot-ai.devopstoolkit.live/v1alpha1',
@@ -1062,7 +1144,7 @@ describe.concurrent('Recommend Tool Integration', () => {
        * assertion still cleans up the branch, PR and files it left behind.
        */
       const recordForCleanup = (response: {
-        data?: { result?: { gitPush?: Record<string, any> } };
+        data?: { result?: { gitPush?: GitPushResult } };
       }) => {
         const gitPush = response.data?.result?.gitPush;
         if (!gitPush) return;
@@ -1093,14 +1175,15 @@ describe.concurrent('Recommend Tool Integration', () => {
       let testFailure: unknown;
 
       try {
-        const solutionsResponse = await integrationTest.httpClient.post(
-          '/api/v1/tools/recommend',
-          {
-            intent: 'deploy nginx web server',
-            final: true,
-            interaction_id: `push_to_git_solutions_${testRunId}`,
-          }
-        );
+        const solutionsResponse =
+          await integrationTest.httpClient.post<RecommendPayload>(
+            '/api/v1/tools/recommend',
+            {
+              intent: 'deploy nginx web server',
+              final: true,
+              interaction_id: `push_to_git_solutions_${testRunId}`,
+            }
+          );
 
         expect(solutionsResponse).toMatchObject({
           success: true,
@@ -1111,21 +1194,23 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        const capabilitySolution = solutionsResponse.data.result.solutions.find(
-          (s: any) => s.type !== 'helm'
-        );
+        const capabilitySolution =
+          solutionsResponse.data!.result.solutions.find(
+            (s: SolutionSummary) => s.type !== 'helm'
+          );
         expect(capabilitySolution).toBeDefined();
 
-        const solutionId = capabilitySolution.solutionId;
+        const solutionId = capabilitySolution!.solutionId;
 
-        const chooseResponse = await integrationTest.httpClient.post(
-          '/api/v1/tools/recommend',
-          {
-            stage: 'chooseSolution',
-            solutionId,
-            interaction_id: `push_to_git_choose_${testRunId}`,
-          }
-        );
+        const chooseResponse =
+          await integrationTest.httpClient.post<RecommendPayload>(
+            '/api/v1/tools/recommend',
+            {
+              stage: 'chooseSolution',
+              solutionId,
+              interaction_id: `push_to_git_choose_${testRunId}`,
+            }
+          );
 
         expect(chooseResponse).toMatchObject({
           success: true,
@@ -1138,53 +1223,66 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        const requiredAnswers: Record<string, any> = {};
-        chooseResponse.data.result.questions.forEach((question: any) => {
+        const requiredAnswers: Record<string, unknown> = {};
+        chooseResponse.data!.result.questions.forEach((question: Question) => {
           if (question.id === 'outputFormat') {
             requiredAnswers[question.id] = 'raw';
           } else if (question.id === 'outputPath') {
             requiredAnswers[question.id] = './gitops-manifests';
           } else {
-            requiredAnswers[question.id] = question.suggestedAnswer;
+            requiredAnswers[question.id] = validAnswerFor(question);
           }
         });
 
-        await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-          stage: 'answerQuestion:required',
-          solutionId,
-          answers: requiredAnswers,
-          interaction_id: `push_to_git_required_${testRunId}`,
-        });
-
-        await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-          stage: 'answerQuestion:basic',
-          solutionId,
-          answers: {},
-          interaction_id: `push_to_git_basic_${testRunId}`,
-        });
-
-        await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-          stage: 'answerQuestion:advanced',
-          solutionId,
-          answers: {},
-          interaction_id: `push_to_git_advanced_${testRunId}`,
-        });
-
-        await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-          stage: 'answerQuestion:open',
-          solutionId,
-          answers: { open: 'N/A' },
-          interaction_id: `push_to_git_open_${testRunId}`,
-        });
-
-        const generateResponse = await integrationTest.httpClient.post(
+        await integrationTest.httpClient.post<RecommendPayload>(
           '/api/v1/tools/recommend',
           {
-            stage: 'generateManifests',
+            stage: 'answerQuestion:required',
             solutionId,
-            interaction_id: `push_to_git_generate_${testRunId}`,
+            answers: requiredAnswers,
+            interaction_id: `push_to_git_required_${testRunId}`,
           }
         );
+
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:basic',
+            solutionId,
+            answers: {},
+            interaction_id: `push_to_git_basic_${testRunId}`,
+          }
+        );
+
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:advanced',
+            solutionId,
+            answers: {},
+            interaction_id: `push_to_git_advanced_${testRunId}`,
+          }
+        );
+
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:open',
+            solutionId,
+            answers: { open: 'N/A' },
+            interaction_id: `push_to_git_open_${testRunId}`,
+          }
+        );
+
+        const generateResponse =
+          await integrationTest.httpClient.post<RecommendPayload>(
+            '/api/v1/tools/recommend',
+            {
+              stage: 'generateManifests',
+              solutionId,
+              interaction_id: `push_to_git_generate_${testRunId}`,
+            }
+          );
 
         expect(generateResponse).toMatchObject({
           success: true,
@@ -1203,17 +1301,18 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        const pushResponse = await integrationTest.httpClient.post(
-          '/api/v1/tools/recommend',
-          {
-            stage: 'pushToGit',
-            solutionId,
-            repoUrl: gitRepoUrl,
-            targetPath,
-            commitMessage: `test: pushToGit integration ${testRunId}`,
-            interaction_id: `push_to_git_stage_${testRunId}`,
-          }
-        );
+        const pushResponse =
+          await integrationTest.httpClient.post<RecommendPayload>(
+            '/api/v1/tools/recommend',
+            {
+              stage: 'pushToGit',
+              solutionId,
+              repoUrl: gitRepoUrl,
+              targetPath,
+              commitMessage: `test: pushToGit integration ${testRunId}`,
+              interaction_id: `push_to_git_stage_${testRunId}`,
+            }
+          );
 
         recordForCleanup(pushResponse);
 
@@ -1249,9 +1348,10 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        const sessionResponse = await integrationTest.httpClient.get(
-          `/api/v1/sessions/${solutionId}`
-        );
+        const sessionResponse =
+          await integrationTest.httpClient.get<RecommendPayload>(
+            `/api/v1/sessions/${solutionId}`
+          );
         expect(sessionResponse).toMatchObject({
           success: true,
           data: {
@@ -1272,7 +1372,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         expect(pushedFile).not.toBeNull();
         const pushedContent = Buffer.from(
           pushedFile!.content!,
-          pushedFile!.encoding!
+          pushedFile!.encoding! as BufferEncoding
         ).toString('utf8');
         expect(pushedContent).toContain('apiVersion:');
         expect(pushedContent).toContain('kind:');
@@ -1287,24 +1387,27 @@ describe.concurrent('Recommend Tool Integration', () => {
         const prClient = prPushClient();
         const baseShaBeforePr = await getBranchSha(baseBranch);
 
-        const prPushResponse = await prClient.post('/api/v1/tools/recommend', {
-          stage: 'pushToGit',
-          solutionId,
-          repoUrl: gitRepoUrl,
-          targetPath: prTargetPath,
-          branch: baseBranch,
-          pullRequest: true,
-          commitMessage: prCommitMessage,
-          // Decision 8: a client cannot attribute the commit to someone else —
-          // the authenticated identity wins over both of these.
-          authorName: spoofedAuthorName,
-          authorEmail: spoofedAuthorEmail,
-          // Success criterion 2: no client-supplied parameter may influence the
-          // head branch. There is deliberately no head-branch parameter, so an
-          // invented one must be ignored rather than honoured.
-          headBranch: 'client-chosen-head',
-          interaction_id: `push_to_git_pr_${testRunId}`,
-        });
+        const prPushResponse = await prClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'pushToGit',
+            solutionId,
+            repoUrl: gitRepoUrl,
+            targetPath: prTargetPath,
+            branch: baseBranch,
+            pullRequest: true,
+            commitMessage: prCommitMessage,
+            // Decision 8: a client cannot attribute the commit to someone else —
+            // the authenticated identity wins over both of these.
+            authorName: spoofedAuthorName,
+            authorEmail: spoofedAuthorEmail,
+            // Success criterion 2: no client-supplied parameter may influence the
+            // head branch. There is deliberately no head-branch parameter, so an
+            // invented one must be ignored rather than honoured.
+            headBranch: 'client-chosen-head',
+            interaction_id: `push_to_git_pr_${testRunId}`,
+          }
+        );
 
         recordForCleanup(prPushResponse);
 
@@ -1346,11 +1449,11 @@ describe.concurrent('Recommend Tool Integration', () => {
           },
         });
 
-        const prInfo = prPushResponse.data.result.gitPush.pullRequest;
-        const prNumber: number = prInfo.number;
-        const prBranch: string = prInfo.branch;
+        const prInfo = prPushResponse.data!.result.gitPush.pullRequest;
+        const prNumber: number = prInfo!.number;
+        const prBranch: string = prInfo!.branch;
         const createCommitSha: string =
-          prPushResponse.data.result.gitPush.commitSha;
+          prPushResponse.data!.result.gitPush.commitSha;
         expect(prBranch).not.toBe(baseBranch);
         expect(prBranch).not.toBe('client-chosen-head');
 
@@ -1370,9 +1473,10 @@ describe.concurrent('Recommend Tool Integration', () => {
         // Decision 5: the session carries the PR so a re-run can find it, and
         // `stage` stays 'pushed' — no new value in the stage enum, which
         // dot-ai-ui consumes.
-        const prSessionResponse = await integrationTest.httpClient.get(
-          `/api/v1/sessions/${solutionId}`
-        );
+        const prSessionResponse =
+          await integrationTest.httpClient.get<RecommendPayload>(
+            `/api/v1/sessions/${solutionId}`
+          );
         expect(prSessionResponse).toMatchObject({
           success: true,
           data: {
@@ -1384,7 +1488,7 @@ describe.concurrent('Recommend Tool Integration', () => {
                 path: prTargetPath,
                 branch: prBranch,
                 pullRequest: {
-                  url: prInfo.url,
+                  url: prInfo!.url,
                   number: prNumber,
                   branch: prBranch,
                   baseBranch,
@@ -1435,7 +1539,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         // ── Re-run with UNCHANGED manifests (decision 3) ──
         // The files already match what the PR proposes, so the commit would be
         // empty. That must be an explicit "no changes" outcome, not a GitHub 422.
-        const unchangedResponse = await prClient.post(
+        const unchangedResponse = await prClient.post<RecommendPayload>(
           '/api/v1/tools/recommend',
           {
             stage: 'pushToGit',
@@ -1460,7 +1564,7 @@ describe.concurrent('Recommend Tool Integration', () => {
               gitPush: {
                 pullRequest: {
                   status: 'no_changes',
-                  url: prInfo.url,
+                  url: prInfo!.url,
                   number: prNumber,
                   branch: prBranch,
                   baseBranch,
@@ -1484,16 +1588,19 @@ describe.concurrent('Recommend Tool Integration', () => {
         // A different target path is a deterministic content change without
         // re-running the AI. The open PR must be updated in place by pushing to
         // the recorded head branch, not superseded by a second PR.
-        const updateResponse = await prClient.post('/api/v1/tools/recommend', {
-          stage: 'pushToGit',
-          solutionId,
-          repoUrl: gitRepoUrl,
-          targetPath: updatedTargetPath,
-          branch: baseBranch,
-          pullRequest: true,
-          commitMessage: prCommitMessage,
-          interaction_id: `push_to_git_pr_update_${testRunId}`,
-        });
+        const updateResponse = await prClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'pushToGit',
+            solutionId,
+            repoUrl: gitRepoUrl,
+            targetPath: updatedTargetPath,
+            branch: baseBranch,
+            pullRequest: true,
+            commitMessage: prCommitMessage,
+            interaction_id: `push_to_git_pr_update_${testRunId}`,
+          }
+        );
 
         recordForCleanup(updateResponse);
 
@@ -1510,7 +1617,7 @@ describe.concurrent('Recommend Tool Integration', () => {
                 commitSha: expect.any(String),
                 pullRequest: {
                   status: 'updated',
-                  url: prInfo.url,
+                  url: prInfo!.url,
                   number: prNumber,
                   branch: prBranch,
                   baseBranch,
@@ -1524,7 +1631,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         });
 
         const updateCommitSha: string =
-          updateResponse.data.result.gitPush.commitSha;
+          updateResponse.data!.result.gitPush.commitSha;
         expect(await waitForBranchSha(prBranch, updateCommitSha)).toBe(
           updateCommitSha
         );
@@ -1600,17 +1707,18 @@ describe.concurrent('Recommend Tool Integration', () => {
         const deniedRepoUrl = `https://${deniedHost}/${gitHubRepo.owner}/${gitHubRepo.repo}.git`;
         const deniedTargetPath = `integration-tests/push-to-git-denied-${testRunId}`;
 
-        const deniedResponse = await integrationTest.httpClient.post(
-          '/api/v1/tools/recommend',
-          {
-            stage: 'pushToGit',
-            solutionId,
-            repoUrl: deniedRepoUrl,
-            targetPath: deniedTargetPath,
-            commitMessage: `test: pushToGit disallowed host ${testRunId}`,
-            interaction_id: `push_to_git_denied_host_${testRunId}`,
-          }
-        );
+        const deniedResponse =
+          await integrationTest.httpClient.post<RecommendPayload>(
+            '/api/v1/tools/recommend',
+            {
+              stage: 'pushToGit',
+              solutionId,
+              repoUrl: deniedRepoUrl,
+              targetPath: deniedTargetPath,
+              commitMessage: `test: pushToGit disallowed host ${testRunId}`,
+              interaction_id: `push_to_git_denied_host_${testRunId}`,
+            }
+          );
 
         // A push that got through anyway is a failure, but clean up what it
         // created before the assertions below report it.
@@ -1676,9 +1784,10 @@ describe.concurrent('Recommend Tool Integration', () => {
 
         // The session still describes the last push that actually happened —
         // the refused call recorded nothing.
-        const deniedSessionResponse = await integrationTest.httpClient.get(
-          `/api/v1/sessions/${solutionId}`
-        );
+        const deniedSessionResponse =
+          await integrationTest.httpClient.get<RecommendPayload>(
+            `/api/v1/sessions/${solutionId}`
+          );
         expect(deniedSessionResponse).toMatchObject({
           success: true,
           data: {
@@ -1761,14 +1870,15 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 1: Discover Helm solutions
       // Use Prometheus as test case - no Prometheus CRDs in test cluster, so Helm will be triggered
-      const helmResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          intent: 'Install Prometheus for monitoring',
-          final: true,
-          interaction_id: 'helm_workflow_discovery',
-        }
-      );
+      const helmResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            intent: 'Install Prometheus for monitoring',
+            final: true,
+            interaction_id: 'helm_workflow_discovery',
+          }
+        );
 
       // Validate response structure and that official prometheus-community chart is included
       // PRD #320: Helm solutions also return visualizationUrl with multiple session IDs
@@ -1821,27 +1931,29 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(helmResponse).toMatchObject(expectedHelmResponse);
 
       // Find the prometheus-community chart and validate its score
-      const solutions = helmResponse.data.result.solutions;
+      const solutions = helmResponse.data!.result.solutions;
       const prometheusCommunityChart = solutions.find(
-        (s: any) => s.chart?.repositoryName === 'prometheus-community'
+        (s: SolutionSummary) =>
+          s.chart?.repositoryName === 'prometheus-community'
       );
 
       expect(prometheusCommunityChart).toBeDefined();
-      expect(prometheusCommunityChart.score).toBeGreaterThanOrEqual(70);
-      expect(prometheusCommunityChart.score).toBeLessThanOrEqual(100);
-      expect(prometheusCommunityChart.reasons.length).toBeGreaterThan(0);
+      expect(prometheusCommunityChart!.score).toBeGreaterThanOrEqual(70);
+      expect(prometheusCommunityChart!.score).toBeLessThanOrEqual(100);
+      expect(prometheusCommunityChart!.reasons!.length).toBeGreaterThan(0);
 
-      const solutionId = prometheusCommunityChart.solutionId;
+      const solutionId = prometheusCommunityChart!.solutionId;
 
       // PHASE 2: Choose Helm solution - triggers question generation
-      const chooseResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'chooseSolution',
-          solutionId,
-          interaction_id: 'helm_workflow_choose',
-        }
-      );
+      const chooseResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'chooseSolution',
+            solutionId,
+            interaction_id: 'helm_workflow_choose',
+          }
+        );
 
       // Validate chooseSolution response structure (same format as capability-based solutions)
       const expectedChooseResponse = {
@@ -1876,8 +1988,8 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(chooseResponse).toMatchObject(expectedChooseResponse);
 
       // Validate question structure - each question must have suggestedAnswer for cluster-aware defaults
-      const requiredQuestions = chooseResponse.data.result.questions;
-      requiredQuestions.forEach((q: any) => {
+      const requiredQuestions = chooseResponse.data!.result.questions;
+      requiredQuestions.forEach((q: Question) => {
         expect(q).toMatchObject({
           id: expect.any(String),
           question: expect.any(String),
@@ -1891,10 +2003,10 @@ describe.concurrent('Recommend Tool Integration', () => {
       // PACKAGING QUESTIONS VALIDATION: Helm solutions should NOT have outputFormat/outputPath
       // These are only for capability-based solutions where we package raw manifests
       const outputFormatQuestion = requiredQuestions.find(
-        (q: any) => q.id === 'outputFormat'
+        (q: Question) => q.id === 'outputFormat'
       );
       const outputPathQuestion = requiredQuestions.find(
-        (q: any) => q.id === 'outputPath'
+        (q: Question) => q.id === 'outputPath'
       );
       expect(outputFormatQuestion).toBeUndefined();
       expect(outputPathQuestion).toBeUndefined();
@@ -1904,17 +2016,17 @@ describe.concurrent('Recommend Tool Integration', () => {
       const allQuestions = [...requiredQuestions];
 
       // Helper to build answers from questions using suggested values
-      const buildAnswers = (questions: any[]) => {
-        const answers: Record<string, any> = {};
-        questions.forEach((q: any) => {
-          answers[q.id] = q.suggestedAnswer;
+      const buildAnswers = (questions: Question[]) => {
+        const answers: Record<string, unknown> = {};
+        questions.forEach((q: Question) => {
+          answers[q.id] = validAnswerFor(q);
         });
         return answers;
       };
 
       // Helper to validate question structure
-      const validateQuestions = (questions: any[]) => {
-        questions.forEach((q: any) => {
+      const validateQuestions = (questions: Question[]) => {
+        questions.forEach((q: Question) => {
           expect(q).toMatchObject({
             id: expect.any(String),
             question: expect.any(String),
@@ -1927,15 +2039,16 @@ describe.concurrent('Recommend Tool Integration', () => {
       };
 
       // Answer required stage → should move to basic
-      const basicResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:required',
-          solutionId,
-          answers: buildAnswers(requiredQuestions),
-          interaction_id: 'helm_workflow_required',
-        }
-      );
+      const basicResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:required',
+            solutionId,
+            answers: buildAnswers(requiredQuestions),
+            interaction_id: 'helm_workflow_required',
+          }
+        );
 
       expect(basicResponse).toMatchObject({
         success: true,
@@ -1950,20 +2063,21 @@ describe.concurrent('Recommend Tool Integration', () => {
         },
       });
 
-      const basicQuestions = basicResponse.data.result.questions || [];
+      const basicQuestions = basicResponse.data!.result.questions || [];
       validateQuestions(basicQuestions);
       allQuestions.push(...basicQuestions);
 
       // PHASE 4: Answer basic stage questions → should move to advanced
-      const advancedResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:basic',
-          solutionId,
-          answers: buildAnswers(basicQuestions),
-          interaction_id: 'helm_workflow_basic',
-        }
-      );
+      const advancedResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:basic',
+            solutionId,
+            answers: buildAnswers(basicQuestions),
+            interaction_id: 'helm_workflow_basic',
+          }
+        );
 
       expect(advancedResponse).toMatchObject({
         success: true,
@@ -1980,14 +2094,14 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // CRITICAL: Verify text instructions don't mention 'open stage' for Helm
       // This is what client agents read to decide what to do next
-      expect(advancedResponse.data.result.agentInstructions).not.toContain(
+      expect(advancedResponse.data!.result.agentInstructions).not.toContain(
         'open stage'
       );
-      expect(advancedResponse.data.result.guidance).toContain(
+      expect(advancedResponse.data!.result.guidance).toContain(
         'manifest generation'
       );
 
-      const advancedQuestions = advancedResponse.data.result.questions || [];
+      const advancedQuestions = advancedResponse.data!.result.questions || [];
       validateQuestions(advancedQuestions);
       allQuestions.push(...advancedQuestions);
 
@@ -1998,7 +2112,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(advancedQuestions.length).toBeGreaterThan(0);
 
       // Namespace question - fundamental for any Helm installation (MUST exist)
-      const questionTexts = allQuestions.map((q: any) =>
+      const questionTexts = allQuestions.map((q: Question) =>
         `${q.id} ${q.question}`.toLowerCase()
       );
       const hasNamespaceQuestion = questionTexts.some(text =>
@@ -2008,15 +2122,16 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // PHASE 5: Answer advanced stage questions → should go directly to ready_for_manifest_generation
       // (Helm NEVER goes to 'open' stage)
-      const completionResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:advanced',
-          solutionId,
-          answers: buildAnswers(advancedQuestions),
-          interaction_id: 'helm_workflow_advanced',
-        }
-      );
+      const completionResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:advanced',
+            solutionId,
+            answers: buildAnswers(advancedQuestions),
+            interaction_id: 'helm_workflow_advanced',
+          }
+        );
 
       // Helm should now be ready for manifest generation (skipping open stage)
       // Log full response on failure for debugging
@@ -2049,14 +2164,15 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       for (let attempt = 1; attempt <= MAX_DEPLOY_ATTEMPTS; attempt++) {
         // Generate Helm values (helm dry-run validation)
-        const generateResponse = await integrationTest.httpClient.post(
-          '/api/v1/tools/recommend',
-          {
-            stage: 'generateManifests',
-            solutionId,
-            interaction_id: 'helm_workflow_generate',
-          }
-        );
+        const generateResponse =
+          await integrationTest.httpClient.post<RecommendPayload>(
+            '/api/v1/tools/recommend',
+            {
+              stage: 'generateManifests',
+              solutionId,
+              interaction_id: 'helm_workflow_generate',
+            }
+          );
 
         // Validate Helm generation response
         // PRD #320: Helm generateManifests now returns visualizationUrl
@@ -2104,7 +2220,7 @@ describe.concurrent('Recommend Tool Integration', () => {
         expect(generateResponse).toMatchObject(expectedGenerateResponse);
 
         // Verify Helm command contains expected components
-        const helmCommand = generateResponse.data.result.helmCommand;
+        const helmCommand = generateResponse.data!.result.helmCommand;
         expect(helmCommand).toContain('prometheus-community/prometheus');
         expect(helmCommand).toContain('--namespace');
         expect(helmCommand).toContain('--create-namespace');
@@ -2114,21 +2230,22 @@ describe.concurrent('Recommend Tool Integration', () => {
         expect(helmCommand).not.toContain('sol-');
 
         // Extract namespace and release name for deployment validation
-        helmNamespace = generateResponse.data.result.namespace;
-        releaseName = generateResponse.data.result.releaseName;
+        helmNamespace = generateResponse.data!.result.namespace;
+        releaseName = generateResponse.data!.result.releaseName;
 
         // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
         // Deploy Helm chart (helm upgrade --install execution)
-        const deployResponse = await integrationTest.httpClient.post(
-          '/api/v1/tools/recommend',
-          {
-            stage: 'deployManifests',
-            solutionId,
-            timeout: 240, // 4 minutes for a heavy chart (prometheus) to become ready
-            interaction_id: 'helm_workflow_deploy',
-          }
-        );
+        const deployResponse =
+          await integrationTest.httpClient.post<RecommendPayload>(
+            '/api/v1/tools/recommend',
+            {
+              stage: 'deployManifests',
+              solutionId,
+              timeout: 240, // 4 minutes for a heavy chart (prometheus) to become ready
+              interaction_id: 'helm_workflow_deploy',
+            }
+          );
 
         // Validate Helm deployment response
         const expectedDeployResponse = {
@@ -2192,7 +2309,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             'get secrets -A -l owner=helm -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type --no-headers'
           );
           diagnostics += `\n--- Helm Release Secrets ---\n${helmList}\n`;
-        } catch (e) {
+        } catch {
           diagnostics += `\n--- Helm Release Secrets: Failed to retrieve ---\n`;
         }
 
@@ -2203,14 +2320,14 @@ describe.concurrent('Recommend Tool Integration', () => {
           );
           const secrets = JSON.parse(helmHistory);
           if (secrets.items?.length > 0) {
-            const states = secrets.items.map((s: any) => ({
-              name: s.metadata.name,
-              status: s.metadata.labels?.status || 'unknown',
-              version: s.metadata.labels?.version || 'unknown',
+            const states = secrets.items.map((s: K8sManifest) => ({
+              name: s.metadata?.name,
+              status: s.metadata?.labels?.status || 'unknown',
+              version: s.metadata?.labels?.version || 'unknown',
             }));
             diagnostics += `\n--- Release "${releaseName}" Secrets ---\n${JSON.stringify(states, null, 2)}\n`;
           }
-        } catch (e) {
+        } catch {
           diagnostics += `\n--- Release Secrets: Failed to retrieve ---\n`;
         }
 
@@ -2220,7 +2337,7 @@ describe.concurrent('Recommend Tool Integration', () => {
             `get events -n ${helmNamespace} --sort-by='.lastTimestamp' -o custom-columns=TIME:.lastTimestamp,TYPE:.type,REASON:.reason,MESSAGE:.message --no-headers 2>/dev/null | tail -10`
           );
           diagnostics += `\n--- Recent Events in ${helmNamespace} ---\n${events}\n`;
-        } catch (e) {
+        } catch {
           diagnostics += `\n--- Events: Failed to retrieve ---\n`;
         }
 
@@ -2243,14 +2360,15 @@ describe.concurrent('Recommend Tool Integration', () => {
 
     test('should return no_charts_found when chart does not exist on ArtifactHub', async () => {
       // Use a clearly non-existent chart name
-      const noChartResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          intent: 'Install devopstoolkit-nonexistent-operator',
-          final: true,
-          interaction_id: 'helm_nonexistent_chart_test',
-        }
-      );
+      const noChartResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            intent: 'Install devopstoolkit-nonexistent-operator',
+            final: true,
+            interaction_id: 'helm_nonexistent_chart_test',
+          }
+        );
 
       // Validate no_charts_found response structure
       const expectedNoChartResponse = {
@@ -2279,7 +2397,7 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(noChartResponse).toMatchObject(expectedNoChartResponse);
 
       // Validate message includes issue link
-      expect(noChartResponse.data.result.message).toContain(
+      expect(noChartResponse.data!.result.message).toContain(
         'https://github.com/vfarcic/dot-ai/issues/new'
       );
     }, 300000); // 5 minutes for AI analysis
@@ -2288,14 +2406,15 @@ describe.concurrent('Recommend Tool Integration', () => {
   describe('Helm Packaging (outputFormat: helm)', () => {
     test('should generate Helm chart structure when outputFormat is helm', async () => {
       // PHASE 1: Get solutions for a capability-based deployment
-      const solutionsResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          intent: 'deploy nginx web server',
-          final: true,
-          interaction_id: 'helm_packaging_solutions',
-        }
-      );
+      const solutionsResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            intent: 'deploy nginx web server',
+            final: true,
+            interaction_id: 'helm_packaging_solutions',
+          }
+        );
 
       expect(solutionsResponse).toMatchObject({
         success: true,
@@ -2307,21 +2426,24 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Find a capability-based solution (type: 'single' or 'combination', not 'helm')
-      const solutions = solutionsResponse.data.result.solutions;
-      const capabilitySolution = solutions.find((s: any) => s.type !== 'helm');
+      const solutions = solutionsResponse.data!.result.solutions;
+      const capabilitySolution = solutions.find(
+        (s: SolutionSummary) => s.type !== 'helm'
+      );
       expect(capabilitySolution).toBeDefined();
 
-      const solutionId = capabilitySolution.solutionId;
+      const solutionId = capabilitySolution!.solutionId;
 
       // PHASE 2: Choose solution
-      const chooseResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'chooseSolution',
-          solutionId,
-          interaction_id: 'helm_packaging_choose',
-        }
-      );
+      const chooseResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'chooseSolution',
+            solutionId,
+            interaction_id: 'helm_packaging_choose',
+          }
+        );
 
       expect(chooseResponse).toMatchObject({
         success: true,
@@ -2335,28 +2457,29 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // PHASE 3: Answer required questions with outputFormat: 'helm'
-      const requiredQuestions = chooseResponse.data.result.questions;
-      const requiredAnswers: Record<string, any> = {};
+      const requiredQuestions = chooseResponse.data!.result.questions;
+      const requiredAnswers: Record<string, unknown> = {};
 
-      requiredQuestions.forEach((q: any) => {
+      requiredQuestions.forEach((q: Question) => {
         if (q.id === 'outputFormat') {
           requiredAnswers[q.id] = 'helm'; // Select Helm packaging
         } else if (q.id === 'outputPath') {
           requiredAnswers[q.id] = './my-nginx-chart';
         } else {
-          requiredAnswers[q.id] = q.suggestedAnswer;
+          requiredAnswers[q.id] = validAnswerFor(q);
         }
       });
 
-      const answerRequiredResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:required',
-          solutionId,
-          answers: requiredAnswers,
-          interaction_id: 'helm_packaging_required',
-        }
-      );
+      const answerRequiredResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:required',
+            solutionId,
+            answers: requiredAnswers,
+            interaction_id: 'helm_packaging_required',
+          }
+        );
 
       expect(answerRequiredResponse).toMatchObject({
         success: true,
@@ -2369,36 +2492,46 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // PHASE 4-6: Skip through remaining stages
-      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-        stage: 'answerQuestion:basic',
-        solutionId,
-        answers: {},
-        interaction_id: 'helm_packaging_basic',
-      });
-
-      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-        stage: 'answerQuestion:advanced',
-        solutionId,
-        answers: {},
-        interaction_id: 'helm_packaging_advanced',
-      });
-
-      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-        stage: 'answerQuestion:open',
-        solutionId,
-        answers: { open: 'N/A' },
-        interaction_id: 'helm_packaging_open',
-      });
-
-      // PHASE 7: Generate manifests with Helm packaging
-      const generateResponse = await integrationTest.httpClient.post(
+      await integrationTest.httpClient.post<RecommendPayload>(
         '/api/v1/tools/recommend',
         {
-          stage: 'generateManifests',
+          stage: 'answerQuestion:basic',
           solutionId,
-          interaction_id: 'helm_packaging_generate',
+          answers: {},
+          interaction_id: 'helm_packaging_basic',
         }
       );
+
+      await integrationTest.httpClient.post<RecommendPayload>(
+        '/api/v1/tools/recommend',
+        {
+          stage: 'answerQuestion:advanced',
+          solutionId,
+          answers: {},
+          interaction_id: 'helm_packaging_advanced',
+        }
+      );
+
+      await integrationTest.httpClient.post<RecommendPayload>(
+        '/api/v1/tools/recommend',
+        {
+          stage: 'answerQuestion:open',
+          solutionId,
+          answers: { open: 'N/A' },
+          interaction_id: 'helm_packaging_open',
+        }
+      );
+
+      // PHASE 7: Generate manifests with Helm packaging
+      const generateResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'generateManifests',
+            solutionId,
+            interaction_id: 'helm_packaging_generate',
+          }
+        );
 
       // Validate Helm chart structure in response
       // PRD #320: Helm packaging generateManifests returns visualizationUrl
@@ -2450,19 +2583,21 @@ describe.concurrent('Recommend Tool Integration', () => {
       ).toMatchObject(expectedGenerateResponse);
 
       // Validate Helm chart file structure
-      const files = generateResponse.data.result.files;
-      const chartYaml = files.find((f: any) => f.relativePath === 'Chart.yaml');
-      const valuesYaml = files.find(
-        (f: any) => f.relativePath === 'values.yaml'
+      const files = generateResponse.data!.result.files;
+      const chartYaml = files.find(
+        (f: GeneratedFile) => f.relativePath === 'Chart.yaml'
       );
-      const templateFiles = files.filter((f: any) =>
+      const valuesYaml = files.find(
+        (f: GeneratedFile) => f.relativePath === 'values.yaml'
+      );
+      const templateFiles = files.filter((f: GeneratedFile) =>
         f.relativePath.startsWith('templates/')
       );
 
       // Chart.yaml must exist and contain required fields
       expect(chartYaml).toBeDefined();
-      expect(chartYaml.content).toContain('name:');
-      expect(chartYaml.content).toContain('version:');
+      expect(chartYaml!.content).toContain('name:');
+      expect(chartYaml!.content).toContain('version:');
 
       // values.yaml must exist
       expect(valuesYaml).toBeDefined();
@@ -2472,7 +2607,7 @@ describe.concurrent('Recommend Tool Integration', () => {
 
       // Template files should contain Helm templating syntax
       const hasHelmSyntax = templateFiles.some(
-        (f: any) =>
+        (f: GeneratedFile) =>
           f.content.includes('{{ .Values.') ||
           f.content.includes('{{ .Release.')
       );
@@ -2483,14 +2618,15 @@ describe.concurrent('Recommend Tool Integration', () => {
   describe('Kustomize Packaging (outputFormat: kustomize)', () => {
     test('should generate Kustomize structure when outputFormat is kustomize', async () => {
       // PHASE 1: Get solutions for a capability-based deployment
-      const solutionsResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          intent: 'deploy nginx web server',
-          final: true,
-          interaction_id: 'kustomize_packaging_solutions',
-        }
-      );
+      const solutionsResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            intent: 'deploy nginx web server',
+            final: true,
+            interaction_id: 'kustomize_packaging_solutions',
+          }
+        );
 
       expect(solutionsResponse).toMatchObject({
         success: true,
@@ -2502,21 +2638,24 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // Find a capability-based solution (type: 'single' or 'combination', not 'helm')
-      const solutions = solutionsResponse.data.result.solutions;
-      const capabilitySolution = solutions.find((s: any) => s.type !== 'helm');
+      const solutions = solutionsResponse.data!.result.solutions;
+      const capabilitySolution = solutions.find(
+        (s: SolutionSummary) => s.type !== 'helm'
+      );
       expect(capabilitySolution).toBeDefined();
 
-      const solutionId = capabilitySolution.solutionId;
+      const solutionId = capabilitySolution!.solutionId;
 
       // PHASE 2: Choose solution
-      const chooseResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'chooseSolution',
-          solutionId,
-          interaction_id: 'kustomize_packaging_choose',
-        }
-      );
+      const chooseResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'chooseSolution',
+            solutionId,
+            interaction_id: 'kustomize_packaging_choose',
+          }
+        );
 
       expect(chooseResponse).toMatchObject({
         success: true,
@@ -2530,28 +2669,29 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // PHASE 3: Answer required questions with outputFormat: 'kustomize'
-      const requiredQuestions = chooseResponse.data.result.questions;
-      const requiredAnswers: Record<string, any> = {};
+      const requiredQuestions = chooseResponse.data!.result.questions;
+      const requiredAnswers: Record<string, unknown> = {};
 
-      requiredQuestions.forEach((q: any) => {
+      requiredQuestions.forEach((q: Question) => {
         if (q.id === 'outputFormat') {
           requiredAnswers[q.id] = 'kustomize'; // Select Kustomize packaging
         } else if (q.id === 'outputPath') {
           requiredAnswers[q.id] = './my-nginx-kustomize';
         } else {
-          requiredAnswers[q.id] = q.suggestedAnswer;
+          requiredAnswers[q.id] = validAnswerFor(q);
         }
       });
 
-      const answerRequiredResponse = await integrationTest.httpClient.post(
-        '/api/v1/tools/recommend',
-        {
-          stage: 'answerQuestion:required',
-          solutionId,
-          answers: requiredAnswers,
-          interaction_id: 'kustomize_packaging_required',
-        }
-      );
+      const answerRequiredResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'answerQuestion:required',
+            solutionId,
+            answers: requiredAnswers,
+            interaction_id: 'kustomize_packaging_required',
+          }
+        );
 
       expect(answerRequiredResponse).toMatchObject({
         success: true,
@@ -2564,36 +2704,46 @@ describe.concurrent('Recommend Tool Integration', () => {
       });
 
       // PHASE 4-6: Skip through remaining stages
-      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-        stage: 'answerQuestion:basic',
-        solutionId,
-        answers: {},
-        interaction_id: 'kustomize_packaging_basic',
-      });
-
-      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-        stage: 'answerQuestion:advanced',
-        solutionId,
-        answers: {},
-        interaction_id: 'kustomize_packaging_advanced',
-      });
-
-      await integrationTest.httpClient.post('/api/v1/tools/recommend', {
-        stage: 'answerQuestion:open',
-        solutionId,
-        answers: { open: 'N/A' },
-        interaction_id: 'kustomize_packaging_open',
-      });
-
-      // PHASE 7: Generate manifests with Kustomize packaging
-      const generateResponse = await integrationTest.httpClient.post(
+      await integrationTest.httpClient.post<RecommendPayload>(
         '/api/v1/tools/recommend',
         {
-          stage: 'generateManifests',
+          stage: 'answerQuestion:basic',
           solutionId,
-          interaction_id: 'kustomize_packaging_generate',
+          answers: {},
+          interaction_id: 'kustomize_packaging_basic',
         }
       );
+
+      await integrationTest.httpClient.post<RecommendPayload>(
+        '/api/v1/tools/recommend',
+        {
+          stage: 'answerQuestion:advanced',
+          solutionId,
+          answers: {},
+          interaction_id: 'kustomize_packaging_advanced',
+        }
+      );
+
+      await integrationTest.httpClient.post<RecommendPayload>(
+        '/api/v1/tools/recommend',
+        {
+          stage: 'answerQuestion:open',
+          solutionId,
+          answers: { open: 'N/A' },
+          interaction_id: 'kustomize_packaging_open',
+        }
+      );
+
+      // PHASE 7: Generate manifests with Kustomize packaging
+      const generateResponse =
+        await integrationTest.httpClient.post<RecommendPayload>(
+          '/api/v1/tools/recommend',
+          {
+            stage: 'generateManifests',
+            solutionId,
+            interaction_id: 'kustomize_packaging_generate',
+          }
+        );
 
       // Validate Kustomize structure in response
       // PRD #320: Kustomize packaging generateManifests returns visualizationUrl
@@ -2648,51 +2798,52 @@ describe.concurrent('Recommend Tool Integration', () => {
       expect(generateResponse).toMatchObject(expectedGenerateResponse);
 
       // Validate Kustomize file structure
-      const files = generateResponse.data.result.files;
+      const files = generateResponse.data!.result.files;
       const rootKustomization = files.find(
-        (f: any) => f.relativePath === 'kustomization.yaml'
+        (f: GeneratedFile) => f.relativePath === 'kustomization.yaml'
       );
       const productionOverlay = files.find(
-        (f: any) => f.relativePath === 'overlays/production/kustomization.yaml'
+        (f: GeneratedFile) =>
+          f.relativePath === 'overlays/production/kustomization.yaml'
       );
       const baseKustomization = files.find(
-        (f: any) => f.relativePath === 'base/kustomization.yaml'
+        (f: GeneratedFile) => f.relativePath === 'base/kustomization.yaml'
       );
       const baseResources = files.filter(
-        (f: any) =>
+        (f: GeneratedFile) =>
           f.relativePath.startsWith('base/') &&
           f.relativePath !== 'base/kustomization.yaml'
       );
 
       // Root kustomization.yaml must exist and reference overlays/production
       expect(rootKustomization).toBeDefined();
-      expect(rootKustomization.content).toContain('kind: Kustomization');
-      expect(rootKustomization.content).toMatch(
+      expect(rootKustomization!.content).toContain('kind: Kustomization');
+      expect(rootKustomization!.content).toMatch(
         /resources:[\s\S]*overlays\/production/
       );
 
       // overlays/production/kustomization.yaml must exist with images transformer
       expect(productionOverlay).toBeDefined();
-      expect(productionOverlay.content).toContain('kind: Kustomization');
-      expect(productionOverlay.content).toContain('images:');
-      expect(productionOverlay.content).toMatch(
+      expect(productionOverlay!.content).toContain('kind: Kustomization');
+      expect(productionOverlay!.content).toContain('images:');
+      expect(productionOverlay!.content).toMatch(
         /resources:[\s\S]*\.\.\/\.\.\/base/
       );
 
       // base/kustomization.yaml must exist
       expect(baseKustomization).toBeDefined();
-      expect(baseKustomization.content).toContain('kind: Kustomization');
+      expect(baseKustomization!.content).toContain('kind: Kustomization');
 
       // At least one base resource file must exist
       expect(baseResources.length).toBeGreaterThan(0);
 
       // Base resources should be valid Kubernetes manifests with image without tag
-      const deploymentFile = baseResources.find((f: any) =>
+      const deploymentFile = baseResources.find((f: GeneratedFile) =>
         f.content.includes('kind: Deployment')
       );
       expect(deploymentFile).toBeDefined();
       // Base deployment image should NOT have a specific version tag (tag is in overlay)
-      const imageMatch = deploymentFile.content.match(
+      const imageMatch = deploymentFile!.content.match(
         /image:\s*["']?([^"'\s]+)["']?/
       );
       expect(imageMatch).not.toBeNull(); // Fix: toBeDefined passes for null
@@ -2709,24 +2860,24 @@ describe.concurrent('Recommend Tool Integration', () => {
       // SOLUTION CR VALIDATION: Verify Solution CR is in overlay (not base) since it has namespace-specific references
       const yaml = await import('js-yaml');
       const overlayResources = files.filter(
-        (f: any) =>
+        (f: GeneratedFile) =>
           f.relativePath.startsWith('overlays/production/') &&
           f.relativePath !== 'overlays/production/kustomization.yaml'
       );
-      const solutionFile = overlayResources.find((f: any) =>
+      const solutionFile = overlayResources.find((f: GeneratedFile) =>
         f.content.includes('kind: Solution')
       );
       expect(solutionFile).toBeDefined();
 
       // Verify overlay kustomization.yaml references the solution file
-      expect(productionOverlay.content).toMatch(
+      expect(productionOverlay!.content).toMatch(
         /resources:[\s\S]*solution\.yaml/
       );
 
-      const parsedSolution = yaml.loadAll(solutionFile.content);
-      const solutionCR = parsedSolution.find(
-        (m: any) => m?.kind === 'Solution'
-      );
+      const parsedSolution = yaml.loadAll(
+        solutionFile!.content
+      ) as Array<K8sManifest | null>;
+      const solutionCR = parsedSolution.find(m => m?.kind === 'Solution');
       expect(solutionCR).toBeDefined();
 
       // Verify Solution CR structure

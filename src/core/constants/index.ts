@@ -1,6 +1,6 @@
 /**
  * Centralized constants and messages
- * 
+ *
  * Single entry point for all constants, messages, and templates
  * used throughout the dot-ai application.
  */

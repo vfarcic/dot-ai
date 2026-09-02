@@ -8,11 +8,13 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { healthCheck, collectionExists, getCapabilitiesCount } = vi.hoisted(() => ({
-  healthCheck: vi.fn(),
-  collectionExists: vi.fn(),
-  getCapabilitiesCount: vi.fn(),
-}));
+const { healthCheck, collectionExists, getCapabilitiesCount } = vi.hoisted(
+  () => ({
+    healthCheck: vi.fn(),
+    collectionExists: vi.fn(),
+    getCapabilitiesCount: vi.fn(),
+  })
+);
 
 const { generateEmbedding, getEmbeddingStatus } = vi.hoisted(() => ({
   generateEmbedding: vi.fn(),
@@ -153,7 +155,9 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
   it('is not ready without an embedding provider because scans require vector storage', async () => {
     healthCheck.mockResolvedValue(true);
     getCapabilitiesCount.mockResolvedValue(42);
-    generateEmbedding.mockRejectedValue(new Error('Embedding service not available'));
+    generateEmbedding.mockRejectedValue(
+      new Error('Embedding service not available')
+    );
 
     const readiness = await getCapabilityReadiness(() => 1000);
 
@@ -167,7 +171,9 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
   });
 
   it('is not ready and reports a generic error when a check throws', async () => {
-    healthCheck.mockRejectedValue(new Error('connect ECONNREFUSED 10.0.0.5:6333'));
+    healthCheck.mockRejectedValue(
+      new Error('connect ECONNREFUSED 10.0.0.5:6333')
+    );
 
     const readiness = await getCapabilityReadiness(() => 1000);
 

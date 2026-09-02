@@ -26,15 +26,18 @@ export const helmTemplate: KubectlTool = {
       properties: {
         releaseName: {
           type: 'string',
-          description: 'Name to use for the release in rendered templates (e.g., "my-prometheus")',
+          description:
+            'Name to use for the release in rendered templates (e.g., "my-prometheus")',
         },
         chart: {
           type: 'string',
-          description: 'Chart reference (e.g., "prometheus-community/prometheus" or path to local chart)',
+          description:
+            'Chart reference (e.g., "prometheus-community/prometheus" or path to local chart)',
         },
         namespace: {
           type: 'string',
-          description: 'Namespace to use in rendered templates (default: "default")',
+          description:
+            'Namespace to use in rendered templates (default: "default")',
         },
         values: {
           type: 'string',
@@ -42,19 +45,28 @@ export const helmTemplate: KubectlTool = {
         },
         version: {
           type: 'string',
-          description: 'Specific chart version to render (optional, uses latest if not specified)',
+          description:
+            'Specific chart version to render (optional, uses latest if not specified)',
         },
       },
       required: ['releaseName', 'chart'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const releaseName = requireParam<string>(args, 'releaseName', 'helm_template');
+  handler: withValidation(async args => {
+    const releaseName = requireParam<string>(
+      args,
+      'releaseName',
+      'helm_template'
+    );
     const chart = requireParam<string>(args, 'chart', 'helm_template');
     const namespace = optionalParam<string>(args, 'namespace', 'default');
     const values = optionalParam<string | undefined>(args, 'values', undefined);
-    const version = optionalParam<string | undefined>(args, 'version', undefined);
+    const version = optionalParam<string | undefined>(
+      args,
+      'version',
+      undefined
+    );
 
     const cmdArgs = ['template', releaseName, chart];
 

@@ -72,7 +72,9 @@ export async function invokePluginTool(
   args: Record<string, unknown>
 ): Promise<InvokeResponse> {
   if (!pluginManager) {
-    throw new Error('Plugin registry not initialized. Call initializePluginRegistry() at startup.');
+    throw new Error(
+      'Plugin registry not initialized. Call initializePluginRegistry() at startup.'
+    );
   }
   return pluginManager.invokeToolOnPlugin(plugin, tool, args);
 }

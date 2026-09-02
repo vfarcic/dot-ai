@@ -1,6 +1,6 @@
 /**
  * Core Intelligence Module
- * 
+ *
  * Shared intelligence for both CLI and MCP interfaces
  */
 
@@ -9,7 +9,12 @@ import { MemorySystem } from './memory';
 import { WorkflowEngine } from './workflow';
 import { AIProvider } from './ai-provider.interface';
 import { createAIProvider } from './ai-provider-factory';
-import { SchemaParser, ManifestValidator, ResourceRecommender, QuestionGroup } from './schema';
+import {
+  SchemaParser,
+  ManifestValidator,
+  ResourceRecommender,
+  QuestionGroup,
+} from './schema';
 import { HelmChartInfo } from './helm-types';
 import { AI_SERVICE_ERROR_TEMPLATES } from './constants';
 
@@ -22,7 +27,7 @@ export interface CoreConfig {
 export class DotAI {
   private config: CoreConfig;
   private initialized: boolean = false;
-  
+
   public readonly discovery: KubernetesDiscovery;
   public readonly memory: MemorySystem;
   public readonly workflow: WorkflowEngine;
@@ -33,8 +38,15 @@ export class DotAI {
     ranker: ResourceRecommender | null;
     parseResource: (resourceName: string) => Promise<unknown>;
     rankResources: (intent: string) => Promise<unknown>;
-    generateQuestionsForHelmChart: (intent: string, chart: HelmChartInfo, description: string, interaction_id?: string) => Promise<QuestionGroup>;
-    fetchHelmChartContent: (chart: HelmChartInfo) => Promise<{ valuesYaml: string; readme: string }>;
+    generateQuestionsForHelmChart: (
+      intent: string,
+      chart: HelmChartInfo,
+      description: string,
+      interaction_id?: string
+    ) => Promise<QuestionGroup>;
+    fetchHelmChartContent: (
+      chart: HelmChartInfo
+    ) => Promise<{ valuesYaml: string; readme: string }>;
   };
 
   constructor() {
@@ -46,66 +58,102 @@ export class DotAI {
     this.memory = new MemorySystem();
     this.workflow = new WorkflowEngine();
     this.ai = createAIProvider();
-    
+
     // Initialize schema components
     const parser = new SchemaParser();
     const validator = new ManifestValidator();
     // ResourceRecommender uses the AI provider directly
     const ranker = new ResourceRecommender(this.ai);
-    
+
     this.schema = {
       parser,
       validator,
       ranker,
       parseResource: async (resourceName: string) => {
-        // Get raw resource explanation from discovery  
+        // Get raw resource explanation from discovery
         const explanation = await this.discovery.explainResource(resourceName);
-        
+
         // Parse GROUP, KIND, VERSION from kubectl explain output
         const lines = explanation.split('\n');
-        const groupLine = lines.find((line: string) => line.startsWith('GROUP:'));
+        const groupLine = lines.find((line: string) =>
+          line.startsWith('GROUP:')
+        );
         const kindLine = lines.find((line: string) => line.startsWith('KIND:'));
-        const versionLine = lines.find((line: string) => line.startsWith('VERSION:'));
-        
+        const versionLine = lines.find((line: string) =>
+          line.startsWith('VERSION:')
+        );
+
         const group = groupLine ? groupLine.replace('GROUP:', '').trim() : '';
-        const kind = kindLine ? kindLine.replace('KIND:', '').trim() : resourceName;
-        const version = versionLine ? versionLine.replace('VERSION:', '').trim() : 'v1';
-        
+        const kind = kindLine
+          ? kindLine.replace('KIND:', '').trim()
+          : resourceName;
+        const version = versionLine
+          ? versionLine.replace('VERSION:', '').trim()
+          : 'v1';
+
         // Build apiVersion from group and version
         const apiVersion = group ? `${group}/${version}` : version;
-        
+
         // Return raw explanation for AI processing
-        return { 
+        return {
           kind: kind,
           rawExplanation: explanation,
           apiVersion: apiVersion,
           group: group,
-          description: explanation.split('\n').find((line: string) => line.startsWith('DESCRIPTION:'))?.replace('DESCRIPTION:', '').trim() || '',
-          properties: new Map() // Raw explanation contains all field info for AI
+          description:
+            explanation
+              .split('\n')
+              .find((line: string) => line.startsWith('DESCRIPTION:'))
+              ?.replace('DESCRIPTION:', '')
+              .trim() || '',
+          properties: new Map(), // Raw explanation contains all field info for AI
         };
       },
       rankResources: async (intent: string) => {
         if (!ranker) {
-          throw new Error(AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE('AI-powered ranking'));
+          throw new Error(
+            AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE(
+              'AI-powered ranking'
+            )
+          );
         }
 
         // Create discovery function with proper binding
-        const explainResourceFn = async (resource: string) => await this.discovery.explainResource(resource);
+        const explainResourceFn = async (resource: string) =>
+          await this.discovery.explainResource(resource);
 
         return await ranker.findBestSolutions(intent, explainResourceFn);
       },
-      generateQuestionsForHelmChart: async (intent: string, chart: HelmChartInfo, description: string, interaction_id?: string) => {
+      generateQuestionsForHelmChart: async (
+        intent: string,
+        chart: HelmChartInfo,
+        description: string,
+        interaction_id?: string
+      ) => {
         if (!ranker) {
-          throw new Error(AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE('question generation'));
+          throw new Error(
+            AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE(
+              'question generation'
+            )
+          );
         }
-        return await ranker.generateQuestionsForHelmChart(intent, chart, description, interaction_id);
+        return await ranker.generateQuestionsForHelmChart(
+          intent,
+          chart,
+          description,
+          interaction_id
+        );
       },
       fetchHelmChartContent: async (chart: HelmChartInfo) => {
         if (!ranker) {
-          throw new Error(AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE('fetching Helm chart content'));
+          throw new Error(
+            AI_SERVICE_ERROR_TEMPLATES.RESOURCE_RANKER_UNAVAILABLE(
+              'fetching Helm chart content'
+            )
+          );
         }
         return await ranker.fetchHelmChartContent(chart);
-      }
+      },
     };
   }
 
@@ -128,7 +176,7 @@ export class DotAI {
       // Initialize non-cluster modules only
       await this.memory.initialize();
       await this.workflow.initialize();
-      
+
       this.initialized = true;
     } catch (error) {
       this.initialized = false;
@@ -147,15 +195,40 @@ export class DotAI {
 export { KubernetesDiscovery } from './discovery';
 export { MemorySystem } from './memory';
 export { WorkflowEngine } from './workflow';
-export { AIProvider, AIResponse, AIProviderConfig } from './ai-provider.interface';
+export {
+  AIProvider,
+  AIResponse,
+  AIProviderConfig,
+} from './ai-provider.interface';
 export { createAIProvider, AIProviderFactory } from './ai-provider-factory';
 export { SchemaParser, ManifestValidator, ResourceRecommender } from './schema';
 // PRD #375: Pattern/policy vector services and types removed — unified knowledge base now handles all
-export { BaseVectorService, BaseSearchOptions, BaseSearchResult, VectorDocument } from './base-vector-service';
-export { CapabilityVectorService, ResourceCapability, CapabilitySearchOptions } from './capability-vector-service';
-export { EmbeddingService, EmbeddingConfig, EmbeddingProvider, VercelEmbeddingProvider } from './embedding-service';
+export {
+  BaseVectorService,
+  BaseSearchOptions,
+  BaseSearchResult,
+  VectorDocument,
+} from './base-vector-service';
+export {
+  CapabilityVectorService,
+  ResourceCapability,
+  CapabilitySearchOptions,
+} from './capability-vector-service';
+export {
+  EmbeddingService,
+  EmbeddingConfig,
+  EmbeddingProvider,
+  VercelEmbeddingProvider,
+} from './embedding-service';
 export { AgentDisplayOptions, buildAgentDisplayBlock } from './agent-display';
-export { CircuitBreaker, CircuitBreakerFactory, CircuitBreakerConfig, CircuitBreakerStats, CircuitState, CircuitOpenError } from './circuit-breaker';
+export {
+  CircuitBreaker,
+  CircuitBreakerFactory,
+  CircuitBreakerConfig,
+  CircuitBreakerStats,
+  CircuitState,
+  CircuitOpenError,
+} from './circuit-breaker';
 
 // Plugin system (PRD #343, #359)
 export { PluginManager, PluginDiscoveryError } from './plugin-manager';
@@ -179,4 +252,4 @@ export {
 } from './plugin-registry';
 
 // Default export
-export default DotAI; 
+export default DotAI;

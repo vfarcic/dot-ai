@@ -22,7 +22,9 @@ describe('Qdrant Base Utilities', () => {
 
       expect(error.param).toBe('embedding');
       expect(error.toolName).toBe('store_capability');
-      expect(error.message).toBe('store_capability requires parameter: embedding');
+      expect(error.message).toBe(
+        'store_capability requires parameter: embedding'
+      );
       expect(error.name).toBe('QdrantValidationError');
     });
   });
@@ -39,19 +41,25 @@ describe('Qdrant Base Utilities', () => {
     it('should throw QdrantValidationError when missing', () => {
       const args = { collection: 'capabilities' };
 
-      expect(() => requireQdrantParam(args, 'id', 'get_capability')).toThrow(QdrantValidationError);
+      expect(() => requireQdrantParam(args, 'id', 'get_capability')).toThrow(
+        QdrantValidationError
+      );
     });
 
     it('should throw for null values', () => {
       const args = { id: null };
 
-      expect(() => requireQdrantParam(args, 'id', 'get_capability')).toThrow(QdrantValidationError);
+      expect(() => requireQdrantParam(args, 'id', 'get_capability')).toThrow(
+        QdrantValidationError
+      );
     });
 
     it('should throw for empty string', () => {
       const args = { id: '' };
 
-      expect(() => requireQdrantParam(args, 'id', 'get_capability')).toThrow(QdrantValidationError);
+      expect(() => requireQdrantParam(args, 'id', 'get_capability')).toThrow(
+        QdrantValidationError
+      );
     });
   });
 
@@ -59,7 +67,11 @@ describe('Qdrant Base Utilities', () => {
     it('should return embedding array when valid', () => {
       const args = { embedding: [0.1, 0.2, 0.3] };
 
-      const result = requireEmbeddingParam(args, 'embedding', 'store_capability');
+      const result = requireEmbeddingParam(
+        args,
+        'embedding',
+        'store_capability'
+      );
 
       expect(result).toEqual([0.1, 0.2, 0.3]);
     });
@@ -67,25 +79,25 @@ describe('Qdrant Base Utilities', () => {
     it('should throw for non-array', () => {
       const args = { embedding: 'not an array' };
 
-      expect(() => requireEmbeddingParam(args, 'embedding', 'store_capability')).toThrow(
-        QdrantValidationError
-      );
+      expect(() =>
+        requireEmbeddingParam(args, 'embedding', 'store_capability')
+      ).toThrow(QdrantValidationError);
     });
 
     it('should throw for empty array', () => {
       const args = { embedding: [] };
 
-      expect(() => requireEmbeddingParam(args, 'embedding', 'store_capability')).toThrow(
-        QdrantValidationError
-      );
+      expect(() =>
+        requireEmbeddingParam(args, 'embedding', 'store_capability')
+      ).toThrow(QdrantValidationError);
     });
 
     it('should throw for array with non-numbers', () => {
       const args = { embedding: [0.1, 'string', 0.3] };
 
-      expect(() => requireEmbeddingParam(args, 'embedding', 'store_capability')).toThrow(
-        QdrantValidationError
-      );
+      expect(() =>
+        requireEmbeddingParam(args, 'embedding', 'store_capability')
+      ).toThrow(QdrantValidationError);
     });
   });
 
@@ -125,7 +137,10 @@ describe('Qdrant Base Utilities', () => {
 
   describe('qdrantSuccessResult', () => {
     it('should create success result with data and message', () => {
-      const result = qdrantSuccessResult({ id: 'doc-1' }, 'Document retrieved successfully');
+      const result = qdrantSuccessResult(
+        { id: 'doc-1' },
+        'Document retrieved successfully'
+      );
 
       expect(result).toEqual({
         success: true,
@@ -137,7 +152,10 @@ describe('Qdrant Base Utilities', () => {
 
   describe('qdrantErrorResult', () => {
     it('should create error result with error and message', () => {
-      const result = qdrantErrorResult('Document not found', 'Failed to retrieve document');
+      const result = qdrantErrorResult(
+        'Document not found',
+        'Failed to retrieve document'
+      );
 
       expect(result).toEqual({
         success: false,
@@ -149,7 +167,8 @@ describe('Qdrant Base Utilities', () => {
 
   describe('withQdrantValidation', () => {
     it('should pass through successful results', async () => {
-      const handler = async () => qdrantSuccessResult({ id: 'doc-1' }, 'Success');
+      const handler = async () =>
+        qdrantSuccessResult({ id: 'doc-1' }, 'Success');
       const wrapped = withQdrantValidation(handler);
 
       const result = await wrapped({});

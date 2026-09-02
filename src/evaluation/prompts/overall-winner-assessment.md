@@ -17,6 +17,7 @@ You are conducting a final assessment to determine the overall winner across ALL
 **MANDATORY: Missing Model = Complete Failure**
 
 If a model is missing from any scenario evaluation, it represents a **complete failure** of that model in that scenario:
+
 - **Root Cause**: Model failed to execute, timed out, had critical errors, or was otherwise unable to complete the workflow
 - **Reliability Impact**: Missing models have 0% reliability for that scenario
 - **Production Risk**: Models that fail to appear in scenarios pose catastrophic production risks
@@ -27,18 +28,21 @@ If a model is missing from any scenario evaluation, it represents a **complete f
 ## OVERALL ASSESSMENT CRITERIA
 
 ### Production Readiness Framework (Primary Focus)
+
 - **Reliability**: Models must perform consistently across ALL scenarios
 - **Consistency**: Prefer models with good performance across all scenarios vs. peak performance in some with failures in others
 - **Failure Rate**: Calculate the percentage of scenarios where each model failed completely (missing) or scored poorly (<0.3)
 - **Production Risk**: Assess likelihood of catastrophic failures when deployed in production environments
 
 ### Cross-Scenario Performance Analysis
+
 - **Complete Coverage**: Models that participate successfully in ALL scenarios vs. those with gaps
 - **Performance Variance**: Models with consistent scores vs. those with high variance (excellent in some, terrible in others)
 - **Specialization vs. Generalization**: Does the model excel in specific scenarios or maintain reliable performance universally?
 - **Scalability Indicators**: Token efficiency, response times, resource usage patterns across scenarios
 
 ### Winner Selection Logic (Prioritized)
+
 1. **Eliminate Catastrophic Failures**: Any model missing from scenarios or with complete failures should not be the overall winner
 2. **Prioritize Consistency**: A model with good performance across ALL scenarios beats one with excellent performance in some but failures in others
 3. **Reliability Over Peak Performance**: The best model is one you can reliably deploy without worrying about catastrophic failures
@@ -47,13 +51,16 @@ If a model is missing from any scenario evaluation, it represents a **complete f
 ## DECISION FRAMEWORK
 
 ### Reliability Scoring Formula
+
 For each model, calculate:
+
 - **Participation Rate**: (Scenarios participated / Total scenarios) × 100%
-- **Success Rate**: (Scenarios with score ≥ 0.3 / Scenarios participated) × 100% 
+- **Success Rate**: (Scenarios with score ≥ 0.3 / Scenarios participated) × 100%
 - **Consistency Score**: 1 - (Standard deviation of scores / Mean score)
 - **Overall Reliability**: (Participation Rate × Success Rate × Consistency Score)
 
 ### Production Readiness Classification
+
 - **Primary Production Ready**: >90% reliability, consistent performance, no catastrophic failures
 - **Secondary Production Ready**: 75-90% reliability, mostly consistent with minor issues
 - **Limited Production Use**: 50-75% reliability, suitable for specific scenarios only
@@ -92,7 +99,7 @@ Analyze all scenario results and return ONLY a JSON object:
     ],
     "production_recommendations": {
       "primary": "<most_reliable_choice_for_production>",
-      "secondary": "<good_alternative_with_different_tradeoffs>", 
+      "secondary": "<good_alternative_with_different_tradeoffs>",
       "avoid": ["<models_with_critical_reliability_issues>"],
       "specialized_use": {
         "<use_case>": "<model_best_suited_for_specific_scenario_type>"

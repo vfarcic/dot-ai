@@ -24,14 +24,27 @@ import type { Logger } from '../../../src/core/error-handling.js';
 import * as http from 'http';
 
 // --- Test logger that captures log calls ---
-function createTestLogger(): Logger & { calls: { level: string; msg: string; meta?: unknown }[] } {
+function createTestLogger(): Logger & {
+  calls: { level: string; msg: string; meta?: unknown }[];
+} {
   const calls: { level: string; msg: string; meta?: unknown }[] = [];
   return {
     calls,
-    debug: (msg: string, meta?: unknown) => calls.push({ level: 'debug', msg, meta }),
-    info: (msg: string, meta?: unknown) => calls.push({ level: 'info', msg, meta }),
-    warn: (msg: string, meta?: unknown) => calls.push({ level: 'warn', msg, meta }),
-    error: (msg: string, meta?: unknown) => calls.push({ level: 'error', msg, meta }),
+    debug: (msg, meta) => {
+      calls.push({ level: 'debug', msg, meta });
+    },
+    info: (msg, meta) => {
+      calls.push({ level: 'info', msg, meta });
+    },
+    warn: (msg, meta) => {
+      calls.push({ level: 'warn', msg, meta });
+    },
+    error: (msg, err, meta) => {
+      calls.push({ level: 'error', msg, meta: meta ?? err });
+    },
+    fatal: (msg, err, meta) => {
+      calls.push({ level: 'fatal', msg, meta: meta ?? err });
+    },
   };
 }
 
@@ -50,19 +63,24 @@ function createMockOAuthServer(options: {
   expectedClientSecret: string;
   accessToken: string;
 }): Promise<{ server: http.Server; port: number; url: string }> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const server = http.createServer((req, res) => {
       // RFC 9728 discovery
-      if (req.method === 'GET' && req.url === '/.well-known/oauth-authorization-server') {
+      if (
+        req.method === 'GET' &&
+        req.url === '/.well-known/oauth-authorization-server'
+      ) {
         const addr = server.address() as { port: number };
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          issuer: `http://127.0.0.1:${addr.port}`,
-          token_endpoint: `http://127.0.0.1:${addr.port}/token`,
-          token_endpoint_auth_methods_supported: ['client_secret_basic'],
-          grant_types_supported: ['client_credentials'],
-          response_types_supported: [],
-        }));
+        res.end(
+          JSON.stringify({
+            issuer: `http://127.0.0.1:${addr.port}`,
+            token_endpoint: `http://127.0.0.1:${addr.port}/token`,
+            token_endpoint_auth_methods_supported: ['client_secret_basic'],
+            grant_types_supported: ['client_credentials'],
+            response_types_supported: [],
+          })
+        );
         return;
       }
 
@@ -71,39 +89,56 @@ function createMockOAuthServer(options: {
         const authHeader = req.headers['authorization'];
         if (!authHeader?.startsWith('Basic ')) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'invalid_client', error_description: 'Missing Basic auth' }));
+          res.end(
+            JSON.stringify({
+              error: 'invalid_client',
+              error_description: 'Missing Basic auth',
+            })
+          );
           return;
         }
 
         const decoded = Buffer.from(authHeader.slice(6), 'base64').toString();
         const [clientId, clientSecret] = decoded.split(':');
-        if (clientId !== options.expectedClientId || clientSecret !== options.expectedClientSecret) {
+        if (
+          clientId !== options.expectedClientId ||
+          clientSecret !== options.expectedClientSecret
+        ) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'invalid_client', error_description: 'Bad credentials' }));
+          res.end(
+            JSON.stringify({
+              error: 'invalid_client',
+              error_description: 'Bad credentials',
+            })
+          );
           return;
         }
 
         let body = '';
-        req.on('data', (chunk) => (body += chunk));
+        req.on('data', chunk => (body += chunk));
         req.on('end', () => {
           const params = new URLSearchParams(body);
 
           if (params.get('grant_type') !== 'client_credentials') {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              error: 'unsupported_grant_type',
-              error_description: `Expected client_credentials, got ${params.get('grant_type')}`,
-            }));
+            res.end(
+              JSON.stringify({
+                error: 'unsupported_grant_type',
+                error_description: `Expected client_credentials, got ${params.get('grant_type')}`,
+              })
+            );
             return;
           }
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            access_token: options.accessToken,
-            token_type: 'bearer',
-            expires_in: 86400,
-            scope: params.get('scope') || undefined,
-          }));
+          res.end(
+            JSON.stringify({
+              access_token: options.accessToken,
+              token_type: 'bearer',
+              expires_in: 86400,
+              scope: params.get('scope') || undefined,
+            })
+          );
         });
         return;
       }
@@ -114,7 +149,11 @@ function createMockOAuthServer(options: {
 
     server.listen(0, '127.0.0.1', () => {
       const addr = server.address() as { port: number };
-      resolve({ server, port: addr.port, url: `http://127.0.0.1:${addr.port}` });
+      resolve({
+        server,
+        port: addr.port,
+        url: `http://127.0.0.1:${addr.port}`,
+      });
     });
   });
 }
@@ -125,14 +164,16 @@ function createMockMcpServer(options: {
   expectedHeaders?: Record<string, string>;
   port?: number;
 }): Promise<{ server: http.Server; port: number; url: string }> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const server = http.createServer((req, res) => {
       // Check bearer token auth
       if (options.expectedBearer) {
         const authHeader = req.headers['authorization'];
         if (authHeader !== `Bearer ${options.expectedBearer}`) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'unauthorized', expected: 'Bearer token' }));
+          res.end(
+            JSON.stringify({ error: 'unauthorized', expected: 'Bearer token' })
+          );
           return;
         }
       }
@@ -142,11 +183,13 @@ function createMockMcpServer(options: {
         for (const [key, value] of Object.entries(options.expectedHeaders)) {
           if (req.headers[key.toLowerCase()] !== value) {
             res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              error: 'unauthorized',
-              expected: `Header ${key}: ${value}`,
-              got: req.headers[key.toLowerCase()],
-            }));
+            res.end(
+              JSON.stringify({
+                error: 'unauthorized',
+                expected: `Header ${key}: ${value}`,
+                got: req.headers[key.toLowerCase()],
+              })
+            );
             return;
           }
         }
@@ -155,36 +198,42 @@ function createMockMcpServer(options: {
       // Handle MCP initialize (StreamableHTTP POST)
       if (req.method === 'POST') {
         let body = '';
-        req.on('data', (chunk) => (body += chunk));
+        req.on('data', chunk => (body += chunk));
         req.on('end', () => {
           try {
             const parsed = JSON.parse(body);
             if (parsed.method === 'initialize') {
               res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({
-                jsonrpc: '2.0',
-                id: parsed.id,
-                result: {
-                  protocolVersion: '2025-03-26',
-                  capabilities: { tools: {} },
-                  serverInfo: { name: 'test-auth-server', version: '1.0.0' },
-                },
-              }));
+              res.end(
+                JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: parsed.id,
+                  result: {
+                    protocolVersion: '2025-03-26',
+                    capabilities: { tools: {} },
+                    serverInfo: { name: 'test-auth-server', version: '1.0.0' },
+                  },
+                })
+              );
               return;
             }
             if (parsed.method === 'tools/list') {
               res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({
-                jsonrpc: '2.0',
-                id: parsed.id,
-                result: {
-                  tools: [{
-                    name: 'test_tool',
-                    description: 'Auth test tool',
-                    inputSchema: { type: 'object', properties: {} },
-                  }],
-                },
-              }));
+              res.end(
+                JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: parsed.id,
+                  result: {
+                    tools: [
+                      {
+                        name: 'test_tool',
+                        description: 'Auth test tool',
+                        inputSchema: { type: 'object', properties: {} },
+                      },
+                    ],
+                  },
+                })
+              );
               return;
             }
           } catch {
@@ -235,12 +284,20 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
 
     test('should connect to MCP server with static bearer token', async () => {
       const logger = createTestLogger();
-      const auth: McpServerAuthConfig = { tokenEnvVar: 'MCP_AUTH_INTEGRATION_TEST' };
-      const transportOpts = resolveTransportAuth(auth, 'test-static-token', logger);
+      const auth: McpServerAuthConfig = {
+        tokenEnvVar: 'MCP_AUTH_INTEGRATION_TEST',
+      };
+      const transportOpts = resolveTransportAuth(
+        auth,
+        'test-static-token',
+        logger
+      );
 
       // Verify authProvider was created
       expect(transportOpts.authProvider).toBeDefined();
-      expect(transportOpts.authProvider).toBeInstanceOf(StaticTokenAuthProvider);
+      expect(transportOpts.authProvider).toBeInstanceOf(
+        StaticTokenAuthProvider
+      );
 
       // Verify token is correct
       const tokens = await transportOpts.authProvider!.tokens();
@@ -259,28 +316,47 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
     }, 30000);
 
     test('should be rejected when token is wrong', async () => {
-      const wrongTokenServer = await createMockMcpServer({ expectedBearer: 'correct-token' });
-
-      // Make a raw HTTP request with wrong token to verify 401
-      const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(wrongTokenServer.url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer wrong-token',
-          },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }));
-        req.end();
+      const wrongTokenServer = await createMockMcpServer({
+        expectedBearer: 'correct-token',
       });
 
+      // Make a raw HTTP request with wrong token to verify 401
+      const response = await new Promise<{ statusCode: number; body: string }>(
+        (resolve, reject) => {
+          const req = http.request(
+            wrongTokenServer.url,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer wrong-token',
+              },
+            },
+            res => {
+              let data = '';
+              res.on('data', chunk => (data += chunk));
+              res.on('end', () =>
+                resolve({ statusCode: res.statusCode || 0, body: data })
+              );
+            }
+          );
+          req.on('error', reject);
+          req.write(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: {},
+            })
+          );
+          req.end();
+        }
+      );
+
       expect(response.statusCode).toBe(401);
-      expect(JSON.parse(response.body)).toMatchObject({ error: 'unauthorized' });
+      expect(JSON.parse(response.body)).toMatchObject({
+        error: 'unauthorized',
+      });
 
       wrongTokenServer.server.close();
     }, 30000);
@@ -290,7 +366,9 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       delete process.env.MCP_AUTH_MISSING_VAR;
       const auth: McpServerAuthConfig = { tokenEnvVar: 'MCP_AUTH_MISSING_VAR' };
 
-      expect(() => resolveTransportAuth(auth, 'test-missing-token', logger)).toThrow(
+      expect(() =>
+        resolveTransportAuth(auth, 'test-missing-token', logger)
+      ).toThrow(
         "auth.tokenEnvVar references env var 'MCP_AUTH_MISSING_VAR' but it is empty or unset"
       );
     });
@@ -299,14 +377,25 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
   // --- M2: Custom Headers ---
   describe('M2: Custom Headers', () => {
     test('should connect to MCP server with custom headers', async () => {
-      const customHeaders = { 'X-Api-Key': 'test-api-key-414', 'X-Custom-Auth': 'custom-value' };
-      const headerServer = await createMockMcpServer({ expectedHeaders: customHeaders });
+      const customHeaders = {
+        'X-Api-Key': 'test-api-key-414',
+        'X-Custom-Auth': 'custom-value',
+      };
+      const headerServer = await createMockMcpServer({
+        expectedHeaders: customHeaders,
+      });
 
       process.env.MCP_HEADERS_INTEGRATION_TEST = JSON.stringify(customHeaders);
 
       const logger = createTestLogger();
-      const auth: McpServerAuthConfig = { headersEnvVar: 'MCP_HEADERS_INTEGRATION_TEST' };
-      const transportOpts = resolveTransportAuth(auth, 'test-custom-headers', logger);
+      const auth: McpServerAuthConfig = {
+        headersEnvVar: 'MCP_HEADERS_INTEGRATION_TEST',
+      };
+      const transportOpts = resolveTransportAuth(
+        auth,
+        'test-custom-headers',
+        logger
+      );
 
       // Verify requestInit was created with correct headers
       expect(transportOpts.requestInit).toMatchObject({
@@ -314,22 +403,37 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       });
 
       // Verify by making actual HTTP request with headers
-      const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(headerServer.url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...customHeaders,
-          },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }));
-        req.end();
-      });
+      const response = await new Promise<{ statusCode: number; body: string }>(
+        (resolve, reject) => {
+          const req = http.request(
+            headerServer.url,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...customHeaders,
+              },
+            },
+            res => {
+              let data = '';
+              res.on('data', chunk => (data += chunk));
+              res.on('end', () =>
+                resolve({ statusCode: res.statusCode || 0, body: data })
+              );
+            }
+          );
+          req.on('error', reject);
+          req.write(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: {},
+            })
+          );
+          req.end();
+        }
+      );
 
       expect(response.statusCode).toBe(200);
       const result = JSON.parse(response.body);
@@ -341,22 +445,39 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
 
     test('should be rejected when custom header is missing', async () => {
       const requiredHeaders = { 'X-Api-Key': 'required-key' };
-      const headerServer = await createMockMcpServer({ expectedHeaders: requiredHeaders });
+      const headerServer = await createMockMcpServer({
+        expectedHeaders: requiredHeaders,
+      });
 
       // Make request without the required header
-      const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(headerServer.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }, // Missing X-Api-Key
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }));
-        req.end();
-      });
+      const response = await new Promise<{ statusCode: number; body: string }>(
+        (resolve, reject) => {
+          const req = http.request(
+            headerServer.url,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }, // Missing X-Api-Key
+            },
+            res => {
+              let data = '';
+              res.on('data', chunk => (data += chunk));
+              res.on('end', () =>
+                resolve({ statusCode: res.statusCode || 0, body: data })
+              );
+            }
+          );
+          req.on('error', reject);
+          req.write(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: {},
+            })
+          );
+          req.end();
+        }
+      );
 
       expect(response.statusCode).toBe(401);
       headerServer.server.close();
@@ -383,7 +504,9 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       };
       const transportOpts = resolveTransportAuth(auth, 'test-oauth', logger);
 
-      expect(transportOpts.authProvider).toBeInstanceOf(ClientCredentialsProvider);
+      expect(transportOpts.authProvider).toBeInstanceOf(
+        ClientCredentialsProvider
+      );
 
       // Verify client information includes correct client_id
       const provider = transportOpts.authProvider as ClientCredentialsProvider;
@@ -394,7 +517,9 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
 
       // SDK stores scope in clientMetadata; fetchToken reads it and passes to prepareTokenRequest
       expect(provider.clientMetadata.scope).toBe('mcp:tools mcp:read');
-      expect(provider.clientMetadata.grant_types).toContain('client_credentials');
+      expect(provider.clientMetadata.grant_types).toContain(
+        'client_credentials'
+      );
 
       expect(logger.calls).toContainEqual(
         expect.objectContaining({
@@ -415,7 +540,9 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
         },
       };
 
-      expect(() => resolveTransportAuth(auth, 'test-oauth-missing', logger)).toThrow(
+      expect(() =>
+        resolveTransportAuth(auth, 'test-oauth-missing', logger)
+      ).toThrow(
         "auth.oauth.clientSecretEnvVar references env var 'MCP_OAUTH_SECRET_MISSING' but it is empty or unset"
       );
     });
@@ -439,7 +566,9 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
         expectedClientSecret: TEST_CLIENT_SECRET,
         accessToken: TEST_ACCESS_TOKEN,
       });
-      mcpServer = await createMockMcpServer({ expectedBearer: TEST_ACCESS_TOKEN });
+      mcpServer = await createMockMcpServer({
+        expectedBearer: TEST_ACCESS_TOKEN,
+      });
       process.env.MCP_OAUTH_SECRET_LIFECYCLE = TEST_CLIENT_SECRET;
     });
 
@@ -458,7 +587,11 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
           scope: TEST_SCOPE,
         },
       };
-      const { authProvider } = resolveTransportAuth(auth, 'test-lifecycle', logger);
+      const { authProvider } = resolveTransportAuth(
+        auth,
+        'test-lifecycle',
+        logger
+      );
       const provider = authProvider as ClientCredentialsProvider;
 
       const params = provider.prepareTokenRequest(TEST_SCOPE);
@@ -475,26 +608,41 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
           scope: TEST_SCOPE,
         },
       };
-      const { authProvider } = resolveTransportAuth(auth, 'test-lifecycle', logger);
+      const { authProvider } = resolveTransportAuth(
+        auth,
+        'test-lifecycle',
+        logger
+      );
       const provider = authProvider as ClientCredentialsProvider;
 
       // Build token request from provider output
       const params = provider.prepareTokenRequest(TEST_SCOPE);
-      const basicAuth = Buffer.from(`${TEST_CLIENT_ID}:${TEST_CLIENT_SECRET}`).toString('base64');
+      const basicAuth = Buffer.from(
+        `${TEST_CLIENT_ID}:${TEST_CLIENT_SECRET}`
+      ).toString('base64');
 
       // POST to mock OAuth AS — same flow the SDK executes in executeTokenRequest
-      const tokenResponse = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(`${oauthServer.url}/token`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Authorization: `Basic ${basicAuth}`,
+      const tokenResponse = await new Promise<{
+        statusCode: number;
+        body: string;
+      }>((resolve, reject) => {
+        const req = http.request(
+          `${oauthServer.url}/token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Authorization: `Basic ${basicAuth}`,
+            },
           },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
+          res => {
+            let data = '';
+            res.on('data', chunk => (data += chunk));
+            res.on('end', () =>
+              resolve({ statusCode: res.statusCode || 0, body: data })
+            );
+          }
+        );
         req.on('error', reject);
         req.write(params.toString());
         req.end();
@@ -518,80 +666,116 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
     }, 30000);
 
     test('mock OAuth AS rejects invalid client_secret_basic credentials', async () => {
-      const wrongAuth = Buffer.from(`${TEST_CLIENT_ID}:wrong-secret`).toString('base64');
+      const wrongAuth = Buffer.from(`${TEST_CLIENT_ID}:wrong-secret`).toString(
+        'base64'
+      );
 
-      const tokenResponse = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(`${oauthServer.url}/token`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Authorization: `Basic ${wrongAuth}`,
+      const tokenResponse = await new Promise<{
+        statusCode: number;
+        body: string;
+      }>((resolve, reject) => {
+        const req = http.request(
+          `${oauthServer.url}/token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Authorization: `Basic ${wrongAuth}`,
+            },
           },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
+          res => {
+            let data = '';
+            res.on('data', chunk => (data += chunk));
+            res.on('end', () =>
+              resolve({ statusCode: res.statusCode || 0, body: data })
+            );
+          }
+        );
         req.on('error', reject);
         req.write('grant_type=client_credentials');
         req.end();
       });
 
       expect(tokenResponse.statusCode).toBe(401);
-      expect(JSON.parse(tokenResponse.body)).toMatchObject({ error: 'invalid_client' });
+      expect(JSON.parse(tokenResponse.body)).toMatchObject({
+        error: 'invalid_client',
+      });
     }, 30000);
 
     test('mock OAuth AS rejects wrong grant_type', async () => {
-      const basicAuth = Buffer.from(`${TEST_CLIENT_ID}:${TEST_CLIENT_SECRET}`).toString('base64');
+      const basicAuth = Buffer.from(
+        `${TEST_CLIENT_ID}:${TEST_CLIENT_SECRET}`
+      ).toString('base64');
 
-      const tokenResponse = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(`${oauthServer.url}/token`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Authorization: `Basic ${basicAuth}`,
+      const tokenResponse = await new Promise<{
+        statusCode: number;
+        body: string;
+      }>((resolve, reject) => {
+        const req = http.request(
+          `${oauthServer.url}/token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Authorization: `Basic ${basicAuth}`,
+            },
           },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
+          res => {
+            let data = '';
+            res.on('data', chunk => (data += chunk));
+            res.on('end', () =>
+              resolve({ statusCode: res.statusCode || 0, body: data })
+            );
+          }
+        );
         req.on('error', reject);
         req.write('grant_type=authorization_code&code=fake');
         req.end();
       });
 
       expect(tokenResponse.statusCode).toBe(400);
-      expect(JSON.parse(tokenResponse.body)).toMatchObject({ error: 'unsupported_grant_type' });
+      expect(JSON.parse(tokenResponse.body)).toMatchObject({
+        error: 'unsupported_grant_type',
+      });
     }, 30000);
 
     test('OAuth-acquired token should authenticate to MCP server', async () => {
       // End-to-end: token from OAuth AS → bearer auth on MCP server
-      const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(mcpServer.url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${TEST_ACCESS_TOKEN}`,
-          },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2025-03-26',
-            capabilities: {},
-            clientInfo: { name: 'test-oauth-lifecycle', version: '1.0.0' },
-          },
-        }));
-        req.end();
-      });
+      const response = await new Promise<{ statusCode: number; body: string }>(
+        (resolve, reject) => {
+          const req = http.request(
+            mcpServer.url,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${TEST_ACCESS_TOKEN}`,
+              },
+            },
+            res => {
+              let data = '';
+              res.on('data', chunk => (data += chunk));
+              res.on('end', () =>
+                resolve({ statusCode: res.statusCode || 0, body: data })
+              );
+            }
+          );
+          req.on('error', reject);
+          req.write(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: {
+                protocolVersion: '2025-03-26',
+                capabilities: {},
+                clientInfo: { name: 'test-oauth-lifecycle', version: '1.0.0' },
+              },
+            })
+          );
+          req.end();
+        }
+      );
 
       expect(response.statusCode).toBe(200);
       const result = JSON.parse(response.body);
@@ -602,8 +786,13 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
   // --- Combined auth modes ---
   describe('Combined Auth Modes', () => {
     test('should apply both OAuth authProvider and custom headers simultaneously', async () => {
-      const customHeaders = { 'X-Trace-Id': 'test-trace-414', 'X-Request-Source': 'integration-test' };
-      const comboServer = await createMockMcpServer({ expectedHeaders: customHeaders });
+      const customHeaders = {
+        'X-Trace-Id': 'test-trace-414',
+        'X-Request-Source': 'integration-test',
+      };
+      const comboServer = await createMockMcpServer({
+        expectedHeaders: customHeaders,
+      });
 
       process.env.MCP_OAUTH_SECRET_COMBO = 'combo-secret';
       process.env.MCP_HEADERS_COMBO_INTEGRATION = JSON.stringify(customHeaders);
@@ -619,23 +808,40 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       const transportOpts = resolveTransportAuth(auth, 'test-combo', logger);
 
       // Both should be set
-      expect(transportOpts.authProvider).toBeInstanceOf(ClientCredentialsProvider);
-      expect(transportOpts.requestInit).toMatchObject({ headers: customHeaders });
+      expect(transportOpts.authProvider).toBeInstanceOf(
+        ClientCredentialsProvider
+      );
+      expect(transportOpts.requestInit).toMatchObject({
+        headers: customHeaders,
+      });
 
       // Verify the headers work against a real server
-      const response = await new Promise<{ statusCode: number }>((resolve, reject) => {
-        const req = http.request(comboServer.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...customHeaders },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0 }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }));
-        req.end();
-      });
+      const response = await new Promise<{ statusCode: number }>(
+        (resolve, reject) => {
+          const req = http.request(
+            comboServer.url,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...customHeaders },
+            },
+            res => {
+              let data = '';
+              res.on('data', chunk => (data += chunk));
+              res.on('end', () => resolve({ statusCode: res.statusCode || 0 }));
+            }
+          );
+          req.on('error', reject);
+          req.write(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: {},
+            })
+          );
+          req.end();
+        }
+      );
 
       expect(response.statusCode).toBe(200);
 
@@ -651,19 +857,34 @@ describe.concurrent('MCP Client Auth Integration (PRD #414)', () => {
       const noAuthServer = await createMockMcpServer({});
 
       // Make request without any auth
-      const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(noAuthServer.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }));
-        req.end();
-      });
+      const response = await new Promise<{ statusCode: number; body: string }>(
+        (resolve, reject) => {
+          const req = http.request(
+            noAuthServer.url,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+            },
+            res => {
+              let data = '';
+              res.on('data', chunk => (data += chunk));
+              res.on('end', () =>
+                resolve({ statusCode: res.statusCode || 0, body: data })
+              );
+            }
+          );
+          req.on('error', reject);
+          req.write(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: {},
+            })
+          );
+          req.end();
+        }
+      );
 
       expect(response.statusCode).toBe(200);
       const result = JSON.parse(response.body);
@@ -695,105 +916,144 @@ const LIVE_TEST_ENABLED = process.env.MCP_AUTH_LIVE_TEST === 'true';
 // Override via CF_ENDPOINT env var if using a different port.
 const CF_ENDPOINT = process.env.CF_ENDPOINT || 'http://localhost:4444';
 
-describe.skipIf(!LIVE_TEST_ENABLED)('MCP Client Auth — Live K3s Cluster', () => {
-  // These tests hit real MCP servers on the RILEY K3s cluster.
-  // Enable with: MCP_AUTH_LIVE_TEST=true
-  // Requires: WireGuard VPN to MTL-02 + kubectl port-forward to CF service
-  //
-  // Setup:
-  //   kubectl port-forward svc/riley-context-forge-mcp-stack-app -n riley-ai-gateway 4444:80
-  //   export MCP_AUTH_LIVE_TEST=true CF_JWT_TOKEN=$(kubectl get secret ...)
-  //
-  // Expected env vars:
-  //   CF_JWT_TOKEN — Context Forge JWT (generate from JWT_SECRET_KEY in context-forge-secrets)
-  //   CF_ENDPOINT — Optional, defaults to http://localhost:4444
+describe.skipIf(!LIVE_TEST_ENABLED)(
+  'MCP Client Auth — Live K3s Cluster',
+  () => {
+    // These tests hit real MCP servers on the RILEY K3s cluster.
+    // Enable with: MCP_AUTH_LIVE_TEST=true
+    // Requires: WireGuard VPN to MTL-02 + kubectl port-forward to CF service
+    //
+    // Setup:
+    //   kubectl port-forward svc/riley-context-forge-mcp-stack-app -n riley-ai-gateway 4444:80
+    //   export MCP_AUTH_LIVE_TEST=true CF_JWT_TOKEN=$(kubectl get secret ...)
+    //
+    // Expected env vars:
+    //   CF_JWT_TOKEN — Context Forge JWT (generate from JWT_SECRET_KEY in context-forge-secrets)
+    //   CF_ENDPOINT — Optional, defaults to http://localhost:4444
 
-  describe('Context Forge Connectivity', () => {
-    test('should reach CF health endpoint (no auth required)', async () => {
-      const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(`${CF_ENDPOINT}/health`, {
-          method: 'GET',
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
+    describe('Context Forge Connectivity', () => {
+      test('should reach CF health endpoint (no auth required)', async () => {
+        const response = await new Promise<{
+          statusCode: number;
+          body: string;
+        }>((resolve, reject) => {
+          const req = http.request(
+            `${CF_ENDPOINT}/health`,
+            {
+              method: 'GET',
+            },
+            res => {
+              let data = '';
+              res.on('data', chunk => (data += chunk));
+              res.on('end', () =>
+                resolve({ statusCode: res.statusCode || 0, body: data })
+              );
+            }
+          );
+          req.on('error', reject);
+          req.end();
         });
-        req.on('error', reject);
-        req.end();
-      });
 
-      expect(response.statusCode).toBe(200);
-      const health = JSON.parse(response.body);
-      expect(health.status).toBe('healthy');
-    }, 30000);
+        expect(response.statusCode).toBe(200);
+        const health = JSON.parse(response.body);
+        expect(health.status).toBe('healthy');
+      }, 30000);
 
-    test('should reject unauthenticated requests to /mcp/ endpoint', async () => {
-      const response = await new Promise<{ statusCode: number }>((resolve, reject) => {
-        const req = http.request(`${CF_ENDPOINT}/mcp/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0 }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {},
-        }));
-        req.end();
-      });
+      test('should reject unauthenticated requests to /mcp/ endpoint', async () => {
+        const response = await new Promise<{ statusCode: number }>(
+          (resolve, reject) => {
+            const req = http.request(
+              `${CF_ENDPOINT}/mcp/`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+              },
+              res => {
+                let data = '';
+                res.on('data', chunk => (data += chunk));
+                res.on('end', () =>
+                  resolve({ statusCode: res.statusCode || 0 })
+                );
+              }
+            );
+            req.on('error', reject);
+            req.write(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'initialize',
+                params: {},
+              })
+            );
+            req.end();
+          }
+        );
 
-      // CF enforces JWT auth on /mcp/ — Security by Design
-      expect(response.statusCode).toBeGreaterThanOrEqual(400);
-    }, 30000);
-  });
+        // CF enforces JWT auth on /mcp/ — Security by Design
+        expect(response.statusCode).toBeGreaterThanOrEqual(400);
+      }, 30000);
+    });
 
-  // Authenticated MCP test requires a valid OAuth-issued RS256 JWT.
-  // CF OAuth AS uses RS256 (not HS256) — manually generated tokens won't work.
-  // Blocked on #1528: CF OAuth AS client registration for dot-ai-service.
-  const OAUTH_TOKEN_AVAILABLE = process.env.CF_OAUTH_TOKEN !== undefined;
+    // Authenticated MCP test requires a valid OAuth-issued RS256 JWT.
+    // CF OAuth AS uses RS256 (not HS256) — manually generated tokens won't work.
+    // Blocked on #1528: CF OAuth AS client registration for dot-ai-service.
+    const OAUTH_TOKEN_AVAILABLE = process.env.CF_OAUTH_TOKEN !== undefined;
 
-  describe.skipIf(!OAUTH_TOKEN_AVAILABLE)('Context Forge MCP Endpoint (OAuth Token)', () => {
-    test('should connect to CF /mcp/ with OAuth-issued JWT and get tool list', async () => {
-      const cfToken = process.env.CF_OAUTH_TOKEN;
-      expect(cfToken).toBeDefined();
+    describe.skipIf(!OAUTH_TOKEN_AVAILABLE)(
+      'Context Forge MCP Endpoint (OAuth Token)',
+      () => {
+        test('should connect to CF /mcp/ with OAuth-issued JWT and get tool list', async () => {
+          const cfToken = process.env.CF_OAUTH_TOKEN;
+          expect(cfToken).toBeDefined();
 
-      const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
-        const req = http.request(`${CF_ENDPOINT}/mcp/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${cfToken}`,
-          },
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: data }));
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2025-03-26',
-            capabilities: {},
-            clientInfo: { name: 'dot-ai-integration-test', version: '1.0.0' },
-          },
-        }));
-        req.end();
-      });
+          const response = await new Promise<{
+            statusCode: number;
+            body: string;
+          }>((resolve, reject) => {
+            const req = http.request(
+              `${CF_ENDPOINT}/mcp/`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${cfToken}`,
+                },
+              },
+              res => {
+                let data = '';
+                res.on('data', chunk => (data += chunk));
+                res.on('end', () =>
+                  resolve({ statusCode: res.statusCode || 0, body: data })
+                );
+              }
+            );
+            req.on('error', reject);
+            req.write(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'initialize',
+                params: {
+                  protocolVersion: '2025-03-26',
+                  capabilities: {},
+                  clientInfo: {
+                    name: 'dot-ai-integration-test',
+                    version: '1.0.0',
+                  },
+                },
+              })
+            );
+            req.end();
+          });
 
-      expect(response.statusCode).toBe(200);
-      const result = JSON.parse(response.body);
-      expect(result.result).toMatchObject({
-        serverInfo: expect.objectContaining({ name: expect.any(String) }),
-        capabilities: expect.any(Object),
-      });
-    }, 30000);
-  });
-});
+          expect(response.statusCode).toBe(200);
+          const result = JSON.parse(response.body);
+          expect(result.result).toMatchObject({
+            serverInfo: expect.objectContaining({ name: expect.any(String) }),
+            capabilities: expect.any(Object),
+          });
+        }, 30000);
+      }
+    );
+  }
+);

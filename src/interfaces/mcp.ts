@@ -503,7 +503,10 @@ export class MCPServer {
         schema: IMPACT_ANALYSIS_TOOL_INPUT_SCHEMA,
         handler: async (args: ToolArgs) => {
           const requestId = this.generateRequestId();
-          this.logger.info(`Processing ${IMPACT_ANALYSIS_TOOL_NAME} tool request`, { requestId });
+          this.logger.info(
+            `Processing ${IMPACT_ANALYSIS_TOOL_NAME} tool request`,
+            { requestId }
+          );
           return await handleImpactAnalysisTool(args, this.pluginManager);
         },
         category: 'Intelligence',

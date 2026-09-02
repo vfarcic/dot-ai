@@ -38,9 +38,13 @@ export const kubectlApply: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const manifest = requireParam<string>(args, 'manifest', 'kubectl_apply');
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
 
     const cmdArgs = ['apply', '-f', '-'];
 

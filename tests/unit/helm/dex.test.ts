@@ -9,6 +9,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
+import { isNamedK8sDoc } from './k8s-doc.js';
 import { execSync } from 'child_process';
 import * as yaml from 'js-yaml';
 
@@ -57,13 +58,9 @@ describe.concurrent('Dex Helm Chart Integration', () => {
     return docs.filter(
       (doc: unknown) =>
         typeof doc === 'object' &&
-        doc !== null &&
-        'kind' in doc &&
+        isNamedK8sDoc(doc) &&
         doc.kind === kind &&
-        (!nameIncludes ||
-          ('metadata' in doc &&
-            typeof (doc as any).metadata?.name === 'string' &&
-            (doc as any).metadata.name.includes(nameIncludes)))
+        (!nameIncludes || doc.metadata.name.includes(nameIncludes))
     ) as T[];
   }
 

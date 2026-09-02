@@ -11,6 +11,9 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { createMockLogger } from '../helpers/mock-logger.js';
+import { invokeError, invokeSuccess } from '../helpers/plugin-responses.js';
+import type { InvokeResponse } from '../../../src/core/plugin-types.js';
 import { v5 as uuidv5 } from 'uuid';
 
 // Must be hoisted before the import that depends on it.
@@ -19,8 +22,15 @@ vi.mock('../../../src/core/plugin-registry', () => ({
   invokePluginTool: vi.fn(),
 }));
 
-import { runKnowledgeMigration, LEGACY_LIST_CAP, KNOWLEDGE_NAMESPACE } from '../../../src/core/knowledge-migration.js';
-import { isPluginInitialized, invokePluginTool } from '../../../src/core/plugin-registry.js';
+import {
+  runKnowledgeMigration,
+  LEGACY_LIST_CAP,
+  KNOWLEDGE_NAMESPACE,
+} from '../../../src/core/knowledge-migration.js';
+import {
+  isPluginInitialized,
+  invokePluginTool,
+} from '../../../src/core/plugin-registry.js';
 import type { Logger } from '../../../src/core/error-handling.js';
 
 // ---------------------------------------------------------------------------
@@ -30,12 +40,7 @@ import type { Logger } from '../../../src/core/error-handling.js';
 const FAKE_VECTOR = Array.from({ length: 4 }, (_, i) => i * 0.1);
 
 function makeLogger(): Logger {
-  return {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  };
+  return createMockLogger();
 }
 
 /**
@@ -49,25 +54,26 @@ function makeLogger(): Logger {
  */
 function setupMigrationMocks(
   legacyCollections: string[],
-  docsPerCollection: Map<string, { id: string; payload: Record<string, unknown> }[]>
+  docsPerCollection: Map<
+    string,
+    { id: string; payload: Record<string, unknown> }[]
+  >
 ) {
   const capturedStoreCalls: Array<Record<string, unknown>> = [];
 
   vi.mocked(invokePluginTool).mockImplementation(
     async (_plugin: string, tool: string, args: Record<string, unknown>) => {
-      const ok = (data: unknown) => ({
-        success: true,
-        result: { success: true, data },
-      });
+      const ok = (data: unknown): InvokeResponse =>
+        invokeSuccess({ success: true, data });
 
       if (tool === 'collection_list') {
         return ok(legacyCollections);
       }
 
       if (tool === 'vector_list') {
-        const docs = (docsPerCollection.get(args.collection as string) ?? []).map(
-          doc => ({ ...doc, vector: FAKE_VECTOR })
-        );
+        const docs = (
+          docsPerCollection.get(args.collection as string) ?? []
+        ).map(doc => ({ ...doc, vector: FAKE_VECTOR }));
         return ok(docs);
       }
 
@@ -84,7 +90,7 @@ function setupMigrationMocks(
         return ok(null);
       }
 
-      return { success: false, result: null };
+      return invokeError(`unexpected tool: ${tool}`);
     }
   );
 
@@ -121,7 +127,9 @@ describe('runKnowledgeMigration', () => {
 
     // vector_list and vector_store must never be called
     const toolCalls = vi.mocked(invokePluginTool).mock.calls;
-    const nonListCalls = toolCalls.filter(([, tool]) => tool !== 'collection_list');
+    const nonListCalls = toolCalls.filter(
+      ([, tool]) => tool !== 'collection_list'
+    );
     expect(nonListCalls).toHaveLength(0);
   });
 
@@ -129,10 +137,12 @@ describe('runKnowledgeMigration', () => {
     const patternDoc = {
       id: 'pattern-abc',
       payload: {
-        description: 'Blue-Green deployment pattern for zero-downtime releases.',
+        description:
+          'Blue-Green deployment pattern for zero-downtime releases.',
         triggers: ['blue-green', 'zero-downtime'],
         suggestedResources: ['Deployment', 'Service'],
-        rationale: 'Decouples deployment from release enabling instant rollback.',
+        rationale:
+          'Decouples deployment from release enabling instant rollback.',
         createdAt: '2024-01-01T00:00:00.000Z',
         createdBy: 'platform-team',
       },
@@ -196,7 +206,9 @@ describe('runKnowledgeMigration', () => {
         rationale: 'Prevents container breakout privilege escalation.',
         createdAt: '2024-06-01T00:00:00.000Z',
         createdBy: 'security-team',
-        deployedPolicies: [{ name: 'require-non-root', appliedAt: '2024-06-01T00:00:00.000Z' }],
+        deployedPolicies: [
+          { name: 'require-non-root', appliedAt: '2024-06-01T00:00:00.000Z' },
+        ],
       },
     };
 
@@ -233,11 +245,19 @@ describe('runKnowledgeMigration', () => {
   test('migrates both patterns and policies collections in one run', async () => {
     const patternDoc = {
       id: 'p1',
-      payload: { description: 'Canary release', triggers: ['canary'], rationale: 'Safe rollout.' },
+      payload: {
+        description: 'Canary release',
+        triggers: ['canary'],
+        rationale: 'Safe rollout.',
+      },
     };
     const policyDoc = {
       id: 'pol1',
-      payload: { description: 'Resource limits required', triggers: ['limits'], rationale: 'Prevent noisy neighbour.' },
+      payload: {
+        description: 'Resource limits required',
+        triggers: ['limits'],
+        rationale: 'Prevent noisy neighbour.',
+      },
     };
 
     const captured = setupMigrationMocks(
@@ -253,7 +273,9 @@ describe('runKnowledgeMigration', () => {
 
     expect(captured).toHaveLength(2);
 
-    const payloads = captured.map(c => (c as { payload: Record<string, unknown> }).payload);
+    const payloads = captured.map(
+      c => (c as { payload: Record<string, unknown> }).payload
+    );
     const tags = payloads.map(p => (p.tags as string[])[0]);
     expect(tags).toContain('pattern');
     expect(tags).toContain('policy');
@@ -273,16 +295,18 @@ describe('runKnowledgeMigration', () => {
     // Override: return doc WITHOUT a vector so migration should skip it
     vi.mocked(invokePluginTool).mockImplementation(
       async (_plugin: string, tool: string, args: Record<string, unknown>) => {
-        const ok = (data: unknown) => ({ success: true, result: { success: true, data } });
+        const ok = (data: unknown): InvokeResponse =>
+          invokeSuccess({ success: true, data });
         if (tool === 'collection_list') return ok(['patterns']);
-        if (tool === 'vector_list') return ok([{ ...docWithoutVector, vector: [] }]);
+        if (tool === 'vector_list')
+          return ok([{ ...docWithoutVector, vector: [] }]);
         if (tool === 'collection_delete') return ok(null);
         // vector_store should NOT be called
         if (tool === 'vector_store') {
           captured.push({ ...args });
           return ok(null);
         }
-        return { success: false, result: null };
+        return invokeError(`unexpected tool: ${tool}`);
       }
     );
 
@@ -306,17 +330,19 @@ describe('runKnowledgeMigration', () => {
 
     vi.mocked(invokePluginTool).mockImplementation(
       async (_plugin: string, tool: string, args: Record<string, unknown>) => {
-        const ok = (data: unknown) => ({ success: true, result: { success: true, data } });
+        const ok = (data: unknown): InvokeResponse =>
+          invokeSuccess({ success: true, data });
         orderedTools.push(tool);
         if (tool === 'collection_list') return ok(['patterns']);
-        if (tool === 'vector_list') return ok([{ ...doc, vector: FAKE_VECTOR }]);
+        if (tool === 'vector_list')
+          return ok([{ ...doc, vector: FAKE_VECTOR }]);
         if (tool === 'collection_initialize') {
           initArgs = { ...args };
           return ok(null);
         }
         if (tool === 'vector_store') return ok(null);
         if (tool === 'collection_delete') return ok(null);
-        return { success: false, result: null };
+        return invokeError(`unexpected tool: ${tool}`);
       }
     );
 
@@ -345,16 +371,18 @@ describe('runKnowledgeMigration', () => {
 
     vi.mocked(invokePluginTool).mockImplementation(
       async (_plugin: string, tool: string, args: Record<string, unknown>) => {
-        const ok = (data: unknown) => ({ success: true, result: { success: true, data } });
+        const ok = (data: unknown): InvokeResponse =>
+          invokeSuccess({ success: true, data });
         if (tool === 'collection_list') return ok(['patterns']);
-        if (tool === 'vector_list') return ok([{ ...doc, vector: FAKE_VECTOR }]);
+        if (tool === 'vector_list')
+          return ok([{ ...doc, vector: FAKE_VECTOR }]);
         if (tool === 'collection_initialize') return ok(null);
         if (tool === 'vector_store') return ok(null);
         if (tool === 'collection_delete') {
           deletedCollections.push(args.collection as string);
           return ok(null);
         }
-        return { success: false, result: null };
+        return invokeError(`unexpected tool: ${tool}`);
       }
     );
 
@@ -378,7 +406,8 @@ describe('runKnowledgeMigration', () => {
 
     vi.mocked(invokePluginTool).mockImplementation(
       async (_plugin: string, tool: string, args: Record<string, unknown>) => {
-        const ok = (data: unknown) => ({ success: true, result: { success: true, data } });
+        const ok = (data: unknown): InvokeResponse =>
+          invokeSuccess({ success: true, data });
         if (tool === 'collection_list') return ok(['patterns']);
         if (tool === 'vector_list') return ok(cappedDocs);
         if (tool === 'collection_initialize') return ok(null);
@@ -390,7 +419,7 @@ describe('runKnowledgeMigration', () => {
           deletedCollections.push(args.collection as string);
           return ok(null);
         }
-        return { success: false, result: null };
+        return invokeError(`unexpected tool: ${tool}`);
       }
     );
 
@@ -421,10 +450,13 @@ describe('runKnowledgeMigration', () => {
 
     vi.mocked(invokePluginTool).mockImplementation(
       async (_plugin: string, tool: string, args: Record<string, unknown>) => {
-        const ok = (data: unknown) => ({ success: true, result: { success: true, data } });
-        if (tool === 'collection_list') return ok(['patterns', 'knowledge-base']);
+        const ok = (data: unknown): InvokeResponse =>
+          invokeSuccess({ success: true, data });
+        if (tool === 'collection_list')
+          return ok(['patterns', 'knowledge-base']);
         if (tool === 'vector_list') return ok([doc]);
-        if (tool === 'collection_stats') return ok({ exists: true, vectorSize: FAKE_VECTOR.length + 1 });
+        if (tool === 'collection_stats')
+          return ok({ exists: true, vectorSize: FAKE_VECTOR.length + 1 });
         if (tool === 'collection_initialize') {
           initializedCollections.push(args.collection as string);
           return ok(null);
@@ -437,7 +469,7 @@ describe('runKnowledgeMigration', () => {
           deletedCollections.push(args.collection as string);
           return ok(null);
         }
-        return { success: false, result: null };
+        return invokeError(`unexpected tool: ${tool}`);
       }
     );
 

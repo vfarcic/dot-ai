@@ -12,21 +12,41 @@ import { join } from 'path';
 import { z } from 'zod';
 import { Logger } from '../core/error-handling';
 import { AI_SERVICE_ERRORS } from '../core/constants';
-import { CapabilityVectorService, EmbeddingService, buildAgentDisplayBlock } from '../core/index';
+import {
+  CapabilityVectorService,
+  EmbeddingService,
+  buildAgentDisplayBlock,
+} from '../core/index';
 import { ResourceVectorService } from '../core/resource-vector-service';
 import { getTracer } from '../core/tracing';
 import { loadTracingConfig } from '../core/tracing/config';
 import { GenericSessionManager } from '../core/generic-session-manager';
-import { getVisualizationUrl, BaseVisualizationData } from '../core/visualization';
-import { isPluginInitialized, invokePluginTool, getPluginManager } from '../core/plugin-registry';
-import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
+import {
+  getVisualizationUrl,
+  BaseVisualizationData,
+} from '../core/visualization';
+import {
+  isPluginInitialized,
+  invokePluginTool,
+  getPluginManager,
+} from '../core/plugin-registry';
+import {
+  isMcpClientInitialized,
+  getMcpClientManager,
+} from '../core/mcp-client-registry';
 import { getCurrentIdentity } from '../interfaces/request-context';
 import { loadPrompt } from '../core/shared-prompt-loader';
 
 export const VERSION_TOOL_NAME = 'version';
-export const VERSION_TOOL_DESCRIPTION = 'Get comprehensive system health and diagnostics';
+export const VERSION_TOOL_DESCRIPTION =
+  'Get comprehensive system health and diagnostics';
 export const VERSION_TOOL_INPUT_SCHEMA = {
-  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
+  interaction_id: z
+    .string()
+    .optional()
+    .describe(
+      'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
+    ),
 };
 
 export interface VersionInfo {
@@ -150,7 +170,9 @@ export interface VersionSessionData extends BaseVisualizationData {
  * Helper function to create error collections object
  * PRD #356: Added knowledgeBase collection
  */
-function createErrorCollections(errorMessage: string): SystemStatus['vectorDB']['collections'] {
+function createErrorCollections(
+  errorMessage: string
+): SystemStatus['vectorDB']['collections'] {
   return {
     capabilities: { exists: false, error: errorMessage },
     resources: { exists: false, error: errorMessage },
@@ -167,9 +189,13 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
 
   try {
     // Test basic Vector DB connectivity via plugin
-    const healthResponse = await invokePluginTool('agentic-tools', 'collection_stats', {
-      collection: 'capabilities', // Use any collection for health check
-    });
+    const healthResponse = await invokePluginTool(
+      'agentic-tools',
+      'collection_stats',
+      {
+        collection: 'capabilities', // Use any collection for health check
+      }
+    );
 
     if (!healthResponse.success) {
       return {
@@ -181,7 +207,10 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
     }
 
     // Extract URL from plugin response (PRD #359)
-    const toolResult = healthResponse.result as { success?: boolean; data?: { url?: string } };
+    const toolResult = healthResponse.result as {
+      success?: boolean;
+      data?: { url?: string };
+    };
     const url = toolResult?.data?.url || fallbackUrl;
 
     // Test each collection separately
@@ -191,17 +220,24 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
     const capabilitiesStatus = await testCollectionStatus(
       'capabilities',
       () => {
-        const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
+        const capabilityService = new CapabilityVectorService(
+          'capabilities',
+          embeddingService
+        );
         return capabilityService.getCapabilitiesCount();
       },
       () => {
-        const capabilityService = new CapabilityVectorService('capabilities', embeddingService);
+        const capabilityService = new CapabilityVectorService(
+          'capabilities',
+          embeddingService
+        );
         return capabilityService.collectionExists();
       }
     );
 
     // Test resources collection and get synced types
-    const resourcesStatus = await testResourcesCollectionStatus(embeddingService);
+    const resourcesStatus =
+      await testResourcesCollectionStatus(embeddingService);
 
     // Test knowledge base collection (PRD #356)
     const knowledgeBaseStatus = await testKnowledgeBaseCollectionStatus();
@@ -229,36 +265,39 @@ async function getVectorDBStatus(): Promise<SystemStatus['vectorDB']> {
  * Helper function to test individual collection status
  */
 async function testCollectionStatus(
-  collectionName: string, 
+  collectionName: string,
   getCountFn: () => Promise<number>,
   existsFn?: () => Promise<boolean>
-): Promise<{ exists: boolean; documentsCount?: number; error?: string; }> {
+): Promise<{ exists: boolean; documentsCount?: number; error?: string }> {
   try {
     // Determine existence explicitly rather than inferring it from a thrown
     // error: vector_count returns 0 for a missing collection instead of throwing.
     if (existsFn && !(await existsFn())) {
       return {
         exists: false,
-        error: `${collectionName} collection does not exist`
+        error: `${collectionName} collection does not exist`,
       };
     }
 
     const documentsCount = await getCountFn();
     return {
       exists: true,
-      documentsCount
+      documentsCount,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
+
     // Check if error indicates collection doesn't exist (vs other errors)
-    const collectionNotExists = errorMessage.toLowerCase().includes('collection') && 
-      (errorMessage.toLowerCase().includes('not exist') || 
-       errorMessage.toLowerCase().includes('does not exist'));
-    
+    const collectionNotExists =
+      errorMessage.toLowerCase().includes('collection') &&
+      (errorMessage.toLowerCase().includes('not exist') ||
+        errorMessage.toLowerCase().includes('does not exist'));
+
     return {
       exists: false,
-      error: collectionNotExists ? `${collectionName} collection does not exist` : errorMessage
+      error: collectionNotExists
+        ? `${collectionName} collection does not exist`
+        : errorMessage,
     };
   }
 }
@@ -270,25 +309,31 @@ async function testResourcesCollectionStatus(
   embeddingService: EmbeddingService
 ): Promise<{ exists: boolean; documentsCount?: number; error?: string }> {
   try {
-    const resourceService = new ResourceVectorService('resources', embeddingService);
+    const resourceService = new ResourceVectorService(
+      'resources',
+      embeddingService
+    );
 
     const resources = await resourceService.listResources();
     const documentsCount = resources.length;
 
     return {
       exists: true,
-      documentsCount
+      documentsCount,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    const collectionNotExists = errorMessage.toLowerCase().includes('collection') &&
+    const collectionNotExists =
+      errorMessage.toLowerCase().includes('collection') &&
       (errorMessage.toLowerCase().includes('not exist') ||
-       errorMessage.toLowerCase().includes('does not exist'));
+        errorMessage.toLowerCase().includes('does not exist'));
 
     return {
       exists: false,
-      error: collectionNotExists ? 'resources collection does not exist' : errorMessage
+      error: collectionNotExists
+        ? 'resources collection does not exist'
+        : errorMessage,
     };
   }
 }
@@ -297,56 +342,78 @@ async function testResourcesCollectionStatus(
  * Test knowledge base collection status (PRD #356)
  * Uses plugin to query collection stats directly
  */
-async function testKnowledgeBaseCollectionStatus(): Promise<{ exists: boolean; documentsCount?: number; error?: string }> {
+async function testKnowledgeBaseCollectionStatus(): Promise<{
+  exists: boolean;
+  documentsCount?: number;
+  error?: string;
+}> {
   try {
-    const response = await invokePluginTool('agentic-tools', 'collection_stats', {
-      collection: 'knowledge-base',
-    });
+    const response = await invokePluginTool(
+      'agentic-tools',
+      'collection_stats',
+      {
+        collection: 'knowledge-base',
+      }
+    );
 
     if (!response.success) {
-      const errorMessage = response.error?.message || 'Failed to get collection stats';
-      const collectionNotExists = errorMessage.toLowerCase().includes('collection') &&
+      const errorMessage =
+        response.error?.message || 'Failed to get collection stats';
+      const collectionNotExists =
+        errorMessage.toLowerCase().includes('collection') &&
         (errorMessage.toLowerCase().includes('not exist') ||
-         errorMessage.toLowerCase().includes('does not exist') ||
-         errorMessage.toLowerCase().includes('not found'));
+          errorMessage.toLowerCase().includes('does not exist') ||
+          errorMessage.toLowerCase().includes('not found'));
 
       return {
         exists: false,
-        error: collectionNotExists ? 'knowledge-base collection does not exist' : errorMessage
+        error: collectionNotExists
+          ? 'knowledge-base collection does not exist'
+          : errorMessage,
       };
     }
 
-    const result = response.result as { success?: boolean; data?: { pointsCount?: number }; error?: string };
+    const result = response.result as {
+      success?: boolean;
+      data?: { pointsCount?: number };
+      error?: string;
+    };
 
     // Check for nested error in result
     if (result.success === false) {
       const errorMessage = result.error || 'Collection query failed';
-      const collectionNotExists = errorMessage.toLowerCase().includes('collection') &&
+      const collectionNotExists =
+        errorMessage.toLowerCase().includes('collection') &&
         (errorMessage.toLowerCase().includes('not exist') ||
-         errorMessage.toLowerCase().includes('does not exist') ||
-         errorMessage.toLowerCase().includes('not found'));
+          errorMessage.toLowerCase().includes('does not exist') ||
+          errorMessage.toLowerCase().includes('not found'));
 
       return {
         exists: false,
-        error: collectionNotExists ? 'knowledge-base collection does not exist' : errorMessage
+        error: collectionNotExists
+          ? 'knowledge-base collection does not exist'
+          : errorMessage,
       };
     }
 
     return {
       exists: true,
-      documentsCount: result.data?.pointsCount ?? 0
+      documentsCount: result.data?.pointsCount ?? 0,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    const collectionNotExists = errorMessage.toLowerCase().includes('collection') &&
+    const collectionNotExists =
+      errorMessage.toLowerCase().includes('collection') &&
       (errorMessage.toLowerCase().includes('not exist') ||
-       errorMessage.toLowerCase().includes('does not exist') ||
-       errorMessage.toLowerCase().includes('not found'));
+        errorMessage.toLowerCase().includes('does not exist') ||
+        errorMessage.toLowerCase().includes('not found'));
 
     return {
       exists: false,
-      error: collectionNotExists ? 'knowledge-base collection does not exist' : errorMessage
+      error: collectionNotExists
+        ? 'knowledge-base collection does not exist'
+        : errorMessage,
     };
   }
 }
@@ -369,17 +436,18 @@ async function getEmbeddingStatus(): Promise<SystemStatus['embedding']> {
         available: true,
         provider: status.provider,
         model: status.model,
-        dimensions: status.dimensions
+        dimensions: status.dimensions,
       };
     } catch (error) {
       // Embedding service initialized but doesn't actually work
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         available: false,
         provider: status.provider,
         model: status.model,
         dimensions: status.dimensions,
-        reason: `Embedding generation test failed: ${errorMessage}`
+        reason: `Embedding generation test failed: ${errorMessage}`,
       };
     }
   }
@@ -389,7 +457,7 @@ async function getEmbeddingStatus(): Promise<SystemStatus['embedding']> {
     provider: status.provider,
     model: status.model,
     dimensions: status.dimensions,
-    reason: status.reason
+    reason: status.reason,
   };
 }
 
@@ -414,7 +482,9 @@ const READINESS_CACHE_TTL_MS = 30000;
 const READINESS_PROBE_TIMEOUT_MS = 10000;
 const READINESS_COLLECTION_INFO_TIMEOUT_MS = 1000;
 const READINESS_EMBEDDING_INPUT = loadPrompt('readiness-embedding').trim();
-let readinessCache: { value: CapabilityReadiness; expiresAt: number } | undefined;
+let readinessCache:
+  | { value: CapabilityReadiness; expiresAt: number }
+  | undefined;
 let readinessInFlight: Promise<CapabilityReadiness> | undefined;
 // Bumped on every reset so a probe started before the reset can't repopulate the
 // cache after it: its captured generation no longer matches.
@@ -447,7 +517,10 @@ export async function getCapabilityReadiness(
     try {
       const timeoutResult = new Promise<CapabilityReadiness>(resolve => {
         timeout = setTimeout(
-          () => resolve(failedCapabilityReadiness('capability readiness check timed out')),
+          () =>
+            resolve(
+              failedCapabilityReadiness('capability readiness check timed out')
+            ),
           timeoutMs
         );
       });
@@ -524,20 +597,23 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
     let collectionInfoTimeout: NodeJS.Timeout | undefined;
     const boundedCollectionInfo = Promise.race([
       collectionInfo,
-      new Promise<{ collectionAccessible: boolean; storedCount?: number }>(resolve => {
-        collectionInfoTimeout = setTimeout(
-          () => resolve({ collectionAccessible: false }),
-          READINESS_COLLECTION_INFO_TIMEOUT_MS
-        );
-      }),
+      new Promise<{ collectionAccessible: boolean; storedCount?: number }>(
+        resolve => {
+          collectionInfoTimeout = setTimeout(
+            () => resolve({ collectionAccessible: false }),
+            READINESS_COLLECTION_INFO_TIMEOUT_MS
+          );
+        }
+      ),
     ]);
 
     let embeddingHealthy = false;
     try {
       const expectedDimensions =
         embeddingService.getStatus().dimensions || 1536;
-      const probeEmbedding =
-        await embeddingService.generateEmbedding(READINESS_EMBEDDING_INPUT);
+      const probeEmbedding = await embeddingService.generateEmbedding(
+        READINESS_EMBEDDING_INPUT
+      );
       embeddingHealthy =
         Array.isArray(probeEmbedding) &&
         probeEmbedding.length === expectedDimensions &&
@@ -568,15 +644,15 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
  */
 async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
   const timestamp = new Date().toISOString();
-  
+
   try {
     const capabilityService = new CapabilityVectorService();
-    
+
     // Test Vector DB health for capabilities
     let vectorDBHealthy = false;
     let collectionAccessible = false;
     let storedCount: number | undefined;
-    
+
     try {
       vectorDBHealthy = await capabilityService.healthCheck();
     } catch (error) {
@@ -585,90 +661,98 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
         vectorDBHealthy: false,
         collectionAccessible: false,
         error: `Vector DB health check failed: ${error instanceof Error ? error.message : String(error)}`,
-        lastDiagnosis: timestamp
+        lastDiagnosis: timestamp,
       };
     }
-    
+
     if (vectorDBHealthy) {
       // Test collection accessibility and storage operations
       try {
         await capabilityService.initialize();
         storedCount = await capabilityService.getCapabilitiesCount();
         collectionAccessible = true;
-        
+
         // Test MCP-used operations: verify vector operations work
         const embeddingService = new EmbeddingService();
         const embeddingStatus = embeddingService.getStatus();
         const expectedDimensions = embeddingStatus.dimensions || 1536; // Use provider's dimension or default
-        const testEmbedding = await embeddingService.generateEmbedding('diagnostic test query');
+        const testEmbedding = await embeddingService.generateEmbedding(
+          'diagnostic test query'
+        );
 
         if (!testEmbedding || testEmbedding.length !== expectedDimensions) {
-          throw new Error(`Embedding dimension mismatch: expected ${expectedDimensions}, got ${testEmbedding?.length || 'null'} dimensions`);
+          throw new Error(
+            `Embedding dimension mismatch: expected ${expectedDimensions}, got ${testEmbedding?.length || 'null'} dimensions`
+          );
         }
-        
+
         // Validate embedding values are numbers (not NaN, Infinity, etc.)
         if (testEmbedding.some(val => !Number.isFinite(val))) {
-          throw new Error('Embedding contains invalid values (NaN or Infinity)');
+          throw new Error(
+            'Embedding contains invalid values (NaN or Infinity)'
+          );
         }
-        
+
         // Test core MCP operations: verify we can list capabilities (most basic operation)
         const capabilities = await capabilityService.getAllCapabilities(1);
         if (capabilities.length === 0 && storedCount > 0) {
-          throw new Error('Capability listing failed - cannot retrieve stored capabilities');
+          throw new Error(
+            'Capability listing failed - cannot retrieve stored capabilities'
+          );
         }
-        
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
         // Check for actual dimension mismatch errors (be specific)
-        const isDimensionMismatch = (
-          errorMessage.toLowerCase().includes('dimension') && 
-          (errorMessage.toLowerCase().includes('mismatch') || errorMessage.toLowerCase().includes('expected'))
-        ) || (
-          errorMessage.toLowerCase().includes('vector') && 
-          errorMessage.toLowerCase().includes('size')
-        );
-        
+        const isDimensionMismatch =
+          (errorMessage.toLowerCase().includes('dimension') &&
+            (errorMessage.toLowerCase().includes('mismatch') ||
+              errorMessage.toLowerCase().includes('expected'))) ||
+          (errorMessage.toLowerCase().includes('vector') &&
+            errorMessage.toLowerCase().includes('size'));
+
         // Since core MCP functionality works (list, search, ID-based get), downgrade severity
-        const isCoreSystemWorking = vectorDBHealthy && collectionAccessible && (storedCount || 0) > 0;
-        
+        const isCoreSystemWorking =
+          vectorDBHealthy && collectionAccessible && (storedCount || 0) > 0;
+
         return {
           systemReady: isCoreSystemWorking, // Core system is ready if MCP operations work
           vectorDBHealthy: true,
           collectionAccessible: collectionAccessible,
           storedCount: storedCount,
-          error: isDimensionMismatch ? 
-            `Vector dimension mismatch detected: ${errorMessage}. The capabilities collection exists but has incompatible vector dimensions. Delete the collection to allow recreation with correct dimensions.` :
-            `Capability system test failed: ${errorMessage}`,
+          error: isDimensionMismatch
+            ? `Vector dimension mismatch detected: ${errorMessage}. The capabilities collection exists but has incompatible vector dimensions. Delete the collection to allow recreation with correct dimensions.`
+            : `Capability system test failed: ${errorMessage}`,
           lastDiagnosis: timestamp,
           // Add raw error for debugging
-          rawError: errorMessage
+          rawError: errorMessage,
         };
       }
     }
-    
+
     // Check embedding service (required for semantic search)
     const embeddingService = new EmbeddingService();
     const embeddingAvailable = embeddingService.isAvailable();
-    
+
     // System is ready if Vector DB is healthy, collection is accessible, and embeddings available
-    const systemReady = vectorDBHealthy && collectionAccessible && embeddingAvailable;
-    
+    const systemReady =
+      vectorDBHealthy && collectionAccessible && embeddingAvailable;
+
     return {
       systemReady,
       vectorDBHealthy,
       collectionAccessible,
       storedCount,
-      lastDiagnosis: timestamp
+      lastDiagnosis: timestamp,
     };
-    
   } catch (error) {
     return {
       systemReady: false,
       vectorDBHealthy: false,
       collectionAccessible: false,
       error: `Capability diagnostics failed: ${error instanceof Error ? error.message : String(error)}`,
-      lastDiagnosis: timestamp
+      lastDiagnosis: timestamp,
     };
   }
 }
@@ -676,7 +760,9 @@ async function getCapabilityStatus(): Promise<SystemStatus['capabilities']> {
 /**
  * Test AI provider connectivity
  */
-async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatus['aiProvider']> {
+async function getAIProviderStatus(
+  interaction_id?: string
+): Promise<SystemStatus['aiProvider']> {
   try {
     // Import AI provider factory and test connectivity
     const { createAIProvider } = await import('../core/ai-provider-factory');
@@ -687,21 +773,21 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
         connected: false,
         keyConfigured: false,
         providerType: aiProvider.getProviderType(),
-        error: AI_SERVICE_ERRORS.API_KEY_INVALID
+        error: AI_SERVICE_ERRORS.API_KEY_INVALID,
       };
     }
 
     // Test with a minimal request to check connectivity
     await aiProvider.sendMessage('test', 'version-connectivity-check', {
       user_intent: 'Test AI provider connectivity and system version check',
-      interaction_id: interaction_id
+      interaction_id: interaction_id,
     });
 
     return {
       connected: true,
       keyConfigured: true,
       providerType: aiProvider.getProviderType(),
-      modelName: aiProvider.getModelName()
+      modelName: aiProvider.getModelName(),
     };
   } catch (error) {
     // Try to get provider type and model name even on error
@@ -773,7 +859,7 @@ async function getAIProviderStatus(interaction_id?: string): Promise<SystemStatu
       keyConfigured: false,
       providerType,
       modelName,
-      error: errorMessage
+      error: errorMessage,
     };
   }
 }
@@ -790,17 +876,19 @@ export function getVersionInfo(): VersionInfo {
     // __dirname points to the compiled JS location (dist/tools/), go up two levels to find package.json
     const mcpServerDir = join(__dirname, '..', '..');
     const packageJsonPath = join(mcpServerDir, 'package.json');
-    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+      version?: string;
+    };
   } catch {
     // If package.json not found, use unknown version
     packageJson = { version: 'unknown' };
   }
-  
+
   return {
     version: packageJson.version || 'unknown',
     nodeVersion: process.version,
     platform: process.platform,
-    arch: process.arch
+    arch: process.arch,
   };
 }
 
@@ -816,7 +904,7 @@ export function getTracingStatus(): SystemStatus['tracing'] {
     exporterType: config.exporterType,
     endpoint: config.otlpEndpoint,
     serviceName: config.serviceName,
-    initialized: tracer.isEnabled()
+    initialized: tracer.isEnabled(),
   };
 }
 
@@ -824,27 +912,40 @@ export function getTracingStatus(): SystemStatus['tracing'] {
  * Get Kubernetes status via plugin (PRD #343)
  * PRD #359: Uses unified plugin registry
  */
-async function getKubernetesStatusViaPlugin(): Promise<SystemStatus['kubernetes']> {
+async function getKubernetesStatusViaPlugin(): Promise<
+  SystemStatus['kubernetes']
+> {
   try {
-    const response = await invokePluginTool('agentic-tools', 'kubectl_version', {});
+    const response = await invokePluginTool(
+      'agentic-tools',
+      'kubectl_version',
+      {}
+    );
 
     if (!response.success) {
       return {
         connected: false,
         kubeconfig: 'in-cluster',
-        error: response.error?.message || 'Failed to get Kubernetes version via plugin',
-        errorType: response.error?.code
+        error:
+          response.error?.message ||
+          'Failed to get Kubernetes version via plugin',
+        errorType: response.error?.code,
       };
     }
 
     // Check for nested error - plugin wraps kubectl errors in { success: false, error: "..." }
-    const result = response.result as { success?: boolean; data?: string; error?: string; message?: string };
+    const result = response.result as {
+      success?: boolean;
+      data?: string;
+      error?: string;
+      message?: string;
+    };
     if (result.success === false) {
       return {
         connected: false,
         kubeconfig: 'in-cluster',
         error: result.error || result.message || 'kubectl version failed',
-        errorType: 'KUBECTL_ERROR'
+        errorType: 'KUBECTL_ERROR',
       };
     }
 
@@ -856,9 +957,9 @@ async function getKubernetesStatusViaPlugin(): Promise<SystemStatus['kubernetes'
       clusterInfo: {
         version: versionData.serverVersion?.gitVersion,
         endpoint: undefined, // Not available from kubectl version
-        context: 'in-cluster'
+        context: 'in-cluster',
       },
-      kubeconfig: 'in-cluster'
+      kubeconfig: 'in-cluster',
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -866,7 +967,7 @@ async function getKubernetesStatusViaPlugin(): Promise<SystemStatus['kubernetes'
       connected: false,
       kubeconfig: 'in-cluster',
       error: errorMessage,
-      errorType: 'PLUGIN_ERROR'
+      errorType: 'PLUGIN_ERROR',
     };
   }
 }
@@ -875,12 +976,18 @@ async function getKubernetesStatusViaPlugin(): Promise<SystemStatus['kubernetes'
  * Get Kyverno status via plugin (PRD #343)
  * PRD #359: Uses unified plugin registry
  */
-export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno']> {
+export async function getKyvernoStatusViaPlugin(): Promise<
+  SystemStatus['kyverno']
+> {
   try {
     // Check if Kyverno CRD exists (clusterpolicies.kyverno.io)
-    const crdResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
-      resource: 'crd/clusterpolicies.kyverno.io'
-    });
+    const crdResponse = await invokePluginTool(
+      'agentic-tools',
+      'kubectl_get_resource_json',
+      {
+        resource: 'crd/clusterpolicies.kyverno.io',
+      }
+    );
 
     // Check both outer success and nested result.success
     if (!crdResponse.success) {
@@ -888,16 +995,18 @@ export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno
       return {
         installed: false,
         policyGenerationReady: false,
-        reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed'
+        reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed',
       };
     }
-    const crdResult = crdResponse.result as { success?: boolean; data?: string; error?: string } | undefined;
+    const crdResult = crdResponse.result as
+      | { success?: boolean; data?: string; error?: string }
+      | undefined;
     if (crdResult?.success === false) {
       // CRD doesn't exist - Kyverno not installed
       return {
         installed: false,
         policyGenerationReady: false,
-        reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed'
+        reason: 'Kyverno CRDs not found in cluster - Kyverno is not installed',
       };
     }
 
@@ -906,13 +1015,21 @@ export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno
     let version: string | undefined;
 
     // Try to get kyverno-admission-controller deployment
-    const deploymentResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
-      resource: 'deployment/kyverno-admission-controller',
-      namespace: 'kyverno'
-    });
+    const deploymentResponse = await invokePluginTool(
+      'agentic-tools',
+      'kubectl_get_resource_json',
+      {
+        resource: 'deployment/kyverno-admission-controller',
+        namespace: 'kyverno',
+      }
+    );
 
     if (deploymentResponse.success) {
-      const result = deploymentResponse.result as { success?: boolean; data?: string; error?: string };
+      const result = deploymentResponse.result as {
+        success?: boolean;
+        data?: string;
+        error?: string;
+      };
       // Check for nested error
       if (result.success !== false) {
         const deployment = JSON.parse(result.data || '{}');
@@ -924,7 +1041,9 @@ export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno
         // Extract version from image tag
         const container = deployment.spec?.template?.spec?.containers?.[0];
         if (container?.image) {
-          const imageMatch = container.image.match(/:v?([0-9]+\.[0-9]+\.[0-9]+)/);
+          const imageMatch = container.image.match(
+            /:v?([0-9]+\.[0-9]+\.[0-9]+)/
+          );
           if (imageMatch) {
             version = imageMatch[1];
           }
@@ -934,13 +1053,20 @@ export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno
 
     // Check webhook configuration
     let webhookReady = false;
-    const webhookResponse = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
-      resource: 'validatingwebhookconfiguration/kyverno-resource-validating-webhook-cfg'
-    });
+    const webhookResponse = await invokePluginTool(
+      'agentic-tools',
+      'kubectl_get_resource_json',
+      {
+        resource:
+          'validatingwebhookconfiguration/kyverno-resource-validating-webhook-cfg',
+      }
+    );
 
     // Check both outer success and nested result.success
     if (webhookResponse.success) {
-      const webhookResult = webhookResponse.result as { success?: boolean; data?: string; error?: string } | undefined;
+      const webhookResult = webhookResponse.result as
+        | { success?: boolean; data?: string; error?: string }
+        | undefined;
       if (webhookResult?.success !== false) {
         webhookReady = true;
       }
@@ -963,7 +1089,7 @@ export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno
         version,
         webhookReady,
         policyGenerationReady,
-        reason
+        reason,
       };
     }
 
@@ -971,14 +1097,14 @@ export async function getKyvernoStatusViaPlugin(): Promise<SystemStatus['kyverno
       installed: true,
       version,
       webhookReady: true,
-      policyGenerationReady: true
+      policyGenerationReady: true,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       installed: false,
       policyGenerationReady: false,
-      error: `Kyverno detection via plugin failed: ${errorMessage}`
+      error: `Kyverno detection via plugin failed: ${errorMessage}`,
     };
   }
 }
@@ -1003,10 +1129,14 @@ export async function handleVersionTool(
 ): Promise<VersionToolResponse> {
   try {
     // Extract interaction_id for evaluation dataset generation
-    const interaction_id = args?.interaction_id ? VERSION_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id) : undefined;
-    
-    logger.info('Processing version tool request with system diagnostics', { requestId });
-    
+    const interaction_id = args?.interaction_id
+      ? VERSION_TOOL_INPUT_SCHEMA.interaction_id.parse(args.interaction_id)
+      : undefined;
+
+    logger.info('Processing version tool request with system diagnostics', {
+      requestId,
+    });
+
     // Get version info
     const version = getVersionInfo();
 
@@ -1015,17 +1145,32 @@ export async function handleVersionTool(
 
     // Run all diagnostics in parallel for better performance
     logger.info('Running system diagnostics...', { requestId, hasK8sPlugins });
-    const [vectorDBStatus, embeddingStatus, aiProviderStatus, kubernetesStatus, capabilityStatus, kyvernoStatus] = await Promise.all([
+    const [
+      vectorDBStatus,
+      embeddingStatus,
+      aiProviderStatus,
+      kubernetesStatus,
+      capabilityStatus,
+      kyvernoStatus,
+    ] = await Promise.all([
       getVectorDBStatus(),
       getEmbeddingStatus(),
       getAIProviderStatus(interaction_id),
       hasK8sPlugins
         ? getKubernetesStatusViaPlugin()
-        : Promise.resolve({ connected: false, kubeconfig: 'unknown', error: 'Kubernetes plugins not available' } as SystemStatus['kubernetes']),
+        : Promise.resolve({
+            connected: false,
+            kubeconfig: 'unknown',
+            error: 'Kubernetes plugins not available',
+          } as SystemStatus['kubernetes']),
       getCapabilityStatus(),
       hasK8sPlugins
         ? getKyvernoStatusViaPlugin()
-        : Promise.resolve({ installed: false, policyGenerationReady: false, error: 'Kubernetes plugins not available' } as SystemStatus['kyverno'])
+        : Promise.resolve({
+            installed: false,
+            policyGenerationReady: false,
+            error: 'Kubernetes plugins not available',
+          } as SystemStatus['kyverno']),
     ]);
 
     // Get tracing status synchronously (no async operations)
@@ -1036,17 +1181,19 @@ export async function handleVersionTool(
 
     // PRD #358: Add MCP server stats
     const mcpManager = isMcpClientInitialized() ? getMcpClientManager() : null;
-    const mcpServerStats = mcpManager ? {
-      ...mcpManager.getStats(),
-      servers: mcpManager.getDiscoveredServers().map(s => ({
-        name: s.name,
-        version: s.version,
-        endpoint: s.endpoint,
-        attachTo: s.attachTo,
-        toolCount: s.tools.length,
-        tools: s.tools.map(t => t.name),
-      })),
-    } : undefined;
+    const mcpServerStats = mcpManager
+      ? {
+          ...mcpManager.getStats(),
+          servers: mcpManager.getDiscoveredServers().map(s => ({
+            name: s.name,
+            version: s.version,
+            endpoint: s.endpoint,
+            attachTo: s.attachTo,
+            toolCount: s.tools.length,
+            tools: s.tools.map(t => t.name),
+          })),
+        }
+      : undefined;
 
     const systemStatus: SystemStatus = {
       version,
@@ -1058,9 +1205,9 @@ export async function handleVersionTool(
       kyverno: kyvernoStatus,
       tracing: tracingStatus,
       plugins: pluginStats,
-      mcpServers: mcpServerStats
+      mcpServers: mcpServerStats,
     };
-    
+
     // Log summary of system health
     logger.info('System diagnostics completed', {
       requestId,
@@ -1070,12 +1217,17 @@ export async function handleVersionTool(
       aiProviderConnected: aiProviderStatus.connected,
       kubernetesConnected: kubernetesStatus.connected,
       capabilitySystemReady: capabilityStatus.systemReady,
-      kyvernoReady: kyvernoStatus.policyGenerationReady
+      kyvernoReady: kyvernoStatus.policyGenerationReady,
     });
-    
+
     // Build summary object
     const summary = {
-      overall: (vectorDBStatus.connected && aiProviderStatus.connected && kubernetesStatus.connected && capabilityStatus.systemReady ? 'healthy' : 'degraded') as 'healthy' | 'degraded',
+      overall: (vectorDBStatus.connected &&
+      aiProviderStatus.connected &&
+      kubernetesStatus.connected &&
+      capabilityStatus.systemReady
+        ? 'healthy'
+        : 'degraded') as 'healthy' | 'degraded',
       // PRD #375: Unified knowledge base replaces separate pattern/policy search.
       // Keep this on the same readiness rule as the `knowledge-base-search` capability
       // below (both gate on vectorDBStatus.connected) so diagnostics never contradict.
@@ -1084,19 +1236,30 @@ export async function handleVersionTool(
         : embeddingStatus.available
           ? 'semantic+keyword'
           : 'keyword-only',
-      capabilityScanning: capabilityStatus.systemReady && kubernetesStatus.connected ? 'ready' : 'not-ready',
-      kubernetesAccess: kubernetesStatus.connected ? 'connected' : 'disconnected',
-      kyvernoPolicyGeneration: kyvernoStatus.policyGenerationReady ? 'ready' : 'not-ready',
+      capabilityScanning:
+        capabilityStatus.systemReady && kubernetesStatus.connected
+          ? 'ready'
+          : 'not-ready',
+      kubernetesAccess: kubernetesStatus.connected
+        ? 'connected'
+        : 'disconnected',
+      kyvernoPolicyGeneration: kyvernoStatus.policyGenerationReady
+        ? 'ready'
+        : 'not-ready',
       capabilities: [
         // PRD #375: knowledge-base-search replaces pattern-management and policy-intent-management
         vectorDBStatus.connected ? 'knowledge-base-search' : null,
-        capabilityStatus.systemReady && kubernetesStatus.connected ? 'capability-scanning' : null,
+        capabilityStatus.systemReady && kubernetesStatus.connected
+          ? 'capability-scanning'
+          : null,
         embeddingStatus.available ? 'semantic-search' : null,
         aiProviderStatus.connected ? 'ai-recommendations' : null,
         kubernetesStatus.connected ? 'kubernetes-integration' : null,
         // Kyverno policy generation is only available when Kyverno is installed
-        kyvernoStatus.policyGenerationReady ? 'kyverno-policy-generation' : null
-      ].filter(Boolean) as string[]
+        kyvernoStatus.policyGenerationReady
+          ? 'kyverno-policy-generation'
+          : null,
+      ].filter(Boolean) as string[],
     };
 
     const timestamp = new Date().toISOString();
@@ -1108,7 +1271,7 @@ export async function handleVersionTool(
       system: systemStatus,
       summary,
       timestamp,
-      status: 'success'
+      status: 'success',
     });
 
     // PRD #320: Generate visualization URL if configured
@@ -1124,14 +1287,16 @@ export async function handleVersionTool(
       system: systemStatus,
       summary,
       timestamp,
-      ...(visualizationUrl ? { visualizationUrl } : {})
+      ...(visualizationUrl ? { visualizationUrl } : {}),
     };
 
     // Build content blocks - JSON for REST API, agent instruction for MCP agents
-    const content: Array<{ type: 'text'; text: string }> = [{
-      type: 'text' as const,
-      text: JSON.stringify(responseData, null, 2)
-    }];
+    const content: Array<{ type: 'text'; text: string }> = [
+      {
+        type: 'text' as const,
+        text: JSON.stringify(responseData, null, 2),
+      },
+    ];
 
     // Add agent instruction block if visualization URL is present
     const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
@@ -1143,16 +1308,22 @@ export async function handleVersionTool(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Version tool request failed', error as Error, { requestId });
-    
+
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          status: 'error',
-          error: errorMessage,
-          timestamp: new Date().toISOString()
-        }, null, 2)
-      }]
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify(
+            {
+              status: 'error',
+              error: errorMessage,
+              timestamp: new Date().toISOString(),
+            },
+            null,
+            2
+          ),
+        },
+      ],
     };
   }
 }

@@ -6,7 +6,14 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, NotFoundErrorSchema, BadRequestErrorSchema, InternalServerErrorSchema, BadGatewayErrorSchema, PayloadTooLargeErrorSchema } from './common';
+import {
+  createSuccessResponseSchema,
+  NotFoundErrorSchema,
+  BadRequestErrorSchema,
+  InternalServerErrorSchema,
+  BadGatewayErrorSchema,
+  PayloadTooLargeErrorSchema,
+} from './common';
 
 /**
  * Prompt argument definition
@@ -25,7 +32,10 @@ export type PromptArgument = z.infer<typeof PromptArgumentSchema>;
 export const PromptInfoSchema = z.object({
   name: z.string().describe('Prompt name/identifier'),
   description: z.string().optional().describe('Prompt description'),
-  arguments: z.array(PromptArgumentSchema).optional().describe('Prompt arguments'),
+  arguments: z
+    .array(PromptArgumentSchema)
+    .optional()
+    .describe('Prompt arguments'),
 });
 
 export type PromptInfo = z.infer<typeof PromptInfoSchema>;
@@ -40,7 +50,9 @@ export const PromptsListDataSchema = z.object({
 
 export type PromptsListData = z.infer<typeof PromptsListDataSchema>;
 
-export const PromptsListResponseSchema = createSuccessResponseSchema(PromptsListDataSchema);
+export const PromptsListResponseSchema = createSuccessResponseSchema(
+  PromptsListDataSchema
+);
 
 export type PromptsListResponse = z.infer<typeof PromptsListResponseSchema>;
 
@@ -49,10 +61,12 @@ export type PromptsListResponse = z.infer<typeof PromptsListResponseSchema>;
  */
 export const PromptMessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']).describe('Message role'),
-  content: z.object({
-    type: z.literal('text'),
-    text: z.string().describe('Message text content'),
-  }).describe('Message content'),
+  content: z
+    .object({
+      type: z.literal('text'),
+      text: z.string().describe('Message text content'),
+    })
+    .describe('Message content'),
 });
 
 export type PromptMessage = z.infer<typeof PromptMessageSchema>;
@@ -74,12 +88,16 @@ export type PromptFileData = z.infer<typeof PromptFileSchema>;
 export const PromptGetDataSchema = z.object({
   description: z.string().optional().describe('Prompt description'),
   messages: z.array(PromptMessageSchema).describe('Prompt messages'),
-  files: z.array(PromptFileSchema).optional().describe('Supporting files for folder-based skills (base64-encoded)'),
+  files: z
+    .array(PromptFileSchema)
+    .optional()
+    .describe('Supporting files for folder-based skills (base64-encoded)'),
 });
 
 export type PromptGetData = z.infer<typeof PromptGetDataSchema>;
 
-export const PromptGetResponseSchema = createSuccessResponseSchema(PromptGetDataSchema);
+export const PromptGetResponseSchema =
+  createSuccessResponseSchema(PromptGetDataSchema);
 
 export type PromptGetResponse = z.infer<typeof PromptGetResponseSchema>;
 
@@ -87,7 +105,10 @@ export type PromptGetResponse = z.infer<typeof PromptGetResponseSchema>;
  * Prompt get request body
  */
 export const PromptGetRequestSchema = z.object({
-  arguments: z.record(z.string(), z.any()).optional().describe('Arguments to pass to the prompt'),
+  arguments: z
+    .record(z.string(), z.any())
+    .optional()
+    .describe('Arguments to pass to the prompt'),
 });
 
 export type PromptGetRequest = z.infer<typeof PromptGetRequestSchema>;
@@ -146,15 +167,25 @@ export const PromptsSourceErrorSchema = BadGatewayErrorSchema.extend({
  */
 export const PromptsCacheRefreshDataSchema = z.object({
   refreshed: z.boolean().describe('Whether the cache was refreshed'),
-  promptsLoaded: z.number().describe('Total number of prompts loaded after refresh'),
-  source: z.string().describe('Source of prompts (e.g., "built-in", "built-in+repository")'),
+  promptsLoaded: z
+    .number()
+    .describe('Total number of prompts loaded after refresh'),
+  source: z
+    .string()
+    .describe('Source of prompts (e.g., "built-in", "built-in+repository")'),
 });
 
-export type PromptsCacheRefreshData = z.infer<typeof PromptsCacheRefreshDataSchema>;
+export type PromptsCacheRefreshData = z.infer<
+  typeof PromptsCacheRefreshDataSchema
+>;
 
-export const PromptsCacheRefreshResponseSchema = createSuccessResponseSchema(PromptsCacheRefreshDataSchema);
+export const PromptsCacheRefreshResponseSchema = createSuccessResponseSchema(
+  PromptsCacheRefreshDataSchema
+);
 
-export type PromptsCacheRefreshResponse = z.infer<typeof PromptsCacheRefreshResponseSchema>;
+export type PromptsCacheRefreshResponse = z.infer<
+  typeof PromptsCacheRefreshResponseSchema
+>;
 
 export const PromptsCacheRefreshErrorSchema = InternalServerErrorSchema.extend({
   error: z.object({
@@ -210,7 +241,10 @@ export const PromptsSourceIngestDataSchema = z.object({
   source: z
     .string()
     .describe('Credential-scrubbed identifier the cached source is keyed by'),
-  contentHash: z.string().optional().describe('Echoed content hash, if provided'),
+  contentHash: z
+    .string()
+    .optional()
+    .describe('Echoed content hash, if provided'),
   fileCount: z.number().describe('Number of files cached'),
   // PRD #647 N16: the runtime only ever returns 'ingested' (decoded+written) or
   // 'unchanged' (D3 dedup short-circuit), so pin the contract to that union.

@@ -33,8 +33,8 @@ export function formatErrorResponse(
     error: {
       code,
       message,
-      ...(details !== undefined && { details })
-    }
+      ...(details !== undefined && { details }),
+    },
   };
 }
 

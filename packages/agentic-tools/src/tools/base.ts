@@ -105,7 +105,10 @@ export function escapeShellArg(arg: string): string {
 /**
  * Build kubectl command string with proper flags
  */
-export function buildKubectlCommand(args: string[], config?: KubectlConfig): string {
+export function buildKubectlCommand(
+  args: string[],
+  config?: KubectlConfig
+): string {
   const cmdParts = ['kubectl'];
 
   if (config?.kubeconfig) {
@@ -133,7 +136,10 @@ export function buildKubectlCommand(args: string[], config?: KubectlConfig): str
  * @returns Command output as string
  * @throws Error if command fails
  */
-export async function executeKubectl(args: string[], config?: KubectlConfig): Promise<string> {
+export async function executeKubectl(
+  args: string[],
+  config?: KubectlConfig
+): Promise<string> {
   const command = buildKubectlCommand(args, config);
   const timeout = config?.timeout || 30000;
 
@@ -188,11 +194,14 @@ export async function executeKubectl(args: string[], config?: KubectlConfig): Pr
   } catch (error: unknown) {
     if (error instanceof Error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new Error('kubectl binary not found. Please install kubectl and ensure it\'s in your PATH.');
+        throw new Error(
+          "kubectl binary not found. Please install kubectl and ensure it's in your PATH.",
+          { cause: error }
+        );
       }
       throw error;
     }
-    throw new Error(String(error));
+    throw new Error(String(error), { cause: error });
   }
 }
 
@@ -298,7 +307,10 @@ export function buildHelmCommand(args: string[], config?: HelmConfig): string {
  * @returns Command output as string
  * @throws Error if command fails
  */
-export async function executeHelm(args: string[], config?: HelmConfig): Promise<string> {
+export async function executeHelm(
+  args: string[],
+  config?: HelmConfig
+): Promise<string> {
   const command = buildHelmCommand(args, config);
   const timeout = config?.timeout || 60000; // 60s default for helm operations
 
@@ -353,11 +365,14 @@ export async function executeHelm(args: string[], config?: HelmConfig): Promise<
   } catch (error: unknown) {
     if (error instanceof Error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new Error('helm binary not found. Please install helm and ensure it\'s in your PATH.');
+        throw new Error(
+          "helm binary not found. Please install helm and ensure it's in your PATH.",
+          { cause: error }
+        );
       }
       throw error;
     }
-    throw new Error(String(error));
+    throw new Error(String(error), { cause: error });
   }
 }
 

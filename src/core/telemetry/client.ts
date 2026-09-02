@@ -19,7 +19,7 @@ import {
   ServerStoppedEventProperties,
   ClientConnectedEventProperties,
   BaseEventProperties,
-  McpClientInfo
+  McpClientInfo,
 } from './types';
 import { loadTelemetryConfig } from './config';
 import { isPluginInitialized, invokePluginTool } from '../plugin-registry';
@@ -40,10 +40,14 @@ async function generateInstanceId(): Promise<string> {
   // PRD #359: Use unified plugin registry for K8s operations
   if (isPluginInitialized()) {
     try {
-      const response = await invokePluginTool('agentic-tools', 'kubectl_get_resource_json', {
-        resource: 'namespace/kube-system',
-        field: 'metadata'
-      });
+      const response = await invokePluginTool(
+        'agentic-tools',
+        'kubectl_get_resource_json',
+        {
+          resource: 'namespace/kube-system',
+          field: 'metadata',
+        }
+      );
 
       if (response.success && response.result) {
         // Parse the metadata to get UID
@@ -114,7 +118,9 @@ class PostHogTelemetry implements TelemetryService {
   private async doInitialize(): Promise<void> {
     if (!this.config.enabled) {
       if (this.config.debug) {
-        console.log('[Telemetry] Telemetry is disabled, skipping initialization');
+        console.log(
+          '[Telemetry] Telemetry is disabled, skipping initialization'
+        );
       }
       this.initialized = true;
       return;
@@ -162,7 +168,11 @@ class PostHogTelemetry implements TelemetryService {
     if (process.env.NODE_ENV === 'test') return true;
 
     // CI environments (CI can be 'true', '1', or any truthy value)
-    if ((process.env.CI && process.env.CI !== 'false') || process.env.GITHUB_ACTIONS) return true;
+    if (
+      (process.env.CI && process.env.CI !== 'false') ||
+      process.env.GITHUB_ACTIONS
+    )
+      return true;
 
     return false;
   }
@@ -181,7 +191,10 @@ class PostHogTelemetry implements TelemetryService {
   /**
    * Track a telemetry event (fire-and-forget, async)
    */
-  trackEvent(event: TelemetryEventName, properties: TelemetryEventProperties): void {
+  trackEvent(
+    event: TelemetryEventName,
+    properties: TelemetryEventProperties
+  ): void {
     if (!this.config.enabled) {
       return;
     }
@@ -201,7 +214,7 @@ class PostHogTelemetry implements TelemetryService {
           }
         }
       })
-      .catch((error) => {
+      .catch(error => {
         // Silently fail - telemetry should never break the app
         if (this.config.debug) {
           console.error('[Telemetry] Failed to capture event:', error);
@@ -212,7 +225,12 @@ class PostHogTelemetry implements TelemetryService {
   /**
    * Track tool execution
    */
-  trackToolExecution(tool: string, success: boolean, durationMs: number, mcpClient?: McpClientInfo): void {
+  trackToolExecution(
+    tool: string,
+    success: boolean,
+    durationMs: number,
+    mcpClient?: McpClientInfo
+  ): void {
     const properties: ToolExecutedEventProperties = {
       ...this.getBaseProperties(),
       tool,
@@ -229,7 +247,11 @@ class PostHogTelemetry implements TelemetryService {
   /**
    * Track tool error
    */
-  trackToolError(tool: string, errorType: string, mcpClient?: McpClientInfo): void {
+  trackToolError(
+    tool: string,
+    errorType: string,
+    mcpClient?: McpClientInfo
+  ): void {
     const properties: ToolErrorEventProperties = {
       ...this.getBaseProperties(),
       tool,

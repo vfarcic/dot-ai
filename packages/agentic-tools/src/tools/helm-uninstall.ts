@@ -30,23 +30,30 @@ export const helmUninstall: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace where the release is installed (default: "default")',
+          description:
+            'Kubernetes namespace where the release is installed (default: "default")',
         },
         wait: {
           type: 'boolean',
-          description: 'If true, waits for all resources to be deleted (default: false)',
+          description:
+            'If true, waits for all resources to be deleted (default: false)',
         },
         timeout: {
           type: 'string',
-          description: 'Time to wait for uninstall (e.g., "5m", "300s"). Default: "5m"',
+          description:
+            'Time to wait for uninstall (e.g., "5m", "300s"). Default: "5m"',
         },
       },
       required: ['releaseName'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const releaseName = requireParam<string>(args, 'releaseName', 'helm_uninstall');
+  handler: withValidation(async args => {
+    const releaseName = requireParam<string>(
+      args,
+      'releaseName',
+      'helm_uninstall'
+    );
     const namespace = optionalParam<string>(args, 'namespace', 'default');
     const wait = optionalParam<boolean>(args, 'wait', false);
     const timeout = optionalParam<string>(args, 'timeout', '5m');

@@ -22,7 +22,7 @@
       "supports_function_calling": true
     },
     "gpt-5": {
-      "provider": "OpenAI", 
+      "provider": "OpenAI",
       "pricing": {
         "input_cost_per_million_tokens": 1.25,
         "output_cost_per_million_tokens": 10.0
@@ -51,8 +51,8 @@
     "gemini-2.5-flash": {
       "provider": "Google",
       "pricing": {
-        "input_cost_per_million_tokens": 0.30,
-        "output_cost_per_million_tokens": 2.50
+        "input_cost_per_million_tokens": 0.3,
+        "output_cost_per_million_tokens": 2.5
       },
       "context_window": 1048576,
       "supports_function_calling": true

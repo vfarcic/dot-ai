@@ -42,8 +42,13 @@ function extractTraceContext(req: IncomingMessage) {
 /**
  * Build span attributes from HTTP request
  */
-function buildSpanAttributes(req: IncomingMessage): Partial<HttpServerSpanAttributes> {
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+function buildSpanAttributes(
+  req: IncomingMessage
+): Partial<HttpServerSpanAttributes> {
+  const url = new URL(
+    req.url || '/',
+    `http://${req.headers.host || 'localhost'}`
+  );
 
   const attributes: Partial<HttpServerSpanAttributes> = {
     'http.request.method': req.method || 'UNKNOWN',
@@ -83,14 +88,18 @@ function buildSpanAttributes(req: IncomingMessage): Partial<HttpServerSpanAttrib
  *
  * Returns a function to end the span with response status code
  */
-export function createHttpServerSpan(
-  req: IncomingMessage
-): { span: Span; endSpan: (statusCode: number) => void } {
+export function createHttpServerSpan(req: IncomingMessage): {
+  span: Span;
+  endSpan: (statusCode: number) => void;
+} {
   // Extract parent trace context from headers
   const parentContext = extractTraceContext(req);
 
   // Build span name: "{METHOD} {route}"
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const url = new URL(
+    req.url || '/',
+    `http://${req.headers.host || 'localhost'}`
+  );
   const spanName = `${req.method} ${url.pathname}`;
 
   // Get tracer instance (returns no-op if tracing disabled)

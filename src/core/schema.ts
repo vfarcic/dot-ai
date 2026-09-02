@@ -1042,22 +1042,21 @@ export class ResourceRecommender {
     const patternsContext =
       knowledgeChunks.length > 0
         ? knowledgeChunks
-            .map(
-              chunk => {
-                const typeLabel = chunk.tags.length > 0
+            .map(chunk => {
+              const typeLabel =
+                chunk.tags.length > 0
                   ? `[${chunk.tags.join(', ')}]`
                   : '[general]';
-                return `- ${typeLabel} ${chunk.content.substring(0, 300)}${chunk.content.length > 300 ? '...' : ''}
+              return `- ${typeLabel} ${chunk.content.substring(0, 300)}${chunk.content.length > 300 ? '...' : ''}
             Source: ${chunk.uri}`;
-              }
-            )
+            })
             .join('\n\n')
         : 'No organizational knowledge found for this request.';
 
     return loadPrompt('resource-selection', {
       intent,
       resources: resourcesText,
-      patterns: patternsContext,  // Template variable name kept for backward compat
+      patterns: patternsContext, // Template variable name kept for backward compat
     });
   }
 
@@ -1448,15 +1447,14 @@ ${properties}`;
       const policyContextText =
         knowledgeChunks.length > 0
           ? knowledgeChunks
-              .map(
-                chunk => {
-                  const typeLabel = chunk.tags.length > 0
+              .map(chunk => {
+                const typeLabel =
+                  chunk.tags.length > 0
                     ? `[${chunk.tags.join(', ')}]`
                     : '[general]';
-                  return `- ${typeLabel} ${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}
+                return `- ${typeLabel} ${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}
   Source: ${chunk.uri}`;
-                }
-              )
+              })
               .join('\n')
           : 'No organizational knowledge found for this request.';
 
@@ -1509,13 +1507,18 @@ ${resourceDetails}`;
             q.options.length > 0 &&
             q.suggestedAnswer !== undefined
           ) {
-            if (q.type === 'select' && !q.options.includes(q.suggestedAnswer as string)) {
+            if (
+              q.type === 'select' &&
+              !q.options.includes(q.suggestedAnswer as string)
+            ) {
               q.suggestedAnswer = q.options[0];
             } else if (q.type === 'multiselect') {
               if (!Array.isArray(q.suggestedAnswer)) {
                 q.suggestedAnswer = [q.options[0]];
               } else {
-                q.suggestedAnswer = (q.suggestedAnswer as string[]).filter(a => q.options!.includes(a));
+                q.suggestedAnswer = (q.suggestedAnswer as string[]).filter(a =>
+                  q.options!.includes(a)
+                );
                 if ((q.suggestedAnswer as string[]).length === 0) {
                   q.suggestedAnswer = [q.options[0]];
                 }
@@ -1523,7 +1526,11 @@ ${resourceDetails}`;
             }
           }
           // Clamp number suggestedAnswer to validation.min/max bounds
-          if (q.type === 'number' && q.suggestedAnswer !== undefined && q.validation) {
+          if (
+            q.type === 'number' &&
+            q.suggestedAnswer !== undefined &&
+            q.validation
+          ) {
             let num = Number(q.suggestedAnswer);
             if (!isNaN(num)) {
               if (q.validation.min !== undefined && num < q.validation.min) {
@@ -1632,15 +1639,14 @@ ${readme || 'No README available'}`;
       const policyContextText =
         helmKnowledgeChunks.length > 0
           ? helmKnowledgeChunks
-              .map(
-                chunk => {
-                  const typeLabel = chunk.tags.length > 0
+              .map(chunk => {
+                const typeLabel =
+                  chunk.tags.length > 0
                     ? `[${chunk.tags.join(', ')}]`
                     : '[general]';
-                  return `- ${typeLabel} ${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}
+                return `- ${typeLabel} ${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}
   Source: ${chunk.uri}`;
-                }
-              )
+              })
               .join('\n')
           : 'No organizational knowledge found for this request.';
 

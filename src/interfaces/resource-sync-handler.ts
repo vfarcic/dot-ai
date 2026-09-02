@@ -6,7 +6,12 @@
  */
 
 import { Logger } from '../core/error-handling';
-import { ResourceVectorService, ClusterResource, ResourceSyncRequest, generateResourceId } from '../core/resource-vector-service';
+import {
+  ResourceVectorService,
+  ClusterResource,
+  ResourceSyncRequest,
+  generateResourceId,
+} from '../core/resource-vector-service';
 import { RestApiResponse } from './rest-api';
 import { CircuitOpenError } from '../core/circuit-breaker';
 
@@ -24,7 +29,10 @@ export function resetResourcesCollectionState(): void {
 /**
  * Validate a single cluster resource object
  */
-function validateClusterResource(resource: unknown, index: number): { valid: boolean; errors: string[] } {
+function validateClusterResource(
+  resource: unknown,
+  index: number
+): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   if (!resource || typeof resource !== 'object') {
@@ -33,7 +41,11 @@ function validateClusterResource(resource: unknown, index: number): { valid: boo
 
   const r = resource as Record<string, unknown>;
 
-  if (!r.namespace || typeof r.namespace !== 'string' || r.namespace.length === 0) {
+  if (
+    !r.namespace ||
+    typeof r.namespace !== 'string' ||
+    r.namespace.length === 0
+  ) {
     errors.push(`upserts[${index}].namespace: required string field`);
   }
   if (!r.name || typeof r.name !== 'string' || r.name.length === 0) {
@@ -42,7 +54,11 @@ function validateClusterResource(resource: unknown, index: number): { valid: boo
   if (!r.kind || typeof r.kind !== 'string' || r.kind.length === 0) {
     errors.push(`upserts[${index}].kind: required string field`);
   }
-  if (!r.apiVersion || typeof r.apiVersion !== 'string' || r.apiVersion.length === 0) {
+  if (
+    !r.apiVersion ||
+    typeof r.apiVersion !== 'string' ||
+    r.apiVersion.length === 0
+  ) {
     errors.push(`upserts[${index}].apiVersion: required string field`);
   }
   if (!r.createdAt || typeof r.createdAt !== 'string') {
@@ -58,7 +74,11 @@ function validateClusterResource(resource: unknown, index: number): { valid: boo
 /**
  * Validate the sync request body
  */
-function validateSyncRequest(body: unknown): { valid: boolean; errors: string[]; data?: ResourceSyncRequest } {
+function validateSyncRequest(body: unknown): {
+  valid: boolean;
+  errors: string[];
+  data?: ResourceSyncRequest;
+} {
   const errors: string[] = [];
 
   if (!body || typeof body !== 'object') {
@@ -92,7 +112,7 @@ function validateSyncRequest(body: unknown): { valid: boolean; errors: string[];
             labels: (r.labels as Record<string, string>) || {},
             annotations: r.annotations as Record<string, string> | undefined,
             createdAt: r.createdAt as string,
-            updatedAt: r.updatedAt as string
+            updatedAt: r.updatedAt as string,
           });
         }
       }
@@ -147,7 +167,7 @@ function validateSyncRequest(body: unknown): { valid: boolean; errors: string[];
   return {
     valid: true,
     errors: [],
-    data: { upserts, deletes, isResync }
+    data: { upserts, deletes, isResync },
   };
 }
 
@@ -189,7 +209,7 @@ export async function handleResourceSync(
   if (!validation.valid) {
     logger.warn('Resource sync request validation failed', {
       requestId,
-      errors: validation.errors
+      errors: validation.errors,
     });
 
     return {
@@ -199,14 +219,14 @@ export async function handleResourceSync(
         message: 'Invalid request body',
         details: validation.errors.map(e => ({
           path: e.split(':')[0] || 'unknown',
-          message: e.split(':').slice(1).join(':').trim() || e
-        }))
+          message: e.split(':').slice(1).join(':').trim() || e,
+        })),
       },
       meta: {
         timestamp: new Date().toISOString(),
         requestId,
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     };
   }
 
@@ -217,7 +237,7 @@ export async function handleResourceSync(
     requestId,
     upsertCount: upserts.length,
     deleteCount: deletes.length,
-    isResync
+    isResync,
   });
 
   // Initialize the resource vector service
@@ -225,19 +245,23 @@ export async function handleResourceSync(
   try {
     resourceService = new ResourceVectorService();
   } catch (error) {
-    logger.error('Failed to create ResourceVectorService', error as Error, { requestId });
+    logger.error('Failed to create ResourceVectorService', error as Error, {
+      requestId,
+    });
     return {
       success: false,
       error: {
         code: 'SERVICE_INIT_FAILED',
         message: 'Failed to create resource vector service',
-        details: { error: error instanceof Error ? error.message : String(error) }
+        details: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       },
       meta: {
         timestamp: new Date().toISOString(),
         requestId,
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     };
   }
 
@@ -252,32 +276,38 @@ export async function handleResourceSync(
       error: {
         code: 'HEALTH_CHECK_FAILED',
         message: 'Vector DB health check threw exception',
-        details: { error: error instanceof Error ? error.message : String(error) }
+        details: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       },
       meta: {
         timestamp: new Date().toISOString(),
         requestId,
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     };
   }
 
   if (!isHealthy) {
-    logger.error('Vector DB health check failed', new Error('Qdrant unavailable'), { requestId });
+    logger.error(
+      'Vector DB health check failed',
+      new Error('Qdrant unavailable'),
+      { requestId }
+    );
     return {
       success: false,
       error: {
         code: 'VECTOR_DB_UNAVAILABLE',
         message: 'Vector database is not available',
         details: {
-          recommendation: 'Ensure Qdrant is running and accessible'
-        }
+          recommendation: 'Ensure Qdrant is running and accessible',
+        },
       },
       meta: {
         timestamp: new Date().toISOString(),
         requestId,
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     };
   }
 
@@ -287,21 +317,25 @@ export async function handleResourceSync(
       await resourceService.initialize();
       resourcesCollectionInitialized = true;
     } catch (error) {
-      logger.error('Failed to initialize resources collection', error as Error, { requestId });
+      logger.error(
+        'Failed to initialize resources collection',
+        error as Error,
+        { requestId }
+      );
       return {
         success: false,
         error: {
           code: 'COLLECTION_INIT_FAILED',
           message: 'Failed to initialize resources collection',
           details: {
-            error: error instanceof Error ? error.message : String(error)
-          }
+            error: error instanceof Error ? error.message : String(error),
+          },
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
     }
   }
@@ -316,17 +350,19 @@ export async function handleResourceSync(
   if (isResync && upserts.length > 0) {
     logger.info('Processing resync with diff', {
       requestId,
-      incomingResourceCount: upserts.length
+      incomingResourceCount: upserts.length,
     });
 
     try {
-      const diffResult = await resourceService.diffAndSync(upserts as ClusterResource[]);
+      const diffResult = await resourceService.diffAndSync(
+        upserts as ClusterResource[]
+      );
 
       logger.info('Resync diff completed', {
         requestId,
         inserted: diffResult.inserted,
         updated: diffResult.updated,
-        deleted: diffResult.deleted
+        deleted: diffResult.deleted,
       });
 
       return {
@@ -340,14 +376,14 @@ export async function handleResourceSync(
             deleted: diffResult.deleted,
             insertedResources: diffResult.insertedResources,
             updatedResources: diffResult.updatedResources,
-            deletedResources: diffResult.deletedResources
-          }
+            deletedResources: diffResult.deletedResources,
+          },
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
     } catch (error) {
       logger.error('Resync diff failed', error as Error, { requestId });
@@ -357,21 +393,26 @@ export async function handleResourceSync(
           code: 'RESYNC_FAILED',
           message: 'Failed to perform resync diff',
           details: {
-            error: error instanceof Error ? error.message : String(error)
-          }
+            error: error instanceof Error ? error.message : String(error),
+          },
         },
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          version: 'v1'
-        }
+          version: 'v1',
+        },
       };
     }
   }
 
   // Handle upserts - process each resource
   for (const resource of upserts) {
-    const resourceId = generateResourceId(resource.namespace, resource.apiVersion, resource.kind, resource.name);
+    const resourceId = generateResourceId(
+      resource.namespace,
+      resource.apiVersion,
+      resource.kind,
+      resource.name
+    );
     try {
       await resourceService.upsertResource(resource);
       upserted++;
@@ -383,18 +424,19 @@ export async function handleResourceSync(
           logger.warn('Circuit breaker open, skipping resource upserts', {
             requestId,
             circuitName: error.circuitName,
-            remainingCooldownMs: error.remainingCooldownMs
+            remainingCooldownMs: error.remainingCooldownMs,
           });
           circuitBreakerLoggedOnce = true;
         }
       } else {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         failures.push({ id: resourceId, error: errorMessage });
 
         logger.warn('Failed to upsert resource', {
           requestId,
           resourceId,
-          error: errorMessage
+          error: errorMessage,
         });
       }
     }
@@ -406,11 +448,11 @@ export async function handleResourceSync(
       requestId,
       skippedCount: circuitBreakerSkipped,
       totalUpserts: upserts.length,
-      totalDeletes: deletes.length
+      totalDeletes: deletes.length,
     });
     failures.push({
       id: 'circuit-breaker',
-      error: `Skipped ${circuitBreakerSkipped} resource(s) due to circuit breaker open`
+      error: `Skipped ${circuitBreakerSkipped} resource(s) due to circuit breaker open`,
     });
   }
 
@@ -421,13 +463,14 @@ export async function handleResourceSync(
       deleted++;
     } catch (error) {
       // deleteResource is already idempotent, but handle any other errors
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       failures.push({ id, error: errorMessage });
 
       logger.warn('Failed to delete resource', {
         requestId,
         resourceId: id,
-        error: errorMessage
+        error: errorMessage,
       });
     }
   }
@@ -441,7 +484,7 @@ export async function handleResourceSync(
       upserted,
       deleted,
       failureCount: failures.length,
-      executionTime
+      executionTime,
     });
 
     return {
@@ -452,14 +495,14 @@ export async function handleResourceSync(
         details: {
           upserted,
           deleted,
-          failures
-        } as ResourceSyncFailureDetails
+          failures,
+        } as ResourceSyncFailureDetails,
       },
       meta: {
         timestamp: new Date().toISOString(),
         requestId,
-        version: 'v1'
-      }
+        version: 'v1',
+      },
     };
   }
 
@@ -467,19 +510,19 @@ export async function handleResourceSync(
     requestId,
     upserted,
     deleted,
-    executionTime
+    executionTime,
   });
 
   return {
     success: true,
     data: {
       upserted,
-      deleted
+      deleted,
     } as ResourceSyncResponseData,
     meta: {
       timestamp: new Date().toISOString(),
       requestId,
-      version: 'v1'
-    }
+      version: 'v1',
+    },
   };
 }

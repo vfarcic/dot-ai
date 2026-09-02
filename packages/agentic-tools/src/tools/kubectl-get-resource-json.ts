@@ -43,9 +43,17 @@ export const kubectlGetResourceJson: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
-    const resource = requireParam<string>(args, 'resource', 'kubectl_get_resource_json');
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+  handler: withValidation(async args => {
+    const resource = requireParam<string>(
+      args,
+      'resource',
+      'kubectl_get_resource_json'
+    );
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
     const field = optionalParam<string | undefined>(args, 'field', undefined);
 
     const cmdArgs = ['get', resource, '-o', 'json'];
@@ -61,7 +69,8 @@ export const kubectlGetResourceJson: KubectlTool = {
       try {
         parsed = JSON.parse(output) as Record<string, unknown>;
       } catch (parseError) {
-        const parseMessage = parseError instanceof Error ? parseError.message : String(parseError);
+        const parseMessage =
+          parseError instanceof Error ? parseError.message : String(parseError);
         return errorResult(
           `Failed to parse kubectl output as JSON: ${parseMessage}`,
           `Raw output: ${output.slice(0, 500)}${output.length > 500 ? '...' : ''}`
@@ -88,7 +97,10 @@ export const kubectlGetResourceJson: KubectlTool = {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Failed to get ${resource} as JSON: ${message}`);
+      return errorResult(
+        message,
+        `Failed to get ${resource} as JSON: ${message}`
+      );
     }
   }),
 };

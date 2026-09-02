@@ -19,6 +19,6 @@ export function handleDescribe(): DescribeResponse {
   return {
     name: PLUGIN_NAME,
     version: PLUGIN_VERSION,
-    tools: TOOLS
+    tools: TOOLS,
   };
 }

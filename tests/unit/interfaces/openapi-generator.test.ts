@@ -8,6 +8,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
+import { createNoopLogger } from '../helpers/mock-logger.js';
 import { z } from 'zod';
 import { OpenApiGenerator } from '../../../src/interfaces/openapi-generator';
 import { RestToolRegistry } from '../../../src/interfaces/rest-registry';
@@ -15,12 +16,7 @@ import { RestRouteRegistry } from '../../../src/interfaces/rest-route-registry';
 import { Logger } from '../../../src/core/error-handling';
 
 // Silent logger for testing
-const mockLogger: Logger = {
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-};
+const mockLogger: Logger = createNoopLogger();
 
 // Minimal OpenAPI parameter shape we assert against
 type OpenApiParameter = {
@@ -94,16 +90,16 @@ describe('OpenApiGenerator', () => {
 
       const spec = generator.generateSpec();
 
-      const listParams = (spec.paths['/api/v1/prompts'].get
-        .parameters ?? []) as OpenApiParameter[];
+      const listParams = (spec.paths['/api/v1/prompts'].get.parameters ??
+        []) as OpenApiParameter[];
       const renderParams = (spec.paths['/api/v1/prompts/{promptName}'].post
         .parameters ?? []) as OpenApiParameter[];
 
       const listSource = listParams.find(
-        (p) => p.name === 'source' && p.in === 'query'
+        p => p.name === 'source' && p.in === 'query'
       );
       const renderSource = renderParams.find(
-        (p) => p.name === 'source' && p.in === 'query'
+        p => p.name === 'source' && p.in === 'query'
       );
 
       expect(listSource).toBeDefined();

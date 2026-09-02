@@ -24,9 +24,42 @@
 
 const SUPPORTED_PREFIXES = ['gho_', 'ghu_'];
 
+/**
+ * Env vars consulted for a Copilot credential, in resolution priority order.
+ */
+export const COPILOT_TOKEN_ENV_VARS = [
+  'GITHUB_COPILOT_TOKEN',
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+] as const;
+
 export function isSupportedCopilotToken(token: string): boolean {
   return SUPPORTED_PREFIXES.some(p => token.startsWith(p));
 }
+
+/**
+ * First *supported* token in the env chain, or undefined if there is none.
+ *
+ * Note this is first-supported-wins, not first-set-wins: an unsupported token
+ * in an earlier slot (e.g. a stale ghp_* in GITHUB_COPILOT_TOKEN) does not mask
+ * a usable one in a later slot.
+ *
+ * Exported so that test gates deciding "is a live Copilot credential available?"
+ * can share this exact logic with resolve() rather than re-deriving the chain.
+ * Hand-copied duplicates of it have drifted from the resolver twice (#759, #776).
+ */
+export function findSupportedCopilotTokenInEnv(
+  env: NodeJS.ProcessEnv = process.env
+): string | undefined {
+  for (const envVar of COPILOT_TOKEN_ENV_VARS) {
+    const val = env[envVar];
+    if (val && isSupportedCopilotToken(val)) {
+      return val;
+    }
+  }
+  return undefined;
+}
+
 export interface CopilotCredentialResolver {
   /**
    * Resolve a GitHub token from the environment chain / CLI.
@@ -53,15 +86,9 @@ export function makeCopilotCredentialResolver(
       }
 
       // 2. Env chain
-      for (const envVar of [
-        'GITHUB_COPILOT_TOKEN',
-        'GH_TOKEN',
-        'GITHUB_TOKEN',
-      ]) {
-        const val = process.env[envVar];
-        if (val && isSupportedCopilotToken(val)) {
-          return val;
-        }
+      const fromEnv = findSupportedCopilotTokenInEnv();
+      if (fromEnv) {
+        return fromEnv;
       }
 
       throw new Error(

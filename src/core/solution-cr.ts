@@ -11,7 +11,7 @@ export interface SolutionCROptions {
   solutionId: string;
   namespace: string;
   solution: SolutionData;
-  generatedManifestsYaml: string;  // Already-generated application manifests
+  generatedManifestsYaml: string; // Already-generated application manifests
 }
 
 /**
@@ -25,13 +25,15 @@ export function generateSolutionCR(options: SolutionCROptions): string {
   const { solutionId, namespace, solution, generatedManifestsYaml } = options;
 
   // Parse generated manifests to extract actual resource references
-  const resourceReferences = extractResourceReferences(generatedManifestsYaml, namespace);
+  const resourceReferences = extractResourceReferences(
+    generatedManifestsYaml,
+    namespace
+  );
 
   // Build rationale from solution description and reasons
-  const rationale = [
-    solution.description,
-    ...solution.reasons
-  ].filter(Boolean).join('\n\n');
+  const rationale = [solution.description, ...solution.reasons]
+    .filter(Boolean)
+    .join('\n\n');
 
   // Get patterns and policies from session
   const patterns = solution.appliedPatterns || [];
@@ -46,8 +48,8 @@ export function generateSolutionCR(options: SolutionCROptions): string {
       namespace: namespace,
       labels: {
         'dot-ai.devopstoolkit.live/created-by': 'dot-ai-mcp',
-        'dot-ai.devopstoolkit.live/solution-id': solutionId
-      }
+        'dot-ai.devopstoolkit.live/solution-id': solutionId,
+      },
     },
     spec: {
       intent: solution.intent,
@@ -56,9 +58,9 @@ export function generateSolutionCR(options: SolutionCROptions): string {
         createdBy: 'dot-ai-mcp',
         rationale: rationale,
         patterns: patterns,
-        policies: policies
-      }
-    }
+        policies: policies,
+      },
+    },
   };
 
   // Convert to YAML
@@ -84,7 +86,10 @@ interface ParsedManifest {
  * @param defaultNamespace Default namespace if not specified in manifest
  * @returns Array of resource references
  */
-function extractResourceReferences(manifestsYaml: string, defaultNamespace: string): Array<{
+function extractResourceReferences(
+  manifestsYaml: string,
+  defaultNamespace: string
+): Array<{
   apiVersion: string;
   kind: string;
   name: string;
@@ -94,16 +99,32 @@ function extractResourceReferences(manifestsYaml: string, defaultNamespace: stri
     const manifests = yaml.loadAll(manifestsYaml) as ParsedManifest[];
 
     return manifests
-      .filter((manifest): manifest is ParsedManifest & { kind: string; apiVersion: string; metadata: { name: string } } =>
-        Boolean(manifest && manifest.kind && manifest.apiVersion && manifest.metadata?.name))
-      .map((manifest) => ({
+      .filter(
+        (
+          manifest
+        ): manifest is ParsedManifest & {
+          kind: string;
+          apiVersion: string;
+          metadata: { name: string };
+        } =>
+          Boolean(
+            manifest &&
+            manifest.kind &&
+            manifest.apiVersion &&
+            manifest.metadata?.name
+          )
+      )
+      .map(manifest => ({
         apiVersion: manifest.apiVersion,
         kind: manifest.kind,
         name: manifest.metadata.name,
-        namespace: manifest.metadata.namespace || defaultNamespace
+        namespace: manifest.metadata.namespace || defaultNamespace,
       }));
   } catch (error) {
-    console.error('Failed to extract resource references from manifests:', error);
+    console.error(
+      'Failed to extract resource references from manifests:',
+      error
+    );
     return [];
   }
 }

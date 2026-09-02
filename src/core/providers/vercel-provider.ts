@@ -307,10 +307,17 @@ export class VercelProvider implements AIProvider {
               headers.set(k, v);
             }
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), COPILOT_FETCH_TIMEOUT_MS);
+            const timeoutId = setTimeout(
+              () => controller.abort(),
+              COPILOT_FETCH_TIMEOUT_MS
+            );
             let response: Response;
             try {
-              response = await fetch(url, { ...init, headers, signal: controller.signal });
+              response = await fetch(url, {
+                ...init,
+                headers,
+                signal: controller.signal,
+              });
             } finally {
               clearTimeout(timeoutId);
             }
@@ -326,9 +333,16 @@ export class VercelProvider implements AIProvider {
                 retryHeaders.set(k, v);
               }
               const retryController = new AbortController();
-              const retryTimeoutId = setTimeout(() => retryController.abort(), COPILOT_FETCH_TIMEOUT_MS);
+              const retryTimeoutId = setTimeout(
+                () => retryController.abort(),
+                COPILOT_FETCH_TIMEOUT_MS
+              );
               try {
-                return await fetch(url, { ...init, headers: retryHeaders, signal: retryController.signal });
+                return await fetch(url, {
+                  ...init,
+                  headers: retryHeaders,
+                  signal: retryController.signal,
+                });
               } finally {
                 clearTimeout(retryTimeoutId);
               }
@@ -342,7 +356,7 @@ export class VercelProvider implements AIProvider {
             // final URL is https://api.githubcopilot.com/v1/messages.
             const anthropicProvider = createAnthropic({
               baseURL: 'https://api.githubcopilot.com/v1',
-              apiKey: 'unused',    // required by SDK but overridden by copilotFetch
+              apiKey: 'unused', // required by SDK but overridden by copilotFetch
               fetch: copilotFetch,
             });
             this.modelInstance = anthropicProvider(this.model);

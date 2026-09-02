@@ -59,7 +59,12 @@ function isTelemetryEnabled(): boolean {
   const telemetryEnv = process.env.DOT_AI_TELEMETRY?.toLowerCase();
 
   // Explicit disable
-  if (telemetryEnv === 'false' || telemetryEnv === '0' || telemetryEnv === 'no' || telemetryEnv === 'off') {
+  if (
+    telemetryEnv === 'false' ||
+    telemetryEnv === '0' ||
+    telemetryEnv === 'no' ||
+    telemetryEnv === 'off'
+  ) {
     return false;
   }
 
@@ -85,7 +90,7 @@ export function loadTelemetryConfig(): TelemetryConfig {
     posthogHost: process.env.DOT_AI_POSTHOG_HOST || DEFAULT_POSTHOG_HOST,
     dotAiVersion: getDotAiVersion(),
     aiProvider: getAiProvider(),
-    debug: isDebugMode()
+    debug: isDebugMode(),
   };
 
   // Log configuration in debug mode

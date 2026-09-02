@@ -14,10 +14,12 @@
 **🔴 RUNNING INTEGRATION TESTS IN CLAUDE CODE:**
 
 Integration tests take several minutes to complete. When running via Claude Code Bash tool:
+
 - Use higher timeout: `timeout: 600000` (10 minutes) in Bash tool calls
 - Or run tests manually in terminal and report results back
 
 **Commands:**
+
 ```bash
 # Run all integration tests
 npm run test:integration
@@ -42,6 +44,7 @@ When tests fail with `DEBUG_DOT_AI=true`, debug prompts and AI responses are wri
 **⚠️ IMPORTANT:** Always run complete test files, not individual tests. The test infrastructure sets up a fresh cluster for each run, so filtering to individual tests doesn't save time and may cause issues with test isolation.
 
 **❌ TEST IS NOT ACCEPTABLE IF:**
+
 - It duplicates functionality already tested elsewhere
 - It uses inconsistent validation patterns (mixing `.toBe()` with `toMatchObject`)
 - It uses generic assertions when specific values are known
@@ -58,7 +61,7 @@ describe('Tool Integration Tests', () => {
   // Clean state ONCE before all tests to prevent race conditions
   beforeAll(async () => {
     await integrationTest.httpClient.post('/api/v1/tools/toolName', {
-      operation: 'deleteAll' // Clean slate for all tests
+      operation: 'deleteAll', // Clean slate for all tests
     });
   });
 
@@ -69,7 +72,6 @@ describe('Tool Integration Tests', () => {
     // 4. SEARCH to verify searchability (if applicable)
     // 5. DELETE to verify removal
     // 6. GET again to verify deletion
-
     // This ONE test covers all integration scenarios
   }, 300000); // Long timeout for comprehensive test
 
@@ -95,10 +97,10 @@ const expectedResponse = {
         description: expect.stringContaining('Database clustering'), // Known content
         triggers: expect.arrayContaining(['databases', 'SQL databases']), // Actual values
         rationale: 'StatefulSet provides ordered deployment...', // Exact text we provided
-        createdBy: 'Integration Test Suite' // Known value
-      }
-    }
-  }
+        createdBy: 'Integration Test Suite', // Known value
+      },
+    },
+  },
 };
 
 expect(response).toMatchObject(expectedResponse);
@@ -153,10 +155,18 @@ beforeEach(async () => {
 
 ```typescript
 // ❌ DON'T create separate tests for operations covered in comprehensive test
-test('should create pattern', async () => { /* Already covered */ });
-test('should list patterns', async () => { /* Already covered */ });
-test('should search patterns', async () => { /* Already covered */ });
-test('should delete pattern', async () => { /* Already covered */ });
+test('should create pattern', async () => {
+  /* Already covered */
+});
+test('should list patterns', async () => {
+  /* Already covered */
+});
+test('should search patterns', async () => {
+  /* Already covered */
+});
+test('should delete pattern', async () => {
+  /* Already covered */
+});
 
 // ❌ DON'T use speculative comments
 // "Should handle gracefully - likely creates new session or returns error"
@@ -173,18 +183,21 @@ expect(response.success).toBe(true); // Inconsistent with toMatchObject elsewher
 ## Integration Test Categories
 
 ### 1. Comprehensive Workflow Tests
+
 - **Purpose**: Test complete end-to-end functionality
 - **Pattern**: CREATE → READ → LIST → SEARCH → DELETE in one test
 - **Timeout**: Long (300000ms) to accommodate full workflow
 - **Coverage**: All major operations, session continuity, data persistence
 
 ### 2. Error Handling Tests
+
 - **Purpose**: Test specific error conditions
 - **Pattern**: Send invalid input, validate specific error response
 - **Validation**: Use exact error messages when known
 - **Focus**: Edge cases, validation failures, missing parameters
 
 ### 3. Parameter Validation Tests
+
 - **Purpose**: Test input parameter requirements
 - **Pattern**: Omit required parameters, validate error response
 - **Specificity**: Check exact validation messages
@@ -198,10 +211,13 @@ test('should complete full interactive pattern creation workflow', async () => {
   const testId = Date.now();
 
   // Step 1: Start workflow
-  const startResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-    dataType: 'pattern',
-    operation: 'create'
-  });
+  const startResponse = await integrationTest.httpClient.post(
+    '/api/v1/tools/manageOrgData',
+    {
+      dataType: 'pattern',
+      operation: 'create',
+    }
+  );
 
   const expectedStartResponse = {
     success: true,
@@ -211,10 +227,10 @@ test('should complete full interactive pattern creation workflow', async () => {
         workflow: {
           sessionId: expect.stringMatching(/^pattern-\d+-[a-f0-9-]+$/),
           entityType: 'pattern',
-          nextStep: 'triggers'
-        }
-      }
-    }
+          nextStep: 'triggers',
+        },
+      },
+    },
   };
 
   expect(startResponse).toMatchObject(expectedStartResponse);
@@ -228,11 +244,14 @@ test('should complete full interactive pattern creation workflow', async () => {
 
 ```typescript
 test('should handle missing ID for get operation', async () => {
-  const errorResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-    dataType: 'pattern',
-    operation: 'get'
-    // Missing id parameter
-  });
+  const errorResponse = await integrationTest.httpClient.post(
+    '/api/v1/tools/manageOrgData',
+    {
+      dataType: 'pattern',
+      operation: 'get',
+      // Missing id parameter
+    }
+  );
 
   const expectedErrorResponse = {
     success: true,
@@ -240,10 +259,10 @@ test('should handle missing ID for get operation', async () => {
       result: {
         success: false,
         error: {
-          message: expect.stringContaining('Pattern ID is required')
-        }
-      }
-    }
+          message: expect.stringContaining('Pattern ID is required'),
+        },
+      },
+    },
   };
 
   expect(errorResponse).toMatchObject(expectedErrorResponse);
@@ -308,14 +327,14 @@ const expectedResponse = {
       dataType: 'resourceType',
       data: expect.objectContaining({
         // Specific known values
-      })
+      }),
     },
     tool: 'toolName',
-    executionTime: expect.any(Number)
+    executionTime: expect.any(Number),
   },
   meta: expect.objectContaining({
-    version: 'v1'
-  })
+    version: 'v1',
+  }),
 };
 ```
 

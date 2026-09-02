@@ -1,13 +1,21 @@
 /**
  * Capability Vector Service
- * 
+ *
  * Vector-based storage and retrieval for resource capabilities
  * Extends BaseVectorService to provide capability-specific operations
  */
 
-import { BaseVectorService, BaseSearchOptions, BaseSearchResult } from './base-vector-service';
+import {
+  BaseVectorService,
+  BaseSearchOptions,
+  BaseSearchResult,
+} from './base-vector-service';
 import { EmbeddingService } from './embedding-service';
-import { CapabilityInferenceEngine, ResourceCapability, PrinterColumn } from './capabilities';
+import {
+  CapabilityInferenceEngine,
+  ResourceCapability,
+  PrinterColumn,
+} from './capabilities';
 
 // Re-export for backward compatibility
 export type { ResourceCapability, PrinterColumn };
@@ -21,8 +29,10 @@ export interface CapabilitySearchOptions extends BaseSearchOptions {
  * Vector service for storing and searching resource capabilities
  */
 export class CapabilityVectorService extends BaseVectorService<ResourceCapability> {
-
-  constructor(collectionName: string = 'capabilities', embeddingService?: EmbeddingService) {
+  constructor(
+    collectionName: string = 'capabilities',
+    embeddingService?: EmbeddingService
+  ) {
     super(collectionName, embeddingService);
   }
 
@@ -37,7 +47,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       ...capability.abstractions,
       capability.description,
       capability.useCase,
-      capability.complexity
+      capability.complexity,
     ].join(' ');
   }
 
@@ -45,13 +55,17 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
    * Extract unique ID from capability data
    */
   protected extractId(capability: ResourceCapability): string {
-    return CapabilityInferenceEngine.generateCapabilityId(capability.resourceName);
+    return CapabilityInferenceEngine.generateCapabilityId(
+      capability.resourceName
+    );
   }
 
   /**
    * Convert capability to storage payload format
    */
-  protected createPayload(capability: ResourceCapability): Record<string, unknown> {
+  protected createPayload(
+    capability: ResourceCapability
+  ): Record<string, unknown> {
     return {
       resourceName: capability.resourceName,
       apiVersion: capability.apiVersion,
@@ -65,14 +79,16 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       useCase: capability.useCase,
       printerColumns: capability.printerColumns,
       confidence: capability.confidence,
-      analyzedAt: capability.analyzedAt
+      analyzedAt: capability.analyzedAt,
     };
   }
 
   /**
    * Convert storage payload back to capability object
    */
-  protected payloadToData(payload: Record<string, unknown>): ResourceCapability {
+  protected payloadToData(
+    payload: Record<string, unknown>
+  ): ResourceCapability {
     return {
       resourceName: payload.resourceName as string,
       apiVersion: payload.apiVersion as string | undefined,
@@ -86,7 +102,7 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       useCase: (payload.useCase as string) || '',
       printerColumns: payload.printerColumns as PrinterColumn[] | undefined,
       confidence: (payload.confidence as number) || 0,
-      analyzedAt: (payload.analyzedAt as string) || new Date().toISOString()
+      analyzedAt: (payload.analyzedAt as string) || new Date().toISOString(),
     };
   }
 
@@ -101,25 +117,28 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
    * Search capabilities by user intent with optional filters
    */
   async searchCapabilities(
-    intent: string, 
+    intent: string,
     options: CapabilitySearchOptions = {}
   ): Promise<BaseSearchResult<ResourceCapability>[]> {
     const results = await this.searchData(intent, options);
-    
+
     // Apply complexity filter if specified
     if (options.complexityFilter) {
-      return results.filter((result: BaseSearchResult<ResourceCapability>) => result.data.complexity === options.complexityFilter);
+      return results.filter(
+        (result: BaseSearchResult<ResourceCapability>) =>
+          result.data.complexity === options.complexityFilter
+      );
     }
-    
-    // Apply provider filter if specified  
+
+    // Apply provider filter if specified
     if (options.providerFilter && options.providerFilter.length > 0) {
-      return results.filter((result: BaseSearchResult<ResourceCapability>) => 
-        result.data.providers.some((provider: string) => 
+      return results.filter((result: BaseSearchResult<ResourceCapability>) =>
+        result.data.providers.some((provider: string) =>
           options.providerFilter!.includes(provider)
         )
       );
     }
-    
+
     return results;
   }
 
@@ -139,12 +158,13 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
    * @param apiVersion - Full apiVersion (e.g., "apps/v1", "postgresql.cnpg.io/v1")
    * @returns Matching capability or null if not found
    */
-  async getCapabilityByKindApiVersion(kind: string, apiVersion: string): Promise<ResourceCapability | null> {
+  async getCapabilityByKindApiVersion(
+    kind: string,
+    apiVersion: string
+  ): Promise<ResourceCapability | null> {
     // Build Qdrant filter for exact apiVersion match
     const filter = {
-      must: [
-        { key: 'apiVersion', match: { value: apiVersion } }
-      ]
+      must: [{ key: 'apiVersion', match: { value: apiVersion } }],
     };
 
     const results = await this.queryWithFilter(filter, 100);
@@ -162,16 +182,28 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
       // Exact match
       if (resourceNameLower === kindLower) return true;
       // Pluralized exact match (e.g., "deployment" -> "deployments")
-      if (resourceNameLower === kindLower + 's' || resourceNameLower === kindLower + 'es') return true;
+      if (
+        resourceNameLower === kindLower + 's' ||
+        resourceNameLower === kindLower + 'es'
+      )
+        return true;
       // CRD format: Kind.group (e.g., "deployment" -> "deployment.apps")
       // Must match kind followed by a dot to avoid false positives like "cluster" matching "clusterroles"
       if (resourceNameLower.startsWith(kindLower + '.')) return true;
       // CRD format: plural.group (e.g., "cluster" -> "clusters.devopstoolkit.live")
-      if (resourceNameLower.startsWith(kindLower + 's.') || resourceNameLower.startsWith(kindLower + 'es.')) return true;
+      if (
+        resourceNameLower.startsWith(kindLower + 's.') ||
+        resourceNameLower.startsWith(kindLower + 'es.')
+      )
+        return true;
       // Handle -y -> -ies pluralization (e.g., "policy" -> "policies.group")
       if (kindLower.endsWith('y')) {
         const stem = kindLower.slice(0, -1);
-        if (resourceNameLower === stem + 'ies' || resourceNameLower.startsWith(stem + 'ies.')) return true;
+        if (
+          resourceNameLower === stem + 'ies' ||
+          resourceNameLower.startsWith(stem + 'ies.')
+        )
+          return true;
       }
       return false;
     });
@@ -183,7 +215,8 @@ export class CapabilityVectorService extends BaseVectorService<ResourceCapabilit
    * Delete capability by resource name
    */
   async deleteCapability(resourceName: string): Promise<void> {
-    const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+    const capabilityId =
+      CapabilityInferenceEngine.generateCapabilityId(resourceName);
     await this.deleteData(capabilityId);
   }
 

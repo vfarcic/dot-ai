@@ -30,7 +30,10 @@ export const kubectlVersion: KubectlTool = {
       return successResult(output, 'Successfully retrieved Kubernetes version');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Failed to get Kubernetes version: ${message}`);
+      return errorResult(
+        message,
+        `Failed to get Kubernetes version: ${message}`
+      );
     }
   },
 };

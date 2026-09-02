@@ -408,7 +408,8 @@ export const routeDefinitions: RouteDefinition<
   {
     path: '/api/v1/prompts/refresh',
     method: 'POST',
-    description: 'Force-refresh the prompts cache by pulling latest from the git repository',
+    description:
+      'Force-refresh the prompts cache by pulling latest from the git repository',
     tags: ['Prompts'],
     response: PromptsCacheRefreshResponseSchema,
     errorResponses: {
@@ -480,8 +481,7 @@ export const routeDefinitions: RouteDefinition<
   {
     path: '/api/v1/sessions',
     method: 'GET',
-    description:
-      'List sessions with optional status filtering and pagination',
+    description: 'List sessions with optional status filtering and pagination',
     tags: ['Sessions'],
     query: SessionListQuerySchema,
     response: SessionListResponseSchema,

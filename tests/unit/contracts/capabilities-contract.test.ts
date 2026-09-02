@@ -188,7 +188,8 @@ describe('capabilities list/progress/delete response contract (PRD #714)', () =>
       FIXED_REQUEST_ID,
       fakeService({
         // Honor the requested count so the fetch-limit+1 truncation probe sees "more".
-        getAllCapabilities: async (n: number) => SAMPLE_CAPABILITIES.slice(0, n),
+        getAllCapabilities: async (n: number) =>
+          SAMPLE_CAPABILITIES.slice(0, n),
         getCapabilitiesCount: async () => SAMPLE_CAPABILITIES.length,
       })
     );
@@ -206,10 +207,9 @@ describe('capabilities list/progress/delete response contract (PRD #714)', () =>
       fakeService({
         // Honor the requested n (limit + 1) so the truncation probe sees one past the ceiling.
         getAllCapabilities: async (n: number) =>
-          Array.from(
-            { length: n },
-            (_, i) => ({ resourceName: `Resource${i}.example.com` })
-          ) as unknown as ResourceCapability[],
+          Array.from({ length: n }, (_, i) => ({
+            resourceName: `Resource${i}.example.com`,
+          })) as unknown as ResourceCapability[],
         getCapabilitiesCount: async () => OVER_CEILING,
       })
     );

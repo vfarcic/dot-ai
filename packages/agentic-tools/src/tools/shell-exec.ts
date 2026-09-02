@@ -32,14 +32,15 @@ export const shellExec: KubectlTool = {
       properties: {
         command: {
           type: 'string',
-          description: 'The full shell command to execute (e.g., kubectl apply -f - <<EOF...EOF)',
+          description:
+            'The full shell command to execute (e.g., kubectl apply -f - <<EOF...EOF)',
         },
       },
       required: ['command'],
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const command = requireParam<string>(args, 'command', 'shell_exec');
 
     try {
@@ -51,14 +52,21 @@ export const shellExec: KubectlTool = {
       const stderrOutput = stderr?.trim() || '';
 
       // Include stderr in output if present (kubectl often writes to stderr)
-      const fullOutput = stderrOutput ? `${output}\n${stderrOutput}`.trim() : output;
+      const fullOutput = stderrOutput
+        ? `${output}\n${stderrOutput}`.trim()
+        : output;
 
       return successResult(fullOutput, `Command executed successfully`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // exec error includes stdout/stderr in the error object
-      const stdout = error.stdout?.trim() || '';
-      const stderr = error.stderr?.trim() || '';
-      const message = error.message || 'Command execution failed';
+      const execError = error as {
+        stdout?: string;
+        stderr?: string;
+        message?: string;
+      };
+      const stdout = execError.stdout?.trim() || '';
+      const stderr = execError.stderr?.trim() || '';
+      const message = execError.message || 'Command execution failed';
 
       // Combine all output for error context
       const errorOutput = [message, stdout, stderr].filter(Boolean).join('\n');

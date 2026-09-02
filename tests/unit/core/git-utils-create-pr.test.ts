@@ -1077,9 +1077,13 @@ describe('lookupPullRequest (PRD #710 decision 9)', () => {
   test('a thrown request is unknown with a credential-scrubbed message', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockRejectedValue(
-        new Error('connect ECONNREFUSED https://x-access-token:ghp_secret@api.github.com')
-      )
+      vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            'connect ECONNREFUSED https://x-access-token:ghp_secret@api.github.com'
+          )
+        )
     );
     const result = await lookupPullRequest(REPO, 7);
     expect(result.status).toBe('unknown');
@@ -1090,9 +1094,9 @@ describe('lookupPullRequest (PRD #710 decision 9)', () => {
 
   test('a non-GitHub remote never reaches the API', async () => {
     const mock = stubJson(200, {});
-    expect(await lookupPullRequest('https://gitlab.com/acme/demo.git', 7)).toEqual(
-      { status: 'unsupported_host' }
-    );
+    expect(
+      await lookupPullRequest('https://gitlab.com/acme/demo.git', 7)
+    ).toEqual({ status: 'unsupported_host' });
     expect(mock).not.toHaveBeenCalled();
   });
 

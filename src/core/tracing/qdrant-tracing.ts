@@ -106,13 +106,19 @@ export async function withQdrantTracing<T>(
         'db.collection.name': collectionName,
 
         // Vector-specific attributes
-        ...(metadata.vectorSize && { 'db.vector.dimensions': metadata.vectorSize }),
+        ...(metadata.vectorSize && {
+          'db.vector.dimensions': metadata.vectorSize,
+        }),
         ...(metadata.limit && { 'db.query.limit': metadata.limit }),
-        ...(metadata.scoreThreshold && { 'db.vector.score_threshold': metadata.scoreThreshold }),
-        ...(metadata.keywordCount && { 'db.query.keyword_count': metadata.keywordCount }),
+        ...(metadata.scoreThreshold && {
+          'db.vector.score_threshold': metadata.scoreThreshold,
+        }),
+        ...(metadata.keywordCount && {
+          'db.query.keyword_count': metadata.keywordCount,
+        }),
         ...(metadata.documentId && { 'db.document.id': metadata.documentId }),
-        ...(metadata.serverUrl && { 'server.address': metadata.serverUrl })
-      }
+        ...(metadata.serverUrl && { 'server.address': metadata.serverUrl }),
+      },
     },
     async (span: Span) => {
       try {
@@ -120,13 +126,19 @@ export async function withQdrantTracing<T>(
         const result = await handler();
 
         // Add result metadata for search operations
-        if (operation === 'vector.search' || operation === 'vector.search_keywords') {
+        if (
+          operation === 'vector.search' ||
+          operation === 'vector.search_keywords'
+        ) {
           if (Array.isArray(result)) {
             span.setAttribute('db.query.result_count', result.length);
 
             // For search results with scores, track top score
             if (result.length > 0 && 'score' in result[0]) {
-              span.setAttribute('db.vector.top_score', (result[0] as { score: number }).score);
+              span.setAttribute(
+                'db.vector.top_score',
+                (result[0] as { score: number }).score
+              );
             }
           }
         }
@@ -143,9 +155,11 @@ export async function withQdrantTracing<T>(
         // Record error in span
         span.setStatus({
           code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error)
+          message: error instanceof Error ? error.message : String(error),
         });
-        span.recordException(error instanceof Error ? error : new Error(String(error)));
+        span.recordException(
+          error instanceof Error ? error : new Error(String(error))
+        );
         throw error;
       } finally {
         span.end();

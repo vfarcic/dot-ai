@@ -14,6 +14,12 @@ import { describe, test, expect, beforeAll } from 'vitest';
 import * as http from 'http';
 import { HttpRestApiClient } from '../helpers/http-client.js';
 import { IntegrationTest } from '../helpers/test-base.js';
+import type {
+  OAuthRegistrationPayload,
+  OAuthResourceMetadata,
+  OAuthServerMetadata,
+  UserListPayload,
+} from '../helpers/api-shapes.js';
 import { createHash, randomBytes } from 'node:crypto';
 
 // --- OAuth flow helpers ---
@@ -154,7 +160,6 @@ describe.concurrent('Authentication Integration', () => {
         data: { status: 'ok' },
       });
     });
-
   });
 
   describe('Readiness Endpoint', () => {
@@ -176,9 +181,10 @@ describe.concurrent('Authentication Integration', () => {
 
   describe('OAuth Discovery (RFC 9728 / RFC 8414)', () => {
     test('should return protected resource metadata and auth server metadata with consistent URLs', async () => {
-      const resourceResponse = await unauthenticatedClient.get(
-        '/.well-known/oauth-protected-resource'
-      );
+      const resourceResponse =
+        await unauthenticatedClient.get<OAuthResourceMetadata>(
+          '/.well-known/oauth-protected-resource'
+        );
 
       expect(resourceResponse).toMatchObject({
         success: true,
@@ -190,9 +196,10 @@ describe.concurrent('Authentication Integration', () => {
         },
       });
 
-      const serverResponse = await unauthenticatedClient.get(
-        '/.well-known/oauth-authorization-server'
-      );
+      const serverResponse =
+        await unauthenticatedClient.get<OAuthServerMetadata>(
+          '/.well-known/oauth-authorization-server'
+        );
 
       expect(serverResponse).toMatchObject({
         success: true,
@@ -211,8 +218,8 @@ describe.concurrent('Authentication Integration', () => {
       });
 
       // authorization_servers from resource metadata should match issuer
-      expect(resourceResponse.data.authorization_servers).toContain(
-        serverResponse.data.issuer
+      expect(resourceResponse.data!.authorization_servers).toContain(
+        serverResponse.data!.issuer
       );
     });
   });
@@ -220,11 +227,15 @@ describe.concurrent('Authentication Integration', () => {
   describe('Dynamic Client Registration (RFC 7591)', () => {
     test('should register client, reject invalid requests, and generate unique IDs', async () => {
       // Register a valid public client (token_endpoint_auth_method: 'none' matches real MCP clients)
-      const registerResponse = await unauthenticatedClient.post('/register', {
-        redirect_uris: ['http://127.0.0.1:9999/oauth/callback'],
-        client_name: 'Integration Test Client',
-        token_endpoint_auth_method: 'none',
-      });
+      const registerResponse =
+        await unauthenticatedClient.post<OAuthRegistrationPayload>(
+          '/register',
+          {
+            redirect_uris: ['http://127.0.0.1:9999/oauth/callback'],
+            client_name: 'Integration Test Client',
+            token_endpoint_auth_method: 'none',
+          }
+        );
 
       expect(registerResponse).toMatchObject({
         success: true,
@@ -278,10 +289,14 @@ describe.concurrent('Authentication Integration', () => {
       });
 
       // Unique client_ids across registrations
-      const secondResponse = await unauthenticatedClient.post('/register', {
-        redirect_uris: ['http://127.0.0.1:9999/oauth/callback'],
-        token_endpoint_auth_method: 'none',
-      });
+      const secondResponse =
+        await unauthenticatedClient.post<OAuthRegistrationPayload>(
+          '/register',
+          {
+            redirect_uris: ['http://127.0.0.1:9999/oauth/callback'],
+            token_endpoint_auth_method: 'none',
+          }
+        );
 
       expect(secondResponse.data?.client_id).toBeDefined();
       expect(registerResponse.data?.client_id).not.toBe(
@@ -568,9 +583,17 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
     const authorizeRes = await rawHttp(authorizeUrl.toString());
     expect(authorizeRes.statusCode).toBe(302);
 
-    let currentUrl = fixTestPort(authorizeRes.headers.location!, mcpBaseUrl, dexIssuerUrl);
+    let currentUrl = fixTestPort(
+      authorizeRes.headers.location!,
+      mcpBaseUrl,
+      dexIssuerUrl
+    );
     let dexRes = await rawHttp(currentUrl);
-    for (let i = 0; i < 5 && dexRes.statusCode >= 300 && dexRes.statusCode < 400; i++) {
+    for (
+      let i = 0;
+      i < 5 && dexRes.statusCode >= 300 && dexRes.statusCode < 400;
+      i++
+    ) {
       currentUrl = fixTestPort(
         dexRes.headers.location!.startsWith('http')
           ? dexRes.headers.location!
@@ -591,7 +614,10 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
       ? fixTestPort(
           actionMatch[1].replace(/&amp;/g, '&').startsWith('http')
             ? actionMatch[1].replace(/&amp;/g, '&')
-            : new URL(actionMatch[1].replace(/&amp;/g, '&'), currentUrl).toString(),
+            : new URL(
+                actionMatch[1].replace(/&amp;/g, '&'),
+                currentUrl
+              ).toString(),
           mcpBaseUrl,
           dexIssuerUrl
         )
@@ -623,7 +649,11 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
 
       const requestUrl = fixTestPort(absoluteUrl, mcpBaseUrl, dexIssuerUrl);
       const res = await rawHttp(requestUrl);
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      if (
+        res.statusCode >= 300 &&
+        res.statusCode < 400 &&
+        res.headers.location
+      ) {
         nextLocation = res.headers.location;
         continue;
       }
@@ -660,7 +690,9 @@ describe.skipIf(!dexConfigured)('OAuth Flow (PRD #380 Task 2.3)', () => {
     // Verify the JWT contains the correct expiry
     const jwtParts = tokenData.access_token.split('.');
     expect(jwtParts).toHaveLength(3);
-    const payload = JSON.parse(Buffer.from(jwtParts[1], 'base64url').toString());
+    const payload = JSON.parse(
+      Buffer.from(jwtParts[1], 'base64url').toString()
+    );
     const expectedExp = Math.floor(Date.now() / 1000) + requestedExpiry;
     expect(payload.exp).toBeGreaterThanOrEqual(expectedExp - 5); // Allow 5s clock skew
     expect(payload.exp).toBeLessThanOrEqual(expectedExp + 5);
@@ -782,7 +814,7 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
   test('should complete full user CRUD workflow with count verification', async () => {
     // Step 1: List users — capture initial count
     const initialListResponse =
-      await integrationTest.httpClient.get('/api/v1/users');
+      await integrationTest.httpClient.get<UserListPayload>('/api/v1/users');
 
     expect(initialListResponse).toMatchObject({
       success: true,
@@ -792,7 +824,7 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
       },
     });
 
-    const initialCount = initialListResponse.data.total;
+    const initialCount = initialListResponse.data!.total;
 
     // Step 2: Create a new user
     const createResponse = await integrationTest.httpClient.post(
@@ -818,7 +850,7 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
 
     // Step 3: List users — count should have increased by 1 and test user should be present
     const afterCreateListResponse =
-      await integrationTest.httpClient.get('/api/v1/users');
+      await integrationTest.httpClient.get<UserListPayload>('/api/v1/users');
 
     expect(afterCreateListResponse).toMatchObject({
       success: true,
@@ -865,7 +897,7 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
 
     // Step 6: List users — count should be back to initial and test user should be gone
     const afterDeleteListResponse =
-      await integrationTest.httpClient.get('/api/v1/users');
+      await integrationTest.httpClient.get<UserListPayload>('/api/v1/users');
 
     expect(afterDeleteListResponse).toMatchObject({
       success: true,
@@ -875,7 +907,7 @@ describe.skipIf(!dexConfigured)('User Management (PRD #380 Task 2.5)', () => {
       },
     });
 
-    const deletedUserStillPresent = afterDeleteListResponse.data.users.some(
+    const deletedUserStillPresent = afterDeleteListResponse.data!.users.some(
       (u: { email: string }) => u.email === testEmail
     );
     expect(deletedUserStillPresent).toBe(false);

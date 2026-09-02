@@ -13,6 +13,7 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import * as k8s from '@kubernetes/client-node';
 import { IntegrationTest } from '../helpers/test-base.js';
+import type { ToolListPayload } from '../helpers/api-shapes.js';
 import { HttpRestApiClient } from '../helpers/http-client.js';
 import { signJwt } from '../../../src/interfaces/oauth/jwt.js';
 
@@ -687,7 +688,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
   test('should filter tool discovery to only authorized tools for OAuth users', async () => {
     const viewerClient = jwtClient(viewerUser);
 
-    const response = await viewerClient.get('/api/v1/tools');
+    const response = await viewerClient.get<ToolListPayload>('/api/v1/tools');
 
     expect(response).toMatchObject({
       success: true,
@@ -697,7 +698,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
       },
     });
 
-    const toolNames = response.data.tools.map((t: { name: string }) => t.name);
+    const toolNames = response.data!.tools.map((t: { name: string }) => t.name);
     expect(toolNames).toContain('version');
     expect(toolNames).toContain('query');
     expect(toolNames).not.toContain('recommend');
@@ -707,7 +708,8 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
   });
 
   test('should return all tools in discovery for token users', async () => {
-    const response = await integrationTest.httpClient.get('/api/v1/tools');
+    const response =
+      await integrationTest.httpClient.get<ToolListPayload>('/api/v1/tools');
 
     expect(response).toMatchObject({
       success: true,
@@ -717,7 +719,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
       },
     });
 
-    const toolNames = response.data.tools.map((t: { name: string }) => t.name);
+    const toolNames = response.data!.tools.map((t: { name: string }) => t.name);
     expect(toolNames).toContain('version');
     expect(toolNames).toContain('recommend');
     expect(toolNames).toContain('operate');
@@ -1104,7 +1106,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
     test('should include group-authorized tools in discovery', async () => {
       const client = jwtClient(groupUser);
 
-      const response = await client.get('/api/v1/tools');
+      const response = await client.get<ToolListPayload>('/api/v1/tools');
 
       expect(response).toMatchObject({
         success: true,
@@ -1113,7 +1115,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
         },
       });
 
-      const toolNames = response.data.tools.map(
+      const toolNames = response.data!.tools.map(
         (t: { name: string }) => t.name
       );
       expect(toolNames).toContain('version');
@@ -1416,7 +1418,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
     test('should show all tools in discovery for viewer without resourceNames', async () => {
       const client = jwtClient(m8ViewerUser);
 
-      const response = await client.get('/api/v1/tools');
+      const response = await client.get<ToolListPayload>('/api/v1/tools');
 
       expect(response).toMatchObject({
         success: true,
@@ -1425,7 +1427,7 @@ describe.concurrent('RBAC Enforcement (PRD #392)', () => {
         },
       });
 
-      const toolNames = response.data.tools.map(
+      const toolNames = response.data!.tools.map(
         (t: { name: string }) => t.name
       );
       // Without resourceNames, viewer sees ALL tools (has execute on all)

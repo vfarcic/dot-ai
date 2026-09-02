@@ -6,7 +6,11 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, NotFoundErrorSchema, InternalServerErrorSchema } from './common';
+import {
+  createSuccessResponseSchema,
+  NotFoundErrorSchema,
+  InternalServerErrorSchema,
+} from './common';
 
 /**
  * Session metadata
@@ -23,11 +27,13 @@ export type SessionMetadata = z.infer<typeof SessionMetadataSchema>;
  * Generic session data
  * Sessions can contain different data based on the tool that created them
  */
-export const SessionDataSchema = z.object({
-  toolName: z.string().optional().describe('Tool that created this session'),
-  intent: z.string().optional().describe('User intent for this session'),
-  // Additional fields vary by tool type
-}).passthrough(); // Allow additional properties
+export const SessionDataSchema = z
+  .object({
+    toolName: z.string().optional().describe('Tool that created this session'),
+    intent: z.string().optional().describe('User intent for this session'),
+    // Additional fields vary by tool type
+  })
+  .passthrough(); // Allow additional properties
 
 export type SessionData = z.infer<typeof SessionDataSchema>;
 
@@ -44,7 +50,9 @@ export const SessionResponseDataSchema = z.object({
 
 export type SessionResponseData = z.infer<typeof SessionResponseDataSchema>;
 
-export const SessionResponseSchema = createSuccessResponseSchema(SessionResponseDataSchema);
+export const SessionResponseSchema = createSuccessResponseSchema(
+  SessionResponseDataSchema
+);
 
 export type SessionResponse = z.infer<typeof SessionResponseSchema>;
 
@@ -77,9 +85,25 @@ export const SessionRetrievalErrorSchema = InternalServerErrorSchema.extend({
  * Query parameters for listing sessions
  */
 export const SessionListQuerySchema = z.object({
-  status: z.string().optional().describe('Filter by session status (e.g., analysis_complete, failed, investigating)'),
-  limit: z.coerce.number().int().min(1).max(200).default(50).describe('Max results per page'),
-  offset: z.coerce.number().int().min(0).default(0).describe('Pagination offset'),
+  status: z
+    .string()
+    .optional()
+    .describe(
+      'Filter by session status (e.g., analysis_complete, failed, investigating)'
+    ),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(200)
+    .default(50)
+    .describe('Max results per page'),
+  offset: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe('Pagination offset'),
 });
 
 export type SessionListQuery = z.infer<typeof SessionListQuerySchema>;
@@ -111,7 +135,9 @@ export const SessionListDataSchema = z.object({
 
 export type SessionListData = z.infer<typeof SessionListDataSchema>;
 
-export const SessionListResponseSchema = createSuccessResponseSchema(SessionListDataSchema);
+export const SessionListResponseSchema = createSuccessResponseSchema(
+  SessionListDataSchema
+);
 
 export type SessionListResponse = z.infer<typeof SessionListResponseSchema>;
 
@@ -128,15 +154,21 @@ export const SessionListErrorSchema = InternalServerErrorSchema.extend({
  * GET /api/v1/events/remediations
  * PRD #425: Real-time remediation session events via Server-Sent Events
  */
-export const RemediationSSEEventSchema = z.object({
-  event: z.enum(['session-created', 'session-updated']).describe('SSE event type'),
-  data: z.object({
-    sessionId: z.string().describe('Session ID'),
-    toolName: z.string().describe('Tool that owns the session'),
-    status: z.string().describe('Current session status'),
-    issue: z.string().describe('Issue being investigated'),
-    timestamp: z.string().describe('Event timestamp'),
-  }),
-}).describe('SSE event for remediation session changes (Content-Type: text/event-stream)');
+export const RemediationSSEEventSchema = z
+  .object({
+    event: z
+      .enum(['session-created', 'session-updated'])
+      .describe('SSE event type'),
+    data: z.object({
+      sessionId: z.string().describe('Session ID'),
+      toolName: z.string().describe('Tool that owns the session'),
+      status: z.string().describe('Current session status'),
+      issue: z.string().describe('Issue being investigated'),
+      timestamp: z.string().describe('Event timestamp'),
+    }),
+  })
+  .describe(
+    'SSE event for remediation session changes (Content-Type: text/event-stream)'
+  );
 
 export type RemediationSSEEvent = z.infer<typeof RemediationSSEEventSchema>;

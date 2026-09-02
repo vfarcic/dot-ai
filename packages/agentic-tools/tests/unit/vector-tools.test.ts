@@ -30,7 +30,7 @@ vi.mock('../../src/qdrant/operations', async () => {
 
 describe('Vector Tool Definitions', () => {
   it('should have all required vector tools', () => {
-    const toolNames = TOOLS.map((t) => t.name);
+    const toolNames = TOOLS.map(t => t.name);
 
     expect(toolNames).toContain('vector_search');
     expect(toolNames).toContain('vector_search_keywords');
@@ -84,25 +84,25 @@ describe('Vector Tool Definitions', () => {
     for (const toolName of vectorToolNames) {
       describe(toolName, () => {
         it('should have correct type', () => {
-          const tool = TOOLS.find((t) => t.name === toolName);
+          const tool = TOOLS.find(t => t.name === toolName);
           expect(tool?.type).toBe('agentic');
         });
 
         it('should have a description', () => {
-          const tool = TOOLS.find((t) => t.name === toolName);
+          const tool = TOOLS.find(t => t.name === toolName);
           expect(tool?.description).toBeTruthy();
           expect(typeof tool?.description).toBe('string');
         });
 
         it('should have valid inputSchema', () => {
-          const tool = TOOLS.find((t) => t.name === toolName);
+          const tool = TOOLS.find(t => t.name === toolName);
           expect(tool?.inputSchema).toBeDefined();
           expect(tool?.inputSchema.type).toBe('object');
           expect(tool?.inputSchema.properties).toBeDefined();
         });
 
         it('should have required array', () => {
-          const tool = TOOLS.find((t) => t.name === toolName);
+          const tool = TOOLS.find(t => t.name === toolName);
           expect(Array.isArray(tool?.inputSchema.required)).toBe(true);
         });
       });
@@ -243,10 +243,14 @@ describe('Vector Tool Handlers', () => {
         limit: 5,
       });
 
-      expect(mockSearchByKeywords).toHaveBeenCalledWith('capabilities', ['postgres', 'database'], {
-        limit: 5,
-        filter: undefined,
-      });
+      expect(mockSearchByKeywords).toHaveBeenCalledWith(
+        'capabilities',
+        ['postgres', 'database'],
+        {
+          limit: 5,
+          filter: undefined,
+        }
+      );
       expect(result).toMatchObject({
         success: true,
         data: expect.arrayContaining([
@@ -264,10 +268,14 @@ describe('Vector Tool Handlers', () => {
         keywords: ['test'],
       });
 
-      expect(mockSearchByKeywords).toHaveBeenCalledWith('capabilities', ['test'], {
-        limit: 10,
-        filter: undefined,
-      });
+      expect(mockSearchByKeywords).toHaveBeenCalledWith(
+        'capabilities',
+        ['test'],
+        {
+          limit: 10,
+          filter: undefined,
+        }
+      );
     });
 
     it('should pass filter when provided', async () => {
@@ -280,10 +288,14 @@ describe('Vector Tool Handlers', () => {
         filter: { must: [{ key: 'type', match: { value: 'db' } }] },
       });
 
-      expect(mockSearchByKeywords).toHaveBeenCalledWith('capabilities', ['test'], {
-        limit: 10,
-        filter: { must: [{ key: 'type', match: { value: 'db' } }] },
-      });
+      expect(mockSearchByKeywords).toHaveBeenCalledWith(
+        'capabilities',
+        ['test'],
+        {
+          limit: 10,
+          filter: { must: [{ key: 'type', match: { value: 'db' } }] },
+        }
+      );
     });
 
     it('should handle errors', async () => {
@@ -307,16 +319,32 @@ describe('Vector Tool Handlers', () => {
       const handler = TOOL_HANDLERS['vector_store'];
 
       const result1 = await handler({});
-      expect(result1).toMatchObject({ success: false, error: expect.stringContaining('collection') });
+      expect(result1).toMatchObject({
+        success: false,
+        error: expect.stringContaining('collection'),
+      });
 
       const result2 = await handler({ collection: 'test' });
-      expect(result2).toMatchObject({ success: false, error: expect.stringContaining('id') });
+      expect(result2).toMatchObject({
+        success: false,
+        error: expect.stringContaining('id'),
+      });
 
       const result3 = await handler({ collection: 'test', id: 'doc-1' });
-      expect(result3).toMatchObject({ success: false, error: expect.stringContaining('embedding') });
+      expect(result3).toMatchObject({
+        success: false,
+        error: expect.stringContaining('embedding'),
+      });
 
-      const result4 = await handler({ collection: 'test', id: 'doc-1', embedding: [0.1] });
-      expect(result4).toMatchObject({ success: false, error: expect.stringContaining('payload') });
+      const result4 = await handler({
+        collection: 'test',
+        id: 'doc-1',
+        embedding: [0.1],
+      });
+      expect(result4).toMatchObject({
+        success: false,
+        error: expect.stringContaining('payload'),
+      });
     });
 
     it('should call store with correct parameters', async () => {
@@ -330,9 +358,14 @@ describe('Vector Tool Handlers', () => {
         payload: { text: 'test document' },
       });
 
-      expect(mockStore).toHaveBeenCalledWith('capabilities', 'doc-1', [0.1, 0.2, 0.3], {
-        text: 'test document',
-      });
+      expect(mockStore).toHaveBeenCalledWith(
+        'capabilities',
+        'doc-1',
+        [0.1, 0.2, 0.3],
+        {
+          text: 'test document',
+        }
+      );
       expect(result).toMatchObject({
         success: true,
         data: { id: 'doc-1' },
@@ -362,14 +395,22 @@ describe('Vector Tool Handlers', () => {
       const handler = TOOL_HANDLERS['vector_query'];
 
       const result1 = await handler({});
-      expect(result1).toMatchObject({ success: false, error: expect.stringContaining('collection') });
+      expect(result1).toMatchObject({
+        success: false,
+        error: expect.stringContaining('collection'),
+      });
 
       const result2 = await handler({ collection: 'test' });
-      expect(result2).toMatchObject({ success: false, error: expect.stringContaining('filter') });
+      expect(result2).toMatchObject({
+        success: false,
+        error: expect.stringContaining('filter'),
+      });
     });
 
     it('should call query with correct parameters', async () => {
-      mockQuery.mockResolvedValue([{ id: 'doc-1', payload: { type: 'capability' } }]);
+      mockQuery.mockResolvedValue([
+        { id: 'doc-1', payload: { type: 'capability' } },
+      ]);
 
       const handler = TOOL_HANDLERS['vector_query'];
       const result = await handler({
@@ -385,7 +426,9 @@ describe('Vector Tool Handlers', () => {
       );
       expect(result).toMatchObject({
         success: true,
-        data: expect.arrayContaining([expect.objectContaining({ id: 'doc-1' })]),
+        data: expect.arrayContaining([
+          expect.objectContaining({ id: 'doc-1' }),
+        ]),
       });
     });
 
@@ -398,7 +441,11 @@ describe('Vector Tool Handlers', () => {
         filter: { must: [] },
       });
 
-      expect(mockQuery).toHaveBeenCalledWith('capabilities', { must: [] }, { limit: 100 });
+      expect(mockQuery).toHaveBeenCalledWith(
+        'capabilities',
+        { must: [] },
+        { limit: 100 }
+      );
     });
   });
 
@@ -407,10 +454,16 @@ describe('Vector Tool Handlers', () => {
       const handler = TOOL_HANDLERS['vector_get'];
 
       const result1 = await handler({});
-      expect(result1).toMatchObject({ success: false, error: expect.stringContaining('collection') });
+      expect(result1).toMatchObject({
+        success: false,
+        error: expect.stringContaining('collection'),
+      });
 
       const result2 = await handler({ collection: 'test' });
-      expect(result2).toMatchObject({ success: false, error: expect.stringContaining('id') });
+      expect(result2).toMatchObject({
+        success: false,
+        error: expect.stringContaining('id'),
+      });
     });
 
     it('should call get with correct parameters', async () => {
@@ -455,10 +508,16 @@ describe('Vector Tool Handlers', () => {
       const handler = TOOL_HANDLERS['vector_delete'];
 
       const result1 = await handler({});
-      expect(result1).toMatchObject({ success: false, error: expect.stringContaining('collection') });
+      expect(result1).toMatchObject({
+        success: false,
+        error: expect.stringContaining('collection'),
+      });
 
       const result2 = await handler({ collection: 'test' });
-      expect(result2).toMatchObject({ success: false, error: expect.stringContaining('id') });
+      expect(result2).toMatchObject({
+        success: false,
+        error: expect.stringContaining('id'),
+      });
     });
 
     it('should call remove with correct parameters', async () => {
@@ -624,10 +683,16 @@ describe('Vector Tool Handlers', () => {
       const handler = TOOL_HANDLERS['collection_initialize'];
 
       const result1 = await handler({});
-      expect(result1).toMatchObject({ success: false, error: expect.stringContaining('collection') });
+      expect(result1).toMatchObject({
+        success: false,
+        error: expect.stringContaining('collection'),
+      });
 
       const result2 = await handler({ collection: 'test' });
-      expect(result2).toMatchObject({ success: false, error: expect.stringContaining('vectorSize') });
+      expect(result2).toMatchObject({
+        success: false,
+        error: expect.stringContaining('vectorSize'),
+      });
     });
 
     it('should call initializeCollection with correct parameters', async () => {
@@ -646,7 +711,11 @@ describe('Vector Tool Handlers', () => {
       });
       expect(result).toMatchObject({
         success: true,
-        data: { collection: 'capabilities', vectorSize: 1536, createTextIndex: false },
+        data: {
+          collection: 'capabilities',
+          vectorSize: 1536,
+          createTextIndex: false,
+        },
       });
     });
 
@@ -683,6 +752,8 @@ describe('Vector Tool Handlers', () => {
         vectorSize: 1536,
         status: 'green',
         exists: true,
+        // Required by CollectionStats since PRD #359; the mock omitted it.
+        url: 'http://localhost:6333',
       });
 
       const handler = TOOL_HANDLERS['collection_stats'];
@@ -706,6 +777,8 @@ describe('Vector Tool Handlers', () => {
         vectorSize: 0,
         status: 'not_found',
         exists: false,
+        // Required by CollectionStats since PRD #359; the mock omitted it.
+        url: 'http://localhost:6333',
       });
 
       const handler = TOOL_HANDLERS['collection_stats'];

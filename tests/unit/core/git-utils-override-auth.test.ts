@@ -19,14 +19,7 @@
  * without performing a real clone.
  */
 
-import {
-  describe,
-  test,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -117,7 +110,9 @@ describe('cloneRepo per-call token (PRD #621 M3 / Decisions 3 & 4)', () => {
   let lastSpawn:
     | { cmd: string; args: string[]; env: NodeJS.ProcessEnv }
     | undefined;
-  let askpass: { scriptPath: string; content: string; mode: number } | undefined;
+  let askpass:
+    | { scriptPath: string; content: string; mode: number }
+    | undefined;
 
   beforeEach(() => {
     lastSpawn = undefined;

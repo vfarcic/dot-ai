@@ -133,12 +133,9 @@ export abstract class BaseVectorService<T> {
    * Check if collection exists without creating it
    */
   async collectionExists(): Promise<boolean> {
-    const stats = await this.invokePlugin<CollectionStats>(
-      'collection_stats',
-      {
-        collection: this.collectionName,
-      }
-    );
+    const stats = await this.invokePlugin<CollectionStats>('collection_stats', {
+      collection: this.collectionName,
+    });
     return stats.exists;
   }
 

@@ -27,7 +27,10 @@ export const kubectlApiResources: KubectlTool = {
   handler: async () => {
     try {
       const output = await executeKubectl(['api-resources']);
-      return successResult(output, 'Successfully retrieved cluster API resources');
+      return successResult(
+        output,
+        'Successfully retrieved cluster API resources'
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Failed to get API resources: ${message}`);

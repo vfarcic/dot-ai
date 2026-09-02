@@ -1,6 +1,6 @@
 /**
  * Dataset Analyzer for Multi-Model Comparison
- * 
+ *
  * Analyzes evaluation datasets to group them by scenario and extract
  * model responses for comparative evaluation.
  */
@@ -112,18 +112,18 @@ export class DatasetAnalyzer {
   } | null {
     const basename = filename.replace(/^.*\//, '').replace(/\.jsonl$/, '');
     const parts = basename.split('_');
-    
+
     if (parts.length < 5) return null;
 
     // For remediate datasets: remediate_{phase}_{action}_vercel_{model}_{timestamp}
     // e.g., remediate_manual_analyze_vercel_gpt_timestamp
     const tool = parts[0];
     const timestamp = parts[parts.length - 1];
-    
+
     // Find 'vercel' SDK position to split correctly
     const sdkIndex = parts.indexOf('vercel');
     if (sdkIndex === -1) return null;
-    
+
     // interaction_id is everything between tool and sdk
     const interaction_id = parts.slice(1, sdkIndex).join('_');
     const sdk = parts[sdkIndex];
@@ -139,7 +139,7 @@ export class DatasetAnalyzer {
     try {
       const content = readFileSync(filepath, 'utf8').trim();
       if (!content) return null;
-      
+
       return JSON.parse(content) as DatasetSample;
     } catch (error) {
       console.warn(`Failed to load dataset ${filepath}:`, error);
@@ -170,14 +170,14 @@ export class DatasetAnalyzer {
         beforeProvider.push(part);
       }
       const scenarioKey = beforeProvider.join('_');
-      
+
       // Group by model within each scenario
       const modelKey = `${sample.performance.sdk}_${sample.performance.model_version}`;
-      
+
       if (!scenarioGroups.has(scenarioKey)) {
         scenarioGroups.set(scenarioKey, new Map());
       }
-      
+
       const modelGroups = scenarioGroups.get(scenarioKey)!;
       if (!modelGroups.has(modelKey)) {
         modelGroups.set(modelKey, []);
@@ -185,7 +185,10 @@ export class DatasetAnalyzer {
 
       // Parse failure_analysis if it exists
       let failure_analysis = undefined;
-      if (sample.metadata.failure_analysis && sample.metadata.failure_analysis !== "") {
+      if (
+        sample.metadata.failure_analysis &&
+        sample.metadata.failure_analysis !== ''
+      ) {
         try {
           if (typeof sample.metadata.failure_analysis === 'string') {
             failure_analysis = JSON.parse(sample.metadata.failure_analysis);
@@ -207,8 +210,8 @@ export class DatasetAnalyzer {
           complexity: sample.metadata.complexity,
           test_scenario: sample.metadata.test_scenario,
           issue: sample.input.issue,
-          failure_analysis
-        }
+          failure_analysis,
+        },
       });
     }
 
@@ -223,20 +226,23 @@ export class DatasetAnalyzer {
           allModelResponses.push(interactions[0]);
         } else {
           // Multiple interactions per model - combine them
-          const combinedResponse = this.combineModelInteractions(modelKey, interactions);
+          const combinedResponse = this.combineModelInteractions(
+            modelKey,
+            interactions
+          );
           allModelResponses.push(combinedResponse);
         }
       }
-      
+
       // Get representative issue from first model's first interaction
       const firstModel = Array.from(modelGroups.values())[0]?.[0];
       const issue = firstModel?.metadata?.issue || scenarioKey;
-      
+
       scenarios.push({
         issue,
         interaction_id: scenarioKey,
         tool,
-        models: allModelResponses
+        models: allModelResponses,
       });
     }
 
@@ -246,39 +252,61 @@ export class DatasetAnalyzer {
   /**
    * Combine multiple interactions per model into a single response for evaluation
    */
-  private combineModelInteractions(modelKey: string, interactions: ModelResponse[]): ModelResponse {
+  private combineModelInteractions(
+    modelKey: string,
+    interactions: ModelResponse[]
+  ): ModelResponse {
     // Sort interactions by timestamp
-    const sorted = interactions.sort((a, b) => 
-      new Date(a.metadata.timestamp).getTime() - new Date(b.metadata.timestamp).getTime()
+    const sorted = interactions.sort(
+      (a, b) =>
+        new Date(a.metadata.timestamp).getTime() -
+        new Date(b.metadata.timestamp).getTime()
     );
-    
+
     // Create combined response showing all interactions
-    const combinedResponse = sorted.map((interaction, index) => 
-      `**Interaction ${index + 1}:**\n` +
-      `Issue: ${interaction.metadata.issue}\n` +
-      `Response: ${interaction.response}\n`
-    ).join('\n---\n');
-    
+    const combinedResponse = sorted
+      .map(
+        (interaction, index) =>
+          `**Interaction ${index + 1}:**\n` +
+          `Issue: ${interaction.metadata.issue}\n` +
+          `Response: ${interaction.response}\n`
+      )
+      .join('\n---\n');
+
     // Aggregate performance metrics
-    const totalDuration = sorted.reduce((sum, i) => sum + i.performance.duration_ms, 0);
-    const totalInputTokens = sorted.reduce((sum, i) => sum + i.performance.input_tokens, 0);
-    const totalOutputTokens = sorted.reduce((sum, i) => sum + i.performance.output_tokens, 0);
-    
+    const totalDuration = sorted.reduce(
+      (sum, i) => sum + i.performance.duration_ms,
+      0
+    );
+    const totalInputTokens = sorted.reduce(
+      (sum, i) => sum + i.performance.input_tokens,
+      0
+    );
+    const totalOutputTokens = sorted.reduce(
+      (sum, i) => sum + i.performance.output_tokens,
+      0
+    );
+
     // Collect all failure analyses from all interactions that have them
-    const allFailures: Array<{ interaction_number: number; issue?: string; [key: string]: unknown }> = [];
+    const allFailures: Array<{
+      interaction_number: number;
+      issue?: string;
+      [key: string]: unknown;
+    }> = [];
     sorted.forEach((interaction, index) => {
       if (interaction.metadata.failure_analysis) {
         allFailures.push({
           interaction_number: index + 1,
           issue: interaction.metadata.issue,
-          ...(interaction.metadata.failure_analysis as Record<string, unknown>)
+          ...(interaction.metadata.failure_analysis as Record<string, unknown>),
         });
       }
     });
-    
+
     // Use the first failure as the primary failure_analysis, but preserve all failures
-    const primaryFailureAnalysis = allFailures.length > 0 ? allFailures[0] : undefined;
-    
+    const primaryFailureAnalysis =
+      allFailures.length > 0 ? allFailures[0] : undefined;
+
     return {
       model: modelKey,
       response: combinedResponse,
@@ -287,15 +315,15 @@ export class DatasetAnalyzer {
         duration_ms: totalDuration,
         input_tokens: totalInputTokens,
         output_tokens: totalOutputTokens,
-        total_tokens: totalInputTokens + totalOutputTokens
+        total_tokens: totalInputTokens + totalOutputTokens,
       },
       metadata: {
         ...sorted[0].metadata,
         issue: sorted[0].metadata.issue, // Use first interaction's issue as primary
         interaction_count: interactions.length,
         failure_analysis: primaryFailureAnalysis,
-        all_failures: allFailures.length > 0 ? allFailures : undefined
-      }
+        all_failures: allFailures.length > 0 ? allFailures : undefined,
+      },
     };
   }
 
@@ -340,7 +368,7 @@ export class DatasetAnalyzer {
       totalDatasets: datasets.length,
       availableModels: this.getAvailableModels(tool),
       scenariosWithMultipleModels: scenarios.length,
-      interactionTypes: Array.from(interactionTypes).sort()
+      interactionTypes: Array.from(interactionTypes).sort(),
     };
   }
 }

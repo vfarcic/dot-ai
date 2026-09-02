@@ -566,8 +566,12 @@ describe('repository host allowlist (finding C)', () => {
     // only `github.com` had this gate refuse — before anything is cloned — a URL
     // the PR-creation parser was deliberately fixed to accept, which is a
     // regression for a GitHub user who wrote the www form and upgraded.
-    expect(isRepoHostAllowed('https://www.github.com/acme/demo.git')).toBe(true);
-    expect(isRepoHostAllowed('https://WWW.GitHub.com/acme/demo.git')).toBe(true);
+    expect(isRepoHostAllowed('https://www.github.com/acme/demo.git')).toBe(
+      true
+    );
+    expect(isRepoHostAllowed('https://WWW.GitHub.com/acme/demo.git')).toBe(
+      true
+    );
     expect(isRepoHostAllowed('https://www.github.com:443/acme/demo.git')).toBe(
       true
     );

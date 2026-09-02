@@ -30,16 +30,21 @@ export const kubectlDescribe: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace. Required for namespaced resources.',
+          description:
+            'Kubernetes namespace. Required for namespaced resources.',
         },
       },
       required: ['resource'],
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const resource = requireParam<string>(args, 'resource', 'kubectl_describe');
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
 
     const cmdArgs = ['describe', resource];
 
@@ -50,7 +55,10 @@ export const kubectlDescribe: KubectlTool = {
     try {
       const output = await executeKubectl(cmdArgs);
       const nsMessage = namespace ? ` in namespace ${namespace}` : '';
-      return successResult(output, `Successfully described ${resource}${nsMessage}`);
+      return successResult(
+        output,
+        `Successfully described ${resource}${nsMessage}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Failed to describe ${resource}: ${message}`);

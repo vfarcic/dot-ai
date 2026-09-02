@@ -30,26 +30,37 @@ export const helmGetValues: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace where the release is installed (default: "default")',
+          description:
+            'Kubernetes namespace where the release is installed (default: "default")',
         },
         allValues: {
           type: 'boolean',
-          description: 'If true, returns all computed values (user-supplied + defaults). Default: false (user-supplied only)',
+          description:
+            'If true, returns all computed values (user-supplied + defaults). Default: false (user-supplied only)',
         },
         revision: {
           type: 'number',
-          description: 'Get values for a specific revision number (optional, defaults to latest)',
+          description:
+            'Get values for a specific revision number (optional, defaults to latest)',
         },
       },
       required: ['releaseName'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const releaseName = requireParam<string>(args, 'releaseName', 'helm_get_values');
+  handler: withValidation(async args => {
+    const releaseName = requireParam<string>(
+      args,
+      'releaseName',
+      'helm_get_values'
+    );
     const namespace = optionalParam<string>(args, 'namespace', 'default');
     const allValues = optionalParam<boolean>(args, 'allValues', false);
-    const revision = optionalParam<number | undefined>(args, 'revision', undefined);
+    const revision = optionalParam<number | undefined>(
+      args,
+      'revision',
+      undefined
+    );
 
     const cmdArgs = ['get', 'values', releaseName, '-o', 'json'];
 
@@ -74,7 +85,10 @@ export const helmGetValues: KubectlTool = {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Failed to get values for release "${releaseName}": ${message}`);
+      return errorResult(
+        message,
+        `Failed to get values for release "${releaseName}": ${message}`
+      );
     }
   }),
 };

@@ -2,7 +2,7 @@
 
 /**
  * Platform-Wide AI Model Synthesis Runner
- * 
+ *
  * Executes comprehensive cross-tool analysis using all individual evaluation reports
  * Generates platform-wide insights, decision matrices, and usage recommendations
  */
@@ -24,7 +24,9 @@ async function runPlatformSynthesis() {
       const graphArg = args.find(arg => arg.startsWith('--graphs='));
       if (graphArg) {
         graphsToGenerate = graphArg.split('=')[1].split(',');
-        console.log(`📊 Generating specific graphs: ${graphsToGenerate.join(', ')}\n`);
+        console.log(
+          `📊 Generating specific graphs: ${graphsToGenerate.join(', ')}\n`
+        );
       }
 
       skipReport = args.includes('--skip-report');
@@ -38,7 +40,7 @@ async function runPlatformSynthesis() {
       provider: 'anthropic',
       apiKey: process.env.ANTHROPIC_API_KEY!,
       model: getCurrentModel('anthropic'),
-      debugMode: process.env.DEBUG_DOT_AI === 'true'
+      debugMode: process.env.DEBUG_DOT_AI === 'true',
     });
 
     // Initialize synthesizer
@@ -46,7 +48,10 @@ async function runPlatformSynthesis() {
 
     // Generate comprehensive platform-wide analysis (or just graphs if skip-report is set)
     console.log('📊 Generating platform-wide analysis...');
-    const markdownReport = await synthesizer.generatePlatformWideAnalysis(graphsToGenerate, skipReport);
+    const markdownReport = await synthesizer.generatePlatformWideAnalysis(
+      graphsToGenerate,
+      skipReport
+    );
 
     // Save synthesis report only if we generated it
     if (!skipReport) {
@@ -55,14 +60,15 @@ async function runPlatformSynthesis() {
     }
 
     console.log('\n✅ Platform-wide synthesis complete!');
-    console.log('📄 Report saved: ./eval/analysis/platform/synthesis-report.md');
+    console.log(
+      '📄 Report saved: ./eval/analysis/platform/synthesis-report.md'
+    );
 
     console.log('\n✨ AI-generated comprehensive report includes:');
     console.log('   • Detailed model profiles with strengths/weaknesses');
     console.log('   • Production recommendations by priority');
     console.log('   • Cross-tool performance insights');
     console.log('   • Critical warnings and actionable guidance');
-
   } catch (error) {
     console.error('❌ Platform synthesis failed:', error);
     process.exit(1);

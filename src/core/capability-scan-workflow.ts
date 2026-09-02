@@ -1,6 +1,6 @@
 /**
  * Core Capability Scan Workflow
- * 
+ *
  * Handles the step-by-step capability scanning workflow including resource selection,
  * specification, processing mode selection, and the actual scanning process
  */
@@ -58,10 +58,31 @@ interface ScanError {
 }
 
 // Types for shared utility functions (dependency injection)
-export type TransitionCapabilitySessionFn = (session: CapabilityScanSession, nextStep: CapabilityScanSession['currentStep'], updates: Partial<CapabilityScanSession>, args: CapabilityScanArgs) => void;
-export type CleanupCapabilitySessionFn = (session: CapabilityScanSession, args: CapabilityScanArgs, logger: Logger, requestId: string) => void;
-export type ParseNumericResponseFn = (response: string, validOptions: string[]) => string;
-export type CreateCapabilityScanCompletionResponseFn = (sessionId: string, totalProcessed: number, successful: number, failed: number, processingTime: string, mode: 'auto' | 'manual', stopped?: boolean) => CapabilityScanResponse;
+export type TransitionCapabilitySessionFn = (
+  session: CapabilityScanSession,
+  nextStep: CapabilityScanSession['currentStep'],
+  updates: Partial<CapabilityScanSession>,
+  args: CapabilityScanArgs
+) => void;
+export type CleanupCapabilitySessionFn = (
+  session: CapabilityScanSession,
+  args: CapabilityScanArgs,
+  logger: Logger,
+  requestId: string
+) => void;
+export type ParseNumericResponseFn = (
+  response: string,
+  validOptions: string[]
+) => string;
+export type CreateCapabilityScanCompletionResponseFn = (
+  sessionId: string,
+  totalProcessed: number,
+  successful: number,
+  failed: number,
+  processingTime: string,
+  mode: 'auto' | 'manual',
+  stopped?: boolean
+) => CapabilityScanResponse;
 
 // Progress tracking interface
 interface ProgressData {
@@ -101,7 +122,11 @@ interface ResourceMetadata {
 // Session interface (should be imported from shared types, but defining here for now)
 interface CapabilityScanSession {
   sessionId: string;
-  currentStep: 'resource-selection' | 'resource-specification' | 'scanning' | 'complete';
+  currentStep:
+    | 'resource-selection'
+    | 'resource-specification'
+    | 'scanning'
+    | 'complete';
   selectedResources?: string[] | 'all';
   resourceList?: string;
   currentResourceIndex?: number;
@@ -151,22 +176,25 @@ export async function scanSingleResource(
       // Try common plural patterns to find CRD
       const pluralGuesses = [
         kind.toLowerCase() + 's',
-        kind.toLowerCase().endsWith('y') ? kind.toLowerCase().slice(0, -1) + 'ies' : null,
-        kind.toLowerCase().endsWith('s') ? kind.toLowerCase() + 'es' : null
+        kind.toLowerCase().endsWith('y')
+          ? kind.toLowerCase().slice(0, -1) + 'ies'
+          : null,
+        kind.toLowerCase().endsWith('s') ? kind.toLowerCase() + 'es' : null,
       ].filter(Boolean) as string[];
 
       for (const plural of pluralGuesses) {
         try {
           const crdName = `${plural}.${group}`;
           const crdData = await discovery.getCRDData(crdName);
-          const storageVersion = crdData.versions.find(v => v.storage) || crdData.versions[0];
+          const storageVersion =
+            crdData.versions.find(v => v.storage) || crdData.versions[0];
 
           metadata = {
             apiVersion: `${crdData.group}/${crdData.version}`,
             version: crdData.version,
             group: crdData.group,
             resourcePlural: crdData.resourcePlural,
-            printerColumns: storageVersion?.additionalPrinterColumns
+            printerColumns: storageVersion?.additionalPrinterColumns,
           };
           break;
         } catch {
@@ -193,14 +221,18 @@ export async function scanSingleResource(
     if (!metadata && resourceDefinition) {
       const lines = resourceDefinition.split('\n');
       const groupLine = lines.find((line: string) => line.startsWith('GROUP:'));
-      const versionLine = lines.find((line: string) => line.startsWith('VERSION:'));
+      const versionLine = lines.find((line: string) =>
+        line.startsWith('VERSION:')
+      );
 
       if (versionLine) {
         const group = groupLine ? groupLine.replace('GROUP:', '').trim() : '';
         const version = versionLine.replace('VERSION:', '').trim();
         const apiVersion = group ? `${group}/${version}` : version;
         // For core resources, derive plural from kind
-        const kind = resourceName.includes('.') ? resourceName.split('.')[0] : resourceName;
+        const kind = resourceName.includes('.')
+          ? resourceName.split('.')[0]
+          : resourceName;
         const resourcePlural = kind.toLowerCase() + 's';
 
         metadata = { apiVersion, version, group, resourcePlural };
@@ -216,7 +248,8 @@ export async function scanSingleResource(
       metadata?.version,
       metadata?.group
     );
-    const capabilityId = CapabilityInferenceEngine.generateCapabilityId(resourceName);
+    const capabilityId =
+      CapabilityInferenceEngine.generateCapabilityId(resourceName);
 
     // Step 4: Set printer columns
     const nameColumn: PrinterColumnDef = {
@@ -224,7 +257,7 @@ export async function scanSingleResource(
       type: 'string',
       jsonPath: '.metadata.name',
       description: 'Resource name',
-      priority: 0
+      priority: 0,
     };
 
     if (metadata?.printerColumns && metadata.printerColumns.length > 0) {
@@ -242,7 +275,10 @@ export async function scanSingleResource(
         logger.warn(`Failed to fetch printer columns for ${resourceName}`, {
           requestId,
           resource: resourceName,
-          error: printerError instanceof Error ? printerError.message : String(printerError)
+          error:
+            printerError instanceof Error
+              ? printerError.message
+              : String(printerError),
         });
       }
     }
@@ -257,18 +293,18 @@ export async function scanSingleResource(
       capabilities: capability.capabilities,
       providers: capability.providers,
       complexity: capability.complexity,
-      confidence: capability.confidence
+      confidence: capability.confidence,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(`Failed to scan resource ${resourceName}`, error as Error, {
       requestId,
-      resource: resourceName
+      resource: resourceName,
     });
     return {
       success: false,
       resource: resourceName,
-      error: errorMessage
+      error: errorMessage,
     };
   }
 }
@@ -286,7 +322,17 @@ export async function handleResourceSelection(
   transitionCapabilitySession: TransitionCapabilitySessionFn,
   cleanupCapabilitySession: CleanupCapabilitySessionFn,
   createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
-  handleScanningFn: (session: CapabilityScanSession, args: CapabilityScanArgs, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<CapabilityScanResponse>
+  handleScanningFn: (
+    session: CapabilityScanSession,
+    args: CapabilityScanArgs,
+    logger: Logger,
+    requestId: string,
+    capabilityService: CapabilityVectorService,
+    parseNumericResponse: ParseNumericResponseFn,
+    transitionCapabilitySession: TransitionCapabilitySessionFn,
+    cleanupCapabilitySession: CleanupCapabilitySessionFn,
+    createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn
+  ) => Promise<CapabilityScanResponse>
 ): Promise<CapabilityScanResponse> {
   if (!args.response) {
     // Show initial resource selection prompt
@@ -294,7 +340,7 @@ export async function handleResourceSelection(
       success: true,
       operation: 'scan',
       dataType: 'capabilities',
-      
+
       // CRITICAL: Put required parameters at top level for maximum visibility
       REQUIRED_NEXT_CALL: {
         tool: 'dot-ai:manageOrgData',
@@ -302,71 +348,104 @@ export async function handleResourceSelection(
           dataType: 'capabilities',
           operation: 'scan',
           sessionId: session.sessionId,
-          step: 'resource-selection',  // MANDATORY PARAMETER
-          response: 'user_choice_here'  // Replace with actual user choice
+          step: 'resource-selection', // MANDATORY PARAMETER
+          response: 'user_choice_here', // Replace with actual user choice
         },
-        note: 'The step parameter is MANDATORY when sessionId is provided'
+        note: 'The step parameter is MANDATORY when sessionId is provided',
       },
-      
+
       workflow: {
         step: 'resource-selection',
         question: 'Scan all cluster resources or specify subset?',
         options: [
-          { number: 1, value: 'all', display: '1. all - Scan all available cluster resources' },
-          { number: 2, value: 'specific', display: '2. specific - Specify particular resource types to scan' }
+          {
+            number: 1,
+            value: 'all',
+            display: '1. all - Scan all available cluster resources',
+          },
+          {
+            number: 2,
+            value: 'specific',
+            display: '2. specific - Specify particular resource types to scan',
+          },
         ],
         sessionId: session.sessionId,
-        instruction: 'IMPORTANT: You MUST ask the user to make a choice. Do NOT automatically select an option.',
-        userPrompt: 'Would you like to scan all cluster resources or specify a subset?',
+        instruction:
+          'IMPORTANT: You MUST ask the user to make a choice. Do NOT automatically select an option.',
+        userPrompt:
+          'Would you like to scan all cluster resources or specify a subset?',
         clientInstructions: {
           behavior: 'interactive',
           requirement: 'Ask user to choose between options',
           prohibit: 'Do not auto-select options',
           nextStep: `Call with step='resource-selection', sessionId='${session.sessionId}', and response parameter containing the semantic value (all or specific)`,
-          responseFormat: 'Convert user input to semantic values: 1→all, 2→specific, or pass through semantic words directly',
+          responseFormat:
+            'Convert user input to semantic values: 1→all, 2→specific, or pass through semantic words directly',
           requiredParameters: {
             step: 'resource-selection',
             sessionId: session.sessionId,
-            response: 'user choice (all or specific)'
-          }
-        }
-      }
+            response: 'user choice (all or specific)',
+          },
+        },
+      },
     };
   }
-  
+
   // Process user response
-  const normalizedResponse = parseNumericResponse(args.response, ['all', 'specific']);
-  
+  const normalizedResponse = parseNumericResponse(args.response, [
+    'all',
+    'specific',
+  ]);
+
   if (normalizedResponse === 'all') {
     // Guard: Verify plugin is available before starting background scan
     // PRD #359: Check via unified plugin registry
     if (!isPluginInitialized()) {
-      logger.error('Cannot start capability scan: plugin system not available', undefined, { requestId, sessionId: session.sessionId });
+      logger.error(
+        'Cannot start capability scan: plugin system not available',
+        undefined,
+        { requestId, sessionId: session.sessionId }
+      );
       return {
         success: false,
         operation: 'scan',
         dataType: 'capabilities',
         error: {
           message: 'Plugin system not available',
-          details: 'Capability scanning requires the agentic-tools plugin for kubectl operations. Ensure the plugin is deployed and configured.'
-        }
+          details:
+            'Capability scanning requires the agentic-tools plugin for kubectl operations. Ensure the plugin is deployed and configured.',
+        },
       };
     }
 
     // Transition directly to scanning (auto mode only - manual mode removed)
-    transitionCapabilitySession(session, 'scanning', {
-      selectedResources: 'all',
-      currentResourceIndex: 0  // Start with first resource
-    }, args);
+    transitionCapabilitySession(
+      session,
+      'scanning',
+      {
+        selectedResources: 'all',
+        currentResourceIndex: 0, // Start with first resource
+      },
+      args
+    );
 
     // Start scanning in background (don't await) to avoid MCP timeout
-    handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse)
-      .catch(error => {
-        logger.error('Background capability scan failed', error as Error, {
-          requestId,
-          sessionId: session.sessionId
-        });
+    handleScanningFn(
+      session,
+      { ...args, response: undefined },
+      logger,
+      requestId,
+      capabilityService,
+      parseNumericResponse,
+      transitionCapabilitySession,
+      cleanupCapabilitySession,
+      createCapabilityScanCompletionResponse
+    ).catch(error => {
+      logger.error('Background capability scan failed', error as Error, {
+        requestId,
+        sessionId: session.sessionId,
       });
+    });
 
     // Return immediately - user can check progress with operation: 'progress'
     return {
@@ -375,23 +454,24 @@ export async function handleResourceSelection(
       dataType: 'capabilities',
       status: 'started',
       sessionId: session.sessionId,
-      message: 'Capability scan started. Use operation "progress" to check status.',
+      message:
+        'Capability scan started. Use operation "progress" to check status.',
       checkProgress: {
         dataType: 'capabilities',
-        operation: 'progress'
-      }
+        operation: 'progress',
+      },
     };
   }
-  
+
   if (normalizedResponse === 'specific') {
     // Transition to resource specification
     transitionCapabilitySession(session, 'resource-specification', {}, args);
-    
+
     return {
       success: true,
       operation: 'scan',
       dataType: 'capabilities',
-      
+
       // CRITICAL: Put required parameters at top level for maximum visibility
       REQUIRED_NEXT_CALL: {
         tool: 'dot-ai:manageOrgData',
@@ -399,27 +479,32 @@ export async function handleResourceSelection(
           dataType: 'capabilities',
           operation: 'scan',
           sessionId: session.sessionId,
-          step: 'resource-specification',  // MANDATORY PARAMETER
-          resourceList: 'user_resource_list_here'  // Replace with actual resource list
+          step: 'resource-specification', // MANDATORY PARAMETER
+          resourceList: 'user_resource_list_here', // Replace with actual resource list
         },
-        note: 'The step parameter is MANDATORY when sessionId is provided'
+        note: 'The step parameter is MANDATORY when sessionId is provided',
       },
-      
+
       workflow: {
         step: 'resource-specification',
         question: 'Which resources would you like to scan?',
         sessionId: session.sessionId,
-        instruction: 'IMPORTANT: You MUST ask the user to specify which resources to scan. Do NOT provide a default list.',
+        instruction:
+          'IMPORTANT: You MUST ask the user to specify which resources to scan. Do NOT provide a default list.',
         userPrompt: 'Please specify which resources you want to scan.',
         resourceFormat: {
           description: 'Specify resources using Kubernetes naming convention',
           format: 'Kind.group for CRDs, Kind for core resources',
           examples: {
-            crds: ['SQL.devopstoolkit.live', 'Server.dbforpostgresql.azure.upbound.io'],
+            crds: [
+              'SQL.devopstoolkit.live',
+              'Server.dbforpostgresql.azure.upbound.io',
+            ],
             core: ['Pod', 'Service', 'ConfigMap'],
-            apps: ['Deployment.apps', 'StatefulSet.apps']
+            apps: ['Deployment.apps', 'StatefulSet.apps'],
           },
-          input: 'Comma-separated list (e.g.: SQL.devopstoolkit.live, Deployment.apps, Pod)'
+          input:
+            'Comma-separated list (e.g.: SQL.devopstoolkit.live, Deployment.apps, Pod)',
         },
         clientInstructions: {
           behavior: 'interactive',
@@ -429,13 +514,13 @@ export async function handleResourceSelection(
           requiredParameters: {
             step: 'resource-specification',
             sessionId: session.sessionId,
-            resourceList: 'comma-separated list of resources'
-          }
-        }
-      }
+            resourceList: 'comma-separated list of resources',
+          },
+        },
+      },
     };
   }
-  
+
   return {
     success: false,
     operation: 'scan',
@@ -443,8 +528,8 @@ export async function handleResourceSelection(
     error: {
       message: 'Invalid resource selection response',
       details: `Expected 'all' or 'specific', got: ${args.response}`,
-      currentStep: session.currentStep
-    }
+      currentStep: session.currentStep,
+    },
   };
 }
 
@@ -461,7 +546,17 @@ export async function handleResourceSpecification(
   transitionCapabilitySession: TransitionCapabilitySessionFn,
   cleanupCapabilitySession: CleanupCapabilitySessionFn,
   createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn,
-  handleScanningFn: (session: CapabilityScanSession, args: CapabilityScanArgs, logger: Logger, requestId: string, capabilityService: CapabilityVectorService, parseNumericResponse: ParseNumericResponseFn, transitionCapabilitySession: TransitionCapabilitySessionFn, cleanupCapabilitySession: CleanupCapabilitySessionFn, createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn) => Promise<CapabilityScanResponse>
+  handleScanningFn: (
+    session: CapabilityScanSession,
+    args: CapabilityScanArgs,
+    logger: Logger,
+    requestId: string,
+    capabilityService: CapabilityVectorService,
+    parseNumericResponse: ParseNumericResponseFn,
+    transitionCapabilitySession: TransitionCapabilitySessionFn,
+    cleanupCapabilitySession: CleanupCapabilitySessionFn,
+    createCapabilityScanCompletionResponse: CreateCapabilityScanCompletionResponseFn
+  ) => Promise<CapabilityScanResponse>
 ): Promise<CapabilityScanResponse> {
   if (!args.resourceList) {
     return {
@@ -470,15 +565,19 @@ export async function handleResourceSpecification(
       dataType: 'capabilities',
       error: {
         message: 'Missing resource list',
-        details: 'Expected resourceList parameter with comma-separated resource names',
+        details:
+          'Expected resourceList parameter with comma-separated resource names',
         currentStep: session.currentStep,
-        expectedCall: `Call with step='resource-specification' and resourceList parameter`
-      }
+        expectedCall: `Call with step='resource-specification' and resourceList parameter`,
+      },
     };
   }
-  
+
   // Parse and validate resource list
-  const resources = args.resourceList.split(',').map((r: string) => r.trim()).filter((r: string) => r.length > 0);
+  const resources = args.resourceList
+    .split(',')
+    .map((r: string) => r.trim())
+    .filter((r: string) => r.length > 0);
   if (resources.length === 0) {
     return {
       success: false,
@@ -487,8 +586,8 @@ export async function handleResourceSpecification(
       error: {
         message: 'Empty resource list',
         details: 'Resource list cannot be empty',
-        currentStep: session.currentStep
-      }
+        currentStep: session.currentStep,
+      },
     };
   }
 
@@ -496,18 +595,33 @@ export async function handleResourceSpecification(
     requestId,
     sessionId: session.sessionId,
     resourceCount: resources.length,
-    resources
+    resources,
   });
 
   // Transition directly to scanning - scanSingleResource will fetch metadata for each
-  transitionCapabilitySession(session, 'scanning', {
-    selectedResources: resources,
-    resourceList: args.resourceList,
-    currentResourceIndex: 0
-  }, args);
+  transitionCapabilitySession(
+    session,
+    'scanning',
+    {
+      selectedResources: resources,
+      resourceList: args.resourceList,
+      currentResourceIndex: 0,
+    },
+    args
+  );
 
   // Begin actual capability scanning and return completion summary
-  return await handleScanningFn(session, { ...args, response: undefined }, logger, requestId, capabilityService, parseNumericResponse, transitionCapabilitySession, cleanupCapabilitySession, createCapabilityScanCompletionResponse);
+  return await handleScanningFn(
+    session,
+    { ...args, response: undefined },
+    logger,
+    requestId,
+    capabilityService,
+    parseNumericResponse,
+    transitionCapabilitySession,
+    cleanupCapabilitySession,
+    createCapabilityScanCompletionResponse
+  );
 }
 
 /**
@@ -536,8 +650,9 @@ export async function handleScanning(
           dataType: 'capabilities',
           error: {
             message: 'AI provider API key required for capability inference',
-            details: 'Configure AI provider credentials to enable AI-powered capability analysis'
-          }
+            details:
+              'Configure AI provider credentials to enable AI-powered capability analysis',
+          },
         };
       }
     } catch (error) {
@@ -547,8 +662,8 @@ export async function handleScanning(
         dataType: 'capabilities',
         error: {
           message: 'AI provider initialization failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        }
+          details: error instanceof Error ? error.message : 'Unknown error',
+        },
       };
     }
 
@@ -558,11 +673,16 @@ export async function handleScanning(
     if (session.selectedResources === 'all') {
       // For 'all' mode, discover actual cluster resources first
       try {
-        logger.info('Discovering all cluster resources for capability scanning', { requestId, sessionId: session.sessionId });
+        logger.info(
+          'Discovering all cluster resources for capability scanning',
+          { requestId, sessionId: session.sessionId }
+        );
 
         // PRD #359: Use unified plugin registry for kubectl operations
         if (!isPluginInitialized()) {
-          throw new Error('Plugin system not available. Capability scanning requires agentic-tools plugin.');
+          throw new Error(
+            'Plugin system not available. Capability scanning requires agentic-tools plugin.'
+          );
         }
         const discovery = new KubernetesDiscovery();
 
@@ -577,7 +697,12 @@ export async function handleScanning(
           let resourceName = 'unknown-resource';
 
           // For CRDs (custom resources), use Kind.group format
-          if ('kind' in resource && resource.kind && 'group' in resource && resource.group) {
+          if (
+            'kind' in resource &&
+            resource.kind &&
+            'group' in resource &&
+            resource.group
+          ) {
             resourceName = `${resource.kind}.${resource.group}`;
           }
           // For CRDs with name format "plural.group"
@@ -602,7 +727,7 @@ export async function handleScanning(
           requestId,
           sessionId: session.sessionId,
           totalDiscovered: discoveredResourceNames.length,
-          sampleResources: discoveredResourceNames.slice(0, 5)
+          sampleResources: discoveredResourceNames.slice(0, 5),
         });
 
         if (discoveredResourceNames.length === 0) {
@@ -612,24 +737,29 @@ export async function handleScanning(
             dataType: 'capabilities',
             error: {
               message: 'No resources discovered in cluster',
-              details: 'Cluster resource discovery returned empty results. Check cluster connectivity and permissions.',
-              sessionId: session.sessionId
-            }
+              details:
+                'Cluster resource discovery returned empty results. Check cluster connectivity and permissions.',
+              sessionId: session.sessionId,
+            },
           };
         }
 
         // Update session with discovered resources
-        transitionCapabilitySession(session, 'scanning', {
-          selectedResources: discoveredResourceNames,
-          currentResourceIndex: 0
-        }, args);
+        transitionCapabilitySession(
+          session,
+          'scanning',
+          {
+            selectedResources: discoveredResourceNames,
+            currentResourceIndex: 0,
+          },
+          args
+        );
 
         // Fall through to batch processing with discovered resources
-
       } catch (error) {
         logger.error('Failed to discover cluster resources', error as Error, {
           requestId,
-          sessionId: session.sessionId
+          sessionId: session.sessionId,
         });
 
         return {
@@ -643,9 +773,9 @@ export async function handleScanning(
             suggestedActions: [
               'Check cluster connectivity',
               'Verify kubectl access permissions',
-              'Try specifying specific resources instead of "all"'
-            ]
-          }
+              'Try specifying specific resources instead of "all"',
+            ],
+          },
         };
       }
     }
@@ -653,178 +783,212 @@ export async function handleScanning(
     // Auto mode: Process ALL resources in batch without user interaction
     // At this point, selectedResources should always be an array (either discovered or specified)
     if (!Array.isArray(session.selectedResources)) {
-      throw new Error(`Invalid selectedResources state: expected array, got ${typeof session.selectedResources}. This indicates a bug in resource discovery.`);
+      throw new Error(
+        `Invalid selectedResources state: expected array, got ${typeof session.selectedResources}. This indicates a bug in resource discovery.`
+      );
     }
-      
-      const resources = session.selectedResources;
-      const totalResources = resources.length;
-      const processedResults: ScanResourceResult[] = [];
-      const errors: ScanError[] = [];
-      
-      logger.info('Starting auto batch processing', {
-        requestId,
-        sessionId: session.sessionId,
-        totalResources,
-        resources: resources
-      });
-      
-      // Initialize progress tracking
-      const startTime = Date.now();
-      const updateProgress = (current: number, currentResource: string, successful: number, failed: number, recentErrors: ScanError[]) => {
-        const elapsed = Date.now() - startTime;
-        const percentage = Math.round((current / totalResources) * 100);
-        
-        // Calculate estimated time remaining
-        let estimatedTimeRemaining: string | undefined;
-        if (current > 0) {
-          const avgTimePerResource = elapsed / current;
-          const remainingResources = totalResources - current;
-          const estimatedRemainingMs = remainingResources * avgTimePerResource;
-          const estimatedMinutes = Math.round(estimatedRemainingMs / 60000 * 10) / 10;
-          estimatedTimeRemaining = estimatedMinutes > 1 ? 
-            `${estimatedMinutes} minutes` : 
-            `${Math.round(estimatedRemainingMs / 1000)} seconds`;
-        }
-        
-        const progressData: ProgressData = {
-          status: 'processing',
-          current: current,
-          total: totalResources,
-          percentage: percentage,
-          currentResource: currentResource,
-          startedAt: new Date(startTime).toISOString(),
-          lastUpdated: new Date().toISOString(),
-          estimatedTimeRemaining,
-          successfulResources: successful,
-          failedResources: failed,
-          errors: recentErrors.slice(-5) // Keep last 5 errors for troubleshooting
-        };
-        
-        // Update session file with progress
-        transitionCapabilitySession(session, 'scanning', {
-          selectedResources: session.selectedResources,
-          currentResourceIndex: current - 1,
-          progress: progressData
-        }, args);
-      };
-      
-      // PRD #359: Use unified plugin registry for kubectl operations
-      if (!isPluginInitialized()) {
-        throw new Error('Plugin system not available. Capability scanning requires agentic-tools plugin.');
+
+    const resources = session.selectedResources;
+    const totalResources = resources.length;
+    const processedResults: ScanResourceResult[] = [];
+    const errors: ScanError[] = [];
+
+    logger.info('Starting auto batch processing', {
+      requestId,
+      sessionId: session.sessionId,
+      totalResources,
+      resources: resources,
+    });
+
+    // Initialize progress tracking
+    const startTime = Date.now();
+    const updateProgress = (
+      current: number,
+      currentResource: string,
+      successful: number,
+      failed: number,
+      recentErrors: ScanError[]
+    ) => {
+      const elapsed = Date.now() - startTime;
+      const percentage = Math.round((current / totalResources) * 100);
+
+      // Calculate estimated time remaining
+      let estimatedTimeRemaining: string | undefined;
+      if (current > 0) {
+        const avgTimePerResource = elapsed / current;
+        const remainingResources = totalResources - current;
+        const estimatedRemainingMs = remainingResources * avgTimePerResource;
+        const estimatedMinutes =
+          Math.round((estimatedRemainingMs / 60000) * 10) / 10;
+        estimatedTimeRemaining =
+          estimatedMinutes > 1
+            ? `${estimatedMinutes} minutes`
+            : `${Math.round(estimatedRemainingMs / 1000)} seconds`;
       }
-      // Setup kubectl access via plugin
-      const discovery = new KubernetesDiscovery();
-      logger.info('Ready for capability scanning via plugin', {
-        requestId,
-        sessionId: session.sessionId
-      });
 
-      // Process each resource using scanSingleResource
-      // Progress is tracked via updateProgress() and available via the progress endpoint
-      for (let i = 0; i < resources.length; i++) {
-        const currentResource = resources[i];
-
-        // Update progress before processing
-        updateProgress(i + 1, currentResource, processedResults.length, errors.length, errors);
-
-        // Call the shared single-resource scan function
-        const result = await scanSingleResource(
-          currentResource,
-          discovery,
-          engine,
-          capabilityService,
-          logger,
-          requestId,
-          args.interaction_id
-        );
-
-        if (result.success) {
-          processedResults.push({
-            success: true,
-            resource: result.resource,
-            id: result.id,
-            capabilities: result.capabilities,
-            providers: result.providers,
-            complexity: result.complexity,
-            confidence: result.confidence
-          });
-        } else {
-          errors.push({
-            resource: result.resource,
-            error: result.error || 'Unknown error',
-            index: i + 1,
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
-      
-      // Final progress update - mark as completed
-      const finalElapsed = Date.now() - startTime;
-      const finalMinutes = Math.round(finalElapsed / 60000 * 10) / 10;
-      const successful = processedResults.length;
-      const failed = errors.length;
-      
-      const completionData: ProgressData = {
-        status: 'completed',
-        current: totalResources,
+      const progressData: ProgressData = {
+        status: 'processing',
+        current: current,
         total: totalResources,
-        percentage: 100,
-        currentResource: 'Processing complete',
+        percentage: percentage,
+        currentResource: currentResource,
         startedAt: new Date(startTime).toISOString(),
         lastUpdated: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        totalProcessingTime: finalMinutes > 1 ? `${finalMinutes} minutes` : `${Math.round(finalElapsed / 1000)} seconds`,
+        estimatedTimeRemaining,
         successfulResources: successful,
         failedResources: failed,
-        errors: errors.slice(-5)
+        errors: recentErrors.slice(-5), // Keep last 5 errors for troubleshooting
       };
-      
-      // Update session with completion status
-      transitionCapabilitySession(session, 'complete', {
-        progress: completionData
-      }, args);
-      
-      logger.info('Auto batch processing completed', {
-        requestId,
-        sessionId: session.sessionId,
-        processed: totalResources,
-        successful,
-        failed,
-        processingTime: completionData.totalProcessingTime
-      });
-      
-      // Clean up session file after a brief delay to allow progress viewing
-      setTimeout(() => {
-        cleanupCapabilitySession(session, args, logger, requestId);
-      }, 30000); // Keep for 30 seconds after completion
-      
-      return createCapabilityScanCompletionResponse(
-        session.sessionId,
-        totalResources,
-        successful,
-        failed,
-        completionData.totalProcessingTime || 'completed',
-        'auto'
+
+      // Update session file with progress
+      transitionCapabilitySession(
+        session,
+        'scanning',
+        {
+          selectedResources: session.selectedResources,
+          currentResourceIndex: current - 1,
+          progress: progressData,
+        },
+        args
       );
+    };
+
+    // PRD #359: Use unified plugin registry for kubectl operations
+    if (!isPluginInitialized()) {
+      throw new Error(
+        'Plugin system not available. Capability scanning requires agentic-tools plugin.'
+      );
+    }
+    // Setup kubectl access via plugin
+    const discovery = new KubernetesDiscovery();
+    logger.info('Ready for capability scanning via plugin', {
+      requestId,
+      sessionId: session.sessionId,
+    });
+
+    // Process each resource using scanSingleResource
+    // Progress is tracked via updateProgress() and available via the progress endpoint
+    for (let i = 0; i < resources.length; i++) {
+      const currentResource = resources[i];
+
+      // Update progress before processing
+      updateProgress(
+        i + 1,
+        currentResource,
+        processedResults.length,
+        errors.length,
+        errors
+      );
+
+      // Call the shared single-resource scan function
+      const result = await scanSingleResource(
+        currentResource,
+        discovery,
+        engine,
+        capabilityService,
+        logger,
+        requestId,
+        args.interaction_id
+      );
+
+      if (result.success) {
+        processedResults.push({
+          success: true,
+          resource: result.resource,
+          id: result.id,
+          capabilities: result.capabilities,
+          providers: result.providers,
+          complexity: result.complexity,
+          confidence: result.confidence,
+        });
+      } else {
+        errors.push({
+          resource: result.resource,
+          error: result.error || 'Unknown error',
+          index: i + 1,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Final progress update - mark as completed
+    const finalElapsed = Date.now() - startTime;
+    const finalMinutes = Math.round((finalElapsed / 60000) * 10) / 10;
+    const successful = processedResults.length;
+    const failed = errors.length;
+
+    const completionData: ProgressData = {
+      status: 'completed',
+      current: totalResources,
+      total: totalResources,
+      percentage: 100,
+      currentResource: 'Processing complete',
+      startedAt: new Date(startTime).toISOString(),
+      lastUpdated: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      totalProcessingTime:
+        finalMinutes > 1
+          ? `${finalMinutes} minutes`
+          : `${Math.round(finalElapsed / 1000)} seconds`,
+      successfulResources: successful,
+      failedResources: failed,
+      errors: errors.slice(-5),
+    };
+
+    // Update session with completion status
+    transitionCapabilitySession(
+      session,
+      'complete',
+      {
+        progress: completionData,
+      },
+      args
+    );
+
+    logger.info('Auto batch processing completed', {
+      requestId,
+      sessionId: session.sessionId,
+      processed: totalResources,
+      successful,
+      failed,
+      processingTime: completionData.totalProcessingTime,
+    });
+
+    // Clean up session file after a brief delay to allow progress viewing
+    setTimeout(() => {
+      cleanupCapabilitySession(session, args, logger, requestId);
+    }, 30000); // Keep for 30 seconds after completion
+
+    return createCapabilityScanCompletionResponse(
+      session.sessionId,
+      totalResources,
+      successful,
+      failed,
+      completionData.totalProcessingTime || 'completed',
+      'auto'
+    );
   } catch (error) {
     logger.error('Capability scanning failed', error as Error, {
       requestId,
       sessionId: session.sessionId,
-      resource: (error && typeof error === 'object' && 'resourceName' in error) ? (error as { resourceName: string }).resourceName : 'unknown',
-      step: session.currentStep
+      resource:
+        error && typeof error === 'object' && 'resourceName' in error
+          ? (error as { resourceName: string }).resourceName
+          : 'unknown',
+      step: session.currentStep,
     });
-    
+
     // Clean up session on error
     cleanupCapabilitySession(session, args, logger, requestId);
-    
+
     return {
       success: false,
       operation: 'scan',
       dataType: 'capabilities',
       error: {
         message: 'Capability scanning failed',
-        details: error instanceof Error ? error.message : String(error)
-      }
+        details: error instanceof Error ? error.message : String(error),
+      },
     };
   }
 }

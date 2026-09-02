@@ -4,13 +4,13 @@
  * Tests for shared visualization utilities (PRD #320)
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, afterEach } from 'vitest';
 import {
   getVisualizationUrl,
   getPromptForTool,
   extractPrefixFromSessionId,
   getToolNameFromPrefix,
-  TOOL_SESSION_PREFIXES
+  TOOL_SESSION_PREFIXES,
 } from '../../../src/core/visualization';
 
 describe('Visualization Utilities', () => {
@@ -47,9 +47,15 @@ describe('Visualization Utilities', () => {
     test('should work with different session prefixes', () => {
       process.env.WEB_UI_BASE_URL = 'https://viz.example.com';
 
-      expect(getVisualizationUrl('sol-123-abc')).toBe('https://viz.example.com/v/sol-123-abc');
-      expect(getVisualizationUrl('rem-456-def')).toBe('https://viz.example.com/v/rem-456-def');
-      expect(getVisualizationUrl('opr-789-ghi')).toBe('https://viz.example.com/v/opr-789-ghi');
+      expect(getVisualizationUrl('sol-123-abc')).toBe(
+        'https://viz.example.com/v/sol-123-abc'
+      );
+      expect(getVisualizationUrl('rem-456-def')).toBe(
+        'https://viz.example.com/v/rem-456-def'
+      );
+      expect(getVisualizationUrl('opr-789-ghi')).toBe(
+        'https://viz.example.com/v/opr-789-ghi'
+      );
     });
   });
 
@@ -69,31 +75,45 @@ describe('Visualization Utilities', () => {
 
   describe('extractPrefixFromSessionId', () => {
     test('should extract qry prefix', () => {
-      expect(extractPrefixFromSessionId('qry-1704067200000-a1b2c3d4')).toBe('qry');
+      expect(extractPrefixFromSessionId('qry-1704067200000-a1b2c3d4')).toBe(
+        'qry'
+      );
     });
 
     test('should extract sol prefix (recommend tool)', () => {
-      expect(extractPrefixFromSessionId('sol-1704067200000-a1b2c3d4')).toBe('sol');
+      expect(extractPrefixFromSessionId('sol-1704067200000-a1b2c3d4')).toBe(
+        'sol'
+      );
     });
 
     test('should extract rem prefix (remediate tool)', () => {
-      expect(extractPrefixFromSessionId('rem-1704067200000-a1b2c3d4')).toBe('rem');
+      expect(extractPrefixFromSessionId('rem-1704067200000-a1b2c3d4')).toBe(
+        'rem'
+      );
     });
 
     test('should extract opr prefix (operate tool)', () => {
-      expect(extractPrefixFromSessionId('opr-1704067200000-a1b2c3d4')).toBe('opr');
+      expect(extractPrefixFromSessionId('opr-1704067200000-a1b2c3d4')).toBe(
+        'opr'
+      );
     });
 
     test('should extract cap prefix (capabilities)', () => {
-      expect(extractPrefixFromSessionId('cap-1704067200000-a1b2c3d4')).toBe('cap');
+      expect(extractPrefixFromSessionId('cap-1704067200000-a1b2c3d4')).toBe(
+        'cap'
+      );
     });
 
     test('should extract ver prefix (version tool)', () => {
-      expect(extractPrefixFromSessionId('ver-1704067200000-a1b2c3d4')).toBe('ver');
+      expect(extractPrefixFromSessionId('ver-1704067200000-a1b2c3d4')).toBe(
+        'ver'
+      );
     });
 
     test('should extract prj prefix (projectSetup tool)', () => {
-      expect(extractPrefixFromSessionId('prj-1704067200000-a1b2c3d4')).toBe('prj');
+      expect(extractPrefixFromSessionId('prj-1704067200000-a1b2c3d4')).toBe(
+        'prj'
+      );
     });
 
     test('should default to qry for invalid sessionId', () => {

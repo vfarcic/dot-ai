@@ -43,12 +43,21 @@ function helmValuesExist(solutionId: string): boolean {
 
 // Tool metadata for direct MCP registration
 export const DEPLOYMANIFESTS_TOOL_NAME = 'deployManifests';
-export const DEPLOYMANIFESTS_TOOL_DESCRIPTION = 'Deploy Kubernetes manifests from generated solution with kubectl apply --wait';
+export const DEPLOYMANIFESTS_TOOL_DESCRIPTION =
+  'Deploy Kubernetes manifests from generated solution with kubectl apply --wait';
 
 // Zod schema for MCP registration
 export const DEPLOYMANIFESTS_TOOL_INPUT_SCHEMA = {
-  solutionId: z.string().regex(/^sol-\d+-[a-f0-9]{8}$/).describe('Solution ID to deploy (e.g., sol-1762983784617-9ddae2b8)'),
-  timeout: z.number().min(1).max(600).optional().describe('Deployment timeout in seconds (default: 30)')
+  solutionId: z
+    .string()
+    .regex(/^sol-\d+-[a-f0-9]{8}$/)
+    .describe('Solution ID to deploy (e.g., sol-1762983784617-9ddae2b8)'),
+  timeout: z
+    .number()
+    .min(1)
+    .max(600)
+    .optional()
+    .describe('Deployment timeout in seconds (default: 30)'),
 };
 
 /**
@@ -69,7 +78,7 @@ export async function handleDeployManifestsTool(
       logger.debug('Handling deployManifests request', {
         requestId,
         solutionId: args?.solutionId,
-        timeout: args?.timeout
+        timeout: args?.timeout,
       });
 
       // Input validation is handled automatically by MCP SDK with Zod schema
@@ -88,14 +97,16 @@ export async function handleDeployManifestsTool(
 
       logger.debug('Solution loaded successfully', {
         solutionId: args.solutionId,
-        solutionType: solution.type
+        solutionType: solution.type,
       });
 
       // Branch based on solution type
       if (solution.type === 'helm') {
         logger.info('Detected Helm solution, using Helm deployment flow', {
           solutionId: args.solutionId,
-          chart: solution.chart ? `${solution.chart.repositoryName}/${solution.chart.chartName}` : 'unknown'
+          chart: solution.chart
+            ? `${solution.chart.repositoryName}/${solution.chart.chartName}`
+            : 'unknown',
         });
 
         if (!solution.chart) {
@@ -108,14 +119,19 @@ export async function handleDeployManifestsTool(
         const namespace = userAnswers.namespace || 'default';
 
         if (!releaseName) {
-          throw new Error('Release name (name) is required for Helm deployment');
+          throw new Error(
+            'Release name (name) is required for Helm deployment'
+          );
         }
 
         // Get values content if values file exists
         // PRD #343: Read values and pass to plugin (no file path to plugin)
         let valuesYaml: string | undefined;
         if (helmValuesExist(args.solutionId)) {
-          valuesYaml = fs.readFileSync(getHelmValuesPath(args.solutionId), 'utf8');
+          valuesYaml = fs.readFileSync(
+            getHelmValuesPath(args.solutionId),
+            'utf8'
+          );
         }
 
         logger.info('Starting Helm deployment via plugin', {
@@ -125,46 +141,66 @@ export async function handleDeployManifestsTool(
           namespace,
           hasValuesFile: !!valuesYaml,
           timeout,
-          requestId
+          requestId,
         });
 
         // PRD #359: All Helm operations go through unified plugin registry
         // First, add/update the Helm repository
-        const repoResult = await invokePluginTool('agentic-tools', 'helm_repo_add', {
-          name: chart.repositoryName,
-          url: chart.repository
-        });
+        const repoResult = await invokePluginTool(
+          'agentic-tools',
+          'helm_repo_add',
+          {
+            name: chart.repositoryName,
+            url: chart.repository,
+          }
+        );
 
         if (!repoResult.success) {
-          logger.warn('Helm repo add failed', { error: repoResult.error?.message });
+          logger.warn('Helm repo add failed', {
+            error: repoResult.error?.message,
+          });
         }
 
         // Deploy using helm_install with wait
-        const installResult = await invokePluginTool('agentic-tools', 'helm_install', {
-          releaseName,
-          chart: `${chart.repositoryName}/${chart.chartName}`,
-          namespace,
-          values: valuesYaml,
-          version: chart.version,
-          dryRun: false,
-          wait: true,
-          timeout: `${timeout}s`,
-          createNamespace: true
-        });
+        const installResult = await invokePluginTool(
+          'agentic-tools',
+          'helm_install',
+          {
+            releaseName,
+            chart: `${chart.repositoryName}/${chart.chartName}`,
+            namespace,
+            values: valuesYaml,
+            version: chart.version,
+            dryRun: false,
+            wait: true,
+            timeout: `${timeout}s`,
+            createNamespace: true,
+          }
+        );
 
         // Check for nested error in result
         let nestedError: string | undefined;
-        if (installResult.success && typeof installResult.result === 'object' && installResult.result !== null) {
+        if (
+          installResult.success &&
+          typeof installResult.result === 'object' &&
+          installResult.result !== null
+        ) {
           const nestedResult = installResult.result as PluginResultData;
           if (nestedResult.success === false) {
-            nestedError = nestedResult.error || nestedResult.message || 'Helm install failed';
+            nestedError =
+              nestedResult.error ||
+              nestedResult.message ||
+              'Helm install failed';
           }
         }
 
         // Extract only the data field - never pass JSON wrapper
         let output = '';
         if (installResult.success && !nestedError) {
-          if (typeof installResult.result === 'object' && installResult.result !== null) {
+          if (
+            typeof installResult.result === 'object' &&
+            installResult.result !== null
+          ) {
             const resultData = installResult.result as PluginResultData;
             if (resultData.data !== undefined) {
               output = String(resultData.data);
@@ -180,7 +216,9 @@ export async function handleDeployManifestsTool(
         const result = {
           success: installResult.success && !nestedError,
           output,
-          error: nestedError || (!installResult.success ? installResult.error?.message : undefined)
+          error:
+            nestedError ||
+            (!installResult.success ? installResult.error?.message : undefined),
         };
 
         logger.info('Helm deployment completed', {
@@ -188,13 +226,13 @@ export async function handleDeployManifestsTool(
           solutionId: args.solutionId,
           releaseName,
           namespace,
-          requestId
+          requestId,
         });
 
         // Update session with deployed stage for UI page refresh support
         if (result.success) {
           sessionManager.updateSession(args.solutionId, {
-            stage: 'deployed'
+            stage: 'deployed',
           });
         }
 
@@ -208,7 +246,7 @@ export async function handleDeployManifestsTool(
             repository: chart.repository,
             repositoryName: chart.repositoryName,
             chartName: chart.chartName,
-            version: chart.version
+            version: chart.version,
           },
           message: result.success
             ? `Helm release "${releaseName}" deployed successfully to namespace "${namespace}"`
@@ -216,34 +254,37 @@ export async function handleDeployManifestsTool(
           helmOutput: result.output || result.error,
           deploymentComplete: result.success,
           timestamp: new Date().toISOString(),
-          agentInstructions: 'Deployment command executed. To verify the deployment is running correctly and resources are healthy, use the query tool to check pod status, events, and logs.'
+          agentInstructions:
+            'Deployment command executed. To verify the deployment is running correctly and resources are healthy, use the query tool to check pod status, events, and logs.',
         };
 
         return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify(response, null, 2)
-          }]
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(response, null, 2),
+            },
+          ],
         };
       }
 
       // Capability-based solution: Use existing DeployOperation
       // PRD #359: Uses unified plugin registry for kubectl operations
       logger.info('Using capability-based deployment flow', {
-        solutionId: args.solutionId
+        solutionId: args.solutionId,
       });
 
       const deployOp = new DeployOperation();
 
       const deployOptions = {
         solutionId: args.solutionId,
-        timeout
+        timeout,
       };
 
       logger.info('Starting deployment operation', {
         solutionId: args.solutionId,
         timeout: deployOptions.timeout,
-        requestId
+        requestId,
       });
 
       const result = await deployOp.deploy(deployOptions);
@@ -253,13 +294,13 @@ export async function handleDeployManifestsTool(
         solutionId: result.solutionId,
         manifestPath: result.manifestPath,
         readinessTimeout: result.readinessTimeout,
-        requestId
+        requestId,
       });
 
       // Update session with deployed stage for UI page refresh support
       if (result.success) {
         sessionManager.updateSession(args.solutionId, {
-          stage: 'deployed'
+          stage: 'deployed',
         });
       }
 
@@ -276,22 +317,24 @@ export async function handleDeployManifestsTool(
         deploymentComplete: result.success && !result.readinessTimeout,
         requiresStatusCheck: result.success && result.readinessTimeout,
         timestamp: new Date().toISOString(),
-        agentInstructions: 'Deployment command executed. To verify the deployment is running correctly and resources are healthy, use the query tool to check pod status, events, and logs.'
+        agentInstructions:
+          'Deployment command executed. To verify the deployment is running correctly and resources are healthy, use the query tool to check pod status, events, and logs.',
       };
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify(response, null, 2)
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(response, null, 2),
+          },
+        ],
       };
     },
     {
       operation: 'deploy_manifests',
       component: 'DeployManifestsTool',
       requestId,
-      input: args
+      input: args,
     }
   );
 }
-

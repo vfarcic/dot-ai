@@ -17,11 +17,14 @@ import { DiscoveryResponse, ProjectSetupSessionData, Question } from './types';
 interface ScopeConfig {
   files: string[];
   questions: Question[];
-  conditionalFiles?: Record<string, {
-    condition: string;
-    reason: string;
-  }>;
-  [key: string]: unknown;  // Allow additional properties
+  conditionalFiles?: Record<
+    string,
+    {
+      condition: string;
+      reason: string;
+    }
+  >;
+  [key: string]: unknown; // Allow additional properties
 }
 
 interface DiscoveryConfig {
@@ -43,7 +46,15 @@ export async function handleDiscovery(
 
       // Load discovery config from assets directory
       // From dist/tools/project-setup/ -> ../../../ gets to project root, then assets/project-setup/
-      const configPath = path.join(__dirname, '..', '..', '..', 'assets', 'project-setup', 'discovery-config.json');
+      const configPath = path.join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'assets',
+        'project-setup',
+        'discovery-config.json'
+      );
       const configContent = fs.readFileSync(configPath, 'utf8');
       const allConfig: DiscoveryConfig = JSON.parse(configContent);
 
@@ -60,20 +71,22 @@ export async function handleDiscovery(
       const uniqueFiles = Array.from(new Set(allFiles));
 
       // Initialize session manager with 'proj' prefix
-      const sessionManager = new GenericSessionManager<ProjectSetupSessionData>('proj');
+      const sessionManager = new GenericSessionManager<ProjectSetupSessionData>(
+        'proj'
+      );
 
       // Create new session with ALL scope configurations
       const session = sessionManager.createSession({
         currentStep: 'discover',
-        allScopes: allConfig,  // Store all scope configurations
-        filesToCheck: uniqueFiles
+        allScopes: allConfig, // Store all scope configurations
+        filesToCheck: uniqueFiles,
       });
 
       logger.info('Project setup session created', {
         requestId,
         sessionId: session.sessionId,
         scopeCount: scopeNames.length,
-        fileCount: uniqueFiles.length
+        fileCount: uniqueFiles.length,
       });
 
       // Return discovery response
@@ -83,14 +96,14 @@ export async function handleDiscovery(
         filesToCheck: uniqueFiles,
         availableScopes: scopeNames,
         nextStep: 'reportScan',
-        instructions: `Scan the repository for these files: ${uniqueFiles.join(', ')}. Check which files exist and build an array of those files. Then call projectSetup tool with step: "reportScan", sessionId: "${session.sessionId}", and existingFiles: [array of files that exist in the repository].`
+        instructions: `Scan the repository for these files: ${uniqueFiles.join(', ')}. Check which files exist and build an array of those files. Then call projectSetup tool with step: "reportScan", sessionId: "${session.sessionId}", and existingFiles: [array of files that exist in the repository].`,
       };
 
       logger.debug('Discovery response prepared', {
         requestId,
         sessionId: session.sessionId,
         fileCount: response.filesToCheck.length,
-        scopes: scopeNames
+        scopes: scopeNames,
       });
 
       return response;
@@ -98,7 +111,7 @@ export async function handleDiscovery(
     {
       operation: 'project_setup_discovery',
       component: 'ProjectSetupTool',
-      requestId
+      requestId,
     }
   );
 }

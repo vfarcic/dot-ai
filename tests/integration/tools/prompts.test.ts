@@ -8,6 +8,23 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { createHash } from 'crypto';
 import { IntegrationTest } from '../helpers/test-base.js';
+import type { RestApiResponse } from '../helpers/http-client.js';
+
+/**
+ * What this file reads off `data`. Fields are declared present because each
+ * read follows a `toMatchObject` assertion that proved presence at runtime.
+ */
+interface PromptsPayload {
+  source: string;
+  promptsLoaded: number;
+  prompts: Array<{
+    name: string;
+    description: string;
+    arguments?: Array<{ name: string; description: string; required: boolean }>;
+  }>;
+  files: Array<{ path: string; content: string }>;
+  messages: Array<{ content: { text: string } }>;
+}
 
 // NOTE: this suite is intentionally NOT describe.concurrent. Every test here
 // exercises the SAME deployed server's SINGLE shared user-prompts loader cache
@@ -153,7 +170,28 @@ describe('Prompts Integration', () => {
   ];
 
   // Combined list of all prompts (built-in + user)
-  const expectedPrompts = [...expectedBuiltInPrompts, ...expectedUserPrompts];
+  /**
+   * One expected prompt. `expectedFiles` and `testArgs` are test-only fields
+   * (stripped before the response-shape match), and only some entries carry
+   * them — so the array needs a declared element type rather than the union
+   * TypeScript infers from the two heterogeneous source arrays.
+   */
+  interface ExpectedPrompt {
+    name: string;
+    description: string;
+    arguments?: Array<{
+      name: string;
+      description: string;
+      required: boolean;
+    }>;
+    expectedFiles?: string[];
+    testArgs?: Record<string, unknown>;
+  }
+
+  const expectedPrompts: ExpectedPrompt[] = [
+    ...expectedBuiltInPrompts,
+    ...expectedUserPrompts,
+  ];
 
   beforeAll(async () => {
     // Verify we're using the test environment (either kubeconfig or in-cluster)
@@ -165,12 +203,13 @@ describe('Prompts Integration', () => {
     // Warm-up: Make a single prompts request to ensure git clone completes
     // before running tests. This prevents race conditions when user prompts
     // are loaded from a git repository.
-    await integrationTest.httpClient.get('/api/v1/prompts');
+    await integrationTest.httpClient.get<PromptsPayload>('/api/v1/prompts');
   });
 
   describe('Prompts List', () => {
     test('should return 11 built-in prompts + 4 user prompts with correct metadata', async () => {
-      const response = await integrationTest.httpClient.get('/api/v1/prompts');
+      const response =
+        await integrationTest.httpClient.get<PromptsPayload>('/api/v1/prompts');
 
       // expectedFiles and testArgs are test-only fields and must not be passed
       // to the API-shape matcher.
@@ -194,7 +233,7 @@ describe('Prompts Integration', () => {
       };
 
       expect(response).toMatchObject(expectedListResponse);
-      expect(response.data.prompts).toMatchObject({ length: 15 });
+      expect(response.data!.prompts).toMatchObject({ length: 15 });
     });
   });
 
@@ -203,7 +242,7 @@ describe('Prompts Integration', () => {
     test.each(expectedPrompts)(
       'should return prompt content for $name',
       async ({ name, description, expectedFiles, testArgs }) => {
-        const response = await integrationTest.httpClient.post(
+        const response = await integrationTest.httpClient.post<PromptsPayload>(
           `/api/v1/prompts/${name}`,
           testArgs ? { arguments: testArgs } : {}
         );
@@ -233,7 +272,7 @@ describe('Prompts Integration', () => {
 
         expect(response).toMatchObject(expectedGetResponse);
         // Verify content is non-empty
-        expect(response.data.messages[0].content.text.length).toBeGreaterThan(
+        expect(response.data!.messages[0].content.text.length).toBeGreaterThan(
           100
         );
 
@@ -246,7 +285,7 @@ describe('Prompts Integration', () => {
             })),
           });
           // Verify base64 content decodes to non-empty string
-          for (const file of response.data.files) {
+          for (const file of response.data!.files) {
             const decoded = Buffer.from(file.content, 'base64').toString(
               'utf-8'
             );
@@ -261,7 +300,7 @@ describe('Prompts Integration', () => {
     );
 
     test('should return error for non-existent prompt', async () => {
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/non-existent-prompt',
         {}
       );
@@ -287,13 +326,14 @@ describe('Prompts Integration', () => {
 
   describe('Prompt Arguments', () => {
     test('should return prd-start with arguments metadata in list', async () => {
-      const response = await integrationTest.httpClient.get('/api/v1/prompts');
+      const response =
+        await integrationTest.httpClient.get<PromptsPayload>('/api/v1/prompts');
 
-      const prdStartPrompt = response.data.prompts.find(
+      const prdStartPrompt = response.data!.prompts.find(
         (p: { name: string }) => p.name === 'prd-start'
       );
       expect(prdStartPrompt).toBeDefined();
-      expect(prdStartPrompt.arguments).toEqual([
+      expect(prdStartPrompt!.arguments).toEqual([
         {
           name: 'prdNumber',
           description: 'PRD number to start working on (e.g., 306)',
@@ -303,18 +343,20 @@ describe('Prompts Integration', () => {
     });
 
     test('should return prd-start content without argument (placeholder remains)', async () => {
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/prd-start',
         {}
       );
 
       expect(response.success).toBe(true);
       // Without argument, the placeholder should remain in the content
-      expect(response.data.messages[0].content.text).toContain('{{prdNumber}}');
+      expect(response.data!.messages[0].content.text).toContain(
+        '{{prdNumber}}'
+      );
     });
 
     test('should substitute argument when provided to prd-start', async () => {
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/prd-start',
         {
           arguments: { prdNumber: '306' },
@@ -323,10 +365,10 @@ describe('Prompts Integration', () => {
 
       expect(response.success).toBe(true);
       // With argument, the placeholder should be substituted
-      expect(response.data.messages[0].content.text).not.toContain(
+      expect(response.data!.messages[0].content.text).not.toContain(
         '{{prdNumber}}'
       );
-      expect(response.data.messages[0].content.text).toContain('306');
+      expect(response.data!.messages[0].content.text).toContain('306');
     });
   });
 
@@ -361,7 +403,7 @@ describe('Prompts Integration', () => {
         }
       );
       expect(res.ok).toBe(true);
-      const data = await res.json();
+      const data = (await res.json()) as { content: { sha: string } };
       return data.content.sha;
     }
 
@@ -396,23 +438,28 @@ describe('Prompts Integration', () => {
       try {
         // Step 1: Record initial prompt count
         const initialList =
-          await integrationTest.httpClient.get('/api/v1/prompts');
+          await integrationTest.httpClient.get<PromptsPayload>(
+            '/api/v1/prompts'
+          );
         expect(initialList).toMatchObject({ success: true });
-        const initialCount = initialList.data.prompts.length;
+        const initialCount = initialList.data!.prompts.length;
 
         // Step 2: Push a new prompt to the repo
         fileSha = await createFileInRepo();
 
         // Step 3: Verify list still returns cached (old) count
         const cachedList =
-          await integrationTest.httpClient.get('/api/v1/prompts');
-        expect(cachedList.data.prompts.length).toBe(initialCount);
+          await integrationTest.httpClient.get<PromptsPayload>(
+            '/api/v1/prompts'
+          );
+        expect(cachedList.data!.prompts.length).toBe(initialCount);
 
         // Step 4: Call refresh
-        const refreshResponse = await integrationTest.httpClient.post(
-          '/api/v1/prompts/refresh',
-          {}
-        );
+        const refreshResponse =
+          await integrationTest.httpClient.post<PromptsPayload>(
+            '/api/v1/prompts/refresh',
+            {}
+          );
         expect(refreshResponse).toMatchObject({
           success: true,
           data: {
@@ -434,9 +481,11 @@ describe('Prompts Integration', () => {
 
         // Step 5: Verify list now includes the new prompt
         const refreshedList =
-          await integrationTest.httpClient.get('/api/v1/prompts');
-        expect(refreshedList.data.prompts.length).toBe(initialCount + 1);
-        const newPrompt = refreshedList.data.prompts.find(
+          await integrationTest.httpClient.get<PromptsPayload>(
+            '/api/v1/prompts'
+          );
+        expect(refreshedList.data!.prompts.length).toBe(initialCount + 1);
+        const newPrompt = refreshedList.data!.prompts.find(
           (p: { name: string }) => p.name === testPromptName
         );
         expect(newPrompt).toMatchObject({
@@ -448,13 +497,16 @@ describe('Prompts Integration', () => {
         if (fileSha) {
           await deleteFileFromRepo(fileSha);
           // Refresh again to restore the server cache to clean state
-          await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+          await integrationTest.httpClient.post<PromptsPayload>(
+            '/api/v1/prompts/refresh',
+            {}
+          );
         }
       }
     }, 300000);
 
     test('should reject GET method for refresh endpoint', async () => {
-      const response = await integrationTest.httpClient.get(
+      const response = await integrationTest.httpClient.get<PromptsPayload>(
         '/api/v1/prompts/refresh'
       );
 
@@ -477,7 +529,7 @@ describe('Prompts Integration', () => {
 
   describe('HTTP Method Validation', () => {
     test('should reject POST for prompts list endpoint', async () => {
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts',
         {}
       );
@@ -501,7 +553,7 @@ describe('Prompts Integration', () => {
     });
 
     test('should reject GET for prompt get endpoint', async () => {
-      const response = await integrationTest.httpClient.get(
+      const response = await integrationTest.httpClient.get<PromptsPayload>(
         '/api/v1/prompts/generate-dockerfile'
       );
 
@@ -551,7 +603,8 @@ describe('Prompts Integration', () => {
     // and the no-override source value. Those are exercised below.
 
     test('GET /api/v1/prompts without ?repo returns source from env-var config', async () => {
-      const response = await integrationTest.httpClient.get('/api/v1/prompts');
+      const response =
+        await integrationTest.httpClient.get<PromptsPayload>('/api/v1/prompts');
       expect(response).toMatchObject({
         success: true,
         data: {
@@ -563,7 +616,7 @@ describe('Prompts Integration', () => {
     });
 
     test('GET /api/v1/prompts?repo=ssh://... returns 400 with credential-safe message', async () => {
-      const response = await integrationTest.httpClient.get(
+      const response = await integrationTest.httpClient.get<PromptsPayload>(
         `/api/v1/prompts?repo=${encodeURIComponent('ssh://git@github.com/example/repo.git')}`
       );
       expect(response).toMatchObject({
@@ -580,7 +633,7 @@ describe('Prompts Integration', () => {
       // Bad scheme so we hit the 400 path; the response must not echo the
       // secret embedded in the URL.
       const credUrl = `ssh://user:${secret}@github.com/example/repo.git`;
-      const response = await integrationTest.httpClient.get(
+      const response = await integrationTest.httpClient.get<PromptsPayload>(
         `/api/v1/prompts?repo=${encodeURIComponent(credUrl)}`
       );
       expect(response).toMatchObject({ success: false });
@@ -588,7 +641,7 @@ describe('Prompts Integration', () => {
     });
 
     test('POST /api/v1/prompts/refresh with body.repo=ssh://... returns 400', async () => {
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/refresh',
         { repo: 'ssh://git@github.com/example/repo.git' }
       );
@@ -604,7 +657,7 @@ describe('Prompts Integration', () => {
     // F2: type-checking guards against the server crashing to 500 on a
     // malformed body. `repo` MUST be a string per the wire contract.
     test('POST /api/v1/prompts/refresh with body.repo as array returns 400 (not 500)', async () => {
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/refresh',
         { repo: ['https://github.com/a/b.git', 'https://github.com/c/d.git'] }
       );
@@ -618,7 +671,7 @@ describe('Prompts Integration', () => {
     });
 
     test('POST /api/v1/prompts/refresh with body.repo as number returns 400 (not 500)', async () => {
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/refresh',
         { repo: 42 }
       );
@@ -632,7 +685,7 @@ describe('Prompts Integration', () => {
     });
 
     test('POST /api/v1/prompts/:name?repo=ssh://... returns 400', async () => {
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/prd-create?repo=${encodeURIComponent('ssh://git@github.com/example/repo.git')}`,
         {}
       );
@@ -648,7 +701,7 @@ describe('Prompts Integration', () => {
     test('POST /api/v1/prompts/:name?repo=<url-with-token-and-bad-scheme> scrubs token from response', async () => {
       const secret = 'name_test_secret_xyz';
       const credUrl = `ssh://user:${secret}@github.com/example/repo.git`;
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/prd-create?repo=${encodeURIComponent(credUrl)}`,
         {}
       );
@@ -670,7 +723,7 @@ describe('Prompts Integration', () => {
       const metadataRepo = 'http://169.254.169.254/latest/meta-data/';
       const probeToken = 'ghp_prd710_metadata_probe_token';
 
-      const response = await integrationTest.httpClient.get(
+      const response = await integrationTest.httpClient.get<PromptsPayload>(
         `/api/v1/prompts?repo=${encodeURIComponent(metadataRepo)}`
       );
       expect(response).toMatchObject({
@@ -686,10 +739,11 @@ describe('Prompts Integration', () => {
       // Whether the fetch happens at all is a different question from whose
       // credential travels, so supplying a git token changes nothing — and the
       // token must not come back in the refusal.
-      const withCredential = await integrationTest.httpClient.get(
-        `/api/v1/prompts?repo=${encodeURIComponent(metadataRepo)}`,
-        { 'X-Dot-AI-Git-Token': probeToken }
-      );
+      const withCredential =
+        await integrationTest.httpClient.get<PromptsPayload>(
+          `/api/v1/prompts?repo=${encodeURIComponent(metadataRepo)}`,
+          { 'X-Dot-AI-Git-Token': probeToken }
+        );
       expect(withCredential).toMatchObject({
         success: false,
         error: {
@@ -703,7 +757,8 @@ describe('Prompts Integration', () => {
 
       // The env-var path is untouched: a refused override neither clears nor
       // replaces the prompts the server already loaded.
-      const afterward = await integrationTest.httpClient.get('/api/v1/prompts');
+      const afterward =
+        await integrationTest.httpClient.get<PromptsPayload>('/api/v1/prompts');
       expect(afterward).toMatchObject({
         success: true,
         data: {
@@ -740,8 +795,7 @@ describe('Prompts Integration', () => {
     const gitToken = process.env.DOT_AI_GIT_TOKEN;
     // Must match DOT_AI_USER_PROMPTS_REPO from the integration infra so the
     // override changes only branch/subPath (not repoUrl) vs. the env config.
-    const promptsRepoUrl =
-      'https://github.com/vfarcic/dot-ai-test-prompts.git';
+    const promptsRepoUrl = 'https://github.com/vfarcic/dot-ai-test-prompts.git';
     const ghRepoApi =
       'https://api.github.com/repos/vfarcic/dot-ai-test-prompts';
 
@@ -766,10 +820,8 @@ describe('Prompts Integration', () => {
     // Two-stage tracking so teardown is robust to PARTIAL setup: the branch is
     // created before the file is committed, so if the commit (or anything after
     // branch creation) throws, afterAll must still delete the branch or it is
-    // orphaned on the remote. fixtureBranchCreated gates cleanup; fixtureReady
-    // gates the happy-path tests.
+    // orphaned on the remote. fixtureBranchCreated gates cleanup.
     let fixtureBranchCreated = false;
-    let fixtureReady = false;
 
     async function ghApi(method: string, apiPath: string, body?: unknown) {
       return fetch(`${ghRepoApi}${apiPath}`, {
@@ -787,7 +839,10 @@ describe('Prompts Integration', () => {
     // coordinate (repoUrl, main, user-prompts) without changing it, undoing any
     // coordinate drift left by an override request.
     async function restoreEnvCache(): Promise<void> {
-      await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+      await integrationTest.httpClient.post<PromptsPayload>(
+        '/api/v1/prompts/refresh',
+        {}
+      );
     }
 
     // Retry an assertion block to absorb a transient concurrent re-clone of the
@@ -836,8 +891,6 @@ describe('Prompts Integration', () => {
         branch: fixtureBranch,
       });
       expect(fileRes.ok).toBe(true);
-
-      fixtureReady = true;
     });
 
     afterAll(async () => {
@@ -868,13 +921,13 @@ describe('Prompts Integration', () => {
       }
       try {
         await expectEventually(async () => {
-          const response = await integrationTest.httpClient.get(
+          const response = await integrationTest.httpClient.get<PromptsPayload>(
             `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}` +
               `&path=${encodeURIComponent(fixtureSubdir)}` +
               `&branch=${encodeURIComponent(fixtureBranch)}`
           );
           expect(response).toMatchObject({ success: true });
-          const fixturePrompt = response.data.prompts.find(
+          const fixturePrompt = response.data!.prompts.find(
             (p: { name: string }) => p.name === fixturePromptName
           );
           // RED until M1: ?path=/?branch= are dropped, the clone reads repo
@@ -914,7 +967,7 @@ describe('Prompts Integration', () => {
       }
       try {
         await expectEventually(async () => {
-          const response = await integrationTest.httpClient.get(
+          const response = await integrationTest.httpClient.get<PromptsPayload>(
             `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}` +
               `&path=${encodeURIComponent(fixtureSubdir)}` +
               `&branch=${encodeURIComponent(fixtureBranch)}`,
@@ -925,7 +978,7 @@ describe('Prompts Integration', () => {
           expect(response).toMatchObject({ success: true });
           // The distinct subdir@branch prompt resolves through the token-bearing
           // isolated clone.
-          const fixturePrompt = response.data.prompts.find(
+          const fixturePrompt = response.data!.prompts.find(
             (p: { name: string }) => p.name === fixturePromptName
           );
           expect(fixturePrompt).toMatchObject({
@@ -952,13 +1005,14 @@ describe('Prompts Integration', () => {
       }
       try {
         await expectEventually(async () => {
-          const response = await integrationTest.httpClient.post(
-            `/api/v1/prompts/${fixturePromptName}` +
-              `?repo=${encodeURIComponent(promptsRepoUrl)}` +
-              `&path=${encodeURIComponent(fixtureSubdir)}` +
-              `&branch=${encodeURIComponent(fixtureBranch)}`,
-            {}
-          );
+          const response =
+            await integrationTest.httpClient.post<PromptsPayload>(
+              `/api/v1/prompts/${fixturePromptName}` +
+                `?repo=${encodeURIComponent(promptsRepoUrl)}` +
+                `&path=${encodeURIComponent(fixtureSubdir)}` +
+                `&branch=${encodeURIComponent(fixtureBranch)}`,
+              {}
+            );
           // RED until M1: path/branch dropped → prompt not found → 400.
           expect(response).toMatchObject({
             success: true,
@@ -990,14 +1044,15 @@ describe('Prompts Integration', () => {
         await expectEventually(async () => {
           // Control: same branch, a subdirectory that does NOT exist on it →
           // built-in prompts only (no user prompts loaded).
-          const controlRes = await integrationTest.httpClient.post(
-            '/api/v1/prompts/refresh',
-            {
-              repo: promptsRepoUrl,
-              path: `${fixtureSubdir}-absent-${overrideRunId}`,
-              branch: fixtureBranch,
-            }
-          );
+          const controlRes =
+            await integrationTest.httpClient.post<PromptsPayload>(
+              '/api/v1/prompts/refresh',
+              {
+                repo: promptsRepoUrl,
+                path: `${fixtureSubdir}-absent-${overrideRunId}`,
+                branch: fixtureBranch,
+              }
+            );
           expect(controlRes).toMatchObject({
             success: true,
             data: { refreshed: true, promptsLoaded: expect.any(Number) },
@@ -1005,14 +1060,15 @@ describe('Prompts Integration', () => {
 
           // Fixture: the subdirectory that DOES exist on the branch →
           // built-in prompts + exactly the one fixture prompt.
-          const fixtureRes = await integrationTest.httpClient.post(
-            '/api/v1/prompts/refresh',
-            {
-              repo: promptsRepoUrl,
-              path: fixtureSubdir,
-              branch: fixtureBranch,
-            }
-          );
+          const fixtureRes =
+            await integrationTest.httpClient.post<PromptsPayload>(
+              '/api/v1/prompts/refresh',
+              {
+                repo: promptsRepoUrl,
+                path: fixtureSubdir,
+                branch: fixtureBranch,
+              }
+            );
           expect(fixtureRes).toMatchObject({
             success: true,
             data: {
@@ -1025,8 +1081,8 @@ describe('Prompts Integration', () => {
           // RED until M1: body path/branch are dropped, so BOTH refreshes
           // clone repo ROOT on MAIN and load the same count → the +1 from the
           // fixture subdir never appears.
-          expect(fixtureRes.data.promptsLoaded).toBe(
-            controlRes.data.promptsLoaded + 1
+          expect(fixtureRes.data!.promptsLoaded).toBe(
+            controlRes.data!.promptsLoaded + 1
           );
         });
       } finally {
@@ -1039,12 +1095,13 @@ describe('Prompts Integration', () => {
       const secret = 'prd621_path_secret_xyz';
       const credUrl = `https://user:${secret}@github.com/vfarcic/dot-ai-test-prompts.git`;
 
-      const before = await integrationTest.httpClient.get('/api/v1/prompts');
+      const before =
+        await integrationTest.httpClient.get<PromptsPayload>('/api/v1/prompts');
       expect(before).toMatchObject({ success: true });
 
       // RED until M1: ?path= is dropped, the override validates on repoUrl
       // alone, and the traversal subPath is never rejected (no 400).
-      const response = await integrationTest.httpClient.get(
+      const response = await integrationTest.httpClient.get<PromptsPayload>(
         `/api/v1/prompts?repo=${encodeURIComponent(credUrl)}` +
           `&path=${encodeURIComponent('../../etc/passwd')}`
       );
@@ -1057,14 +1114,15 @@ describe('Prompts Integration', () => {
 
       // A request rejected BEFORE any clone must not corrupt the env-var cache:
       // the env config still serves the same prompts and source afterwards.
-      const after = await integrationTest.httpClient.get('/api/v1/prompts');
+      const after =
+        await integrationTest.httpClient.get<PromptsPayload>('/api/v1/prompts');
       expect(after).toMatchObject({
         success: true,
-        data: { source: before.data.source },
+        data: { source: before.data!.source },
       });
       // Scalar count comparison (toBe) — the env prompt count is unchanged after
       // the rejected request; not an object shape, so toMatchObject does not apply.
-      expect(after.data.prompts.length).toBe(before.data.prompts.length);
+      expect(after.data!.prompts.length).toBe(before.data!.prompts.length);
       // 120000ms (NOT the 300000ms comprehensive convention): this is a
       // validation test — the override is rejected BEFORE any clone, so it is
       // fast and deterministic and does not need the long comprehensive timeout.
@@ -1076,7 +1134,7 @@ describe('Prompts Integration', () => {
 
       // RED until M1: body `branch` is dropped, so the illegal branch name is
       // never validated and no 400 is returned.
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/refresh',
         { repo: credUrl, branch: 'bad branch name!!' }
       );
@@ -1127,8 +1185,7 @@ describe('Prompts Integration', () => {
   //     redirecting git host — not available; unit-test the auth/redirect path.
   //   - LOG scrubbing (token absent from server logs): logs are not HTTP-observable.
   describe('Per-request credential header + backward-compat parity (PRD #621 M2/M3/M4)', () => {
-    const promptsRepoUrl =
-      'https://github.com/vfarcic/dot-ai-test-prompts.git';
+    const promptsRepoUrl = 'https://github.com/vfarcic/dot-ai-test-prompts.git';
     const gitToken = process.env.DOT_AI_GIT_TOKEN;
 
     // Retry an equality/presence assertion to absorb a transient concurrent
@@ -1155,7 +1212,10 @@ describe('Prompts Integration', () => {
     }
 
     async function restoreEnvCache(): Promise<void> {
-      await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+      await integrationTest.httpClient.post<PromptsPayload>(
+        '/api/v1/prompts/refresh',
+        {}
+      );
     }
 
     // ---- M2: CORS allowlist (the one genuinely RED-today test in this block) ----
@@ -1190,7 +1250,7 @@ describe('Prompts Integration', () => {
     test('no-override request behaves like v1.21.0 with the credential header present and never echoes it (PRD #621 M4 parity)', async () => {
       const secret = 'prd621_norepo_header_secret_zzz';
       await expectEventually(async () => {
-        const withHeader = await integrationTest.httpClient.get(
+        const withHeader = await integrationTest.httpClient.get<PromptsPayload>(
           '/api/v1/prompts',
           { 'X-Dot-AI-Git-Token': secret }
         );
@@ -1199,7 +1259,7 @@ describe('Prompts Integration', () => {
           // Source is the env-var repo, unchanged by the header.
           data: { source: expect.stringContaining('dot-ai-test-prompts') },
         });
-        const names = withHeader.data.prompts.map(
+        const names = withHeader.data!.prompts.map(
           (p: { name: string }) => p.name
         );
         // Built-in AND env user prompts (loaded from the user-prompts/ subdir)
@@ -1222,14 +1282,14 @@ describe('Prompts Integration', () => {
       try {
         await expectEventually(async () => {
           // Header ABSENT: clones the public repo ROOT on main (PRD #581).
-          const res = await integrationTest.httpClient.get(
+          const res = await integrationTest.httpClient.get<PromptsPayload>(
             `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}`
           );
           expect(res).toMatchObject({
             success: true,
             data: { source: expect.stringContaining('dot-ai-test-prompts') },
           });
-          const names = res.data.prompts.map((p: { name: string }) => p.name);
+          const names = res.data!.prompts.map((p: { name: string }) => p.name);
           // toContain asserts ARRAY MEMBERSHIP (not object shape). ?repo=-only
           // clones the repo ROOT: built-in prompts present, but env user prompts
           // (which live under the user-prompts/ subdir) are NOT loaded.
@@ -1242,7 +1302,7 @@ describe('Prompts Integration', () => {
           // for a public source. Skipped without a token; a WRONG token now
           // surfaces as 502 instead of this success (see the issue #575 test).
           if (gitToken) {
-            const resH = await integrationTest.httpClient.get(
+            const resH = await integrationTest.httpClient.get<PromptsPayload>(
               `/api/v1/prompts?repo=${encodeURIComponent(promptsRepoUrl)}`,
               { 'X-Dot-AI-Git-Token': gitToken }
             );
@@ -1253,7 +1313,7 @@ describe('Prompts Integration', () => {
             // toEqual asserts EXACT equality of the two name arrays (parity);
             // toMatchObject does partial matching, which is the wrong tool here.
             expect(
-              resH.data.prompts.map((p: { name: string }) => p.name).sort()
+              resH.data!.prompts.map((p: { name: string }) => p.name).sort()
             ).toEqual(names.slice().sort());
             // Negative no-leak assertion — the real token must never be echoed.
             expect(JSON.stringify(resH)).not.toContain(gitToken);
@@ -1280,14 +1340,15 @@ describe('Prompts Integration', () => {
         'https://dot-ai-575-failopen.invalid/team/private-skills.git';
 
       // Baseline: the env-var-configured source serves normally.
-      const before = await integrationTest.httpClient.get('/api/v1/prompts');
+      const before =
+        await integrationTest.httpClient.get<PromptsPayload>('/api/v1/prompts');
       expect(before).toMatchObject({
         success: true,
         data: { source: expect.stringContaining('dot-ai-test-prompts') },
       });
 
       try {
-        const response = await integrationTest.httpClient.get(
+        const response = await integrationTest.httpClient.get<PromptsPayload>(
           `/api/v1/prompts?repo=${encodeURIComponent(unreachableRepo)}`,
           { 'X-Dot-AI-Git-Token': secret }
         );
@@ -1312,15 +1373,18 @@ describe('Prompts Integration', () => {
 
         // A failed override must NOT corrupt the env-var cache: the env config
         // still serves the same source and prompt set afterwards.
-        const after = await integrationTest.httpClient.get('/api/v1/prompts');
+        const after =
+          await integrationTest.httpClient.get<PromptsPayload>(
+            '/api/v1/prompts'
+          );
         expect(after).toMatchObject({
           success: true,
-          data: { source: before.data.source },
+          data: { source: before.data!.source },
         });
         // Scalar count comparison (toBe) — the env prompt count is unchanged
         // after the failed override; not an object shape, so toMatchObject does
         // not apply.
-        expect(after.data.prompts.length).toBe(before.data.prompts.length);
+        expect(after.data!.prompts.length).toBe(before.data!.prompts.length);
       } finally {
         await restoreEnvCache();
       }
@@ -1399,20 +1463,21 @@ describe('Prompts Integration', () => {
       // Step 1 — INGEST: upload the skill source keyed by the local:<label>
       // identifier (contract wire format: { source, contentHash, files:[{path,
       // content(base64), mode}] }). Bearer-authed via the shared httpClient.
-      const uploadResponse = await integrationTest.httpClient.post(
-        '/api/v1/prompts/sources',
-        {
-          source: sourceLabel,
-          contentHash,
-          files: [
-            {
-              path: `${skillName}/SKILL.md`,
-              content: skillMdBase64,
-              mode: '0644',
-            },
-          ],
-        }
-      );
+      const uploadResponse =
+        await integrationTest.httpClient.post<PromptsPayload>(
+          '/api/v1/prompts/sources',
+          {
+            source: sourceLabel,
+            contentHash,
+            files: [
+              {
+                path: `${skillName}/SKILL.md`,
+                content: skillMdBase64,
+                mode: '0644',
+              },
+            ],
+          }
+        );
       // RED until M2: the sources route is unregistered and misroutes to the
       // render handler → { success: false, error: 'Prompt not found: sources' }.
       expect(uploadResponse).toMatchObject({ success: true });
@@ -1421,10 +1486,11 @@ describe('Prompts Integration', () => {
       // and substitute the argument through the existing render path. Because the
       // identifier is `local:`, a render that resolves proves the server served
       // from the ingested cache with NO clone attempt.
-      const renderResponse = await integrationTest.httpClient.post(
-        `/api/v1/prompts/${skillName}?source=${encodeURIComponent(sourceLabel)}`,
-        { arguments: { [argName]: argValue } }
-      );
+      const renderResponse =
+        await integrationTest.httpClient.post<PromptsPayload>(
+          `/api/v1/prompts/${skillName}?source=${encodeURIComponent(sourceLabel)}`,
+          { arguments: { [argName]: argValue } }
+        );
 
       // RED until M3: `?source=` is ignored, the render falls back to the env
       // repo, and the ingested skill is never found (success: false).
@@ -1448,7 +1514,7 @@ describe('Prompts Integration', () => {
         },
       });
 
-      const renderedText = renderResponse.data.messages[0].content.text;
+      const renderedText = renderResponse.data!.messages[0].content.text;
       // The argument was substituted by the server-side renderer...
       expect(renderedText).toContain(`Deploy ${argValue} into the cluster`);
       // ...and the raw placeholder is gone — proves real substitution, not echo.
@@ -1494,7 +1560,8 @@ describe('Prompts Integration', () => {
     // just that the built-in/env set came back.
     const skillName = `wip-experimental-${runId}`;
     const argName = 'targetName';
-    const argDescription = 'The resource to deploy (substituted at render time)';
+    const argDescription =
+      'The resource to deploy (substituted at render time)';
     const description =
       'PRD 647 list-by-source fixture — a genuinely novel skill the CLI must enumerate';
 
@@ -1524,25 +1591,26 @@ describe('Prompts Integration', () => {
     test('GET /api/v1/prompts?source= enumerates a genuinely-new uploaded skill and echoes the identifier (PRD #647 list-by-source)', async () => {
       // Step 1 — INGEST: upload the source keyed by the local:<label> identifier
       // (the ingest endpoint is already implemented; this step is GREEN).
-      const uploadResponse = await integrationTest.httpClient.post(
-        '/api/v1/prompts/sources',
-        {
-          source: sourceLabel,
-          contentHash,
-          files: [
-            {
-              path: `${skillName}/SKILL.md`,
-              content: skillMdBase64,
-              mode: '0644',
-            },
-          ],
-        }
-      );
+      const uploadResponse =
+        await integrationTest.httpClient.post<PromptsPayload>(
+          '/api/v1/prompts/sources',
+          {
+            source: sourceLabel,
+            contentHash,
+            files: [
+              {
+                path: `${skillName}/SKILL.md`,
+                content: skillMdBase64,
+                mode: '0644',
+              },
+            ],
+          }
+        );
       expect(uploadResponse).toMatchObject({ success: true });
 
       // Step 2 — LIST BY SOURCE: enumerate the uploaded source's prompts via
       // `?source=`. Bearer-authed through the shared httpClient.
-      const listResponse = await integrationTest.httpClient.get(
+      const listResponse = await integrationTest.httpClient.get<PromptsPayload>(
         `/api/v1/prompts?source=${encodeURIComponent(sourceLabel)}`
       );
 
@@ -1553,7 +1621,7 @@ describe('Prompts Integration', () => {
       // PRIMARY RED until list-by-source lands: today `?source=` is ignored on the
       // LIST path, so the returned set is the env/built-in list and the novel
       // skill is absent (find → undefined). The CLI cannot discover what to render.
-      const listed = listResponse.data.prompts.find(
+      const listed = listResponse.data!.prompts.find(
         (p: { name: string }) => p.name === skillName
       );
       expect(listed).toBeDefined();
@@ -1583,7 +1651,7 @@ describe('Prompts Integration', () => {
 
     test('GET /api/v1/prompts?source=<never-uploaded> returns 400 re-upload guidance, not a generic success-with-builtins (PRD #647 list-by-source)', async () => {
       const source = `local:never-uploaded-${runId}`;
-      const response = await integrationTest.httpClient.get(
+      const response = await integrationTest.httpClient.get<PromptsPayload>(
         `/api/v1/prompts?source=${encodeURIComponent(source)}`
       );
 
@@ -1641,7 +1709,8 @@ describe('Prompts Integration', () => {
     // is kept comfortably below this value.
     const INGEST_MAX_RAW_BODY_BYTES = 512 * 1024; // 512 KiB
 
-    const b64 = (s: string): string => Buffer.from(s, 'utf-8').toString('base64');
+    const b64 = (s: string): string =>
+      Buffer.from(s, 'utf-8').toString('base64');
     const sha256 = (s: string): string =>
       `sha256:${createHash('sha256').update(s, 'utf-8').digest('hex')}`;
 
@@ -1671,12 +1740,14 @@ describe('Prompts Integration', () => {
       const hash1 = sha256(md1);
 
       // First upload — the server stores the content + hash for this identifier.
-      const first = await integrationTest.httpClient.post(
+      const first = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source,
           contentHash: hash1,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' }],
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' },
+          ],
         }
       );
       expect(first).toMatchObject({
@@ -1688,12 +1759,14 @@ describe('Prompts Integration', () => {
       // RED until M4/D3: the server re-decodes and returns status 'ingested';
       // the contract requires it to recognize the unchanged hash and return
       // status 'unchanged'.
-      const second = await integrationTest.httpClient.post(
+      const second = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source,
           contentHash: hash1,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' }],
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(md1), mode: '0644' },
+          ],
         }
       );
       expect(second).toMatchObject({
@@ -1705,12 +1778,14 @@ describe('Prompts Integration', () => {
       // identifier must NOT be short-circuited — it is processed normally.
       const md2 = skillMd(skill, 'Second, changed version.');
       const hash2 = sha256(md2);
-      const third = await integrationTest.httpClient.post(
+      const third = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source,
           contentHash: hash2,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(md2), mode: '0644' }],
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(md2), mode: '0644' },
+          ],
         }
       );
       expect(third).toMatchObject({
@@ -1726,7 +1801,7 @@ describe('Prompts Integration', () => {
     // identifier (D2: ingested identifiers are never cloned).
     test('rendering a never-uploaded ?source= identifier returns clear re-upload guidance and never attempts a clone (PRD #647 D2)', async () => {
       const source = `local:never-${runId}`;
-      const response = await integrationTest.httpClient.post(
+      const response = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/ghost-skill-${runId}?source=${encodeURIComponent(source)}`,
         {}
       );
@@ -1786,7 +1861,7 @@ describe('Prompts Integration', () => {
       const wireBytes = Buffer.byteLength(JSON.stringify(requestBody), 'utf-8');
       expect(wireBytes).toBeLessThan(INGEST_MAX_RAW_BODY_BYTES);
 
-      const upload = await integrationTest.httpClient.post(
+      const upload = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         requestBody
       );
@@ -1799,7 +1874,7 @@ describe('Prompts Integration', () => {
       expect(upload.error?.code).not.toBe('PAYLOAD_TOO_LARGE');
 
       // A rejected upload must never be cached: a subsequent render misses.
-      const render = await integrationTest.httpClient.post(
+      const render = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
         {}
       );
@@ -1814,14 +1889,22 @@ describe('Prompts Integration', () => {
       // One valid skill + enough padding files to exceed the count cap. Each file
       // is tiny, so the total payload is small (count, not size, is the trigger).
       const files = [
-        { path: `${skill}/SKILL.md`, content: b64(skillMd(skill)), mode: '0644' },
+        {
+          path: `${skill}/SKILL.md`,
+          content: b64(skillMd(skill)),
+          mode: '0644',
+        },
       ];
       for (let i = 0; i < MAX_INGEST_FILES + 50; i++) {
-        files.push({ path: `pad/file-${i}.txt`, content: b64('x'), mode: '0644' });
+        files.push({
+          path: `pad/file-${i}.txt`,
+          content: b64('x'),
+          mode: '0644',
+        });
       }
       expect(files.length).toBeGreaterThan(MAX_INGEST_FILES);
 
-      const upload = await integrationTest.httpClient.post(
+      const upload = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         { source, files }
       );
@@ -1832,7 +1915,7 @@ describe('Prompts Integration', () => {
       });
 
       // Not cached → subsequent render misses.
-      const render = await integrationTest.httpClient.post(
+      const render = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
         {}
       );
@@ -1845,11 +1928,13 @@ describe('Prompts Integration', () => {
     // with a clean 4xx (not a 500), and nothing cached.
     test('rejects traversal and absolute file paths with a clean 4xx and does not cache the source (PRD #647 D5)', async () => {
       const traversalSource = `local:zipslip-${runId}`;
-      const traversal = await integrationTest.httpClient.post(
+      const traversal = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source: traversalSource,
-          files: [{ path: '../escape/SKILL.md', content: b64('hi'), mode: '0644' }],
+          files: [
+            { path: '../escape/SKILL.md', content: b64('hi'), mode: '0644' },
+          ],
         }
       );
       expect(traversal).toMatchObject({
@@ -1859,7 +1944,7 @@ describe('Prompts Integration', () => {
       // Clean 4xx, not a generic 500 surface.
       expect(traversal.error?.code).not.toBe('PROMPTS_SOURCE_INGEST_ERROR');
 
-      const absolute = await integrationTest.httpClient.post(
+      const absolute = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source: `local:zipslip-abs-${runId}`,
@@ -1872,7 +1957,7 @@ describe('Prompts Integration', () => {
       });
 
       // Rejected before caching → render of the traversal label misses.
-      const render = await integrationTest.httpClient.post(
+      const render = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/escape?source=${encodeURIComponent(traversalSource)}`,
         {}
       );
@@ -1922,11 +2007,10 @@ describe('Prompts Integration', () => {
       // `Connection: close` keeps the reset (poisoned) socket out of the
       // keep-alive pool so the follow-up render is not handed a dead socket.
       const closeConn = { Connection: 'close' };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let uploadResponse: any;
+      let uploadResponse: RestApiResponse<PromptsPayload> | undefined;
       let uploadError: Error | undefined;
       try {
-        uploadResponse = await integrationTest.httpClient.post(
+        uploadResponse = await integrationTest.httpClient.post<PromptsPayload>(
           '/api/v1/prompts/sources',
           requestBody,
           closeConn
@@ -1948,8 +2032,8 @@ describe('Prompts Integration', () => {
           success: false,
           error: { code: 'PAYLOAD_TOO_LARGE' },
         });
-        expect(uploadResponse.error?.code).not.toBe('VALIDATION_ERROR');
-        expect(uploadResponse.error?.code).not.toBe('INVALID_JSON');
+        expect(uploadResponse!.error?.code).not.toBe('VALIDATION_ERROR');
+        expect(uploadResponse!.error?.code).not.toBe('INVALID_JSON');
       }
       // In neither case was the upload accepted.
       expect(uploadResponse?.success).not.toBe(true);
@@ -1957,7 +2041,7 @@ describe('Prompts Integration', () => {
       // Durable, race-free proof the over-cap body was rejected before caching:
       // a subsequent render of the identifier misses (nothing was stored). Fresh
       // connection (Connection: close) so it cannot inherit the upload's socket.
-      const render = await integrationTest.httpClient.post(
+      const render = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
         {},
         closeConn
@@ -1996,12 +2080,11 @@ describe('Prompts Integration', () => {
       // `Connection: close` keeps the reset (poisoned) socket out of the keep-alive
       // pool so the follow-up render is not handed a dead socket.
       const closeConn = { Connection: 'close' };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let uploadResponse: any;
+      let uploadResponse: RestApiResponse<PromptsPayload> | undefined;
       let uploadError: Error | undefined;
       try {
         // NOTE the TRAILING SLASH — the pre-fix cap-bypass path.
-        uploadResponse = await integrationTest.httpClient.post(
+        uploadResponse = await integrationTest.httpClient.post<PromptsPayload>(
           '/api/v1/prompts/sources/',
           requestBody,
           closeConn
@@ -2022,8 +2105,8 @@ describe('Prompts Integration', () => {
           success: false,
           error: { code: 'PAYLOAD_TOO_LARGE' },
         });
-        expect(uploadResponse.error?.code).not.toBe('VALIDATION_ERROR');
-        expect(uploadResponse.error?.code).not.toBe('INVALID_JSON');
+        expect(uploadResponse!.error?.code).not.toBe('VALIDATION_ERROR');
+        expect(uploadResponse!.error?.code).not.toBe('INVALID_JSON');
       }
       // In neither case was the upload accepted.
       expect(uploadResponse?.success).not.toBe(true);
@@ -2031,7 +2114,7 @@ describe('Prompts Integration', () => {
       // Durable, race-free proof the over-cap body was rejected before caching:
       // a subsequent render of the identifier misses (nothing was stored). Fresh
       // connection (Connection: close) so it cannot inherit the upload's socket.
-      const render = await integrationTest.httpClient.post(
+      const render = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
         {},
         closeConn
@@ -2052,11 +2135,13 @@ describe('Prompts Integration', () => {
 
       // 1) Seed a GOOD upload for this identifier and confirm it renders.
       const good = skillMd(skill, 'Original good body.');
-      const seed = await integrationTest.httpClient.post(
+      const seed = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(good), mode: '0644' }],
+          files: [
+            { path: `${skill}/SKILL.md`, content: b64(good), mode: '0644' },
+          ],
         }
       );
       expect(seed).toMatchObject({
@@ -2064,22 +2149,27 @@ describe('Prompts Integration', () => {
         data: { source, fileCount: 1, status: 'ingested' },
       });
 
-      const renderBefore = await integrationTest.httpClient.post(
-        `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
-        {}
-      );
+      const renderBefore =
+        await integrationTest.httpClient.post<PromptsPayload>(
+          `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
+          {}
+        );
       expect(renderBefore).toMatchObject({ success: true });
 
       // 2) Re-ingest the SAME identifier with a NUL byte embedded in a file path.
       // JSON.stringify encodes the embedded '\0' as a \u0000 escape on the
       // wire; the server JSON-decodes it back to a real NUL and must reject it
       // up front with a 400 — not a 500, and not a partial write.
-      const bad = await integrationTest.httpClient.post(
+      const bad = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source,
           files: [
-            { path: `${skill}/evil${'\0'}.md`, content: b64('pwned'), mode: '0644' },
+            {
+              path: `${skill}/evil${'\0'}.md`,
+              content: b64('pwned'),
+              mode: '0644',
+            },
           ],
         }
       );
@@ -2092,12 +2182,12 @@ describe('Prompts Integration', () => {
 
       // 3) Atomicity: the prior good upload for this identifier is untouched and
       // still renders — the rejected NUL-byte upload never promoted into the slot.
-      const renderAfter = await integrationTest.httpClient.post(
+      const renderAfter = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
         {}
       );
       expect(renderAfter).toMatchObject({ success: true });
-      const textAfter = renderAfter.data.messages[0].content.text;
+      const textAfter = renderAfter.data!.messages[0].content.text;
       expect(textAfter).toContain('Original good body.');
       // The rejected payload's marker must NOT have leaked into the cache.
       expect(textAfter).not.toContain('pwned');
@@ -2119,12 +2209,16 @@ describe('Prompts Integration', () => {
       // '!' characters and its length is not a multiple of 4. Buffer.from would
       // silently strip the bad chars and decode garbage; the validator must reject
       // it up front instead.
-      const upload = await integrationTest.httpClient.post(
+      const upload = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source,
           files: [
-            { path: `${skill}/SKILL.md`, content: 'not!valid!base64!', mode: '0644' },
+            {
+              path: `${skill}/SKILL.md`,
+              content: 'not!valid!base64!',
+              mode: '0644',
+            },
           ],
         }
       );
@@ -2139,7 +2233,7 @@ describe('Prompts Integration', () => {
       expect(upload.error?.code).not.toBe('PROMPTS_SOURCE_INGEST_ERROR');
 
       // Not cached → a subsequent render of the identifier misses.
-      const render = await integrationTest.httpClient.post(
+      const render = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/${skill}?source=${encodeURIComponent(source)}`,
         {}
       );
@@ -2157,11 +2251,17 @@ describe('Prompts Integration', () => {
       const scrubbedSource = `https://***:***@gitlab.corp.internal/team/skills.git`;
       const skill = `sec-skill-${runId}`;
 
-      const upload = await integrationTest.httpClient.post(
+      const upload = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source: credSource,
-          files: [{ path: `${skill}/SKILL.md`, content: b64(skillMd(skill)), mode: '0644' }],
+          files: [
+            {
+              path: `${skill}/SKILL.md`,
+              content: b64(skillMd(skill)),
+              mode: '0644',
+            },
+          ],
         }
       );
       // The echoed source is the scrubbed form, and the token leaks nowhere.
@@ -2173,7 +2273,7 @@ describe('Prompts Integration', () => {
 
       // Rendering via the credentialed ?source= resolves the ingested entry
       // (keyed verbatim) with no clone — and still must not echo the token.
-      const render = await integrationTest.httpClient.post(
+      const render = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/${skill}?source=${encodeURIComponent(credSource)}`,
         {}
       );
@@ -2190,7 +2290,10 @@ describe('Prompts Integration', () => {
     const promptsRepoUrl = 'https://github.com/vfarcic/dot-ai-test-prompts.git';
 
     async function restoreEnvCache(): Promise<void> {
-      await integrationTest.httpClient.post('/api/v1/prompts/refresh', {});
+      await integrationTest.httpClient.post<PromptsPayload>(
+        '/api/v1/prompts/refresh',
+        {}
+      );
     }
 
     // Absorb a transient concurrent re-clone of the shared cache directory (see
@@ -2219,7 +2322,7 @@ describe('Prompts Integration', () => {
       const ghostSkill = `parity-ghost-${runId}`;
       // Stash an ingested source keyed VERBATIM by the real, clonable repo URL,
       // containing a skill that does NOT exist in that repo's actual tree.
-      const upload = await integrationTest.httpClient.post(
+      const upload = await integrationTest.httpClient.post<PromptsPayload>(
         '/api/v1/prompts/sources',
         {
           source: promptsRepoUrl,
@@ -2239,7 +2342,7 @@ describe('Prompts Integration', () => {
       // the parity assertion below airtight — the ?repo= miss is specifically
       // because plain ?repo= ignores the ingested cache, not because the entry
       // is broken.
-      const viaSource = await integrationTest.httpClient.post(
+      const viaSource = await integrationTest.httpClient.post<PromptsPayload>(
         `/api/v1/prompts/${ghostSkill}?source=${encodeURIComponent(promptsRepoUrl)}`,
         {}
       );
@@ -2251,7 +2354,7 @@ describe('Prompts Integration', () => {
         // skill is absent from the cloned repo and the render fails. If the
         // ingested cache shadowed the clone path, this would wrongly succeed.
         await expectEventually(async () => {
-          const viaRepo = await integrationTest.httpClient.post(
+          const viaRepo = await integrationTest.httpClient.post<PromptsPayload>(
             `/api/v1/prompts/${ghostSkill}?repo=${encodeURIComponent(promptsRepoUrl)}`,
             {}
           );

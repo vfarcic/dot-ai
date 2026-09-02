@@ -1,6 +1,6 @@
 /**
  * Comprehensive Error Handling System for DevOps AI Toolkit
- * 
+ *
  * Provides centralized error handling, logging, and context management
  * with support for MCP protocol, CLI operations, and core functionality.
  */
@@ -16,33 +16,33 @@ export enum ErrorCategory {
   NETWORK = 'network',
   AUTHENTICATION = 'authentication',
   AUTHORIZATION = 'authorization',
-  
+
   // Application errors
   VALIDATION = 'validation',
   CONFIGURATION = 'configuration',
   OPERATION = 'operation',
-  
+
   // External service errors
   AI_SERVICE = 'ai_service',
   STORAGE = 'storage',
-  
+
   // Protocol errors
   MCP_PROTOCOL = 'mcp_protocol',
   CLI_INTERFACE = 'cli_interface',
-  
+
   // System errors
   INTERNAL = 'internal',
-  UNKNOWN = 'unknown'
+  UNKNOWN = 'unknown',
 }
 
 /**
  * Error severity levels
  */
 export enum ErrorSeverity {
-  LOW = 'low',           // Non-critical, operation can continue
-  MEDIUM = 'medium',     // Important but recoverable
-  HIGH = 'high',         // Significant impact, requires attention
-  CRITICAL = 'critical'  // System-threatening, immediate action required
+  LOW = 'low', // Non-critical, operation can continue
+  MEDIUM = 'medium', // Important but recoverable
+  HIGH = 'high', // Significant impact, requires attention
+  CRITICAL = 'critical', // System-threatening, immediate action required
 }
 
 /**
@@ -52,24 +52,24 @@ export interface ErrorContext {
   // Operation details
   operation: string;
   component: string;
-  
+
   // User context
   userId?: string;
   sessionId?: string;
   requestId?: string;
-  
+
   // Technical context
   timestamp: Date;
   version: string;
-  
+
   // Input context
   input?: unknown;
   parameters?: Record<string, unknown>;
-  
+
   // Stack trace and debugging
   originalError?: Error;
   stackTrace?: string;
-  
+
   // Recovery information
   suggestedActions?: string[];
   isRetryable?: boolean;
@@ -85,21 +85,21 @@ export class AppError extends Error {
   public readonly code: string;
   public readonly category: ErrorCategory;
   public readonly severity: ErrorSeverity;
-  
+
   // User-facing information
   public readonly userMessage?: string;
   public readonly technicalDetails?: string;
-  
+
   // Context and debugging
   public readonly context: ErrorContext;
-  
+
   // Timing
   public readonly timestamp: Date;
-  
+
   // Recovery guidance
   public readonly suggestedActions: string[];
   public readonly isRetryable: boolean;
-  
+
   // Chaining
   public readonly cause?: AppError;
 
@@ -141,7 +141,7 @@ export enum LogLevel {
   INFO = 'info',
   WARN = 'warn',
   ERROR = 'error',
-  FATAL = 'fatal'
+  FATAL = 'fatal',
 }
 
 /**
@@ -167,8 +167,16 @@ export interface Logger {
   debug(message: string, data?: Record<string, unknown>): void;
   info(message: string, data?: Record<string, unknown>): void;
   warn(message: string, data?: Record<string, unknown>): void;
-  error(message: string, error?: Error | AppError, data?: Record<string, unknown>): void;
-  fatal(message: string, error?: Error | AppError, data?: Record<string, unknown>): void;
+  error(
+    message: string,
+    error?: Error | AppError,
+    data?: Record<string, unknown>
+  ): void;
+  fatal(
+    message: string,
+    error?: Error | AppError,
+    data?: Record<string, unknown>
+  ): void;
 }
 
 /**
@@ -184,18 +192,28 @@ export class ConsoleLogger implements Logger {
   }
 
   private shouldLog(level: LogLevel): boolean {
-    const levels = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR, LogLevel.FATAL];
+    const levels = [
+      LogLevel.DEBUG,
+      LogLevel.INFO,
+      LogLevel.WARN,
+      LogLevel.ERROR,
+      LogLevel.FATAL,
+    ];
     return levels.indexOf(level) >= levels.indexOf(this.minLevel);
   }
 
-  private formatMessage(level: LogLevel, message: string, data?: Record<string, unknown>): string {
+  private formatMessage(
+    level: LogLevel,
+    message: string,
+    data?: Record<string, unknown>
+  ): string {
     const timestamp = new Date().toISOString();
     const baseMessage = `[${timestamp}] ${level.toUpperCase()} [${this.component}] ${message}`;
-    
+
     if (data) {
       return `${baseMessage} ${JSON.stringify(data)}`;
     }
-    
+
     return baseMessage;
   }
 
@@ -217,16 +235,28 @@ export class ConsoleLogger implements Logger {
     }
   }
 
-  error(message: string, error?: Error | AppError, data?: Record<string, unknown>): void {
+  error(
+    message: string,
+    error?: Error | AppError,
+    data?: Record<string, unknown>
+  ): void {
     if (this.shouldLog(LogLevel.ERROR)) {
-      const errorData = error ? { error: this.serializeError(error), ...data } : data;
+      const errorData = error
+        ? { error: this.serializeError(error), ...data }
+        : data;
       console.error(this.formatMessage(LogLevel.ERROR, message, errorData));
     }
   }
 
-  fatal(message: string, error?: Error | AppError, data?: Record<string, unknown>): void {
+  fatal(
+    message: string,
+    error?: Error | AppError,
+    data?: Record<string, unknown>
+  ): void {
     if (this.shouldLog(LogLevel.FATAL)) {
-      const errorData = error ? { error: this.serializeError(error), ...data } : data;
+      const errorData = error
+        ? { error: this.serializeError(error), ...data }
+        : data;
       console.error(this.formatMessage(LogLevel.FATAL, message, errorData));
     }
   }
@@ -240,14 +270,14 @@ export class ConsoleLogger implements Logger {
         category: error.category,
         severity: error.severity,
         message: error.message,
-        context: error.context
+        context: error.context,
       };
     } else {
       // Native Error
       return {
         name: error.name,
         message: error.message,
-        stack: error.stack
+        stack: error.stack,
       };
     }
   }
@@ -296,10 +326,11 @@ export class ErrorHandler {
       stackTrace: originalError?.stack || new Error().stack,
       isRetryable: context.isRetryable || false,
       retryCount: context.retryCount || 0,
-      ...context
+      ...context,
     };
 
-    const suggestedActions = context.suggestedActions || this.getDefaultSuggestedActions(category);
+    const suggestedActions =
+      context.suggestedActions || this.getDefaultSuggestedActions(category);
 
     const appError = new AppError(
       errorId,
@@ -321,7 +352,7 @@ export class ErrorHandler {
       category,
       severity,
       operation: fullContext.operation,
-      component: fullContext.component
+      component: fullContext.component,
     });
 
     return appError;
@@ -333,7 +364,7 @@ export class ErrorHandler {
   static toMcpError(appError: AppError): McpError {
     const errorCode = this.mapToMcpErrorCode(appError.category);
     const message = `${appError.message}${appError.technicalDetails ? ` - ${appError.technicalDetails}` : ''}`;
-    
+
     return new McpError(errorCode, message);
   }
 
@@ -366,7 +397,10 @@ export class ErrorHandler {
     }
 
     // Log the handled error - always use error() method for proper error typing
-    this.logger.error(`Error handled in ${context.component || 'unknown'}`, appError);
+    this.logger.error(
+      `Error handled in ${context.component || 'unknown'}`,
+      appError
+    );
 
     if (options.convertToMcp) {
       const mcpError = this.toMcpError(appError);
@@ -401,32 +435,34 @@ export class ErrorHandler {
       try {
         this.logger.debug(`Executing operation: ${context.operation}`, {
           attempt: attempt + 1,
-          maxRetries: maxRetries + 1
+          maxRetries: maxRetries + 1,
         });
 
         return await operation();
       } catch (error) {
         lastError = error as Error;
-        
+
         const enhancedContext = {
           ...context,
           retryCount: attempt,
-          isRetryable: attempt < maxRetries
+          isRetryable: attempt < maxRetries,
         };
 
         const appError = this.handleError(lastError, enhancedContext, {
-          logLevel: attempt < maxRetries ? LogLevel.WARN : LogLevel.ERROR
+          logLevel: attempt < maxRetries ? LogLevel.WARN : LogLevel.ERROR,
         }) as AppError;
 
         // Retry if we haven't exceeded max retries and the error is retryable
         // For retry logic, we consider errors retryable by default unless explicitly marked as not retryable
-        const shouldRetry = attempt < maxRetries && (appError.isRetryable || enhancedContext.isRetryable);
-        
+        const shouldRetry =
+          attempt < maxRetries &&
+          (appError.isRetryable || enhancedContext.isRetryable);
+
         if (shouldRetry) {
           this.logger.info(`Retrying operation: ${context.operation}`, {
             attempt: attempt + 1,
             maxRetries: maxRetries + 1,
-            reason: appError.message
+            reason: appError.message,
           });
           continue;
         }
@@ -443,7 +479,10 @@ export class ErrorHandler {
     throw lastError!;
   }
 
-  private static generateErrorCode(category: ErrorCategory, severity: ErrorSeverity): string {
+  private static generateErrorCode(
+    category: ErrorCategory,
+    severity: ErrorSeverity
+  ): string {
     const categoryCode = category.toUpperCase().replace('_', '');
     const severityCode = severity.charAt(0).toUpperCase();
     const timestamp = Date.now().toString().slice(-6);
@@ -470,39 +509,49 @@ export class ErrorHandler {
 
   private static categorizeError(error: Error): ErrorCategory {
     const message = error.message.toLowerCase();
-    
+
     if (message.includes('kubeconfig') || message.includes('kubernetes')) {
       return ErrorCategory.KUBERNETES;
     }
     if (message.includes('network') || message.includes('connection')) {
       return ErrorCategory.NETWORK;
     }
-    if (message.includes('authentication') || message.includes('unauthorized')) {
+    if (
+      message.includes('authentication') ||
+      message.includes('unauthorized')
+    ) {
       return ErrorCategory.AUTHENTICATION;
     }
-    if (message.includes('ai') || message.includes('api key invalid') || message.includes('model')) {
+    if (
+      message.includes('ai') ||
+      message.includes('api key invalid') ||
+      message.includes('model')
+    ) {
       return ErrorCategory.AI_SERVICE;
     }
     if (message.includes('validation') || message.includes('invalid')) {
       return ErrorCategory.VALIDATION;
     }
-    
+
     return ErrorCategory.UNKNOWN;
   }
 
   private static assessSeverity(error: Error): ErrorSeverity {
     const message = error.message.toLowerCase();
-    
+
     if (message.includes('critical') || message.includes('fatal')) {
       return ErrorSeverity.CRITICAL;
     }
-    if (message.includes('authentication') || message.includes('authorization')) {
+    if (
+      message.includes('authentication') ||
+      message.includes('authorization')
+    ) {
       return ErrorSeverity.HIGH;
     }
     if (message.includes('validation') || message.includes('invalid')) {
       return ErrorSeverity.MEDIUM;
     }
-    
+
     return ErrorSeverity.LOW;
   }
 
@@ -527,25 +576,25 @@ export class ErrorHandler {
         return [
           'Verify kubeconfig file exists and is valid',
           'Check cluster connectivity with kubectl cluster-info',
-          'Ensure proper authentication credentials'
+          'Ensure proper authentication credentials',
         ];
       case ErrorCategory.VALIDATION:
         return [
           'Review input parameters for correct format',
           'Check required fields are provided',
-          'Verify data types match expected schema'
+          'Verify data types match expected schema',
         ];
       case ErrorCategory.AI_SERVICE:
         return [
           'Check AI provider API key environment variable is set',
           'Verify API key is valid and has sufficient credits',
-          'Try again after a short delay'
+          'Try again after a short delay',
         ];
       default:
         return [
           'Try the operation again',
           'Check system logs for more details',
-          'Contact support if problem persists'
+          'Contact support if problem persists',
         ];
     }
   }
@@ -564,7 +613,7 @@ export class ErrorHandler {
       originalError: error,
       stackTrace: error.stack,
       isRetryable: false,
-      retryCount: 0
+      retryCount: 0,
     };
 
     const appError = new AppError(

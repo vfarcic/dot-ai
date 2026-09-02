@@ -7,7 +7,11 @@
 
 import { ErrorHandler, Logger } from '../../core/error-handling';
 import { GenericSessionManager } from '../../core/generic-session-manager';
-import { ReportScanResponse, ProjectSetupSessionData, ErrorResponse } from './types';
+import {
+  ReportScanResponse,
+  ProjectSetupSessionData,
+  ErrorResponse,
+} from './types';
 
 /**
  * Handle reportScan stage - Step 2 of project setup workflow
@@ -26,7 +30,9 @@ export async function handleReportScan(
       logger.debug('Starting report scan analysis', { requestId, sessionId });
 
       // Initialize session manager
-      const sessionManager = new GenericSessionManager<ProjectSetupSessionData>('proj');
+      const sessionManager = new GenericSessionManager<ProjectSetupSessionData>(
+        'proj'
+      );
 
       // Load session
       const session = sessionManager.getSession(sessionId);
@@ -35,8 +41,8 @@ export async function handleReportScan(
           success: false,
           error: {
             message: `Session ${sessionId} not found`,
-            details: 'Please start a new session with step: "discover"'
-          }
+            details: 'Please start a new session with step: "discover"',
+          },
         } as ErrorResponse;
       }
 
@@ -46,8 +52,8 @@ export async function handleReportScan(
           success: false,
           error: {
             message: 'Invalid session state',
-            details: 'Session does not contain scope configuration data'
-          }
+            details: 'Session does not contain scope configuration data',
+          },
         } as ErrorResponse;
       }
 
@@ -59,30 +65,44 @@ export async function handleReportScan(
         filesToUse = existingFiles;
         session.data.existingFiles = existingFiles;
         sessionManager.updateSession(sessionId, session.data);
-        logger.debug('Stored existingFiles in session', { requestId, sessionId, count: existingFiles.length });
+        logger.debug('Stored existingFiles in session', {
+          requestId,
+          sessionId,
+          count: existingFiles.length,
+        });
       } else if (session.data.existingFiles !== undefined) {
         filesToUse = session.data.existingFiles;
-        logger.debug('Reusing existingFiles from session', { requestId, sessionId, count: filesToUse.length });
+        logger.debug('Reusing existingFiles from session', {
+          requestId,
+          sessionId,
+          count: filesToUse.length,
+        });
       } else {
         return {
           success: false,
           error: {
             message: 'existingFiles is required for first reportScan call',
-            details: 'Please provide an array of files that exist in the repository'
-          }
+            details:
+              'Please provide an array of files that exist in the repository',
+          },
         } as ErrorResponse;
       }
 
       // If no scopes selected, return analysis report
       if (!selectedScopes || selectedScopes.length === 0) {
         // Analyze scope completeness
-        const scopeStatus: Record<string, { complete: boolean; missingFiles: string[] }> = {};
+        const scopeStatus: Record<
+          string,
+          { complete: boolean; missingFiles: string[] }
+        > = {};
 
         for (const [scopeName, scopeConfig] of Object.entries(allScopes)) {
-          const missingFiles = scopeConfig.files.filter(file => !filesToUse.includes(file));
+          const missingFiles = scopeConfig.files.filter(
+            file => !filesToUse.includes(file)
+          );
           scopeStatus[scopeName] = {
             complete: missingFiles.length === 0,
-            missingFiles
+            missingFiles,
           };
         }
 
@@ -97,7 +117,7 @@ export async function handleReportScan(
           requestId,
           sessionId,
           totalScopes: Object.keys(allScopes).length,
-          incompleteScopes: incompleteScopes.length
+          incompleteScopes: incompleteScopes.length,
         });
 
         const incompleteScopeNames = incompleteScopes.join('", "');
@@ -109,7 +129,7 @@ export async function handleReportScan(
           scope: '',
           questions: [],
           filesToGenerate: [],
-          instructions: `${report}\n\nIncomplete scopes: ${incompleteScopes.join(', ')}\n\n**IMPORTANT**: Present each scope individually to the user. Do NOT combine or group scopes. Use exact scope names.\n\nTo proceed, call projectSetup tool again with:\n- step: "reportScan"\n- sessionId: "${sessionId}"\n- selectedScopes: ["${incompleteScopeNames}"]  (Use exact scope names from the list above)`
+          instructions: `${report}\n\nIncomplete scopes: ${incompleteScopes.join(', ')}\n\n**IMPORTANT**: Present each scope individually to the user. Do NOT combine or group scopes. Use exact scope names.\n\nTo proceed, call projectSetup tool again with:\n- step: "reportScan"\n- sessionId: "${sessionId}"\n- selectedScopes: ["${incompleteScopeNames}"]  (Use exact scope names from the list above)`,
         } as ReportScanResponse;
       }
 
@@ -122,13 +142,15 @@ export async function handleReportScan(
           success: false,
           error: {
             message: `Invalid scope: ${selectedScope}`,
-            details: `Available scopes: ${Object.keys(allScopes).join(', ')}`
-          }
+            details: `Available scopes: ${Object.keys(allScopes).join(', ')}`,
+          },
         } as ErrorResponse;
       }
 
       // Calculate which files need to be generated
-      const filesToGenerate = scopeConfig.files.filter(file => !filesToUse.includes(file));
+      const filesToGenerate = scopeConfig.files.filter(
+        file => !filesToUse.includes(file)
+      );
 
       // Store selected scopes in session
       session.data.selectedScopes = selectedScopes;
@@ -140,7 +162,7 @@ export async function handleReportScan(
         sessionId,
         scope: selectedScope,
         filesToGenerate: filesToGenerate.length,
-        questions: scopeConfig.questions.length
+        questions: scopeConfig.questions.length,
       });
 
       // Return ALL questions for this scope
@@ -151,13 +173,16 @@ export async function handleReportScan(
         scope: selectedScope,
         questions: scopeConfig.questions,
         filesToGenerate,
-        instructions: `Scope: ${selectedScope}\n\nFiles to generate (${filesToGenerate.length}):\n${filesToGenerate.map(f => `- ${f}`).join('\n')}\n\nQuestions (${scopeConfig.questions.length}):\n${scopeConfig.questions.map((q, i) => `${i + 1}. ${q.question} (ID: ${q.id}${q.required ? ', required' : ''})`).join('\n')}\n\nAnalyze the repository to determine answers for these questions. Present your suggested answers as a numbered list. Once finalized, call projectSetup tool with:\n- step: "generateScope"\n- sessionId: "${sessionId}"\n- scope: "${selectedScope}"\n- answers: {${scopeConfig.questions.slice(0, 2).map(q => `"${q.id}": "value"`).join(', ')}, ...}`
+        instructions: `Scope: ${selectedScope}\n\nFiles to generate (${filesToGenerate.length}):\n${filesToGenerate.map(f => `- ${f}`).join('\n')}\n\nQuestions (${scopeConfig.questions.length}):\n${scopeConfig.questions.map((q, i) => `${i + 1}. ${q.question} (ID: ${q.id}${q.required ? ', required' : ''})`).join('\n')}\n\nAnalyze the repository to determine answers for these questions. Present your suggested answers as a numbered list. Once finalized, call projectSetup tool with:\n- step: "generateScope"\n- sessionId: "${sessionId}"\n- scope: "${selectedScope}"\n- answers: {${scopeConfig.questions
+          .slice(0, 2)
+          .map(q => `"${q.id}": "value"`)
+          .join(', ')}, ...}`,
       };
     },
     {
       operation: 'project_setup_report_scan',
       component: 'ProjectSetupTool',
-      requestId
+      requestId,
     }
   );
 }
@@ -178,7 +203,9 @@ function generateReport(
     const existingCount = totalFiles - missingCount;
 
     const statusIcon = status.complete ? '✓' : '○';
-    lines.push(`${statusIcon} ${scopeName}: ${existingCount}/${totalFiles} files exist`);
+    lines.push(
+      `${statusIcon} ${scopeName}: ${existingCount}/${totalFiles} files exist`
+    );
 
     if (!status.complete) {
       lines.push(`  Missing: ${status.missingFiles.join(', ')}`);

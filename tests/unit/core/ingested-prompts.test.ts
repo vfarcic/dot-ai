@@ -16,6 +16,7 @@
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';
+import { createNoopLogger } from '../helpers/mock-logger.js';
 import {
   ingestPromptsSource,
   loadUserPrompts,
@@ -30,12 +31,7 @@ import {
 import type { Logger } from '../../../src/core/error-handling';
 import { handlePromptsListRequest } from '../../../src/tools/prompts';
 
-const noopLogger: Logger = {
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-};
+const noopLogger: Logger = createNoopLogger();
 
 // Unique identifier per test so the shared in-memory cache / on-disk dir never
 // collide across cases or repeated runs.
@@ -330,7 +326,7 @@ describe('ingestPromptsSource hardening (PRD #647 M4 + D5)', () => {
 
   test('rejects a manifest exceeding the file-count cap before caching (D5)', () => {
     const source = uniqueLabel();
-    const files = [];
+    const files: Array<{ path: string; content: string; mode: string }> = [];
     for (let i = 0; i < 101; i++) {
       files.push({
         path: `pad/file-${i}.txt`,
@@ -338,9 +334,9 @@ describe('ingestPromptsSource hardening (PRD #647 M4 + D5)', () => {
         mode: '0644',
       });
     }
-    expect(() =>
-      ingestPromptsSource({ source, files }, noopLogger)
-    ).toThrow(PromptsSourceValidationError);
+    expect(() => ingestPromptsSource({ source, files }, noopLogger)).toThrow(
+      PromptsSourceValidationError
+    );
     expect(getIngestedPromptsSources()).not.toContain(source);
   });
 

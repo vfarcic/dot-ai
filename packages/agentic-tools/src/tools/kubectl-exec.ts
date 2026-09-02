@@ -35,15 +35,20 @@ export const kubectlExec: KubectlTool = {
         },
         stdin: {
           type: 'string',
-          description: 'Optional stdin input for commands that read from stdin (e.g., apply -f -)',
+          description:
+            'Optional stdin input for commands that read from stdin (e.g., apply -f -)',
         },
       },
       required: ['args'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const cmdArgs = requireParam<string[]>(args, 'args', 'kubectl_exec_command');
+  handler: withValidation(async args => {
+    const cmdArgs = requireParam<string[]>(
+      args,
+      'args',
+      'kubectl_exec_command'
+    );
     const stdin = optionalParam<string | undefined>(args, 'stdin', undefined);
 
     if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) {
@@ -75,11 +80,20 @@ export const kubectlExec: KubectlTool = {
     }
 
     try {
-      const output = await executeKubectl(cmdArgs, stdin ? { stdin } : undefined);
-      return successResult(output, `Successfully executed: kubectl ${cmdArgs.join(' ')}`);
+      const output = await executeKubectl(
+        cmdArgs,
+        stdin ? { stdin } : undefined
+      );
+      return successResult(
+        output,
+        `Successfully executed: kubectl ${cmdArgs.join(' ')}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Command failed: kubectl ${cmdArgs.join(' ')}: ${message}`);
+      return errorResult(
+        message,
+        `Command failed: kubectl ${cmdArgs.join(' ')}: ${message}`
+      );
     }
   }),
 };

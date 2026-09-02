@@ -108,14 +108,14 @@ describe('VercelProvider.sendMessage (with MockLanguageModelV3)', () => {
     // The prompt is delivered as a structured message array; flatten any
     // text parts and assert the user input is present.
     const userText = call.prompt
-      .filter((m) => m.role === 'user')
-      .flatMap((m) =>
+      .filter(m => m.role === 'user')
+      .flatMap(m =>
         Array.isArray(m.content)
           ? m.content
-              .filter((p): p is { type: 'text'; text: string } =>
-                p.type === 'text'
+              .filter(
+                (p): p is { type: 'text'; text: string } => p.type === 'text'
               )
-              .map((p) => p.text)
+              .map(p => p.text)
           : []
       )
       .join('');
@@ -127,7 +127,7 @@ describe('VercelProvider.sendMessage (with MockLanguageModelV3)', () => {
     const result = buildTextGenerateResult({ text: 'sample' });
 
     expect(result.content).toEqual([{ type: 'text', text: 'sample' }]);
-    expect(result.finishReason).toBe('stop');
+    expect(result.finishReason).toEqual({ unified: 'stop', raw: undefined });
     expect(result.usage.inputTokens.total).toBe(10);
     expect(result.usage.outputTokens.total).toBe(5);
   });

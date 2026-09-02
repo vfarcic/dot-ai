@@ -45,9 +45,13 @@ export const kubectlGet: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const resource = requireParam<string>(args, 'resource', 'kubectl_get');
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
     const extraArgs = optionalParam<string[]>(args, 'args', []);
 
     const cmdArgs = ['get', resource];
@@ -63,7 +67,10 @@ export const kubectlGet: KubectlTool = {
     try {
       const output = await executeKubectl(cmdArgs);
       const nsMessage = namespace ? ` in namespace ${namespace}` : '';
-      return successResult(output, `Successfully retrieved ${resource}${nsMessage}`);
+      return successResult(
+        output,
+        `Successfully retrieved ${resource}${nsMessage}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Failed to get ${resource}: ${message}`);

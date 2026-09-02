@@ -141,7 +141,9 @@ export async function searchKnowledgeBase(params: {
   }
 
   if (!searchResponse.success) {
-    const error = searchResponse.error as { message?: string; error?: string } | undefined;
+    const error = searchResponse.error as
+      | { message?: string; error?: string }
+      | undefined;
     const errorMessage = error?.message || error?.error || 'Search failed';
 
     // If collection doesn't exist (Not Found), return empty result (not error)
@@ -183,7 +185,8 @@ export async function searchKnowledgeBase(params: {
   }
 
   if (!searchResult.success) {
-    const errorMessage = searchResult.error || searchResult.message || 'Search failed';
+    const errorMessage =
+      searchResult.error || searchResult.message || 'Search failed';
 
     // If collection doesn't exist, return empty result (not error)
     if (isCollectionNotFoundError(errorMessage)) {
@@ -204,7 +207,7 @@ export async function searchKnowledgeBase(params: {
 
   // Transform results to KnowledgeSearchResultItem format
   const results = searchResult.data || [];
-  const chunks: KnowledgeSearchResultItem[] = results.map((result) => ({
+  const chunks: KnowledgeSearchResultItem[] = results.map(result => ({
     id: result.id,
     content: (result.payload.content as string) || '',
     score: result.score,

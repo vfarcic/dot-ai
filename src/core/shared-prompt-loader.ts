@@ -14,40 +14,56 @@ import Handlebars from 'handlebars';
 
 // Register custom Handlebars helpers
 // Block helper for equality comparison: {{#eq a b}}...{{/eq}}
- 
-Handlebars.registerHelper('eq', function(this: unknown, a: unknown, b: unknown, options: Handlebars.HelperOptions) {
-  if (a === b) {
-    return options.fn(this);
-  } else {
-    return options.inverse(this);
+
+Handlebars.registerHelper(
+  'eq',
+  function (
+    this: unknown,
+    a: unknown,
+    b: unknown,
+    options: Handlebars.HelperOptions
+  ) {
+    if (a === b) {
+      return options.fn(this);
+    } else {
+      return options.inverse(this);
+    }
   }
-});
+);
 
 // Block helper for truthy check: {{#isTrue value}}...{{/isTrue}}
 // Treats various truthy values as true (case-insensitive for strings)
 // Truthy: true, "yes", "true", "1", "on" (any case)
- 
-Handlebars.registerHelper('isTrue', function(this: unknown, value: unknown, options: Handlebars.HelperOptions) {
-  // Handle boolean true
-  if (value === true) {
-    return options.fn(this);
-  }
 
-  // Handle string values (case-insensitive)
-  if (typeof value === 'string') {
-    const normalized = value.toLowerCase();
-    if (normalized === 'yes' || normalized === 'true' || normalized === '1' || normalized === 'on') {
+Handlebars.registerHelper(
+  'isTrue',
+  function (this: unknown, value: unknown, options: Handlebars.HelperOptions) {
+    // Handle boolean true
+    if (value === true) {
       return options.fn(this);
     }
-  }
 
-  // Handle numeric 1
-  if (value === 1) {
-    return options.fn(this);
-  }
+    // Handle string values (case-insensitive)
+    if (typeof value === 'string') {
+      const normalized = value.toLowerCase();
+      if (
+        normalized === 'yes' ||
+        normalized === 'true' ||
+        normalized === '1' ||
+        normalized === 'on'
+      ) {
+        return options.fn(this);
+      }
+    }
 
-  return options.inverse(this);
-});
+    // Handle numeric 1
+    if (value === 1) {
+      return options.fn(this);
+    }
+
+    return options.inverse(this);
+  }
+);
 
 /**
  * Load template from file and replace variables using Handlebars
@@ -76,7 +92,10 @@ export function loadPrompt(
       ? baseDir
       : path.join(__dirname, '..', '..', baseDir);
 
-    const templatePath = path.join(resolvedBaseDir, `${templateName}${fileExtension}`);
+    const templatePath = path.join(
+      resolvedBaseDir,
+      `${templateName}${fileExtension}`
+    );
     const templateContent = fs.readFileSync(templatePath, 'utf8');
 
     // Compile and execute Handlebars template
@@ -88,9 +107,17 @@ export function loadPrompt(
     const errorMessage = error instanceof Error ? error.message : String(error);
     const resolvedPath = path.isAbsolute(baseDir)
       ? path.join(baseDir, `${templateName}${fileExtension}`)
-      : path.join(__dirname, '..', '..', baseDir, `${templateName}${fileExtension}`);
+      : path.join(
+          __dirname,
+          '..',
+          '..',
+          baseDir,
+          `${templateName}${fileExtension}`
+        );
 
-    console.error(`Failed to load template "${templateName}" from "${baseDir}" (resolved: ${resolvedPath}): ${errorMessage}`);
+    console.error(
+      `Failed to load template "${templateName}" from "${baseDir}" (resolved: ${resolvedPath}): ${errorMessage}`
+    );
     return `Error loading template: ${templateName}`;
   }
 }

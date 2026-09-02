@@ -22,7 +22,7 @@ async function request(
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined
+    body: body ? JSON.stringify(body) : undefined,
   });
 
   const data = await response.json();
@@ -96,7 +96,7 @@ describe('agentic-tools server', () => {
       sendError(404, 'Not found');
     });
 
-    await new Promise<void>((resolve) => {
+    await new Promise<void>(resolve => {
       server.listen(0, '127.0.0.1', () => {
         const addr = server.address() as AddressInfo;
         baseUrl = `http://127.0.0.1:${addr.port}`;
@@ -106,7 +106,7 @@ describe('agentic-tools server', () => {
   });
 
   afterAll(async () => {
-    await new Promise<void>((resolve) => {
+    await new Promise<void>(resolve => {
       server.close(() => resolve());
     });
   });
@@ -130,27 +130,27 @@ describe('agentic-tools server', () => {
   describe('POST /execute - describe hook', () => {
     it('should return plugin metadata and tools', async () => {
       const { status, data } = await request(baseUrl, 'POST', '/execute', {
-        hook: 'describe'
+        hook: 'describe',
       });
 
       expect(status).toBe(200);
       expect(data).toMatchObject({
         name: 'agentic-tools',
         version: '1.0.0',
-        tools: expect.any(Array)
+        tools: expect.any(Array),
       });
     });
 
     it('should return all kubectl tools', async () => {
       const { data } = await request(baseUrl, 'POST', '/execute', {
-        hook: 'describe'
+        hook: 'describe',
       });
 
       const tools = (data as { tools: unknown[] }).tools;
       expect(tools.length).toBeGreaterThanOrEqual(10);
 
       // Verify expected tools are present
-      const toolNames = tools.map((t: { name: string }) => t.name);
+      const toolNames = (tools as Array<{ name: string }>).map(t => t.name);
       expect(toolNames).toContain('kubectl_get');
       expect(toolNames).toContain('kubectl_describe');
       expect(toolNames).toContain('kubectl_logs');
@@ -167,8 +167,8 @@ describe('agentic-tools server', () => {
         payload: {
           tool: 'unknown_tool',
           args: {},
-          state: {}
-        }
+          state: {},
+        },
       });
 
       expect(status).toBe(200);
@@ -177,20 +177,20 @@ describe('agentic-tools server', () => {
         success: false,
         error: {
           code: 'UNKNOWN_TOOL',
-          message: expect.stringContaining('unknown_tool')
-        }
+          message: expect.stringContaining('unknown_tool'),
+        },
       });
     });
 
     it('should require payload.tool', async () => {
       const { status, data } = await request(baseUrl, 'POST', '/execute', {
         hook: 'invoke',
-        payload: {}
+        payload: {},
       });
 
       expect(status).toBe(400);
       expect(data).toMatchObject({
-        error: expect.stringContaining('payload.tool')
+        error: expect.stringContaining('payload.tool'),
       });
     });
   });
@@ -201,18 +201,18 @@ describe('agentic-tools server', () => {
 
       expect(status).toBe(400);
       expect(data).toMatchObject({
-        error: expect.stringContaining('hook')
+        error: expect.stringContaining('hook'),
       });
     });
 
     it('should reject unknown hooks', async () => {
       const { status, data } = await request(baseUrl, 'POST', '/execute', {
-        hook: 'unknown'
+        hook: 'unknown',
       });
 
       expect(status).toBe(400);
       expect(data).toMatchObject({
-        error: expect.stringContaining('Unknown hook')
+        error: expect.stringContaining('Unknown hook'),
       });
     });
   });

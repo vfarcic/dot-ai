@@ -7,6 +7,7 @@ You are evaluating and comparing multiple AI models' ability to manage Kubernete
 {tool_context}
 
 ## PATTERN MANAGEMENT SCENARIO
+
 Scenario: "{scenario_name}"
 
 ## AI RESPONSES TO COMPARE
@@ -16,24 +17,28 @@ Scenario: "{scenario_name}"
 ## EVALUATION CRITERIA
 
 ### Quality (40% weight)
+
 - **Pattern Relevance**: How relevant and practical are the created/identified patterns for Kubernetes deployments?
 - **Technical Accuracy**: Are the suggested resources, triggers, and rationale technically sound?
 - **Completeness**: Does the pattern capture all essential components for the deployment scenario?
 - **Best Practices**: Does the pattern follow Kubernetes and DevOps best practices?
 
 ### Efficiency (30% weight)
+
 - **Workflow Efficiency**: How efficiently did the model progress through the pattern creation/management workflow?
 - **Resource Selection**: How efficiently did the model identify appropriate Kubernetes resources?
 - **Trigger Identification**: How efficiently did the model identify relevant deployment triggers?
 - **Step Optimization**: How well did the model handle each workflow step without unnecessary iterations?
 
 ### Performance (20% weight)
+
 - **Response Time**: How quickly did the model respond throughout the workflow?
 - **Resource Usage**: Overall computational efficiency during pattern management
 - **Reliability**: Did the model complete the pattern workflow without failures/timeouts?
 - **Consistency**: Is pattern quality maintained consistently across all workflow steps?
 
 ### Communication (10% weight)
+
 - **Clarity**: How clearly are patterns, rationale, and instructions explained?
 - **User Experience**: How well does the model guide users through the pattern creation process?
 - **Structure**: How well-organized and readable are the pattern definitions and explanations?
@@ -50,6 +55,7 @@ Some models may have failure analysis metadata indicating they experienced timeo
 The AI responses below will include reliability context where relevant.
 
 ## MODELS BEING COMPARED
+
 {models}
 
 ## REQUIRED RESPONSE FORMAT
@@ -63,7 +69,7 @@ Provide your evaluation as a JSON object:
   "comparative_analysis": {
     "model1": {
       "quality_score": <0-1>,
-      "efficiency_score": <0-1>, 
+      "efficiency_score": <0-1>,
       "performance_score": <0-1>,
       "communication_score": <0-1>,
       "weighted_total": <calculated weighted score>,
@@ -72,7 +78,7 @@ Provide your evaluation as a JSON object:
     },
     "model2": {
       "quality_score": <0-1>,
-      "efficiency_score": <0-1>, 
+      "efficiency_score": <0-1>,
       "performance_score": <0-1>,
       "communication_score": <0-1>,
       "weighted_total": <calculated weighted score>,

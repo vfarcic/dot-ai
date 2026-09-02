@@ -84,9 +84,13 @@ function createScriptedModel(results: GenerateResult[]): MockLanguageModelV3 {
 
 function usage(input: number, output: number): GenerateResult['usage'] {
   return {
-    inputTokens: { total: input, noCache: input, cacheRead: undefined },
-    outputTokens: { total: output, reasoning: undefined },
-    totalTokens: input + output,
+    inputTokens: {
+      total: input,
+      noCache: input,
+      cacheRead: undefined,
+      cacheWrite: undefined,
+    },
+    outputTokens: { total: output, reasoning: undefined, text: undefined },
   };
 }
 
@@ -147,13 +151,13 @@ describe('VercelProvider.toolLoop (with MockLanguageModelV3)', () => {
             input: JSON.stringify({ query: 'hello' }),
           },
         ],
-        finishReason: 'tool-calls',
+        finishReason: { unified: 'tool-calls' as const, raw: undefined },
         usage: usage(12, 4),
         warnings: [],
       },
       {
         content: [{ type: 'text', text: 'done: hello' }],
-        finishReason: 'stop',
+        finishReason: { unified: 'stop' as const, raw: undefined },
         usage: usage(8, 6),
         warnings: [],
       },
@@ -213,7 +217,7 @@ describe('VercelProvider.toolLoop (with MockLanguageModelV3)', () => {
             input: JSON.stringify({ query: 'first' }),
           },
         ],
-        finishReason: 'tool-calls',
+        finishReason: { unified: 'tool-calls' as const, raw: undefined },
         usage: usage(10, 3),
         warnings: [],
       },
@@ -226,13 +230,13 @@ describe('VercelProvider.toolLoop (with MockLanguageModelV3)', () => {
             input: JSON.stringify({ a: 2, b: 3 }),
           },
         ],
-        finishReason: 'tool-calls',
+        finishReason: { unified: 'tool-calls' as const, raw: undefined },
         usage: usage(5, 2),
         warnings: [],
       },
       {
         content: [{ type: 'text', text: 'all done' }],
-        finishReason: 'stop',
+        finishReason: { unified: 'stop' as const, raw: undefined },
         usage: usage(4, 5),
         warnings: [],
       },
@@ -293,13 +297,13 @@ describe('VercelProvider.toolLoop (with MockLanguageModelV3)', () => {
             input: JSON.stringify({ anything: true }),
           },
         ],
-        finishReason: 'tool-calls',
+        finishReason: { unified: 'tool-calls' as const, raw: undefined },
         usage: usage(2, 1),
         warnings: [],
       },
       {
         content: [{ type: 'text', text: 'recovered without tool' }],
-        finishReason: 'stop',
+        finishReason: { unified: 'stop' as const, raw: undefined },
         usage: usage(3, 2),
         warnings: [],
       },

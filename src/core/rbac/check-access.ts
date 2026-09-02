@@ -62,7 +62,10 @@ export async function checkToolAccess(
 ): Promise<RbacCheckResult> {
   // No identity — deny
   if (!identity) {
-    const result: RbacCheckResult = { allowed: false, reason: 'No identity available' };
+    const result: RbacCheckResult = {
+      allowed: false,
+      reason: 'No identity available',
+    };
     logToolAccessDecision(identity, params, result);
     return result;
   }

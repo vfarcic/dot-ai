@@ -24,8 +24,7 @@ beforeAll(() => {
   if (!fs.existsSync(testKubeconfig)) {
     throw new Error(
       `Test kubeconfig not found at ${testKubeconfig}.\n` +
-      'Run "npm run test:integration:setup" to create the test cluster first.'
+        'Run "npm run test:integration:setup" to create the test cluster first.'
     );
   }
-
 });

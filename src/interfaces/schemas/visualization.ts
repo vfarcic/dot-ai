@@ -6,7 +6,12 @@
  */
 
 import { z } from 'zod';
-import { createSuccessResponseSchema, NotFoundErrorSchema, ServiceUnavailableErrorSchema, InternalServerErrorSchema } from './common';
+import {
+  createSuccessResponseSchema,
+  NotFoundErrorSchema,
+  ServiceUnavailableErrorSchema,
+  InternalServerErrorSchema,
+} from './common';
 
 /**
  * Visualization types supported by the API
@@ -77,10 +82,18 @@ export type DiffContent = z.infer<typeof DiffContentSchema>;
  * Bar chart data item (PRD #328)
  */
 export const BarChartDataItemSchema = z.object({
-  label: z.string().describe('Data point label (e.g., "node-1", "kube-system")'),
+  label: z
+    .string()
+    .describe('Data point label (e.g., "node-1", "kube-system")'),
   value: z.number().describe('Numeric value'),
-  max: z.number().optional().describe('Maximum value for percentage calculation'),
-  status: z.enum(['error', 'warning', 'ok']).optional().describe('Status for color-coding'),
+  max: z
+    .number()
+    .optional()
+    .describe('Maximum value for percentage calculation'),
+  status: z
+    .enum(['error', 'warning', 'ok'])
+    .optional()
+    .describe('Status for color-coding'),
 });
 
 export type BarChartDataItem = z.infer<typeof BarChartDataItemSchema>;
@@ -91,7 +104,10 @@ export type BarChartDataItem = z.infer<typeof BarChartDataItemSchema>;
 export const BarChartContentSchema = z.object({
   data: z.array(BarChartDataItemSchema).describe('Chart data points'),
   unit: z.string().optional().describe('Unit label (e.g., "Gi", "cores", "%")'),
-  orientation: z.enum(['horizontal', 'vertical']).optional().describe('Chart orientation'),
+  orientation: z
+    .enum(['horizontal', 'vertical'])
+    .optional()
+    .describe('Chart orientation'),
 });
 
 export type BarChartContent = z.infer<typeof BarChartContentSchema>;
@@ -118,7 +134,9 @@ export const VisualizationSchema = z.object({
   id: z.string().describe('Unique visualization identifier'),
   label: z.string().describe('Display label'),
   type: VisualizationTypeSchema.describe('Visualization type'),
-  content: VisualizationContentSchema.describe('Visualization content (varies by type)'),
+  content: VisualizationContentSchema.describe(
+    'Visualization content (varies by type)'
+  ),
 });
 
 export type Visualization = z.infer<typeof VisualizationSchema>;
@@ -129,17 +147,28 @@ export type Visualization = z.infer<typeof VisualizationSchema>;
  */
 export const VisualizationResponseDataSchema = z.object({
   title: z.string().describe('Title of the visualization'),
-  visualizations: z.array(VisualizationSchema).describe('Array of visualizations'),
-  insights: z.array(z.string()).describe('AI-generated insights about the data'),
-  toolsUsed: z.array(z.string()).optional().describe('Tools called during visualization generation'),
+  visualizations: z
+    .array(VisualizationSchema)
+    .describe('Array of visualizations'),
+  insights: z
+    .array(z.string())
+    .describe('AI-generated insights about the data'),
+  toolsUsed: z
+    .array(z.string())
+    .optional()
+    .describe('Tools called during visualization generation'),
 });
 
-export type VisualizationResponseData = z.infer<typeof VisualizationResponseDataSchema>;
+export type VisualizationResponseData = z.infer<
+  typeof VisualizationResponseDataSchema
+>;
 
 /**
  * Full visualization endpoint response
  */
-export const VisualizationResponseSchema = createSuccessResponseSchema(VisualizationResponseDataSchema);
+export const VisualizationResponseSchema = createSuccessResponseSchema(
+  VisualizationResponseDataSchema
+);
 
 export type VisualizationResponse = z.infer<typeof VisualizationResponseSchema>;
 
@@ -154,18 +183,20 @@ export const VisualizationNotFoundErrorSchema = NotFoundErrorSchema.extend({
   }),
 });
 
-export const VisualizationServiceUnavailableErrorSchema = ServiceUnavailableErrorSchema.extend({
-  error: z.object({
-    code: z.literal('AI_NOT_CONFIGURED'),
-    message: z.string(),
-    details: z.any().optional(),
-  }),
-});
+export const VisualizationServiceUnavailableErrorSchema =
+  ServiceUnavailableErrorSchema.extend({
+    error: z.object({
+      code: z.literal('AI_NOT_CONFIGURED'),
+      message: z.string(),
+      details: z.any().optional(),
+    }),
+  });
 
-export const VisualizationInternalErrorSchema = InternalServerErrorSchema.extend({
-  error: z.object({
-    code: z.literal('VISUALIZATION_ERROR'),
-    message: z.string(),
-    details: z.any().optional(),
-  }),
-});
+export const VisualizationInternalErrorSchema =
+  InternalServerErrorSchema.extend({
+    error: z.object({
+      code: z.literal('VISUALIZATION_ERROR'),
+      message: z.string(),
+      details: z.any().optional(),
+    }),
+  });

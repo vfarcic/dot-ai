@@ -9,16 +9,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  createMockLanguageModel,
-} from './_helpers/mock-language-model';
+import { createMockLanguageModel } from './_helpers/mock-language-model';
 
 // Hoisted mocks — factories run before module imports.
-const { mockCreateAmazonBedrock, mockFromNodeProviderChain } =
-  vi.hoisted(() => ({
+const { mockCreateAmazonBedrock, mockFromNodeProviderChain } = vi.hoisted(
+  () => ({
     mockCreateAmazonBedrock: vi.fn(),
     mockFromNodeProviderChain: vi.fn(),
-  }));
+  })
+);
 
 vi.mock('@ai-sdk/amazon-bedrock', () => ({
   createAmazonBedrock: mockCreateAmazonBedrock,
@@ -85,7 +84,7 @@ describe('VercelProvider — Amazon Bedrock credential chain (PRD #694)', () => 
     expect(mockCreateAmazonBedrock).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialProvider: sentinelProvider,
-      }),
+      })
     );
   });
 
@@ -104,7 +103,7 @@ describe('VercelProvider — Amazon Bedrock credential chain (PRD #694)', () => 
       expect.objectContaining({
         region: 'us-east-1',
         credentialProvider: sentinelProvider,
-      }),
+      })
     );
   });
 
@@ -124,7 +123,7 @@ describe('VercelProvider — Amazon Bedrock credential chain (PRD #694)', () => 
       expect.objectContaining({
         region: 'eu-central-1',
         credentialProvider: sentinelProvider,
-      }),
+      })
     );
   });
 

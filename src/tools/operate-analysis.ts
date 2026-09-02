@@ -1,6 +1,9 @@
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { PluginManager } from '../core/plugin-manager';
-import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
+import {
+  isMcpClientInitialized,
+  getMcpClientManager,
+} from '../core/mcp-client-registry';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';

@@ -49,7 +49,10 @@ export function resetQdrantClient(): void {
 /**
  * Get Qdrant configuration (for debugging)
  */
-export function getQdrantConfig(): { url: string | undefined; hasApiKey: boolean } {
+export function getQdrantConfig(): {
+  url: string | undefined;
+  hasApiKey: boolean;
+} {
   return {
     url: process.env.QDRANT_URL,
     hasApiKey: !!process.env.QDRANT_API_KEY,

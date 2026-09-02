@@ -30,15 +30,16 @@ Example: "database" might return capabilities for StatefulSet, clusters.postgres
     properties: {
       query: {
         type: 'string',
-        description: 'Semantic search query (e.g., "database", "message queue", "web server", "monitoring", "ingress controller")'
+        description:
+          'Semantic search query (e.g., "database", "message queue", "web server", "monitoring", "ingress controller")',
       },
       limit: {
         type: 'number',
-        description: 'Maximum results to return (default: 10)'
-      }
+        description: 'Maximum results to return (default: 10)',
+      },
     },
-    required: ['query']
-  }
+    required: ['query'],
+  },
 };
 
 /**
@@ -70,15 +71,16 @@ Qdrant filter syntax examples:
     properties: {
       filter: {
         type: 'object',
-        description: 'Qdrant filter object with must/should/must_not conditions'
+        description:
+          'Qdrant filter object with must/should/must_not conditions',
       },
       limit: {
         type: 'number',
-        description: 'Maximum results to return (default: 100)'
-      }
+        description: 'Maximum results to return (default: 100)',
+      },
     },
-    required: ['filter']
-  }
+    required: ['filter'],
+  },
 };
 
 /**
@@ -87,7 +89,7 @@ Qdrant filter syntax examples:
  */
 export const CAPABILITY_TOOLS: AITool[] = [
   SEARCH_CAPABILITIES_TOOL,
-  QUERY_CAPABILITIES_TOOL
+  QUERY_CAPABILITIES_TOOL,
 ];
 
 /**
@@ -103,7 +105,8 @@ let capabilityService: CapabilityVectorService | null = null;
  */
 async function getCapabilityService(): Promise<CapabilityVectorService> {
   if (!capabilityService) {
-    const collectionName = process.env.QDRANT_CAPABILITIES_COLLECTION || 'capabilities';
+    const collectionName =
+      process.env.QDRANT_CAPABILITIES_COLLECTION || 'capabilities';
     capabilityService = new CapabilityVectorService(collectionName);
     await capabilityService.initialize();
   }
@@ -118,7 +121,10 @@ async function getCapabilityService(): Promise<CapabilityVectorService> {
  * @param input - Tool input parameters
  * @returns Tool execution result
  */
-export async function executeCapabilityTools(toolName: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function executeCapabilityTools(
+  toolName: string,
+  input: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   try {
     switch (toolName) {
       case 'search_capabilities': {
@@ -128,12 +134,14 @@ export async function executeCapabilityTools(toolName: string, input: Record<str
           return {
             success: false,
             error: VALIDATION_MESSAGES.MISSING_PARAMETER('query'),
-            message: 'search_capabilities requires a query parameter'
+            message: 'search_capabilities requires a query parameter',
           };
         }
 
         const service = await getCapabilityService();
-        const results = await service.searchCapabilities(query as string, { limit: limit as number });
+        const results = await service.searchCapabilities(query as string, {
+          limit: limit as number,
+        });
 
         // Transform results to a clean format for AI consumption
         const capabilities = results.map(r => ({
@@ -146,14 +154,14 @@ export async function executeCapabilityTools(toolName: string, input: Record<str
           description: r.data.description,
           useCase: r.data.useCase,
           score: r.score,
-          matchType: r.matchType
+          matchType: r.matchType,
         }));
 
         return {
           success: true,
           data: capabilities,
           count: capabilities.length,
-          message: `Found ${capabilities.length} capabilities matching "${query}"`
+          message: `Found ${capabilities.length} capabilities matching "${query}"`,
         };
       }
 
@@ -164,12 +172,16 @@ export async function executeCapabilityTools(toolName: string, input: Record<str
           return {
             success: false,
             error: VALIDATION_MESSAGES.MISSING_PARAMETER('filter'),
-            message: 'query_capabilities requires a filter parameter with Qdrant filter syntax'
+            message:
+              'query_capabilities requires a filter parameter with Qdrant filter syntax',
           };
         }
 
         const service = await getCapabilityService();
-        const results = await service.queryWithFilter(filter as Record<string, unknown>, limit as number);
+        const results = await service.queryWithFilter(
+          filter as Record<string, unknown>,
+          limit as number
+        );
 
         // Transform results to a clean format for AI consumption
         const capabilities = results.map(r => ({
@@ -180,14 +192,14 @@ export async function executeCapabilityTools(toolName: string, input: Record<str
           providers: r.providers,
           capabilities: r.capabilities,
           description: r.description,
-          useCase: r.useCase
+          useCase: r.useCase,
         }));
 
         return {
           success: true,
           data: capabilities,
           count: capabilities.length,
-          message: `Found ${capabilities.length} capabilities matching filter`
+          message: `Found ${capabilities.length} capabilities matching filter`,
         };
       }
 
@@ -195,7 +207,7 @@ export async function executeCapabilityTools(toolName: string, input: Record<str
         return {
           success: false,
           error: `Unknown capability tool: ${toolName}`,
-          message: `Tool '${toolName}' is not implemented`
+          message: `Tool '${toolName}' is not implemented`,
         };
     }
   } catch (error) {
@@ -203,7 +215,7 @@ export async function executeCapabilityTools(toolName: string, input: Record<str
     return {
       success: false,
       error: errorMessage,
-      message: `Failed to execute ${toolName}: ${errorMessage}`
+      message: `Failed to execute ${toolName}: ${errorMessage}`,
     };
   }
 }

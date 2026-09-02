@@ -50,7 +50,10 @@ export class DotAIClientsStore implements OAuthRegisteredClientsStore {
   }
 
   registerClient(
-    client: Omit<OAuthClientInformationFull, 'client_id' | 'client_id_issued_at'>
+    client: Omit<
+      OAuthClientInformationFull,
+      'client_id' | 'client_id_issued_at'
+    >
   ): OAuthClientInformationFull {
     // SDK pre-populates client_id, client_secret, timestamps before calling this.
     // The Omit type is the interface contract, but the actual object has all fields.
@@ -101,7 +104,10 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
   constructor() {
     this.clientsStore = new DotAIClientsStore();
     this.dexConfig = this.loadDexConfig();
-    this.dotAiExternalUrl = (process.env.DOT_AI_EXTERNAL_URL || '').replace(/\/$/, '');
+    this.dotAiExternalUrl = (process.env.DOT_AI_EXTERNAL_URL || '').replace(
+      /\/$/,
+      ''
+    );
     this.startPruning();
   }
 
@@ -162,10 +168,12 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
    */
   private getTokenExpiry(authorizationCode: string): number {
     const defaultExpiry = parseInt(
-      process.env.OAUTH_DEFAULT_TOKEN_TTL_SECONDS || String(DEFAULT_TOKEN_EXPIRY_SECONDS)
+      process.env.OAUTH_DEFAULT_TOKEN_TTL_SECONDS ||
+        String(DEFAULT_TOKEN_EXPIRY_SECONDS)
     );
     const maxExpiry = parseInt(
-      process.env.OAUTH_MAX_TOKEN_TTL_SECONDS || String(MAX_TOKEN_EXPIRY_SECONDS)
+      process.env.OAUTH_MAX_TOKEN_TTL_SECONDS ||
+        String(MAX_TOKEN_EXPIRY_SECONDS)
     );
 
     // Check if client requested a specific expiry
@@ -190,8 +198,8 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     if (!issuerUrl || !clientId || !clientSecret) {
       return null;
     }
-    const tokenEndpoint = process.env.DEX_TOKEN_ENDPOINT
-      || `${issuerUrl.replace(/\/$/, '')}/token`;
+    const tokenEndpoint =
+      process.env.DEX_TOKEN_ENDPOINT || `${issuerUrl.replace(/\/$/, '')}/token`;
     return { issuerUrl, tokenEndpoint, clientId, clientSecret };
   }
 
@@ -208,11 +216,15 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     res: Response
   ): Promise<void> {
     if (!this.dexConfig) {
-      throw new ServerError('Dex not configured (set DEX_ISSUER_URL, DEX_CLIENT_ID, DEX_CLIENT_SECRET)');
+      throw new ServerError(
+        'Dex not configured (set DEX_ISSUER_URL, DEX_CLIENT_ID, DEX_CLIENT_SECRET)'
+      );
     }
 
     if (!this.dotAiExternalUrl) {
-      throw new ServerError('DOT_AI_EXTERNAL_URL is required for OAuth. Set it to the external URL of the dot-ai server.');
+      throw new ServerError(
+        'DOT_AI_EXTERNAL_URL is required for OAuth. Set it to the external URL of the dot-ai server.'
+      );
     }
 
     const sessionId = randomBytes(16).toString('hex');
@@ -261,7 +273,9 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     // Verify the code was issued to the requesting client (RFC 6749 §4.1.3)
     if (record.clientId !== client.client_id) {
       this.authCodes.delete(authorizationCode);
-      throw new InvalidGrantError('Authorization code was not issued to this client');
+      throw new InvalidGrantError(
+        'Authorization code was not issued to this client'
+      );
     }
 
     return record.codeChallenge;
@@ -294,13 +308,17 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     // Verify client_id matches (RFC 6749 §4.1.3)
     if (record.clientId !== client.client_id) {
       this.authCodes.delete(authorizationCode);
-      throw new InvalidGrantError('Authorization code was not issued to this client');
+      throw new InvalidGrantError(
+        'Authorization code was not issued to this client'
+      );
     }
 
     // Verify redirect_uri matches the original request (RFC 6749 §4.1.3)
     if (redirectUri && redirectUri !== record.redirectUri) {
       this.authCodes.delete(authorizationCode);
-      throw new InvalidGrantError('redirect_uri does not match the original authorization request');
+      throw new InvalidGrantError(
+        'redirect_uri does not match the original authorization request'
+      );
     }
 
     // Consume the authorization code (one-time use)
@@ -310,13 +328,16 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     const expiresIn = this.getTokenExpiry(authorizationCode);
     const secret = getJwtSecret();
 
-    const accessToken = signJwt({
-      sub: record.userIdentity.userId,
-      email: record.userIdentity.email,
-      groups: record.userIdentity.groups,
-      iat: now,
-      exp: now + expiresIn,
-    }, secret);
+    const accessToken = signJwt(
+      {
+        sub: record.userIdentity.userId,
+        email: record.userIdentity.email,
+        groups: record.userIdentity.groups,
+        iat: now,
+        exp: now + expiresIn,
+      },
+      secret
+    );
 
     return {
       access_token: accessToken,
@@ -348,17 +369,24 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
 
     if (error) {
       const sessionId = encodedState?.split(STATE_SEPARATOR)[0];
-      const pending = sessionId ? this.pendingRequests.get(sessionId) : undefined;
+      const pending = sessionId
+        ? this.pendingRequests.get(sessionId)
+        : undefined;
       if (pending) {
         this.pendingRequests.delete(sessionId!);
         const errUrl = new URL(pending.redirectUri);
         errUrl.searchParams.set('error', 'access_denied');
-        errUrl.searchParams.set('error_description',
-          extractQueryParam(req.query.error_description) ?? 'Authentication failed');
+        errUrl.searchParams.set(
+          'error_description',
+          extractQueryParam(req.query.error_description) ??
+            'Authentication failed'
+        );
         if (pending.state) errUrl.searchParams.set('state', pending.state);
         res.redirect(302, errUrl.toString());
       } else {
-        res.status(400).send('Authentication failed and no pending session found');
+        res
+          .status(400)
+          .send('Authentication failed and no pending session found');
       }
       return;
     }
@@ -378,7 +406,9 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
 
     const pending = this.pendingRequests.get(sessionId);
     if (!pending) {
-      res.status(400).send('No pending auth request for this session (expired or invalid)');
+      res
+        .status(400)
+        .send('No pending auth request for this session (expired or invalid)');
       return;
     }
 
@@ -397,7 +427,11 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
 
     try {
       const callbackUrl = `${this.dotAiExternalUrl}/callback`;
-      const { idToken } = await exchangeDexCode(this.dexConfig, dexCode, callbackUrl);
+      const { idToken } = await exchangeDexCode(
+        this.dexConfig,
+        dexCode,
+        callbackUrl
+      );
       const claims = parseIdToken(idToken);
 
       const userIdentity = {
@@ -428,7 +462,10 @@ export class DotAIOAuthProvider implements OAuthServerProvider {
     } catch {
       const errUrl = new URL(pending.redirectUri);
       errUrl.searchParams.set('error', 'server_error');
-      errUrl.searchParams.set('error_description', 'Failed to exchange code with identity provider');
+      errUrl.searchParams.set(
+        'error_description',
+        'Failed to exchange code with identity provider'
+      );
       if (originalState) errUrl.searchParams.set('state', originalState);
       res.redirect(302, errUrl.toString());
     }

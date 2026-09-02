@@ -25,18 +25,20 @@ export const helmRepoAdd: KubectlTool = {
       properties: {
         name: {
           type: 'string',
-          description: 'Name to assign to the repository (e.g., "prometheus-community")',
+          description:
+            'Name to assign to the repository (e.g., "prometheus-community")',
         },
         url: {
           type: 'string',
-          description: 'URL of the Helm chart repository (e.g., "https://prometheus-community.github.io/helm-charts")',
+          description:
+            'URL of the Helm chart repository (e.g., "https://prometheus-community.github.io/helm-charts")',
         },
       },
       required: ['name', 'url'],
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const name = requireParam<string>(args, 'name', 'helm_repo_add');
     const url = requireParam<string>(args, 'url', 'helm_repo_add');
 

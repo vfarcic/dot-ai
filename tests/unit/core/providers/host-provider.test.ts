@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HostProvider } from '../../../../src/core/providers/host-provider';
+import type {
+  SamplingHandler,
+  SamplingMessage,
+} from '../../../../src/core/providers/host-provider';
 import {
   ToolLoopConfig,
   AITool,
@@ -12,7 +16,9 @@ describe('HostProvider', () => {
   beforeEach(() => {
     provider = new HostProvider();
     // Reset the static handler before each test
-    provider.setSamplingHandler(undefined as any);
+    // The production signature does not accept undefined; this deliberately
+    // clears the static handler between tests.
+    provider.setSamplingHandler(undefined as unknown as SamplingHandler);
   });
 
   afterEach(() => {
@@ -111,7 +117,7 @@ describe('HostProvider', () => {
       const toolExecutor = vi.fn().mockResolvedValue({ result: 'success' });
 
       // Capture messages at the time of call to avoid reference mutation issues
-      const capturedCalls: any[] = [];
+      const capturedCalls: SamplingMessage[][] = [];
 
       const mockHandler = vi.fn().mockImplementation(async msgs => {
         capturedCalls.push(JSON.parse(JSON.stringify(msgs)));
@@ -133,7 +139,7 @@ describe('HostProvider', () => {
         }
       });
 
-      provider.setSamplingHandler(mockHandler as any);
+      provider.setSamplingHandler(mockHandler as unknown as SamplingHandler);
 
       const config: ToolLoopConfig = {
         systemPrompt: 'System prompt',
@@ -164,9 +170,14 @@ describe('HostProvider', () => {
       expect(capturedCalls[1]).toHaveLength(3);
       expect(capturedCalls[1][1].role).toBe('assistant');
       expect(capturedCalls[1][2].role).toBe('user');
-      expect(capturedCalls[1][2].content.text).toContain(
-        "Tool 'test_tool' output"
-      );
+      // SamplingMessage.content is `string | { type: 'text'; text: string }`,
+      // so read the text out of whichever form arrived.
+      const toolResultContent = capturedCalls[1][2].content;
+      expect(
+        typeof toolResultContent === 'string'
+          ? toolResultContent
+          : toolResultContent.text
+      ).toContain("Tool 'test_tool' output");
     });
 
     it('should handle invalid tool calls gracefully', async () => {
@@ -188,7 +199,7 @@ describe('HostProvider', () => {
           },
         });
 
-      provider.setSamplingHandler(mockHandler as any);
+      provider.setSamplingHandler(mockHandler as unknown as SamplingHandler);
 
       const config: ToolLoopConfig = {
         systemPrompt: 'System prompt',

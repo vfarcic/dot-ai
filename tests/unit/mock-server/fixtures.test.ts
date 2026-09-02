@@ -30,17 +30,69 @@ const FIXTURES_DIR = join(MOCK_SERVER_DIR, 'fixtures');
 /**
  * Load and parse a fixture file
  */
-async function loadFixture(relativePath: string): Promise<unknown> {
+async function loadFixture<T = unknown>(relativePath: string): Promise<T> {
   const content = await readFile(join(FIXTURES_DIR, relativePath), 'utf-8');
-  return JSON.parse(content);
+  return JSON.parse(content) as T;
+}
+
+/**
+ * Fixture shapes, narrow to what the assertions actually read.
+ *
+ * `loadFixture` previously returned `unknown` and every caller cast it with
+ * `as any`, which also meant a typo in a property path was invisible.
+ */
+interface ToolFixtureEntry {
+  name: string;
+  description?: string;
+  parameters: unknown[];
+}
+interface ToolsFixture {
+  data: { tools: ToolFixtureEntry[]; total: number };
+}
+
+interface PromptFixtureEntry {
+  name: string;
+  description?: string;
+  arguments: unknown[];
+}
+interface PromptsFixture {
+  data: { prompts: PromptFixtureEntry[]; source?: string };
+  meta?: unknown;
+}
+
+interface UsersFixture {
+  data: { users: Array<{ email: string }>; total: number };
+}
+
+interface PromptGetFixture {
+  data: {
+    messages: Array<{ content: { text: string } }>;
+    files: Array<{ path: string; content: string }>;
+  };
+}
+
+interface ResourceCollectionFixture {
+  resources: Array<{
+    apiVersion: string;
+    kind: string;
+    metadata: { name: string; namespace: string };
+  }>;
+}
+
+interface ResourceBody {
+  data: {
+    resource: {
+      metadata: { name: string; namespace?: string; [key: string]: unknown };
+    };
+  };
 }
 
 describe('Mock Server Fixtures', () => {
   describe('GET /api/v1/tools - Tool Discovery', () => {
     test('should have valid fixture with tools array and metadata', async () => {
-      const fixture = (await loadFixture(
+      const fixture = await loadFixture<ToolsFixture>(
         'tools/discovery-success.json'
-      )) as any;
+      );
 
       expect(fixture).toMatchObject({
         success: true,
@@ -61,7 +113,7 @@ describe('Mock Server Fixtures', () => {
       });
 
       // Verify specific tools exist with correct structure
-      const toolNames = fixture.data.tools.map((t: any) => t.name);
+      const toolNames = fixture.data.tools.map(t => t.name);
       expect(toolNames).toContain('query');
       expect(toolNames).toContain('recommend');
       expect(toolNames).toContain('remediate');
@@ -87,7 +139,9 @@ describe('Mock Server Fixtures', () => {
 
   describe('GET /api/v1/prompts - List Prompts', () => {
     test('should have valid fixture with prompts array and arguments', async () => {
-      const fixture = (await loadFixture('prompts/list-success.json')) as any;
+      const fixture = await loadFixture<PromptsFixture>(
+        'prompts/list-success.json'
+      );
 
       expect(fixture).toMatchObject({
         success: true,
@@ -109,7 +163,7 @@ describe('Mock Server Fixtures', () => {
       });
 
       // Verify specific prompts exist
-      const promptNames = fixture.data.prompts.map((p: any) => p.name);
+      const promptNames = fixture.data.prompts.map(p => p.name);
       expect(promptNames).toContain('troubleshoot-pod');
       expect(promptNames).toContain('explain-resource');
       expect(promptNames).toContain('security-review');
@@ -129,7 +183,9 @@ describe('Mock Server Fixtures', () => {
 
   describe('GET /api/v1/users - List Users', () => {
     test('should have valid fixture with users array and total', async () => {
-      const fixture = (await loadFixture('users/list-success.json')) as any;
+      const fixture = await loadFixture<UsersFixture>(
+        'users/list-success.json'
+      );
 
       expect(fixture).toMatchObject({
         success: true,
@@ -151,14 +207,14 @@ describe('Mock Server Fixtures', () => {
       expect(fixture.data.total).toBe(fixture.data.users.length);
 
       // Verify admin user exists
-      const emails = fixture.data.users.map((u: any) => u.email);
+      const emails = fixture.data.users.map(u => u.email);
       expect(emails).toContain('admin@dot-ai.local');
     });
   });
 
   describe('POST /api/v1/users - Create User', () => {
     test('should have valid fixture with created user email and message', async () => {
-      const fixture = (await loadFixture('users/create-success.json')) as any;
+      const fixture = await loadFixture('users/create-success.json');
 
       expect(fixture).toMatchObject({
         success: true,
@@ -176,7 +232,7 @@ describe('Mock Server Fixtures', () => {
 
   describe('DELETE /api/v1/users/:email - Delete User', () => {
     test('should have valid fixture with deleted user email and message', async () => {
-      const fixture = (await loadFixture('users/delete-success.json')) as any;
+      const fixture = await loadFixture('users/delete-success.json');
 
       expect(fixture).toMatchObject({
         success: true,
@@ -205,9 +261,9 @@ describe('Mock Server Fixtures', () => {
 
   describe('POST /api/v1/prompts/refresh - Refresh Prompts Cache', () => {
     test('should have valid fixture with refresh data', async () => {
-      const fixture = (await loadFixture(
+      const fixture = await loadFixture<PromptsFixture>(
         'prompts/refresh-success.json'
-      )) as any;
+      );
 
       expect(fixture).toMatchObject({
         success: true,
@@ -226,7 +282,9 @@ describe('Mock Server Fixtures', () => {
 
   describe('POST /api/v1/prompts/:promptName - Get Prompt', () => {
     test('should have valid fixture with messages array', async () => {
-      const fixture = (await loadFixture('prompts/get-success.json')) as any;
+      const fixture = await loadFixture<PromptGetFixture>(
+        'prompts/get-success.json'
+      );
 
       expect(fixture).toMatchObject({
         success: true,
@@ -265,7 +323,7 @@ describe('Mock Server Fixtures', () => {
       );
 
       // Verify files include a flat file and a nested path file
-      const filePaths = fixture.data.files.map((f: any) => f.path);
+      const filePaths = fixture.data.files.map(f => f.path);
       expect(filePaths).toContain('troubleshoot.sh');
       expect(filePaths).toContain('templates/pod-debug.yaml');
 
@@ -279,9 +337,9 @@ describe('Mock Server Fixtures', () => {
 
   describe('OAuth Endpoints', () => {
     test('GET /.well-known/oauth-authorization-server should have valid metadata', async () => {
-      const fixture = (await loadFixture(
+      const fixture = await loadFixture(
         'oauth/authorization-server-metadata.json'
-      )) as any;
+      );
 
       expect(fixture).toMatchObject({
         issuer: expect.any(String),
@@ -295,9 +353,9 @@ describe('Mock Server Fixtures', () => {
     });
 
     test('GET /.well-known/oauth-protected-resource should have valid metadata', async () => {
-      const fixture = (await loadFixture(
+      const fixture = await loadFixture(
         'oauth/protected-resource-metadata.json'
-      )) as any;
+      );
 
       expect(fixture).toMatchObject({
         resource: expect.any(String),
@@ -307,7 +365,7 @@ describe('Mock Server Fixtures', () => {
     });
 
     test('POST /register should return client registration', async () => {
-      const fixture = (await loadFixture('oauth/register-success.json')) as any;
+      const fixture = await loadFixture('oauth/register-success.json');
 
       expect(fixture).toMatchObject({
         client_id: expect.any(String),
@@ -320,7 +378,7 @@ describe('Mock Server Fixtures', () => {
     });
 
     test('POST /token should return access token', async () => {
-      const fixture = (await loadFixture('oauth/token-success.json')) as any;
+      const fixture = await loadFixture('oauth/token-success.json');
 
       expect(fixture).toMatchObject({
         access_token: expect.any(String),
@@ -389,9 +447,9 @@ describe('Mock Server Fixtures', () => {
     });
 
     test('refresh fixture has the no-override source value', async () => {
-      const fixture = (await loadFixture(
+      const fixture = await loadFixture<PromptsFixture>(
         'prompts/refresh-success.json'
-      )) as any;
+      );
       // Was 'built-in+repository' pre-M2; PRD #581 wire contract now requires
       // the env-var URL (or 'built-in' when none is configured).
       expect(fixture.data.source).toBe('built-in');
@@ -410,9 +468,9 @@ describe('Mock Server Fixtures', () => {
     });
 
     test('collection fixture holds full k8s objects for listed resources', async () => {
-      const fixture = (await loadFixture(
+      const fixture = await loadFixture<ResourceCollectionFixture>(
         'resources/single-resources.json'
-      )) as any;
+      );
 
       expect(Array.isArray(fixture.resources)).toBe(true);
       expect(fixture.resources.length).toBeGreaterThan(0);
@@ -432,7 +490,7 @@ describe('Mock Server Fixtures', () => {
       // Every resource the list endpoints expose must be resolvable here so the
       // UI can open any of them in the detail view.
       const ids = fixture.resources.map(
-        (r: any) => `${r.kind}/${r.metadata.namespace}/${r.metadata.name}`
+        r => `${r.kind}/${r.metadata.namespace}/${r.metadata.name}`
       );
       expect(ids).toContain('Pod/default/nginx-deployment-7d9c67b5f-abc12');
       expect(ids).toContain('Pod/default/nginx-deployment-7d9c67b5f-def34');
@@ -446,7 +504,9 @@ describe('Mock Server Fixtures', () => {
       let collection: unknown;
 
       beforeAll(async () => {
-        collection = await loadFixture('resources/single-resources.json');
+        collection = await loadFixture<ResourceCollectionFixture>(
+          'resources/single-resources.json'
+        );
       });
 
       test('isSingleResourceRoutePath matches only the single-resource path', () => {
@@ -488,7 +548,9 @@ describe('Mock Server Fixtures', () => {
         });
 
         expect(result.status).toBe(200);
-        expect((result.body as any).data.resource.metadata).toMatchObject({
+        expect(
+          (result.body as ResourceBody).data.resource.metadata
+        ).toMatchObject({
           name: 'postgres-0',
           namespace: 'database',
         });
@@ -501,7 +563,7 @@ describe('Mock Server Fixtures', () => {
         });
 
         expect(result.status).toBe(200);
-        expect((result.body as any).data.resource.metadata.name).toBe(
+        expect((result.body as ResourceBody).data.resource.metadata.name).toBe(
           'redis-master'
         );
       });

@@ -6,16 +6,13 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { createMockLogger } from '../helpers/mock-logger.js';
+import type { InvokeErrorResponse } from '../../../src/core/plugin-types.js';
 import { PluginManager } from '../../../src/core/plugin-manager.js';
 import { Logger } from '../../../src/core/error-handling.js';
 
 // Mock logger
-const mockLogger: Logger = {
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-};
+const mockLogger: Logger = createMockLogger();
 
 describe('PluginManager', () => {
   let pluginManager: PluginManager;
@@ -49,7 +46,9 @@ describe('PluginManager', () => {
     test('should return quickly when no plugins configured', async () => {
       await pluginManager.discoverPlugins([]);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('No plugins configured for discovery');
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'No plugins configured for discovery'
+      );
       expect(pluginManager.getPendingPlugins()).toHaveLength(0);
     });
   });
@@ -95,11 +94,17 @@ describe('PluginManager', () => {
 
   describe('invokeToolOnPlugin error handling', () => {
     test('should return error for unknown plugin', async () => {
-      const result = await pluginManager.invokeToolOnPlugin('unknown_plugin', 'some_tool', {});
+      const result = await pluginManager.invokeToolOnPlugin(
+        'unknown_plugin',
+        'some_tool',
+        {}
+      );
 
       expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('PLUGIN_NOT_AVAILABLE');
-      expect(result.error?.message).toContain('unknown_plugin');
+      // InvokeResponse is a union; `error` lives only on the failure arm.
+      const { error } = result as InvokeErrorResponse;
+      expect(error.code).toBe('PLUGIN_NOT_AVAILABLE');
+      expect(error.message).toContain('unknown_plugin');
     });
   });
 });

@@ -25,7 +25,8 @@ export const kubectlLogs: KubectlTool = {
       properties: {
         resource: {
           type: 'string',
-          description: 'Pod name to get logs from (e.g., "my-pod" or "pod/my-pod").',
+          description:
+            'Pod name to get logs from (e.g., "my-pod" or "pod/my-pod").',
         },
         namespace: {
           type: 'string',
@@ -42,7 +43,7 @@ export const kubectlLogs: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const resource = requireParam<string>(args, 'resource', 'kubectl_logs');
     const namespace = requireParam<string>(args, 'namespace', 'kubectl_logs');
     const extraArgs = optionalParam<string[]>(args, 'args', []);
@@ -52,10 +53,16 @@ export const kubectlLogs: KubectlTool = {
 
     try {
       const output = await executeKubectl(cmdArgs);
-      return successResult(output, `Successfully retrieved logs for ${resource} in namespace ${namespace}`);
+      return successResult(
+        output,
+        `Successfully retrieved logs for ${resource} in namespace ${namespace}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Failed to get logs for ${resource}: ${message}`);
+      return errorResult(
+        message,
+        `Failed to get logs for ${resource}: ${message}`
+      );
     }
   }),
 };

@@ -8,31 +8,62 @@
  */
 
 import { z } from 'zod';
-import { ErrorHandler, ErrorCategory, ErrorSeverity, ConsoleLogger, Logger } from '../core/error-handling';
+import {
+  ErrorHandler,
+  ErrorCategory,
+  ErrorSeverity,
+  ConsoleLogger,
+  Logger,
+} from '../core/error-handling';
 import { createAIProvider } from '../core/ai-provider-factory';
 import type { AgenticResult } from '../core/ai-provider.interface';
-import { CAPABILITY_TOOLS, executeCapabilityTools } from '../core/capability-tools';
-import { RESOURCE_TOOLS, executeResourceTools, type SearchResourcesInput, type QueryResourcesInput } from '../core/resource-tools';
+import {
+  CAPABILITY_TOOLS,
+  executeCapabilityTools,
+} from '../core/capability-tools';
+import {
+  RESOURCE_TOOLS,
+  executeResourceTools,
+  type SearchResourcesInput,
+  type QueryResourcesInput,
+} from '../core/resource-tools';
 import { PluginManager } from '../core/plugin-manager';
-import { isMcpClientInitialized, getMcpClientManager } from '../core/mcp-client-registry';
+import {
+  isMcpClientInitialized,
+  getMcpClientManager,
+} from '../core/mcp-client-registry';
 import { GenericSessionManager } from '../core/generic-session-manager';
 import {
   getVisualizationUrl,
   parseVisualizationResponse,
   VISUALIZATION_PREFIX,
-  CachedVisualization
+  CachedVisualization,
 } from '../core/visualization';
-import { MERMAID_TOOLS, executeMermaidTools, type MermaidToolInput } from '../core/mermaid-tools';
+import {
+  MERMAID_TOOLS,
+  executeMermaidTools,
+  type MermaidToolInput,
+} from '../core/mermaid-tools';
 import { loadPrompt } from '../core/shared-prompt-loader';
 
 // Tool metadata for MCP registration
 export const QUERY_TOOL_NAME = 'query';
-export const QUERY_TOOL_DESCRIPTION = 'Natural language query interface for Kubernetes cluster intelligence. Ask any questions about your cluster resources, capabilities, and status in plain English. Examples: "What databases are running?", "Describe the nginx deployment", "Show me pods in the kube-system namespace", "What operators are installed?", "Is my-postgres healthy?"';
+export const QUERY_TOOL_DESCRIPTION =
+  'Natural language query interface for Kubernetes cluster intelligence. Ask any questions about your cluster resources, capabilities, and status in plain English. Examples: "What databases are running?", "Describe the nginx deployment", "Show me pods in the kube-system namespace", "What operators are installed?", "Is my-postgres healthy?"';
 
 // Zod schema for MCP registration
 export const QUERY_TOOL_INPUT_SCHEMA = {
-  intent: z.string().min(1).max(1000).describe('Natural language query about the cluster'),
-  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
+  intent: z
+    .string()
+    .min(1)
+    .max(1000)
+    .describe('Natural language query about the cluster'),
+  interaction_id: z
+    .string()
+    .optional()
+    .describe(
+      'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
+    ),
 };
 
 // Input interface
@@ -43,7 +74,7 @@ export interface QueryInput {
 
 // Session data stored for visualization (PRD #317, PRD #320)
 export interface QuerySessionData {
-  toolName: 'query';  // PRD #320: Tool identifier for visualization endpoint
+  toolName: 'query'; // PRD #320: Tool identifier for visualization endpoint
   intent: string;
   summary: string;
   toolsUsed: string[];
@@ -64,13 +95,13 @@ export interface QueryOutput {
   toolsUsed: string[];
   iterations: number;
   sessionId?: string;
-  visualizationUrl?: string;  // PRD #317: URL to open visualization in Web UI
-  agentInstructions: string;  // Agent instructions for presenting the response
+  visualizationUrl?: string; // PRD #317: URL to open visualization in Web UI
+  agentInstructions: string; // Agent instructions for presenting the response
   error?: {
     code: string;
     message: string;
   };
-  content?: Array<{ type: string; text: string }>;  // MCP response format
+  content?: Array<{ type: string; text: string }>; // MCP response format
 }
 
 /**
@@ -165,8 +196,11 @@ export async function runQueryLoopWithRetry(
   }
 ): Promise<AgenticResult> {
   const { maxAttempts, logger, requestId, backoffMs } = options;
-  const delayFor = backoffMs
-    ?? ((attempt: number) => Math.min(2000, 250 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 250));
+  const delayFor =
+    backoffMs ??
+    ((attempt: number) =>
+      Math.min(2000, 250 * 2 ** (attempt - 1)) +
+      Math.floor(Math.random() * 250));
 
   let result = await run();
   for (
@@ -180,7 +214,7 @@ export async function runQueryLoopWithRetry(
       { requestId, finalMessage: result.finalMessage }
     );
     if (delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
     result = await run();
   }
@@ -221,16 +255,31 @@ export async function handleQueryTool(
     const systemPrompt = loadPrompt('query-system', {
       outputInstructions: visualizationMode
         ? loadPrompt('partials/visualization-output')
-        : loadPrompt('partials/query-simple-output')
+        : loadPrompt('partials/query-simple-output'),
     });
 
     // Local executor for non-plugin tools (capability, resource, mermaid)
-    const localToolExecutor = async (toolName: string, input: unknown): Promise<unknown> => {
-      if (toolName.startsWith('search_capabilities') || toolName.startsWith('query_capabilities')) {
-        return executeCapabilityTools(toolName, input as Record<string, unknown>);
+    const localToolExecutor = async (
+      toolName: string,
+      input: unknown
+    ): Promise<unknown> => {
+      if (
+        toolName.startsWith('search_capabilities') ||
+        toolName.startsWith('query_capabilities')
+      ) {
+        return executeCapabilityTools(
+          toolName,
+          input as Record<string, unknown>
+        );
       }
-      if (toolName.startsWith('search_resources') || toolName.startsWith('query_resources')) {
-        return executeResourceTools(toolName, input as SearchResourcesInput | QueryResourcesInput);
+      if (
+        toolName.startsWith('search_resources') ||
+        toolName.startsWith('query_resources')
+      ) {
+        return executeResourceTools(
+          toolName,
+          input as SearchResourcesInput | QueryResourcesInput
+        );
       }
       if (toolName === 'validate_mermaid') {
         return executeMermaidTools(toolName, input as MermaidToolInput);
@@ -238,7 +287,7 @@ export async function handleQueryTool(
       return {
         success: false,
         error: `Unknown tool: ${toolName}`,
-        message: `Tool '${toolName}' is not implemented in query tool`
+        message: `Tool '${toolName}' is not implemented in query tool`,
       };
     };
 
@@ -260,10 +309,12 @@ export async function handleQueryTool(
       'kubectl_describe',
       'kubectl_logs',
       'kubectl_events',
-      'kubectl_get_crd_schema'
+      'kubectl_get_crd_schema',
     ];
     const pluginKubectlTools = pluginManager
-      ? pluginManager.getDiscoveredTools().filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
+      ? pluginManager
+          .getDiscoveredTools()
+          .filter(t => KUBECTL_READONLY_TOOL_NAMES.includes(t.name))
       : [];
 
     // PRD #358: Get MCP server tools attached to query
@@ -275,8 +326,19 @@ export async function handleQueryTool(
     // kubectl tools only available when plugin is configured
     // MCP tools added when MCP servers are configured
     const tools = visualizationMode
-      ? [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...mcpTools, ...MERMAID_TOOLS]
-      : [...CAPABILITY_TOOLS, ...RESOURCE_TOOLS, ...pluginKubectlTools, ...mcpTools];
+      ? [
+          ...CAPABILITY_TOOLS,
+          ...RESOURCE_TOOLS,
+          ...pluginKubectlTools,
+          ...mcpTools,
+          ...MERMAID_TOOLS,
+        ]
+      : [
+          ...CAPABILITY_TOOLS,
+          ...RESOURCE_TOOLS,
+          ...pluginKubectlTools,
+          ...mcpTools,
+        ];
 
     // Execute tool loop with capability, resource, kubectl, and MCP tools
     // The query tool loop uses only read-only tools (capability/resource search,
@@ -284,18 +346,19 @@ export async function handleQueryTool(
     // safe to retry. Smaller models occasionally fail the agentic loop; retry a
     // bounded number of times before surfacing the (already isRetryable) error below.
     const MAX_QUERY_ATTEMPTS = 3;
-    const runQueryLoop = () => aiProvider.toolLoop({
-      systemPrompt,
-      userMessage: intent,
-      tools,
-      toolExecutor: executeQueryTools,
-      maxIterations: 30,
-      operation: 'query',
-      evaluationContext: {
-        user_intent: intent
-      },
-      interaction_id: args.interaction_id
-    });
+    const runQueryLoop = () =>
+      aiProvider.toolLoop({
+        systemPrompt,
+        userMessage: intent,
+        tools,
+        toolExecutor: executeQueryTools,
+        maxIterations: 30,
+        operation: 'query',
+        evaluationContext: {
+          user_intent: intent,
+        },
+        interaction_id: args.interaction_id,
+      });
 
     const result = await runQueryLoopWithRetry(runQueryLoop, {
       maxAttempts: MAX_QUERY_ATTEMPTS,
@@ -310,7 +373,7 @@ export async function handleQueryTool(
       requestId,
       iterations: result.iterations,
       toolsUsed,
-      visualizationMode
+      visualizationMode,
     });
 
     // Guard: if the AI call did not succeed, surface the real error instead of trying to parse
@@ -319,13 +382,22 @@ export async function handleQueryTool(
         ErrorCategory.AI_SERVICE,
         ErrorSeverity.HIGH,
         `Query ${result.status}: ${result.finalMessage}`,
-        { operation: 'query_tool_execution', component: 'QueryTool', isRetryable: true, requestId, input: { intent } }
+        {
+          operation: 'query_tool_execution',
+          component: 'QueryTool',
+          isRetryable: true,
+          requestId,
+          input: { intent },
+        }
       );
     }
 
     // Handle visualization mode - return visualization response with sessionId for caching
     if (visualizationMode) {
-      const visualizationResponse = parseVisualizationResponse(result.finalMessage, toolsUsed);
+      const visualizationResponse = parseVisualizationResponse(
+        result.finalMessage,
+        toolsUsed
+      );
 
       // Create session with cached visualization for URL caching/bookmarking (PRD #328)
       const sessionManager = new GenericSessionManager<QuerySessionData>('qry');
@@ -340,25 +412,29 @@ export async function handleQueryTool(
           title: visualizationResponse.title,
           visualizations: visualizationResponse.visualizations,
           insights: visualizationResponse.insights,
-          generatedAt: new Date().toISOString()
-        }
+          generatedAt: new Date().toISOString(),
+        },
       });
 
       logger.info('Visualization session created', {
         requestId,
-        sessionId: session.sessionId
+        sessionId: session.sessionId,
       });
 
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify({
-              sessionId: session.sessionId,
-              ...visualizationResponse
-            }, null, 2)
-          }
-        ]
+            text: JSON.stringify(
+              {
+                sessionId: session.sessionId,
+                ...visualizationResponse,
+              },
+              null,
+              2
+            ),
+          },
+        ],
       };
     }
 
@@ -368,12 +444,12 @@ export async function handleQueryTool(
     // Store session for visualization (PRD #317, PRD #320)
     const sessionManager = new GenericSessionManager<QuerySessionData>('qry');
     const session = sessionManager.createSession({
-      toolName: 'query',  // PRD #320: Tool identifier for visualization endpoint
+      toolName: 'query', // PRD #320: Tool identifier for visualization endpoint
       intent,
       summary,
       toolsUsed,
       iterations: result.iterations,
-      toolCallsExecuted: result.toolCallsExecuted
+      toolCallsExecuted: result.toolCallsExecuted,
     });
 
     // PRD #317: Include visualization URL when WEB_UI_BASE_URL is configured
@@ -382,7 +458,7 @@ export async function handleQueryTool(
     logger.info('Session created for visualization', {
       requestId,
       sessionId: session.sessionId,
-      ...(visualizationUrl && { visualizationUrl })
+      ...(visualizationUrl && { visualizationUrl }),
     });
 
     const agentInstructions = visualizationUrl
@@ -396,18 +472,17 @@ export async function handleQueryTool(
       iterations: result.iterations,
       sessionId: session.sessionId,
       ...(visualizationUrl && { visualizationUrl }),
-      agentInstructions
+      agentInstructions,
     };
 
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(output, null, 2)
-        }
-      ]
+          text: JSON.stringify(output, null, 2),
+        },
+      ],
     };
-
   } catch (error) {
     logger.error('Query failed', error as Error, { requestId });
 
@@ -423,7 +498,7 @@ export async function handleQueryTool(
         operation: 'query_tool_execution',
         component: 'QueryTool',
         requestId,
-        input: { intent: args.intent }
+        input: { intent: args.intent },
       }
     );
   }

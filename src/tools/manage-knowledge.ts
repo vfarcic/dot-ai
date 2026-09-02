@@ -64,7 +64,10 @@ async function classifyDocument(content: string): Promise<string[]> {
       documentContent: content,
     });
 
-    const response = await aiProvider.sendMessage(prompt, 'knowledge-classification');
+    const response = await aiProvider.sendMessage(
+      prompt,
+      'knowledge-classification'
+    );
 
     // Parse the JSON array from AI response
     // AI should return only a JSON array like [] or ["policy"] or ["policy","pattern"]
@@ -85,7 +88,8 @@ async function classifyDocument(content: string): Promise<string[]> {
     // Filter to only valid classification tags
     const validTags: string[] = parsed.filter(
       (tag: unknown): tag is ClassificationTag =>
-        typeof tag === 'string' && VALID_CLASSIFICATION_TAGS.includes(tag as ClassificationTag)
+        typeof tag === 'string' &&
+        VALID_CLASSIFICATION_TAGS.includes(tag as ClassificationTag)
     );
 
     return validTags;
@@ -137,8 +141,13 @@ export const MANAGE_KNOWLEDGE_TOOL_INPUT_SCHEMA = {
   uriFilter: z
     .string()
     .optional()
-    .describe('Optional URL prefix to filter search results (e.g., "https://github.com/org/repo/").'),
-  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate.'),
+    .describe(
+      'Optional URL prefix to filter search results (e.g., "https://github.com/org/repo/").'
+    ),
+  interaction_id: z
+    .string()
+    .optional()
+    .describe('INTERNAL ONLY - Do not populate.'),
 };
 
 /**
@@ -158,7 +167,10 @@ export interface ManageKnowledgeInput {
 /**
  * Create error response matching other tool patterns
  */
-function createErrorResponse(message: string, details?: Record<string, unknown>) {
+function createErrorResponse(
+  message: string,
+  details?: Record<string, unknown>
+) {
   return {
     success: false,
     error: { message, ...details },
@@ -237,15 +249,22 @@ async function handleIngestOperation(
     // Step 2: Chunk the document
     logger.debug('Calling knowledge_chunk plugin tool', { requestId, uri });
 
-    const chunkResponse = await invokePluginTool(PLUGIN_NAME, 'knowledge_chunk', {
-      content,
-      uri,
-    });
+    const chunkResponse = await invokePluginTool(
+      PLUGIN_NAME,
+      'knowledge_chunk',
+      {
+        content,
+        uri,
+      }
+    );
 
     if (!chunkResponse.success) {
       const error = chunkResponse.error as { message?: string } | undefined;
       const errorMessage = error?.message || 'Chunking failed';
-      logger.error('Plugin chunking failed', new Error(errorMessage), { requestId, uri });
+      logger.error('Plugin chunking failed', new Error(errorMessage), {
+        requestId,
+        uri,
+      });
       return createErrorResponse('Document chunking failed', {
         operation: 'ingest',
         error: errorMessage,
@@ -289,18 +308,29 @@ async function handleIngestOperation(
 
     // Step 3: Initialize collection via plugin
     const vectorSize = embeddingService.getDimensions();
-    logger.debug('Initializing knowledge collection via plugin', { requestId, vectorSize });
-
-    const initResponse = await invokePluginTool(PLUGIN_NAME, 'collection_initialize', {
-      collection: KNOWLEDGE_COLLECTION,
+    logger.debug('Initializing knowledge collection via plugin', {
+      requestId,
       vectorSize,
-      createTextIndex: true,
     });
+
+    const initResponse = await invokePluginTool(
+      PLUGIN_NAME,
+      'collection_initialize',
+      {
+        collection: KNOWLEDGE_COLLECTION,
+        vectorSize,
+        createTextIndex: true,
+      }
+    );
 
     if (!initResponse.success) {
       const error = initResponse.error as { message?: string } | undefined;
       const errorMessage = error?.message || 'Collection initialization failed';
-      logger.error('Collection initialization failed', new Error(errorMessage), { requestId });
+      logger.error(
+        'Collection initialization failed',
+        new Error(errorMessage),
+        { requestId }
+      );
       return createErrorResponse('Failed to initialize knowledge collection', {
         operation: 'ingest',
         error: errorMessage,
@@ -330,7 +360,7 @@ async function handleIngestOperation(
         ingestedAt,
         chunkIndex: chunk.chunkIndex,
         totalChunks: chunk.totalChunks,
-        tags: documentTags,  // PRD #375: Document-level AI classification tags (same for all chunks)
+        tags: documentTags, // PRD #375: Document-level AI classification tags (same for all chunks)
         extractedPolicyIds: [],
       };
 
@@ -342,12 +372,16 @@ async function handleIngestOperation(
       });
 
       // Store via plugin
-      const storeResponse = await invokePluginTool(PLUGIN_NAME, 'vector_store', {
-        collection: KNOWLEDGE_COLLECTION,
-        id: chunk.id,
-        embedding,
-        payload,
-      });
+      const storeResponse = await invokePluginTool(
+        PLUGIN_NAME,
+        'vector_store',
+        {
+          collection: KNOWLEDGE_COLLECTION,
+          id: chunk.id,
+          embedding,
+          payload,
+        }
+      );
 
       if (!storeResponse.success) {
         const error = storeResponse.error as { message?: string } | undefined;
@@ -384,7 +418,10 @@ async function handleIngestOperation(
     return response;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Document ingestion failed', error as Error, { requestId, uri });
+    logger.error('Document ingestion failed', error as Error, {
+      requestId,
+      uri,
+    });
     return createErrorResponse('Document ingestion failed', {
       operation: 'ingest',
       error: errorMessage,
@@ -422,7 +459,11 @@ async function handleSearchOperation(
     const searchResult = await searchKnowledgeBase({ query, limit, uriFilter });
 
     if (!searchResult.success) {
-      logger.error('Knowledge base search failed', new Error(searchResult.error), { requestId });
+      logger.error(
+        'Knowledge base search failed',
+        new Error(searchResult.error),
+        { requestId }
+      );
       return createErrorResponse('Search failed', {
         operation: 'search',
         error: searchResult.error,
@@ -445,14 +486,15 @@ async function handleSearchOperation(
         searchResult.chunks.length > 0
           ? `Found ${searchResult.chunks.length} matching chunks`
           : 'No matching documents found',
-      agentInstructions: searchResult.chunks.length > 0
-        ? `Use the chunks as source material to answer the user's question:
+      agentInstructions:
+        searchResult.chunks.length > 0
+          ? `Use the chunks as source material to answer the user's question:
 1. Extract and combine only the relevant information from the chunks
 2. Synthesize a coherent answer that directly addresses the user's query
 3. Discard irrelevant text - chunks may contain both relevant and irrelevant content
 4. At the end, include a "Sources:" section listing the unique source URIs as clickable markdown links
 5. Do NOT show raw chunks, scores, or chunk metadata to the user`
-        : undefined,
+          : undefined,
     };
 
     return response;
@@ -486,12 +528,20 @@ async function deleteChunksByUri(
   });
 
   if (!queryResponse.success) {
-    const error = queryResponse.error as { message?: string; error?: string } | undefined;
+    const error = queryResponse.error as
+      | { message?: string; error?: string }
+      | undefined;
     const errorMessage = error?.message || error?.error || 'Query failed';
 
     // If collection doesn't exist (Not Found), return 0 (no chunks to delete)
-    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-      logger.debug('Collection not found - no chunks to delete', { requestId, uri });
+    if (
+      errorMessage.includes('Not Found') ||
+      errorMessage.includes('not found')
+    ) {
+      logger.debug('Collection not found - no chunks to delete', {
+        requestId,
+        uri,
+      });
       return 0;
     }
 
@@ -513,8 +563,14 @@ async function deleteChunksByUri(
     const errorMessage = queryResult.error || queryResult.message;
 
     // If collection doesn't exist, return 0
-    if (errorMessage.includes('Not Found') || errorMessage.includes('not found')) {
-      logger.debug('Collection not found - no chunks to delete', { requestId, uri });
+    if (
+      errorMessage.includes('Not Found') ||
+      errorMessage.includes('not found')
+    ) {
+      logger.debug('Collection not found - no chunks to delete', {
+        requestId,
+        uri,
+      });
       return 0;
     }
 
@@ -534,10 +590,14 @@ async function deleteChunksByUri(
   for (const chunk of chunksToDelete) {
     logger.debug('Deleting chunk', { requestId, chunkId: chunk.id });
 
-    const deleteResponse = await invokePluginTool(PLUGIN_NAME, 'vector_delete', {
-      collection: KNOWLEDGE_COLLECTION,
-      id: chunk.id,
-    });
+    const deleteResponse = await invokePluginTool(
+      PLUGIN_NAME,
+      'vector_delete',
+      {
+        collection: KNOWLEDGE_COLLECTION,
+        id: chunk.id,
+      }
+    );
 
     if (!deleteResponse.success) {
       const error = deleteResponse.error as { message?: string } | undefined;
@@ -593,15 +653,19 @@ async function handleDeleteByUriOperation(
       operation: 'deleteByUri',
       uri,
       chunksDeleted: deletedCount,
-      message: deletedCount > 0
-        ? `Successfully deleted ${deletedCount} chunks for URI`
-        : 'No chunks found for URI',
+      message:
+        deletedCount > 0
+          ? `Successfully deleted ${deletedCount} chunks for URI`
+          : 'No chunks found for URI',
     };
 
     return response;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('DeleteByUri operation failed', error as Error, { requestId, uri });
+    logger.error('DeleteByUri operation failed', error as Error, {
+      requestId,
+      uri,
+    });
     return createErrorResponse('Delete operation failed', {
       operation: 'deleteByUri',
       error: errorMessage,
@@ -679,10 +743,13 @@ export async function handleManageKnowledgeTool(
       break;
 
     default:
-      response = createErrorResponse(`Unsupported operation: ${args.operation}`, {
-        supportedOperations: ['ingest', 'search', 'deleteByUri'],
-        hint: 'Use "ingest" to add documents, "search" for semantic search, or "deleteByUri" to remove all chunks for a document',
-      });
+      response = createErrorResponse(
+        `Unsupported operation: ${args.operation}`,
+        {
+          supportedOperations: ['ingest', 'search', 'deleteByUri'],
+          hint: 'Use "ingest" to add documents, "search" for semantic search, or "deleteByUri" to remove all chunks for a document',
+        }
+      );
   }
 
   // Wrap response in MCP content format

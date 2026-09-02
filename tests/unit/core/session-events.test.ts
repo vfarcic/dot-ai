@@ -11,8 +11,6 @@ import {
   SESSION_EVENTS,
   SessionEvent,
   SessionEventBus,
-  SessionEventType,
-  SessionEventHandler,
 } from '../../../src/core/session-events';
 
 describe('SessionEventBus', () => {
@@ -130,7 +128,10 @@ describe('SessionEventBus', () => {
       };
       bus.publish(SESSION_EVENTS.SESSION_CREATED, event);
 
-      expect(mockBus.publish).toHaveBeenCalledWith(SESSION_EVENTS.SESSION_CREATED, event);
+      expect(mockBus.publish).toHaveBeenCalledWith(
+        SESSION_EVENTS.SESSION_CREATED,
+        event
+      );
 
       // Restore original
       setSessionEventBus(originalBus);

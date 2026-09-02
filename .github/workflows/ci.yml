@@ -41,6 +41,14 @@ jobs:
     - name: Run linter
       run: devbox run -- npm run lint
 
+    # #784: lint/format/typecheck now cover tests/ too, so a test-only change
+    # can no longer pass CI while being malformed, mistyped, or unformatted.
+    - name: Check formatting
+      run: devbox run -- npm run format:check
+
+    - name: Typecheck (including tests/)
+      run: devbox run -- npm run typecheck
+
     - name: Build project
       run: devbox run -- npm run build
 
@@ -62,7 +70,7 @@ jobs:
         npm pack
         docker build -t dot-ai:test .
         rm -f vfarcic-dot-ai-*.tgz
-        (cd packages/agentic-tools && npm ci && npm run build && npm test && npm prune --omit=dev)
+        (cd packages/agentic-tools && npm ci && npm run typecheck && npm run build && npm test && npm prune --omit=dev)
         docker build -t dot-ai-agentic-tools:test ./packages/agentic-tools
         docker save dot-ai:test -o /tmp/dot-ai-test.tar
         docker save dot-ai-agentic-tools:test -o /tmp/dot-ai-agentic-tools-test.tar

@@ -78,7 +78,7 @@ describe('VercelEmbeddingProvider.generateEmbeddings (with embedMany)', () => {
     const inputs = ['alpha', 'bravo', 'charlie'];
     const embeddings = await provider.generateEmbeddings(inputs);
 
-    expect(embeddings).toEqual(inputs.map((v) => buildEmbeddingVector(v, 4)));
+    expect(embeddings).toEqual(inputs.map(v => buildEmbeddingVector(v, 4)));
 
     // The SDK batched all values into a single call instead of one per value.
     expect(mockModel.doEmbedCalls).toHaveLength(1);

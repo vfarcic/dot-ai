@@ -31,38 +31,106 @@ const VAGUE_INTENT_THRESHOLD = 100; // Characters - intents below this trigger g
 
 // Tool metadata for direct MCP registration
 export const RECOMMEND_TOOL_NAME = 'recommend';
-export const RECOMMEND_TOOL_DESCRIPTION = 'Deploy applications, infrastructure, and services using Kubernetes resources with AI recommendations. Supports cloud resources via operators like Crossplane, cluster management via CAPI, and traditional Kubernetes workloads. Describe what you want to deploy. Does NOT handle policy creation, organizational patterns, or resource capabilities - use manageOrgData for those.';
+export const RECOMMEND_TOOL_DESCRIPTION =
+  'Deploy applications, infrastructure, and services using Kubernetes resources with AI recommendations. Supports cloud resources via operators like Crossplane, cluster management via CAPI, and traditional Kubernetes workloads. Describe what you want to deploy. Does NOT handle policy creation, organizational patterns, or resource capabilities - use manageOrgData for those.';
 
 // Zod schema for MCP registration (unified tool with stage routing)
 export const RECOMMEND_TOOL_INPUT_SCHEMA = {
-  stage: z.string().optional().describe('Deployment workflow stage: "recommend" (default), "chooseSolution", "answerQuestion:required", "answerQuestion:basic", "answerQuestion:advanced", "answerQuestion:open", "generateManifests", "pushToGit", "deployManifests". Defaults to "recommend" if omitted.'),
-  intent: z.string().min(1).max(1000).optional().describe('What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: "deploy web application", "create PostgreSQL database", "setup Redis cache", "install Prometheus monitoring", "configure Ingress controller", "provision storage volumes", "launch MongoDB operator", "run Node.js API", "setup CI/CD pipeline", "create load balancer", "install Grafana dashboard", "deploy React frontend"'),
-  final: z.boolean().optional().describe('Set to true to skip intent clarification and proceed directly with recommendations. If false or omitted, the tool will analyze the intent and provide clarification questions to help improve recommendation quality.'),
+  stage: z
+    .string()
+    .optional()
+    .describe(
+      'Deployment workflow stage: "recommend" (default), "chooseSolution", "answerQuestion:required", "answerQuestion:basic", "answerQuestion:advanced", "answerQuestion:open", "generateManifests", "pushToGit", "deployManifests". Defaults to "recommend" if omitted.'
+    ),
+  intent: z
+    .string()
+    .min(1)
+    .max(1000)
+    .optional()
+    .describe(
+      'What the user wants to deploy, create, setup, install, or run on Kubernetes. Examples: "deploy web application", "create PostgreSQL database", "setup Redis cache", "install Prometheus monitoring", "configure Ingress controller", "provision storage volumes", "launch MongoDB operator", "run Node.js API", "setup CI/CD pipeline", "create load balancer", "install Grafana dashboard", "deploy React frontend"'
+    ),
+  final: z
+    .boolean()
+    .optional()
+    .describe(
+      'Set to true to skip intent clarification and proceed directly with recommendations. If false or omitted, the tool will analyze the intent and provide clarification questions to help improve recommendation quality.'
+    ),
   // Parameters for chooseSolution stage
-  solutionId: z.string().optional().describe('Solution ID for chooseSolution, answerQuestion, generateManifests, pushToGit, and deployManifests stages'),
+  solutionId: z
+    .string()
+    .optional()
+    .describe(
+      'Solution ID for chooseSolution, answerQuestion, generateManifests, pushToGit, and deployManifests stages'
+    ),
   // Parameters for answerQuestion stage (stage parameter contains the config stage like "answerQuestion:required")
-  answers: z.record(z.string(), z.any()).optional().describe('User answers for answerQuestion stage'),
+  answers: z
+    .record(z.string(), z.any())
+    .optional()
+    .describe('User answers for answerQuestion stage'),
   // Parameters for deployManifests stage
-  timeout: z.number().optional().describe('Deployment timeout in seconds for deployManifests stage'),
+  timeout: z
+    .number()
+    .optional()
+    .describe('Deployment timeout in seconds for deployManifests stage'),
   // Parameters for pushToGit stage (PRD #395)
-  repoUrl: z.string().url().optional().describe('Git repository URL for pushToGit stage (HTTPS)'),
-  targetPath: z.string().optional().describe('Path within repository for pushToGit stage (e.g., "apps/postgresql/")'),
-  branch: z.string().optional().describe('Git branch for pushToGit stage (default: main). With pullRequest: true this is the BASE branch the pull request targets, which is never written to'),
+  repoUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe('Git repository URL for pushToGit stage (HTTPS)'),
+  targetPath: z
+    .string()
+    .optional()
+    .describe(
+      'Path within repository for pushToGit stage (e.g., "apps/postgresql/")'
+    ),
+  branch: z
+    .string()
+    .optional()
+    .describe(
+      'Git branch for pushToGit stage (default: main). With pullRequest: true this is the BASE branch the pull request targets, which is never written to'
+    ),
   // PRD #710: mode selector for the pushToGit stage
-  pullRequest: z.boolean().optional().describe('For pushToGit stage: when true, commit to a server-generated branch and open a pull request against `branch` instead of pushing to it directly. Required for repositories with branch protection. The head branch name is chosen by the server and cannot be supplied'),
-  commitMessage: z.string().optional().describe('Commit message for pushToGit stage (also the pull request title when pullRequest: true)'),
-  authorName: z.string().optional().describe('Git author name for pushToGit stage (ignored when the request carries an authenticated user identity, which is then the commit author)'),
-  authorEmail: z.string().optional().describe('Git author email for pushToGit stage (ignored when the request carries an authenticated user identity, which is then the commit author)'),
-  interaction_id: z.string().optional().describe('INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.')
+  pullRequest: z
+    .boolean()
+    .optional()
+    .describe(
+      'For pushToGit stage: when true, commit to a server-generated branch and open a pull request against `branch` instead of pushing to it directly. Required for repositories with branch protection. The head branch name is chosen by the server and cannot be supplied'
+    ),
+  commitMessage: z
+    .string()
+    .optional()
+    .describe(
+      'Commit message for pushToGit stage (also the pull request title when pullRequest: true)'
+    ),
+  authorName: z
+    .string()
+    .optional()
+    .describe(
+      'Git author name for pushToGit stage (ignored when the request carries an authenticated user identity, which is then the commit author)'
+    ),
+  authorEmail: z
+    .string()
+    .optional()
+    .describe(
+      'Git author email for pushToGit stage (ignored when the request carries an authenticated user identity, which is then the commit author)'
+    ),
+  interaction_id: z
+    .string()
+    .optional()
+    .describe(
+      'INTERNAL ONLY - Do not populate. Used for evaluation dataset generation.'
+    ),
 };
 
 // Solution data stored by GenericSessionManager
 // Supports both capability-based solutions (with resources) and Helm solutions (with chart)
 export interface SolutionData {
-  toolName: 'recommend';  // PRD #320: Tool identifier for visualization endpoint
-  stage?: 'solutions' | 'questions' | 'manifests' | 'pushed' | 'deployed';  // UI workflow stage for page refresh support
+  toolName: 'recommend'; // PRD #320: Tool identifier for visualization endpoint
+  stage?: 'solutions' | 'questions' | 'manifests' | 'pushed' | 'deployed'; // UI workflow stage for page refresh support
   intent: string;
-  type: string;  // 'single' | 'combination' for capability, 'helm' for Helm
+  type: string; // 'single' | 'combination' for capability, 'helm' for Helm
   score: number;
   description: string;
   reasons: string[];
@@ -80,18 +148,18 @@ export interface SolutionData {
     basic?: Question[];
     advanced?: Question[];
     open?: { question: string; placeholder: string; answer?: string };
-    relevantPolicies?: string[];  // Policy descriptions from question generation
+    relevantPolicies?: string[]; // Policy descriptions from question generation
   };
   answers: Record<string, unknown>;
   timestamp: string;
-  appliedPatterns?: string[];  // Pattern descriptions that influenced this solution
+  appliedPatterns?: string[]; // Pattern descriptions that influenced this solution
   // PRD #320: Generated manifests data for visualization
   generatedManifests?: {
     type: 'raw' | 'helm' | 'kustomize';
     outputPath?: string;
     files?: Array<{ relativePath: string; content: string }>;
-    valuesYaml?: string;  // For Helm charts
-    helmCommand?: string;  // For Helm charts
+    valuesYaml?: string; // For Helm charts
+    helmCommand?: string; // For Helm charts
     chart?: {
       repository: string;
       repositoryName: string;
@@ -128,14 +196,16 @@ export interface SolutionData {
   // Workflow state tracking for UI page refresh support (dot-ai-ui feature request)
   currentQuestionStage?: 'required' | 'basic' | 'advanced' | 'open';
   nextQuestionStage?: string | null;
-  allSolutions?: Array<{  // Context: all solutions that were available
+  allSolutions?: Array<{
+    // Context: all solutions that were available
     solutionId: string;
     type: string;
     score: number;
     description: string;
     reasons: string[];
   }>;
-  organizationalContext?: {  // Pattern/policy usage context across all solutions
+  organizationalContext?: {
+    // Pattern/policy usage context across all solutions
     solutionsUsingPatterns: number;
     totalSolutions: number;
     totalPatterns: number;
@@ -169,10 +239,9 @@ function generateIntentRefinementGuidance(intent: string): object {
     success: true,
     needsRefinement: true,
     intent,
-    guidance
+    guidance,
   };
 }
-
 
 // Session management now handled by GenericSessionManager
 
@@ -231,7 +300,11 @@ export async function handleRecommendTool(
       // Stage-based routing: extract stage and route to appropriate handler
       const stage = args.stage || 'recommend'; // Default to 'recommend' if not specified
 
-      logger.debug('Handling recommend request with stage routing', { requestId, stage, intent: args?.intent });
+      logger.debug('Handling recommend request with stage routing', {
+        requestId,
+        stage,
+        intent: args?.intent,
+      });
 
       // Initialize session manager (shared across stages)
       const sessionManager = new GenericSessionManager<SolutionData>('sol');
@@ -239,24 +312,44 @@ export async function handleRecommendTool(
 
       // Route to appropriate handler based on stage
       if (stage === 'chooseSolution') {
-        return await handleChooseSolutionTool(args as { solutionId: string }, dotAI, logger, requestId);
+        return await handleChooseSolutionTool(
+          args as { solutionId: string },
+          dotAI,
+          logger,
+          requestId
+        );
       }
 
       if (stage.startsWith('answerQuestion:')) {
         // Extract config stage from stage parameter (e.g., "answerQuestion:required" -> "required")
-        const configStage = stage.split(':')[1] as 'required' | 'basic' | 'advanced' | 'open';
+        const configStage = stage.split(':')[1] as
+          | 'required'
+          | 'basic'
+          | 'advanced'
+          | 'open';
         const answerQuestionArgs = {
           solutionId: args.solutionId || '',
           stage: configStage,
           answers: args.answers || {},
-          interaction_id: args.interaction_id
+          interaction_id: args.interaction_id,
         };
-        return await handleAnswerQuestionTool(answerQuestionArgs, dotAI, logger, requestId);
+        return await handleAnswerQuestionTool(
+          answerQuestionArgs,
+          dotAI,
+          logger,
+          requestId
+        );
       }
 
       if (stage === 'generateManifests') {
         // PRD #359: Uses unified plugin registry for kubectl operations
-        return await handleGenerateManifestsTool(args as { solutionId: string }, dotAI, logger, requestId, pluginManager);
+        return await handleGenerateManifestsTool(
+          args as { solutionId: string },
+          dotAI,
+          logger,
+          requestId,
+          pluginManager
+        );
       }
 
       if (stage === 'deployManifests') {
@@ -283,7 +376,12 @@ export async function handleRecommendTool(
           };
         }
         // PRD #359: Uses unified plugin registry for kubectl operations
-        return await handleDeployManifestsTool(args as { solutionId: string }, dotAI, logger, requestId);
+        return await handleDeployManifestsTool(
+          args as { solutionId: string },
+          dotAI,
+          logger,
+          requestId
+        );
       }
 
       // PRD #395: pushToGit stage for GitOps workflows
@@ -347,7 +445,7 @@ export async function handleRecommendTool(
       logger.info('Starting resource recommendation process', {
         requestId,
         intent: args.intent,
-        hasApiProvider: dotAI.ai.isInitialized()
+        hasApiProvider: dotAI.ai.isInitialized(),
       });
 
       // Ensure intent is provided for recommend stage
@@ -359,7 +457,7 @@ export async function handleRecommendTool(
           requestId,
           intent,
           intentLength: intent.length,
-          threshold: VAGUE_INTENT_THRESHOLD
+          threshold: VAGUE_INTENT_THRESHOLD,
         });
 
         const guidanceResponse = generateIntentRefinementGuidance(intent);
@@ -368,19 +466,25 @@ export async function handleRecommendTool(
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(guidanceResponse, null, 2)
-            }
-          ]
+              text: JSON.stringify(guidanceResponse, null, 2),
+            },
+          ],
         };
       }
 
       if (args.final) {
-        logger.debug('Skipping intent refinement check (final=true), proceeding directly', { requestId });
+        logger.debug(
+          'Skipping intent refinement check (final=true), proceeding directly',
+          { requestId }
+        );
       } else {
-        logger.debug('Intent is detailed enough, proceeding with recommendations', {
-          requestId,
-          intentLength: intent.length
-        });
+        logger.debug(
+          'Intent is detailed enough, proceeding with recommendations',
+          {
+            requestId,
+            intentLength: intent.length,
+          }
+        );
       }
 
       // Initialize AI-powered ResourceRecommender with provider
@@ -407,7 +511,7 @@ export async function handleRecommendTool(
           requestId,
           suggestedTool: solutionResult.helmRecommendation.suggestedTool,
           searchQuery: solutionResult.helmRecommendation.searchQuery,
-          reason: solutionResult.helmRecommendation.reason
+          reason: solutionResult.helmRecommendation.reason,
         });
 
         // Search ArtifactHub for matching charts
@@ -419,17 +523,26 @@ export async function handleRecommendTool(
 
         if (charts.length === 0) {
           // No charts found on ArtifactHub
-          logger.warn('No charts found on ArtifactHub', { requestId, searchQuery: solutionResult.helmRecommendation.searchQuery });
+          logger.warn('No charts found on ArtifactHub', {
+            requestId,
+            searchQuery: solutionResult.helmRecommendation.searchQuery,
+          });
           return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify({
-                status: 'no_charts_found',
-                searchQuery: solutionResult.helmRecommendation.searchQuery,
-                reason: solutionResult.helmRecommendation.reason,
-                message: `No Helm charts found on ArtifactHub for "${solutionResult.helmRecommendation.suggestedTool}". We currently only support charts available on ArtifactHub. If you need support for charts from other sources, please open an issue at https://github.com/vfarcic/dot-ai/issues/new`
-              }, null, 2)
-            }]
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    status: 'no_charts_found',
+                    searchQuery: solutionResult.helmRecommendation.searchQuery,
+                    reason: solutionResult.helmRecommendation.reason,
+                    message: `No Helm charts found on ArtifactHub for "${solutionResult.helmRecommendation.suggestedTool}". We currently only support charts available on ArtifactHub. If you need support for charts from other sources, please open an issue at https://github.com/vfarcic/dot-ai/issues/new`,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
           };
         }
 
@@ -439,7 +552,7 @@ export async function handleRecommendTool(
         // Load prompt and send to AI for chart selection
         const chartSelectionPrompt = loadPrompt('helm-chart-selection', {
           intent: args.intent,
-          charts: chartsText
+          charts: chartsText,
         });
 
         // The Helm branch is the alternative fourth phase: findBestSolutions
@@ -452,26 +565,40 @@ export async function handleRecommendTool(
           'recommend-helm-chart-selection',
           {
             user_intent: args.intent,
-            interaction_id: args.interaction_id
+            interaction_id: args.interaction_id,
           }
         );
 
         // Parse AI response
-        const aiSelection = extractJsonFromAIResponse(aiResponse.content) as AIChartSelectionResponse;
+        const aiSelection = extractJsonFromAIResponse(
+          aiResponse.content
+        ) as AIChartSelectionResponse;
 
         if (!aiSelection.solutions || aiSelection.solutions.length === 0) {
           // AI couldn't find matching charts
-          logger.warn('AI found no matching charts', { requestId, noMatchReason: aiSelection.noMatchReason });
+          logger.warn('AI found no matching charts', {
+            requestId,
+            noMatchReason: aiSelection.noMatchReason,
+          });
           return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify({
-                status: 'no_matching_charts',
-                reason: aiSelection.noMatchReason || 'No charts matched the user intent',
-                searchQuery: solutionResult.helmRecommendation.searchQuery,
-                instruction: 'Consider refining your request or manually specifying a Helm chart.'
-              }, null, 2)
-            }]
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    status: 'no_matching_charts',
+                    reason:
+                      aiSelection.noMatchReason ||
+                      'No charts matched the user intent',
+                    searchQuery: solutionResult.helmRecommendation.searchQuery,
+                    instruction:
+                      'Consider refining your request or manually specifying a Helm chart.',
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
           };
         }
 
@@ -481,7 +608,9 @@ export async function handleRecommendTool(
 
         for (const aiSolution of aiSelection.solutions) {
           // Find the original chart data from ArtifactHub results
-          const originalChart = charts.find(c => c.name === aiSolution.chartName);
+          const originalChart = charts.find(
+            c => c.name === aiSolution.chartName
+          );
 
           const solutionData: SolutionData = {
             toolName: 'recommend',
@@ -496,18 +625,24 @@ export async function handleRecommendTool(
               chartName: aiSolution.chartName,
               version: aiSolution.version,
               appVersion: aiSolution.appVersion,
-              official: originalChart?.official || originalChart?.repository?.official,
-              verifiedPublisher: originalChart?.verified_publisher || originalChart?.repository?.verified_publisher
+              official:
+                originalChart?.official || originalChart?.repository?.official,
+              verifiedPublisher:
+                originalChart?.verified_publisher ||
+                originalChart?.repository?.verified_publisher,
             },
             questions: { required: [], basic: [], advanced: [] }, // Will be generated from chart values later
             answers: {},
             timestamp,
-            stage: 'solutions' // UI page refresh support
+            stage: 'solutions', // UI page refresh support
           };
 
           const session = sessionManager.createSession(solutionData);
           const solutionId = session.sessionId;
-          logger.debug('Helm solution session created', { requestId, solutionId });
+          logger.debug('Helm solution session created', {
+            requestId,
+            solutionId,
+          });
 
           helmSolutionSummaries.push({
             solutionId,
@@ -515,7 +650,7 @@ export async function handleRecommendTool(
             score: aiSolution.score,
             description: aiSolution.description,
             chart: solutionData.chart,
-            reasons: aiSolution.reasons
+            reasons: aiSolution.reasons,
           });
         }
 
@@ -527,8 +662,8 @@ export async function handleRecommendTool(
               type: s.type,
               score: s.score,
               description: s.description,
-              reasons: s.reasons
-            }))
+              reasons: s.reasons,
+            })),
           });
         }
 
@@ -541,27 +676,37 @@ export async function handleRecommendTool(
           intent: args.intent,
           solutions: helmSolutionSummaries,
           helmInstallation: true,
-          nextAction: 'Call recommend tool with stage: chooseSolution and your preferred solutionId',
-          guidance: '🔴 CRITICAL: Present these Helm chart options to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Show the chart details (repository, version, official status) to help users decide.',
+          nextAction:
+            'Call recommend tool with stage: chooseSolution and your preferred solutionId',
+          guidance:
+            '🔴 CRITICAL: Present these Helm chart options to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Show the chart details (repository, version, official status) to help users decide.',
           timestamp,
-          ...(helmVisualizationUrl && { visualizationUrl: helmVisualizationUrl })
+          ...(helmVisualizationUrl && {
+            visualizationUrl: helmVisualizationUrl,
+          }),
         };
 
         logger.info('Helm solutions prepared', {
           requestId,
           solutionCount: helmSolutionSummaries.length,
           topScore: helmSolutionSummaries[0]?.score,
-          ...(helmVisualizationUrl && { visualizationUrl: helmVisualizationUrl })
+          ...(helmVisualizationUrl && {
+            visualizationUrl: helmVisualizationUrl,
+          }),
         });
 
         // Build content blocks - JSON for REST API, agent instruction for MCP agents
-        const content: Array<{ type: 'text'; text: string }> = [{
-          type: 'text' as const,
-          text: JSON.stringify(helmResponse, null, 2)
-        }];
+        const content: Array<{ type: 'text'; text: string }> = [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(helmResponse, null, 2),
+          },
+        ];
 
         // Add agent instruction block if visualization URL is present
-        const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl: helmVisualizationUrl });
+        const agentDisplayBlock = buildAgentDisplayBlock({
+          visualizationUrl: helmVisualizationUrl,
+        });
         if (agentDisplayBlock) {
           content.push(agentDisplayBlock);
         }
@@ -574,7 +719,7 @@ export async function handleRecommendTool(
       logger.info('Recommendation process completed', {
         requestId,
         solutionCount: solutions.length,
-        topScore: solutions[0]?.score
+        topScore: solutions[0]?.score,
       });
 
       // Create solution files and build response
@@ -597,19 +742,23 @@ export async function handleRecommendTool(
             kind: r.kind,
             apiVersion: r.apiVersion,
             group: r.group,
-            description: r.description
+            description: r.description,
           })),
           questions: solution.questions, // Includes relevantPolicies from question generation
           answers: {}, // Empty initially - will be filled by answerQuestion tool
           timestamp,
           appliedPatterns: solution.appliedPatterns || [],
-          stage: 'solutions' // UI page refresh support
+          stage: 'solutions', // UI page refresh support
         };
 
         // Create solution session
         const session = sessionManager.createSession(solutionData);
         const solutionId = session.sessionId;
-        logger.debug('Solution session created', { requestId, solutionId, fileName: `${solutionId}.json` });
+        logger.debug('Solution session created', {
+          requestId,
+          solutionId,
+          fileName: `${solutionId}.json`,
+        });
 
         // Add to response summary (decision-making data only)
         solutionSummaries.push({
@@ -622,11 +771,11 @@ export async function handleRecommendTool(
             kind: r.kind,
             apiVersion: r.apiVersion,
             group: r.group,
-            description: r.description?.split('\n')[0] || `${r.kind} resource` // Use first line of description or fallback
+            description: r.description?.split('\n')[0] || `${r.kind} resource`, // Use first line of description or fallback
           })),
           reasons: solution.reasons,
           appliedPatterns: solution.appliedPatterns || [],
-          relevantPolicies: solution.questions?.relevantPolicies || []
+          relevantPolicies: solution.questions?.relevantPolicies || [],
         });
       }
 
@@ -638,15 +787,23 @@ export async function handleRecommendTool(
             type: s.type,
             score: s.score,
             description: s.description,
-            reasons: s.reasons
-          }))
+            reasons: s.reasons,
+          })),
         });
       }
 
       // Analyze pattern/policy usage across all solutions
-      const patternsUsedCount = solutionSummaries.filter(s => s.appliedPatterns && s.appliedPatterns.length > 0).length;
-      const totalPatterns = solutionSummaries.reduce((count, s) => count + (s.appliedPatterns?.length || 0), 0);
-      const totalPolicies = solutionSummaries.reduce((count, s) => count + (s.relevantPolicies?.length || 0), 0);
+      const patternsUsedCount = solutionSummaries.filter(
+        s => s.appliedPatterns && s.appliedPatterns.length > 0
+      ).length;
+      const totalPatterns = solutionSummaries.reduce(
+        (count, s) => count + (s.appliedPatterns?.length || 0),
+        0
+      );
+      const totalPolicies = solutionSummaries.reduce(
+        (count, s) => count + (s.relevantPolicies?.length || 0),
+        0
+      );
 
       // Build organizational context for storage and response
       const organizationalContext = {
@@ -654,14 +811,16 @@ export async function handleRecommendTool(
         totalSolutions: solutionSummaries.length,
         totalPatterns: totalPatterns,
         totalPolicies: totalPolicies,
-        patternsAvailable: totalPatterns > 0 ? "Yes" : "None found or pattern search failed",
-        policiesAvailable: totalPolicies > 0 ? "Yes" : "None found or policy search failed"
+        patternsAvailable:
+          totalPatterns > 0 ? 'Yes' : 'None found or pattern search failed',
+        policiesAvailable:
+          totalPolicies > 0 ? 'Yes' : 'None found or policy search failed',
       };
 
       // Update all sessions with organizationalContext for UI page refresh
       for (const summary of solutionSummaries) {
         sessionManager.updateSession(summary.solutionId, {
-          organizationalContext
+          organizationalContext,
         });
       }
 
@@ -674,23 +833,27 @@ export async function handleRecommendTool(
         intent: args.intent,
         solutions: solutionSummaries,
         organizationalContext,
-        nextAction: "Call recommend tool with stage: chooseSolution and your preferred solutionId",
-        guidance: "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. IMPORTANT: Show the list of Kubernetes resources (from the 'resources' field) that each solution will use - this helps users understand what gets deployed. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",
+        nextAction:
+          'Call recommend tool with stage: chooseSolution and your preferred solutionId',
+        guidance:
+          "🔴 CRITICAL: You MUST present these solutions to the user and ask them to choose. DO NOT automatically call chooseSolution() without user input. Stop here and wait for user selection. IMPORTANT: Show the list of Kubernetes resources (from the 'resources' field) that each solution will use - this helps users understand what gets deployed. ALSO: Include pattern usage information in your response - show which solutions used organizational patterns and which did not.",
         timestamp,
-        ...(visualizationUrl && { visualizationUrl })
+        ...(visualizationUrl && { visualizationUrl }),
       };
 
       logger.info('Solution sessions created and response prepared', {
         requestId,
         solutionCount: solutionSummaries.length,
-        ...(visualizationUrl && { visualizationUrl })
+        ...(visualizationUrl && { visualizationUrl }),
       });
 
       // Build content blocks - JSON for REST API, agent instruction for MCP agents
-      const content: Array<{ type: 'text'; text: string }> = [{
-        type: 'text' as const,
-        text: JSON.stringify(response, null, 2)
-      }];
+      const content: Array<{ type: 'text'; text: string }> = [
+        {
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2),
+        },
+      ];
 
       // Add agent instruction block if visualization URL is present
       const agentDisplayBlock = buildAgentDisplayBlock({ visualizationUrl });
@@ -704,11 +867,11 @@ export async function handleRecommendTool(
       operation: 'recommend_tool',
       component: 'RecommendTool',
       requestId,
-      input: args
+      input: args,
     },
     {
       convertToMcp: true,
-      retryCount: 1
+      retryCount: 1,
     }
   );
 }

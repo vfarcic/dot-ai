@@ -187,7 +187,6 @@ describe('pushToGit verb gate (PRD #710 Milestone 3)', () => {
     // The evaluation error stays server-side; the caller gets the verb guidance.
     expect(JSON.stringify(result)).not.toContain('ECONNREFUSED');
   });
-
 });
 
 describe('Agent-facing mode presentation (PRD #710 Milestone 3)', () => {
@@ -247,9 +246,9 @@ describe('Agent-facing mode presentation (PRD #710 Milestone 3)', () => {
       'pushToGit',
     ]);
     for (const applyAllowed of [true, false]) {
-      expect(buildAgentInstructions('./manifests', 'raw', applyAllowed)).toMatch(
-        /1\. \*\*Save locally\*\*[\s\S]*2\. \*\*[\s\S]*3\. \*\*/
-      );
+      expect(
+        buildAgentInstructions('./manifests', 'raw', applyAllowed)
+      ).toMatch(/1\. \*\*Save locally\*\*[\s\S]*2\. \*\*[\s\S]*3\. \*\*/);
     }
   });
 });

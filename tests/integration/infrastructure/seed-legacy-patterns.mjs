@@ -62,7 +62,12 @@ const seedPayload = {
     `${SEED_MARKER} — Horizontal Pod Autoscaler scaling pattern. ` +
     `Automatically scale a Deployment based on CPU and memory utilisation so the ` +
     `workload handles variable load without manual intervention.`,
-  triggers: ['autoscaling', 'horizontal pod autoscaler', 'scaling', 'high load'],
+  triggers: [
+    'autoscaling',
+    'horizontal pod autoscaler',
+    'scaling',
+    'high load',
+  ],
   suggestedResources: ['HorizontalPodAutoscaler', 'Deployment'],
   rationale:
     'HPA provides automatic, metrics-driven scaling which improves resilience and ' +
@@ -83,7 +88,9 @@ async function embed(text) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Embeddings request failed: HTTP ${res.status} ${body.slice(0, 500)}`);
+    throw new Error(
+      `Embeddings request failed: HTTP ${res.status} ${body.slice(0, 500)}`
+    );
   }
   const json = await res.json();
   const vector = json?.data?.[0]?.embedding;
@@ -101,7 +108,9 @@ async function qdrant(method, path, body) {
   });
   const text = await res.text().catch(() => '');
   if (!res.ok) {
-    throw new Error(`Qdrant ${method} ${path} failed: HTTP ${res.status} ${text.slice(0, 500)}`);
+    throw new Error(
+      `Qdrant ${method} ${path} failed: HTTP ${res.status} ${text.slice(0, 500)}`
+    );
   }
   return text ? JSON.parse(text) : null;
 }
@@ -121,7 +130,9 @@ async function main() {
   console.error(`[seed] Got embedding with ${vector.length} dimensions`);
 
   // Recreate the legacy collection cleanly so reruns are deterministic.
-  console.error(`[seed] (Re)creating legacy '${COLLECTION}' collection (size ${vector.length}, Cosine)...`);
+  console.error(
+    `[seed] (Re)creating legacy '${COLLECTION}' collection (size ${vector.length}, Cosine)...`
+  );
   await qdrant('DELETE', `/collections/${COLLECTION}`).catch(() => {});
   await qdrant('PUT', `/collections/${COLLECTION}`, {
     vectors: { size: vector.length, distance: 'Cosine' },
@@ -133,14 +144,19 @@ async function main() {
   });
 
   // Verify
-  const point = await qdrant('GET', `/collections/${COLLECTION}/points/${SEED_ID}`);
+  const point = await qdrant(
+    'GET',
+    `/collections/${COLLECTION}/points/${SEED_ID}`
+  );
   if (!point?.result) {
     throw new Error('Seed point was not found after upsert');
   }
-  console.error(`[seed] Seed complete. Legacy '${COLLECTION}' collection has 1 point.`);
+  console.error(
+    `[seed] Seed complete. Legacy '${COLLECTION}' collection has 1 point.`
+  );
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.error(`[seed] FAILED: ${err.message}`);
   process.exit(1);
 });

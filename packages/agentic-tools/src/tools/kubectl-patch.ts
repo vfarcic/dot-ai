@@ -34,7 +34,8 @@ export const kubectlPatch: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace for the resource. Omit for cluster-scoped resources.',
+          description:
+            'Kubernetes namespace for the resource. Omit for cluster-scoped resources.',
         },
         patch: {
           type: 'string',
@@ -50,18 +51,26 @@ export const kubectlPatch: KubectlTool = {
     },
   },
 
-  handler: withValidation(async (args) => {
+  handler: withValidation(async args => {
     const kind = requireParam<string>(args, 'kind', 'kubectl_patch');
     const name = requireParam<string>(args, 'name', 'kubectl_patch');
     const patch = requireParam<string>(args, 'patch', 'kubectl_patch');
-    const namespace = optionalParam<string | undefined>(args, 'namespace', undefined);
+    const namespace = optionalParam<string | undefined>(
+      args,
+      'namespace',
+      undefined
+    );
     const patchType = optionalParam<string>(args, 'patchType', 'strategic');
 
     const cmdArgs = ['patch', kind, name, '--patch', patch];
 
     // Map patch type to kubectl flag
     const patchTypeFlag =
-      patchType === 'json' ? 'json' : patchType === 'merge' ? 'merge' : 'strategic';
+      patchType === 'json'
+        ? 'json'
+        : patchType === 'merge'
+          ? 'merge'
+          : 'strategic';
     cmdArgs.push('--type', patchTypeFlag);
 
     if (namespace) {
@@ -71,7 +80,10 @@ export const kubectlPatch: KubectlTool = {
     try {
       const output = await executeKubectl(cmdArgs);
       const nsMessage = namespace ? ` in namespace ${namespace}` : '';
-      return successResult(output, `Successfully patched ${kind}/${name}${nsMessage}`);
+      return successResult(
+        output,
+        `Successfully patched ${kind}/${name}${nsMessage}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return errorResult(message, `Patch failed: ${message}`);

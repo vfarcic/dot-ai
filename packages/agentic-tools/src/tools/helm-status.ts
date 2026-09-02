@@ -30,15 +30,20 @@ export const helmStatus: KubectlTool = {
         },
         namespace: {
           type: 'string',
-          description: 'Kubernetes namespace where the release is installed (default: "default")',
+          description:
+            'Kubernetes namespace where the release is installed (default: "default")',
         },
       },
       required: ['releaseName'],
     },
   },
 
-  handler: withValidation(async (args) => {
-    const releaseName = requireParam<string>(args, 'releaseName', 'helm_status');
+  handler: withValidation(async args => {
+    const releaseName = requireParam<string>(
+      args,
+      'releaseName',
+      'helm_status'
+    );
     const namespace = optionalParam<string>(args, 'namespace', 'default');
 
     const cmdArgs = ['status', releaseName, '-o', 'json'];
@@ -55,7 +60,10 @@ export const helmStatus: KubectlTool = {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return errorResult(message, `Failed to get status for release "${releaseName}": ${message}`);
+      return errorResult(
+        message,
+        `Failed to get status for release "${releaseName}": ${message}`
+      );
     }
   }),
 };

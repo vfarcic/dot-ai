@@ -49,18 +49,19 @@ export function buildTextGenerateResult(options: {
 
   return {
     content: [{ type: 'text', text: options.text }],
-    finishReason: 'stop',
+    finishReason: { unified: 'stop' as const, raw: undefined },
     usage: {
       inputTokens: {
         total: inputTokens,
         noCache: inputTokens,
         cacheRead: undefined,
+        cacheWrite: undefined,
       },
       outputTokens: {
         total: outputTokens,
         reasoning: undefined,
+        text: undefined,
       },
-      totalTokens: inputTokens + outputTokens,
     },
     warnings: [],
   };

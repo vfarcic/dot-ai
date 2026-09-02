@@ -231,7 +231,7 @@ export class RestRouteRegistry {
    * Used by OpenAPI generator to document all endpoints
    */
   getAllRoutes(): RouteDefinition<unknown, unknown, unknown, unknown>[] {
-    return Array.from(this.routes.values()).map((r) => r.definition);
+    return Array.from(this.routes.values()).map(r => r.definition);
   }
 
   /**
@@ -247,7 +247,10 @@ export class RestRouteRegistry {
     method: string,
     pathPattern: string
   ): z.ZodSchema<unknown> | null {
-    const key = this.getRouteKey(method.toUpperCase() as HttpMethod, pathPattern);
+    const key = this.getRouteKey(
+      method.toUpperCase() as HttpMethod,
+      pathPattern
+    );
     const route = this.routes.get(key);
     return route?.definition.response ?? null;
   }
@@ -265,7 +268,10 @@ export class RestRouteRegistry {
     pathPattern: string,
     statusCode: number
   ): z.ZodSchema<unknown> | null {
-    const key = this.getRouteKey(method.toUpperCase() as HttpMethod, pathPattern);
+    const key = this.getRouteKey(
+      method.toUpperCase() as HttpMethod,
+      pathPattern
+    );
     const route = this.routes.get(key);
     return route?.definition.errorResponses?.[statusCode] ?? null;
   }
@@ -274,7 +280,10 @@ export class RestRouteRegistry {
    * Check if a route is registered
    */
   hasRoute(method: string, pathPattern: string): boolean {
-    const key = this.getRouteKey(method.toUpperCase() as HttpMethod, pathPattern);
+    const key = this.getRouteKey(
+      method.toUpperCase() as HttpMethod,
+      pathPattern
+    );
     return this.routes.has(key);
   }
 
@@ -304,7 +313,7 @@ export class RestRouteRegistry {
   getRoutesByTag(
     tag: string
   ): RouteDefinition<unknown, unknown, unknown, unknown>[] {
-    return this.getAllRoutes().filter((route) => route.tags.includes(tag));
+    return this.getAllRoutes().filter(route => route.tags.includes(tag));
   }
 
   /**

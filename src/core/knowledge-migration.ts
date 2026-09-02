@@ -55,7 +55,10 @@ function toStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string');
 }
 
-function buildLegacyContent(payload: Record<string, unknown>, legacyName: string): string {
+function buildLegacyContent(
+  payload: Record<string, unknown>,
+  legacyName: string
+): string {
   const description = toStringValue(payload.description);
   const triggers = toStringArray(payload.triggers);
   const rationale = toStringValue(payload.rationale);
@@ -148,7 +151,11 @@ async function pluginCall<T>(
         : String(err ?? `Plugin tool ${tool} failed`);
     throw new Error(msg);
   }
-  const result = response.result as { success?: boolean; data?: T; error?: string } | null;
+  const result = response.result as {
+    success?: boolean;
+    data?: T;
+    error?: string;
+  } | null;
   if (!result || typeof result !== 'object') {
     throw new Error(`Plugin tool ${tool} returned invalid result`);
   }
@@ -192,11 +199,15 @@ async function migrateLegacyCollection(
   tags: string[],
   logger: Logger
 ): Promise<void> {
-  logger.info(`[migration] Starting migration from '${legacyName}' → '${KNOWLEDGE_COLLECTION}'`);
+  logger.info(
+    `[migration] Starting migration from '${legacyName}' → '${KNOWLEDGE_COLLECTION}'`
+  );
 
   const documents = await listAll(legacyName);
   if (documents.length === 0) {
-    logger.info(`[migration] '${legacyName}' is empty — deleting collection and skipping`);
+    logger.info(
+      `[migration] '${legacyName}' is empty — deleting collection and skipping`
+    );
     await pluginCall('collection_delete', { collection: legacyName });
     return;
   }
@@ -213,14 +224,16 @@ async function migrateLegacyCollection(
     return;
   }
 
-  logger.info(`[migration] Migrating ${documents.length} point(s) from '${legacyName}'`);
+  logger.info(
+    `[migration] Migrating ${documents.length} point(s) from '${legacyName}'`
+  );
 
   // vector_store does not auto-create the target collection. At server startup
   // the unified knowledge-base collection may not exist yet (no ingest has run),
   // so initialize it before storing. Legacy embeddings were produced by the same
   // embedding model, so their dimensionality is the correct vector size.
   const vectorSize = documents.find(
-    (d) => Array.isArray(d.vector) && d.vector.length > 0
+    d => Array.isArray(d.vector) && d.vector.length > 0
   )?.vector?.length;
   if (!vectorSize) {
     logger.warn(
@@ -236,9 +249,12 @@ async function migrateLegacyCollection(
       createTextIndex: true,
     });
   } else {
-    const target = await pluginCall<{ vectorSize?: number }>('collection_stats', {
-      collection: KNOWLEDGE_COLLECTION,
-    });
+    const target = await pluginCall<{ vectorSize?: number }>(
+      'collection_stats',
+      {
+        collection: KNOWLEDGE_COLLECTION,
+      }
+    );
     if (target?.vectorSize !== vectorSize) {
       logger.error(
         `[migration] Target '${KNOWLEDGE_COLLECTION}' exists with vector size ${target?.vectorSize}, ` +
@@ -261,7 +277,9 @@ async function migrateLegacyCollection(
       // Legacy documents were stored with embeddings — reuse the stored vector.
       // If no vector is present (edge case), skip and log.
       if (!doc.vector || doc.vector.length === 0) {
-        logger.warn(`[migration] Document ${doc.id} has no vector — skipping (source: ${legacyName})`);
+        logger.warn(
+          `[migration] Document ${doc.id} has no vector — skipping (source: ${legacyName})`
+        );
         failCount++;
         continue;
       }
@@ -275,19 +293,26 @@ async function migrateLegacyCollection(
       successCount++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      logger.error(`[migration] Failed to migrate document ${doc.id} from ${legacyName}: ${msg}`);
+      logger.error(
+        `[migration] Failed to migrate document ${doc.id} from ${legacyName}: ${msg}`
+      );
       failCount++;
     }
   }
 
-  logger.info(`[migration] Migrated ${successCount}/${documents.length} point(s) (${failCount} failed)`, {
-    legacyName,
-    successCount,
-    failCount,
-  });
+  logger.info(
+    `[migration] Migrated ${successCount}/${documents.length} point(s) (${failCount} failed)`,
+    {
+      legacyName,
+      successCount,
+      failCount,
+    }
+  );
 
   if (failCount > 0) {
-    logger.warn(`[migration] ${failCount} document(s) failed to migrate from '${legacyName}' — legacy collection preserved for manual inspection`);
+    logger.warn(
+      `[migration] ${failCount} document(s) failed to migrate from '${legacyName}' — legacy collection preserved for manual inspection`
+    );
     return;
   }
 
@@ -307,12 +332,16 @@ let migrationInProgress = false;
 export async function runKnowledgeMigration(logger: Logger): Promise<void> {
   if (!isPluginInitialized()) {
     // Plugin not available (e.g. no plugins.json) — skip migration
-    logger.info('[migration] Plugin not initialised — skipping legacy knowledge migration');
+    logger.info(
+      '[migration] Plugin not initialised — skipping legacy knowledge migration'
+    );
     return;
   }
 
   if (migrationInProgress) {
-    logger.info('[migration] Migration already in progress — skipping concurrent run');
+    logger.info(
+      '[migration] Migration already in progress — skipping concurrent run'
+    );
     return;
   }
   migrationInProgress = true;
@@ -326,21 +355,27 @@ export async function runKnowledgeMigration(logger: Logger): Promise<void> {
       try {
         const exists = await collectionExists(name);
         if (!exists) {
-          logger.info(`[migration] Legacy collection '${name}' not found — nothing to migrate`);
+          logger.info(
+            `[migration] Legacy collection '${name}' not found — nothing to migrate`
+          );
           continue;
         }
 
         await migrateLegacyCollection(name, tags, logger);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        logger.error(`[migration] Migration of '${name}' failed — continuing with remaining collections: ${msg}`);
+        logger.error(
+          `[migration] Migration of '${name}' failed — continuing with remaining collections: ${msg}`
+        );
       }
     }
 
     logger.info('[migration] Knowledge base migration check complete');
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.error(`[migration] Migration failed — server continues normally: ${msg}`);
+    logger.error(
+      `[migration] Migration failed — server continues normally: ${msg}`
+    );
   } finally {
     migrationInProgress = false;
   }
