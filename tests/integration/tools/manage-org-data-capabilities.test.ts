@@ -451,12 +451,15 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
     const EXPECTED_TOTAL = 3;
 
     beforeAll(async () => {
-      const cleanup = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'deleteAll',
-        collection: CONTRACT_COLLECTION,
-        interaction_id: 'contract_isolated_cleanup'
-      });
+      const cleanup = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'capabilities',
+          operation: 'deleteAll',
+          collection: CONTRACT_COLLECTION,
+          interaction_id: 'contract_isolated_cleanup',
+        }
+      );
       expect(cleanup).toMatchObject({
         success: true,
         data: { result: { success: true, operation: 'deleteAll' } },
@@ -468,18 +471,21 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         dataType: 'capabilities',
         operation: 'deleteAll',
         collection: CONTRACT_COLLECTION,
-        interaction_id: 'contract_isolated_teardown'
+        interaction_id: 'contract_isolated_teardown',
       });
     });
 
     test('exact counts, truncation, and identity parity on a stable collection', async () => {
-      const scanResponse = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'scan',
-        resourceList: RESOURCE_LIST,
-        collection: CONTRACT_COLLECTION,
-        interaction_id: 'contract_isolated_scan'
-      });
+      const scanResponse = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'capabilities',
+          operation: 'scan',
+          resourceList: RESOURCE_LIST,
+          collection: CONTRACT_COLLECTION,
+          interaction_id: 'contract_isolated_scan',
+        }
+      );
       expect(scanResponse).toMatchObject({
         success: true,
         data: {
@@ -499,12 +505,15 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       const maxAttempts = 30;
       for (let i = 0; i < maxAttempts && !scanComplete; i++) {
         await new Promise(resolve => setTimeout(resolve, 10000));
-        const p = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-          dataType: 'capabilities',
-          operation: 'progress',
-          sessionId,
-          interaction_id: `contract_isolated_progress_${i}`
-        });
+        const p = await integrationTest.httpClient.post(
+          '/api/v1/tools/manageOrgData',
+          {
+            dataType: 'capabilities',
+            operation: 'progress',
+            sessionId,
+            interaction_id: `contract_isolated_progress_${i}`,
+          }
+        );
         lastProgress = p;
         const status = p?.data?.result?.progress?.status;
         if (status === 'complete' || status === 'completed') {
@@ -522,13 +531,16 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       });
 
       // Full page → whole set, not truncated, exact total.
-      const full = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'list',
-        limit: 10000,
-        collection: CONTRACT_COLLECTION,
-        interaction_id: 'contract_isolated_full'
-      });
+      const full = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'capabilities',
+          operation: 'list',
+          limit: 10000,
+          collection: CONTRACT_COLLECTION,
+          interaction_id: 'contract_isolated_full',
+        }
+      );
       const fullData = full.data.result.data;
       expect(full).toMatchObject({
         success: true,
@@ -548,13 +560,16 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(fullData.capabilities).toMatchObject([{}, {}, {}]);
 
       // Limit below the total → truncated, exact total still reported.
-      const trunc = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'list',
-        limit: 1,
-        collection: CONTRACT_COLLECTION,
-        interaction_id: 'contract_isolated_truncated'
-      });
+      const trunc = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'capabilities',
+          operation: 'list',
+          limit: 1,
+          collection: CONTRACT_COLLECTION,
+          interaction_id: 'contract_isolated_truncated',
+        }
+      );
       const truncData = trunc.data.result.data;
       expect(trunc).toMatchObject({
         success: true,
@@ -574,14 +589,17 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
       expect(truncData.capabilities).toMatchObject([{}]);
 
       // identityOnly → same set, each item projected to exactly { id, resourceName }.
-      const identity = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'list',
-        limit: 10000,
-        identityOnly: true,
-        collection: CONTRACT_COLLECTION,
-        interaction_id: 'contract_isolated_identity'
-      });
+      const identity = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'capabilities',
+          operation: 'list',
+          limit: 10000,
+          identityOnly: true,
+          collection: CONTRACT_COLLECTION,
+          interaction_id: 'contract_isolated_identity',
+        }
+      );
       const identityData = identity.data.result.data;
       expect(identity).toMatchObject({
         success: true,
@@ -606,10 +624,10 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         .sort((a: { resourceName: string }, b: { resourceName: string }) =>
           a.resourceName.localeCompare(b.resourceName)
         );
-      const identityItems = identityData.capabilities
-        .sort((a: { resourceName: string }, b: { resourceName: string }) =>
+      const identityItems = identityData.capabilities.sort(
+        (a: { resourceName: string }, b: { resourceName: string }) =>
           a.resourceName.localeCompare(b.resourceName)
-        );
+      );
       expect(identityItems).toMatchObject(fullIdentities);
       for (const item of identityData.capabilities) {
         expect(Object.keys(item).sort()).toMatchObject(['id', 'resourceName']);
@@ -905,12 +923,15 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
 
   describe('Error Handling', () => {
     test('should reject a fractional list limit over REST', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'list',
-        limit: 10.5,
-        interaction_id: 'fractional_list_limit'
-      });
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'capabilities',
+          operation: 'list',
+          limit: 10.5,
+          interaction_id: 'fractional_list_limit',
+        }
+      );
 
       expect(response).toMatchObject({
         success: true,
@@ -929,12 +950,15 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
     });
 
     test('should reject a non-boolean identity projection over REST', async () => {
-      const response = await integrationTest.httpClient.post('/api/v1/tools/manageOrgData', {
-        dataType: 'capabilities',
-        operation: 'list',
-        identityOnly: 'true',
-        interaction_id: 'invalid_identity_projection'
-      });
+      const response = await integrationTest.httpClient.post(
+        '/api/v1/tools/manageOrgData',
+        {
+          dataType: 'capabilities',
+          operation: 'list',
+          identityOnly: 'true',
+          interaction_id: 'invalid_identity_projection',
+        }
+      );
 
       expect(response).toMatchObject({
         success: true,

@@ -18,7 +18,7 @@ async function reservePort(): Promise<number> {
     throw new Error('Failed to reserve a readiness test port');
   }
   await new Promise<void>((resolve, reject) =>
-    server.close(error => error ? reject(error) : resolve())
+    server.close(error => (error ? reject(error) : resolve()))
   );
   return address.port;
 }
@@ -42,20 +42,24 @@ describe.concurrent('Readiness HTTP Integration', () => {
     fs.mkdirSync(path.resolve('tmp'), { recursive: true });
     const sessionDir = fs.mkdtempSync(path.resolve('tmp/readiness-http-'));
     const authToken = 'readiness-integration-token';
-    const child = spawn(process.execPath, [path.resolve('dist/mcp/server.js')], {
-      cwd: path.resolve('.'),
-      env: {
-        ...process.env,
-        HOST: '127.0.0.1',
-        PORT: String(port),
-        TRANSPORT_TYPE: 'http',
-        DOT_AI_AUTH_TOKEN: authToken,
-        DOT_AI_JWT_SECRET: '',
-        DOT_AI_SESSION_DIR: sessionDir,
-        DOT_AI_TELEMETRY: 'false',
-      },
-      stdio: ['ignore', 'ignore', 'pipe'],
-    });
+    const child = spawn(
+      process.execPath,
+      [path.resolve('dist/mcp/server.js')],
+      {
+        cwd: path.resolve('.'),
+        env: {
+          ...process.env,
+          HOST: '127.0.0.1',
+          PORT: String(port),
+          TRANSPORT_TYPE: 'http',
+          DOT_AI_AUTH_TOKEN: authToken,
+          DOT_AI_JWT_SECRET: '',
+          DOT_AI_SESSION_DIR: sessionDir,
+          DOT_AI_TELEMETRY: 'false',
+        },
+        stdio: ['ignore', 'ignore', 'pipe'],
+      }
+    );
     let stderr = '';
     child.stderr?.on('data', chunk => {
       stderr = (stderr + chunk.toString()).slice(-4000);
@@ -69,7 +73,9 @@ describe.concurrent('Readiness HTTP Integration', () => {
 
     try {
       await waitForHealth(client).catch(error => {
-        throw new Error(`${error instanceof Error ? error.message : String(error)}\n${stderr}`);
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)}\n${stderr}`
+        );
       });
 
       const response = await client.get('/readyz');

@@ -43,12 +43,25 @@ import type {
  * `select` is the only type validated against `options`
  * (src/tools/answer-question.ts), so that is the only case needing a fallback.
  * Anything else passes the suggestion through unchanged.
+ *
+ * An *empty* suggestion is left alone unless the question is required.
+ * validateAnswer returns early for undefined/null/'' on a non-required
+ * question, so empty already passes — substituting options[0] there would
+ * submit a choice the test never intended instead of leaving the question
+ * unanswered. A required question with an empty answer genuinely is rejected
+ * (answer-question.ts:136-141), so that case does need the fallback.
  */
 function validAnswerFor(question: Question): unknown {
   const { type, options, suggestedAnswer } = question;
 
   if (type === 'select' && Array.isArray(options) && options.length > 0) {
-    if (!options.includes(suggestedAnswer as string)) {
+    const isEmptyAnswer =
+      suggestedAnswer === undefined ||
+      suggestedAnswer === null ||
+      suggestedAnswer === '';
+    const needsAnswer = !isEmptyAnswer || question.validation?.required;
+
+    if (needsAnswer && !options.includes(suggestedAnswer as string)) {
       return options[0];
     }
   }

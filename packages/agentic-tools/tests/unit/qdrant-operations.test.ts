@@ -482,7 +482,9 @@ describe('Qdrant Operations', () => {
       const result = await operations.count('collection');
 
       expect(result).toBe(42);
-      expect(mockClient.count).toHaveBeenCalledWith('collection', { exact: true });
+      expect(mockClient.count).toHaveBeenCalledWith('collection', {
+        exact: true,
+      });
     });
   });
 

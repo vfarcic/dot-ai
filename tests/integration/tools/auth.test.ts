@@ -154,7 +154,6 @@ describe.concurrent('Authentication Integration', () => {
         data: { status: 'ok' },
       });
     });
-
   });
 
   describe('Readiness Endpoint', () => {
