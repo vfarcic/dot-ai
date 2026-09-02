@@ -128,7 +128,7 @@ describe('Mock Server Prompts Source Ingestion (PRD #647 M6)', () => {
     });
 
     test('D5: rejects more than MAX_INGEST_FILES files before caching', () => {
-      const files = [];
+      const files: Array<{ path: string; content: string; mode: string }> = [];
       for (let i = 0; i <= MAX_INGEST_FILES; i++) {
         files.push({
           path: `pad/file-${i}.txt`,

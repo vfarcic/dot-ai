@@ -30,14 +30,21 @@ function createTestLogger(): Logger & {
   const calls: { level: string; msg: string; meta?: unknown }[] = [];
   return {
     calls,
-    debug: (msg: string, meta?: unknown) =>
-      calls.push({ level: 'debug', msg, meta }),
-    info: (msg: string, meta?: unknown) =>
-      calls.push({ level: 'info', msg, meta }),
-    warn: (msg: string, meta?: unknown) =>
-      calls.push({ level: 'warn', msg, meta }),
-    error: (msg: string, meta?: unknown) =>
-      calls.push({ level: 'error', msg, meta }),
+    debug: (msg, meta) => {
+      calls.push({ level: 'debug', msg, meta });
+    },
+    info: (msg, meta) => {
+      calls.push({ level: 'info', msg, meta });
+    },
+    warn: (msg, meta) => {
+      calls.push({ level: 'warn', msg, meta });
+    },
+    error: (msg, err, meta) => {
+      calls.push({ level: 'error', msg, meta: meta ?? err });
+    },
+    fatal: (msg, err, meta) => {
+      calls.push({ level: 'fatal', msg, meta: meta ?? err });
+    },
   };
 }
 

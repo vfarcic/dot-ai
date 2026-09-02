@@ -29,12 +29,13 @@ function makeRequest(
 ): IncomingMessage {
   const stream = Readable.from([body]) as unknown as IncomingMessage & {
     headers: Record<string, string>;
-    destroy: () => void;
   };
   stream.headers = headers;
-  stream.destroy = () => {
+  // Readable.destroy has a wider signature than the noop we want; the cast
+  // keeps the stub to one line without loosening the stream's own type.
+  stream.destroy = (() => {
     /* noop for test */
-  };
+  }) as typeof stream.destroy;
   return stream;
 }
 

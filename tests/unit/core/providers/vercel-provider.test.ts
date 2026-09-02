@@ -127,7 +127,7 @@ describe('VercelProvider.sendMessage (with MockLanguageModelV3)', () => {
     const result = buildTextGenerateResult({ text: 'sample' });
 
     expect(result.content).toEqual([{ type: 'text', text: 'sample' }]);
-    expect(result.finishReason).toBe('stop');
+    expect(result.finishReason).toEqual({ unified: 'stop', raw: undefined });
     expect(result.usage.inputTokens.total).toBe(10);
     expect(result.usage.outputTokens.total).toBe(5);
   });

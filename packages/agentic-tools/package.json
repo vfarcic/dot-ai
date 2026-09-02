@@ -12,7 +12,8 @@
     "test": "npm run test:unit",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.tests.json"
   },
   "keywords": [
     "kubernetes",

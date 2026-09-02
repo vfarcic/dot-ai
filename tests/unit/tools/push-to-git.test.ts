@@ -3,6 +3,8 @@
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { DotAI } from '../../../src/core/index.js';
+import { createMockLogger, type MockLogger } from '../helpers/mock-logger.js';
 import { posix as posixPath, resolve as resolvePath } from 'path';
 import { z } from 'zod';
 import {
@@ -16,7 +18,6 @@ import { GenericSessionManager } from '../../../src/core/generic-session-manager
 import { requestContext } from '../../../src/interfaces/request-context.js';
 import type { UserIdentity } from '../../../src/interfaces/oauth/types.js';
 import type { SolutionData } from '../../../src/tools/recommend.js';
-import type { Logger } from '../../../src/core/error-handling.js';
 
 vi.mock('../../../src/core/git-utils.js', async importOriginal => ({
   // The repository host allowlist is NOT mocked: it is a pure function of the
@@ -54,26 +55,21 @@ vi.mock('../../../src/core/visualization.js', () => ({
 
 describe('Push to Git Tool', () => {
   let sessionManager: GenericSessionManager<SolutionData>;
-  let mockDotAI: {
-    ai: { isInitialized: () => boolean };
-    discovery: Record<string, unknown>;
-  };
-  let mockLogger: Partial<Logger>;
+  let mockDotAI: DotAI;
+  let mockLogger: MockLogger;
   const requestId = 'test-request-id';
 
   beforeEach(() => {
     vi.clearAllMocks();
     sessionManager = new GenericSessionManager<SolutionData>('sol');
+    // handlePushToGitTool only reaches ai.isInitialized() and discovery, so a
+    // full DotAI is not worth constructing; the cast is confined to this one
+    // place rather than repeated at every call site.
     mockDotAI = {
       ai: { isInitialized: () => true },
       discovery: {},
-    };
-    mockLogger = {
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
+    } as unknown as DotAI;
+    mockLogger = createMockLogger();
   });
 
   describe('Input Validation', () => {
@@ -113,7 +109,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
 
       const solutionData: SolutionData = {
         toolName: 'recommend',
@@ -231,7 +230,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
       vi.mocked(pushRepo).mockResolvedValue({
         branch: 'main',
         commitSha: 'abc123',
@@ -282,7 +284,10 @@ describe('Push to Git Tool', () => {
           privateKey: 'test-key',
         },
       });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
       vi.mocked(pushRepo).mockResolvedValue({
         branch: 'main',
         commitSha: 'abc123',
@@ -329,7 +334,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
       vi.mocked(pushRepo).mockResolvedValue({
         branch: 'main',
         commitSha: 'abc123',
@@ -432,7 +440,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
       vi.mocked(pushRepo).mockResolvedValue({
         branch: 'main',
         commitSha: 'abc123',
@@ -529,7 +540,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
       vi.mocked(pushRepo).mockRejectedValue(new Error('Permission denied'));
 
       const solutionData: SolutionData = {
@@ -568,7 +582,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
 
       const solutionData: SolutionData = {
         toolName: 'recommend',
@@ -604,7 +621,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
       vi.mocked(pushRepo).mockResolvedValue({
         branch: 'main',
         commitSha: 'abc123def456',
@@ -655,7 +675,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
       vi.mocked(pushRepo).mockResolvedValue({
         branch: 'main',
         commitSha: 'abc123',
@@ -700,7 +723,10 @@ describe('Push to Git Tool', () => {
       const { getGitAuthConfigFromEnv, cloneRepo, pushRepo } =
         await import('../../../src/core/git-utils.js');
       vi.mocked(getGitAuthConfigFromEnv).mockReturnValue({ pat: 'test-token' });
-      vi.mocked(cloneRepo).mockResolvedValue(undefined);
+      vi.mocked(cloneRepo).mockResolvedValue({
+        localPath: '/tmp/gitops-clone',
+        branch: 'main',
+      });
       vi.mocked(pushRepo).mockResolvedValue({
         branch: 'main',
         commitSha: 'abc123',
@@ -1503,12 +1529,14 @@ describe('Push to Git Tool', () => {
       process.env[ALLOWED_HOSTS_ENV] = 'github.com';
 
       const adviceFor = async (repoUrl: string): Promise<string> => {
-        const error = await handlePushToGitTool(
+        // The call is expected to reject; cast the settled union (success value
+        // or caught error) once rather than at every property read.
+        const error = (await handlePushToGitTool(
           { solutionId: seedSolution(), repoUrl, targetPath: 'apps/test/' },
           mockDotAI,
           mockLogger,
           requestId
-        ).catch((e: unknown) => e as { suggestedActions: string[] });
+        ).catch((e: unknown) => e)) as { suggestedActions: string[] };
         return error.suggestedActions.join(' | ');
       };
 

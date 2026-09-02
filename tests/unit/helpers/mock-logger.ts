@@ -38,3 +38,17 @@ export function createMockLogger(): MockLogger {
     fatal: vi.fn<ErrorLogFn>(),
   };
 }
+
+/**
+ * A Logger that discards everything, for tests that need the dependency but
+ * never assert on it.
+ */
+export function createNoopLogger(): Logger {
+  return {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    fatal: () => {},
+  };
+}

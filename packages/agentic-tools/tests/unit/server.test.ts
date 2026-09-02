@@ -150,7 +150,7 @@ describe('agentic-tools server', () => {
       expect(tools.length).toBeGreaterThanOrEqual(10);
 
       // Verify expected tools are present
-      const toolNames = tools.map((t: { name: string }) => t.name);
+      const toolNames = (tools as Array<{ name: string }>).map(t => t.name);
       expect(toolNames).toContain('kubectl_get');
       expect(toolNames).toContain('kubectl_describe');
       expect(toolNames).toContain('kubectl_logs');

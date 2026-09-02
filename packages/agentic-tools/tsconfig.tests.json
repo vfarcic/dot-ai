@@ -1,0 +1,16 @@
+{
+  "//": "Typecheck-only config covering this package's tests. The main tsconfig sets rootDir './src' and excludes 'tests', so `npm run build` never sees them (#784).",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

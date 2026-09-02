@@ -71,9 +71,9 @@ export class StaticTokenAuthProvider implements OAuthClientProvider {
     };
   }
 
-  async saveTokens(): Promise<void> { /* static token — nothing to save */ }
+  async saveTokens(_tokens?: OAuthTokens): Promise<void> { /* static token — nothing to save */ }
   async redirectToAuthorization(): Promise<void> { /* non-interactive — no redirect */ }
-  async saveCodeVerifier(): Promise<void> { /* no PKCE for static tokens */ }
+  async saveCodeVerifier(_verifier?: string): Promise<void> { /* no PKCE for static tokens */ }
   // Returns empty string because the SDK type requires string (not undefined).
   // Static tokens do not use PKCE, so the verifier is never meaningful.
   async codeVerifier(): Promise<string> { return ''; }

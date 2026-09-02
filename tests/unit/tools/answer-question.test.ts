@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { validateAnswer } from '../../../src/tools/answer-question';
-import type { Question } from '../../../src/core/schema';
+import {
+  validateAnswer,
+  type Question,
+} from '../../../src/tools/answer-question';
 
 describe('validateAnswer', () => {
   describe('Issue #474: select questions with explicit empty-string option', () => {

@@ -41,6 +41,14 @@ jobs:
     - name: Run linter
       run: devbox run -- npm run lint
 
+    # #784: lint/format/typecheck now cover tests/ too, so a test-only change
+    # can no longer pass CI while being malformed, mistyped, or unformatted.
+    - name: Check formatting
+      run: devbox run -- npm run format:check
+
+    - name: Typecheck (including tests/)
+      run: devbox run -- npm run typecheck
+
     - name: Build project
       run: devbox run -- npm run build
 

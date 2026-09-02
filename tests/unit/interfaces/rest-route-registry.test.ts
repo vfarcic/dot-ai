@@ -8,17 +8,13 @@
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';
+import { createNoopLogger } from '../helpers/mock-logger.js';
 import { z } from 'zod';
 import { RestRouteRegistry } from '../../../src/interfaces/rest-route-registry';
 import { Logger } from '../../../src/core/error-handling';
 
 // Mock logger for testing
-const mockLogger: Logger = {
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-};
+const mockLogger: Logger = createNoopLogger();
 
 // Sample Zod schemas for testing
 const SessionParamsSchema = z.object({

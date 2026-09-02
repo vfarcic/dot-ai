@@ -153,7 +153,28 @@ describe('Prompts Integration', () => {
   ];
 
   // Combined list of all prompts (built-in + user)
-  const expectedPrompts = [...expectedBuiltInPrompts, ...expectedUserPrompts];
+  /**
+   * One expected prompt. `expectedFiles` and `testArgs` are test-only fields
+   * (stripped before the response-shape match), and only some entries carry
+   * them — so the array needs a declared element type rather than the union
+   * TypeScript infers from the two heterogeneous source arrays.
+   */
+  interface ExpectedPrompt {
+    name: string;
+    description: string;
+    arguments?: Array<{
+      name: string;
+      description: string;
+      required: boolean;
+    }>;
+    expectedFiles?: string[];
+    testArgs?: Record<string, unknown>;
+  }
+
+  const expectedPrompts: ExpectedPrompt[] = [
+    ...expectedBuiltInPrompts,
+    ...expectedUserPrompts,
+  ];
 
   beforeAll(async () => {
     // Verify we're using the test environment (either kubeconfig or in-cluster)
@@ -361,7 +382,7 @@ describe('Prompts Integration', () => {
         }
       );
       expect(res.ok).toBe(true);
-      const data = await res.json();
+      const data = (await res.json()) as { content: { sha: string } };
       return data.content.sha;
     }
 

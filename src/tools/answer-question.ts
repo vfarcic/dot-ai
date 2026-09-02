@@ -29,7 +29,10 @@ interface QuestionValidation {
   options?: string[];
 }
 
-interface Question {
+// Exported so tests can construct the exact shape validateAnswer accepts.
+// Note this is NOT src/core/schema.ts's Question — that one spells the
+// multiselect variant 'multiselect' and requires `type`.
+export interface Question {
   id?: string;
   question: string;
   type?: 'text' | 'number' | 'boolean' | 'select' | 'multiSelect';

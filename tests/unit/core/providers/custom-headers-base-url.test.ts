@@ -52,9 +52,15 @@ vi.mock('ai', () => ({
 import { AIProviderFactory } from '../../../../src/core/ai-provider-factory';
 
 // Helper: create a mock provider function that returns a mock model
-function mockProviderFactory() {
+/** A provider mock that is callable and also exposes .chat / .chatModel. */
+type MockProvider = ReturnType<typeof vi.fn> & {
+  chat: ReturnType<typeof vi.fn>;
+  chatModel: ReturnType<typeof vi.fn>;
+};
+
+function mockProviderFactory(): MockProvider {
   const mockModel = { modelId: 'test-model' };
-  const providerFn = vi.fn().mockReturnValue(mockModel);
+  const providerFn = vi.fn().mockReturnValue(mockModel) as MockProvider;
   // Also support .chat() for OpenAI custom endpoints
   providerFn.chat = vi.fn().mockReturnValue(mockModel);
   // Also support .chatModel() for OpenAI-compatible (kimi)

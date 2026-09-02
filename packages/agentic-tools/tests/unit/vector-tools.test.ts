@@ -747,6 +747,8 @@ describe('Vector Tool Handlers', () => {
         vectorSize: 1536,
         status: 'green',
         exists: true,
+        // Required by CollectionStats since PRD #359; the mock omitted it.
+        url: 'http://localhost:6333',
       });
 
       const handler = TOOL_HANDLERS['collection_stats'];
@@ -770,6 +772,8 @@ describe('Vector Tool Handlers', () => {
         vectorSize: 0,
         status: 'not_found',
         exists: false,
+        // Required by CollectionStats since PRD #359; the mock omitted it.
+        url: 'http://localhost:6333',
       });
 
       const handler = TOOL_HANDLERS['collection_stats'];

@@ -100,7 +100,7 @@ const HTTP_ALLOWED_HOST_REPO = 'http://github.com/example-org/prompts.git';
 const SANDBOX = path.resolve(process.cwd(), 'tmp', 'unit-prompts-server-cred');
 
 interface CapturedCall {
-  level: 'debug' | 'info' | 'warn' | 'error';
+  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
   message: string;
   data?: Record<string, unknown>;
   errorMessage?: string;
@@ -115,6 +115,13 @@ function makeCapturingLogger(): { logger: Logger; calls: CapturedCall[] } {
     error: (message, error, data) =>
       calls.push({
         level: 'error',
+        message,
+        data,
+        errorMessage: error?.message,
+      }),
+    fatal: (message, error, data) =>
+      calls.push({
+        level: 'fatal',
         message,
         data,
         errorMessage: error?.message,

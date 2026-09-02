@@ -42,7 +42,9 @@ const {
   const mockCreateOpenAI = vi.fn(() => mockOpenAIProvider);
 
   // Anthropic path: provider(model) — callable factory
-  const mockAnthropicModelFn = vi.fn(() => ({ modelId: 'claude-sonnet-4.6' }));
+  const mockAnthropicModelFn = vi.fn((..._args: unknown[]) => ({
+    modelId: 'claude-sonnet-4.6',
+  }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mockAnthropicProvider: any = vi.fn((...args: unknown[]) =>
     mockAnthropicModelFn(...args)
@@ -206,10 +208,9 @@ describe('VercelProvider copilot branch — Claude model routing (createAnthropi
 
   it('calls createAnthropic with a custom fetch (not undefined)', () => {
     makeCopilotProvider('claude-sonnet-4.6');
-    const callArg = mockCreateAnthropic.mock.calls[0]?.[0] as Record<
-      string,
-      unknown
-    >;
+    const callArg = (
+      mockCreateAnthropic.mock.calls as unknown[][]
+    )[0]?.[0] as Record<string, unknown>;
     expect(typeof callArg?.fetch).toBe('function');
   });
 

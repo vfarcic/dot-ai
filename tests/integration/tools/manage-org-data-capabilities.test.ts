@@ -137,6 +137,9 @@ describe.concurrent('ManageOrgData - Capabilities Integration', () => {
         failed: progressResponse?.data?.result?.progress?.failedResources,
         processingTime:
           progressResponse?.data?.result?.progress?.totalProcessingTime,
+        // The failure message below prints these; without capturing them it
+        // reported `undefined` for the one field that explains the failure.
+        errors: progressResponse?.data?.result?.progress?.errors,
       };
 
       // === VALIDATE CAPABILITIES ARE BEING STORED ===

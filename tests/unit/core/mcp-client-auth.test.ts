@@ -6,6 +6,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createMockLogger } from '../helpers/mock-logger.js';
 import {
   StaticTokenAuthProvider,
   resolveTransportAuth,
@@ -16,12 +17,7 @@ import type { McpServerAuthConfig } from '../../../src/core/mcp-client-types.js'
 import { Logger } from '../../../src/core/error-handling.js';
 
 // Mock logger
-const mockLogger: Logger = {
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-};
+const mockLogger: Logger = createMockLogger();
 
 describe('StaticTokenAuthProvider (M1)', () => {
   test('should return bearer token from tokens()', async () => {

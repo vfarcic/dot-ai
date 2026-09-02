@@ -82,7 +82,7 @@ const ENV_REPO = 'https://github.com/example-org/env-repo.git';
 const OVERRIDE_REPO = 'https://github.com/example-org/override-repo.git';
 
 interface CapturedCall {
-  level: 'debug' | 'info' | 'warn' | 'error';
+  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
   message: string;
   data?: Record<string, unknown>;
   errorMessage?: string;
@@ -97,6 +97,13 @@ function makeCapturingLogger(): { logger: Logger; calls: CapturedCall[] } {
     error: (message, error, data) =>
       calls.push({
         level: 'error',
+        message,
+        data,
+        errorMessage: error?.message,
+      }),
+    fatal: (message, error, data) =>
+      calls.push({
+        level: 'fatal',
         message,
         data,
         errorMessage: error?.message,
