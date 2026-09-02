@@ -19,7 +19,8 @@
  *     resolved fresh on every resolve() call (direct-token model).
  *   - "end-to-end inference through copilot provider satisfying test:integration":
  *     integration tests require a Kind cluster; the e2e test below uses
- *     it.skipIf so it only runs when a real token is present in the environment.
+ *     it.skipIf so it only runs when a token of a supported shape (gho_ or
+ *     ghu_ prefixed) is in the environment.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -87,6 +88,7 @@ vi.mock('../../../../src/core/providers/provider-debug-utils', () => ({
 // Imports — after all vi.mock calls
 // ---------------------------------------------------------------------------
 import { VercelProvider } from '../../../../src/core/providers/vercel-provider';
+import { findSupportedCopilotTokenInEnv } from '../../../../src/core/providers/copilot-token-exchanger';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -361,11 +363,12 @@ describe('VercelProvider copilot branch — non-Claude model routing (createOpen
 // without needing a Kind cluster.
 // ---------------------------------------------------------------------------
 describe('VercelProvider copilot branch — live token smoke test', () => {
-  const hasToken = !!(
-    process.env.GITHUB_COPILOT_TOKEN ||
-    process.env.GH_TOKEN ||
-    process.env.GITHUB_TOKEN
-  );
+  // Gate on token *shape*, not mere presence: the resolver accepts only gho_
+  // and ghu_ prefixes, so an ambient ghp_ / github_pat_ (what `gh auth login`
+  // and most CI setups leave behind) must skip these tests rather than un-skip
+  // them with no usable credential. Shared with the resolver so the gate and
+  // resolve() cannot drift apart. (#759)
+  const hasToken = !!findSupportedCopilotTokenInEnv();
 
   it.skipIf(!hasToken)(
     'e2e: provider initialises without throwing for claude-sonnet-4.6',

@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  findSupportedCopilotTokenInEnv,
   isSupportedCopilotToken,
   makeCopilotCredentialResolver,
 } from '../../../../src/core/providers/copilot-token-exchanger';
@@ -24,11 +25,7 @@ vi.mock('node:child_process', () => ({
 
 const VALID_TOKEN = 'gho_testtoken1234';
 
-const hasUsableToken = [
-  process.env.GITHUB_COPILOT_TOKEN,
-  process.env.GH_TOKEN,
-  process.env.GITHUB_TOKEN,
-].some(token => token && isSupportedCopilotToken(token));
+const hasUsableToken = !!findSupportedCopilotTokenInEnv();
 
 function makeResolver(token = VALID_TOKEN) {
   return makeCopilotCredentialResolver(token);

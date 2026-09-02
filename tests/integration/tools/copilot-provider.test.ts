@@ -2,26 +2,32 @@
  * Integration Test: GitHub Copilot Provider
  *
  * Opt-in test suite that exercises the full stack with AI_PROVIDER=copilot.
- * Skipped automatically unless both env vars are set:
+ * Skipped automatically unless both of these hold:
  *   AI_PROVIDER=copilot
- *   GITHUB_COPILOT_TOKEN=gho_... (or GH_TOKEN / GITHUB_TOKEN)
+ *   a token of a supported shape (gho_ or ghu_ prefixed) is in
+ *   GITHUB_COPILOT_TOKEN, GH_TOKEN, or GITHUB_TOKEN
  *
  * Run with:
  *   AI_PROVIDER=copilot GITHUB_COPILOT_TOKEN=gho_... npm run test:integration copilot-provider
+ *
+ * KNOWN LIMITATION (#783): the above command does not work yet. The integration
+ * harness never puts a Copilot credential into the deployed pod, so the server
+ * falls back to NoOpAIProvider and the two assertions below cannot hold. Until
+ * #783 is fixed these tests can only skip (no token) or fail (token present) —
+ * they cannot pass. This group also has no entry in the ci.yml integration
+ * matrix, so it never runs in CI.
  *
  * PRD #587: GitHub Copilot Provider
  */
 
 import { describe, test, expect } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
-import { isSupportedCopilotToken } from '../../../src/core/providers/copilot-token-exchanger.js';
+import { findSupportedCopilotTokenInEnv } from '../../../src/core/providers/copilot-token-exchanger.js';
 
 const isCopilotProvider = process.env.AI_PROVIDER === 'copilot';
-const hasUsableToken = [
-  process.env.GITHUB_COPILOT_TOKEN,
-  process.env.GH_TOKEN,
-  process.env.GITHUB_TOKEN,
-].some(token => token && isSupportedCopilotToken(token));
+// Shared with the production resolver so the gate cannot drift from what
+// resolve() would actually accept — first-supported-wins, not first-set-wins.
+const hasUsableToken = !!findSupportedCopilotTokenInEnv();
 const shouldRun = isCopilotProvider && hasUsableToken;
 
 // Emit a clear skip reason so CI logs are searchable
