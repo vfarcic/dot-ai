@@ -187,6 +187,11 @@ spec:
         - name: DOT_AI_RBAC_ENABLED
           value: "true"
 {{- end }}
+{{- if .Values.remediation.constrainedExecution.enabled }}
+        # Constrained automatic remediation (PRD #810)
+        - name: DOT_AI_REMEDIATION_CONSTRAINED_EXEC
+          value: "true"
+{{- end }}
 {{- if .Values.dex.enabled }}
         # Dex OIDC configuration (PRD #380)
         # DEX_CLIENT_SECRET and DOT_AI_JWT_SECRET injected via envFrom below
