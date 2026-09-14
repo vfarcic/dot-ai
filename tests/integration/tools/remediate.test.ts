@@ -1670,8 +1670,8 @@ interface ServerVersionPayload {
  * sibling suites in declaration order, so every flag-off test — including the
  * backward-compatibility proof in 'Automatic Mode Workflow' — has finished
  * before `beforeAll` here restarts the server with the flag on, and the flag is
- * removed again in `afterAll`. The two cases inside are `test.concurrent`
- * because they share one flag state and are otherwise independent.
+ * removed again in `afterAll`. The cases inside are `test.concurrent` because
+ * they share one flag state and are otherwise independent.
  */
 describe('Constrained Automatic Execution (PRD #810)', () => {
   const integrationTest = new IntegrationTest();
@@ -1919,7 +1919,7 @@ EOF`);
   ); // 30 minute timeout — AI investigation + execution + validation
 
   test.concurrent(
-    'should refuse automatic execution when a remediation action is not expressible as a structured kubectl operation',
+    'should refuse execution in both automatic and manual mode when a remediation action is not expressible as a structured kubectl operation',
     async () => {
       const { execSync } = await import('child_process');
       const releaseName = 'constrained-nginx';
@@ -2020,12 +2020,16 @@ EOF`);
         )
       ).toMatchObject({ info: { status: 'failed' }, version: 2 });
 
+      // One issue text for both modes: the mode is the only variable under test,
+      // so a differently worded prompt would confound the comparison.
+      const brokenReleaseIssue = `helm release ${releaseName} in ${constrainedHelmNamespace} namespace is stuck in a failed state after a bad upgrade: helm reports the release as failed and its stored manifest still references the non-existent image nonexistent-registry.invalid/nginx:doesnotexist, even though the running pods are healthy. The release history needs to be repaired so future helm upgrades work.`;
+
       // ACT: automatic mode, thresholds wide open — only the constraint should stop it
       const refusalResponse =
         await integrationTest.httpClient.post<RemediatePayload>(
           '/api/v1/tools/remediate',
           {
-            issue: `helm release ${releaseName} in ${constrainedHelmNamespace} namespace is stuck in a failed state after a bad upgrade: helm reports the release as failed and its stored manifest still references the non-existent image nonexistent-registry.invalid/nginx:doesnotexist, even though the running pods are healthy. The release history needs to be repaired so future helm upgrades work.`,
+            issue: brokenReleaseIssue,
             mode: 'automatic',
             confidenceThreshold: 0.1,
             maxRiskLevel: 'high',
@@ -2064,9 +2068,102 @@ EOF`);
         info: { status: 'failed' },
         version: 2,
       });
+
+      // MANUAL MODE IS NOT A LOOPHOLE. With the flag on, a free-form
+      // remediation is refused whether the caller asked for automatic
+      // execution or approved it by hand: a command string this server will
+      // never run is not a command, and offering it for approval would
+      // reinstate the path the flag exists to remove. Same fixture, same
+      // unexpressible fix — the mode is the only thing that changes.
+      const manualInvestigation =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: brokenReleaseIssue,
+            mode: 'manual',
+            interaction_id: 'constrained_helm_manual_analyze',
+          }
+        );
+
+      expect(
+        manualInvestigation,
+        `Manual investigation failed: ${JSON.stringify(manualInvestigation.error || manualInvestigation.data?.result?.error || 'no error field')}`
+      ).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'awaiting_user_approval',
+            sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
+            executed: false,
+          },
+        },
+      });
+
+      // The investigation itself is not gated — the refusal belongs at
+      // execution. An analysis refused here would prove nothing about choice 1.
+      expect(manualInvestigation.data!.result.fallbackReason).toBeUndefined();
+
+      const manualSessionId = manualInvestigation.data!.result.sessionId;
+
+      // ACT: approve execution by hand. `executeChoice` reaches execution
+      // through a different entry point than `mode: 'automatic'` does, so this
+      // is a second, independent way in — not a re-test of the same gate.
+      const manualRefusal =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            executeChoice: 1,
+            sessionId: manualSessionId,
+            mode: 'manual',
+            interaction_id: 'constrained_helm_manual_refusal',
+          }
+        );
+
+      expect(
+        manualRefusal,
+        `Expected a constrained refusal of choice 1 in manual mode but got: ${JSON.stringify(
+          {
+            error: manualRefusal.error,
+            status: manualRefusal.data?.result?.status,
+            executed: manualRefusal.data?.result?.executed,
+            fallbackReason: manualRefusal.data?.result?.fallbackReason,
+            results: manualRefusal.data?.result?.results,
+          },
+          null,
+          2
+        )}`
+      ).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            sessionId: manualSessionId,
+            status: 'awaiting_user_approval',
+            executed: false,
+            fallbackReason: expect.stringMatching(/constrain/i),
+            // Empty, not merely unsuccessful: refusal happens before any
+            // action runs, so there is no result to report.
+            results: [],
+          },
+        },
+      });
+
+      // Same discrimination as above: name the constraint, not any refusal.
+      expect(manualRefusal.data!.result.fallbackReason).toMatch(
+        /shell|free-form|command/i
+      );
+
+      // ASSERT NOTHING RAN, proven the same honest way — a `helm rollback`
+      // approved by hand would still have moved the release to revision 3.
+      expect(
+        JSON.parse(
+          runHelm(
+            `status ${releaseName} -n ${constrainedHelmNamespace} -o json`
+          )
+        )
+      ).toMatchObject({ info: { status: 'failed' }, version: 2 });
     },
-    1800000
-  ); // 30 minute timeout — AI investigation + refusal
+    2700000
+  ); // 45 minute timeout — two AI investigations (automatic + manual) + refusals
 
   test.concurrent(
     'should open a pull request for a GitOps-managed resource instead of refusing it when constrained execution is enabled',
