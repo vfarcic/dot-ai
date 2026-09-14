@@ -1678,6 +1678,14 @@ describe('Constrained Automatic Execution (PRD #810)', () => {
   const constrainedAutoNamespace = 'remediate-constrained-auto-test';
   const constrainedHelmNamespace = 'remediate-constrained-helm-test';
   const constrainedGitOpsNamespace = 'remediate-constrained-gitops-test';
+  /** Every namespace/release/app this suite creates, so `beforeAll` can clear a prior run's leftovers. */
+  const constrainedNamespaces = [
+    constrainedAutoNamespace,
+    constrainedHelmNamespace,
+    constrainedGitOpsNamespace,
+  ];
+  const constrainedHelmRelease = 'constrained-nginx';
+  const constrainedArgoApp = 'constrained-gitops-argocd';
   const constrainedEnvVar = 'DOT_AI_REMEDIATION_CONSTRAINED_EXEC';
   const kubeconfig = process.env.KUBECONFIG || './kubeconfig-test.yaml';
 
@@ -1692,6 +1700,35 @@ describe('Constrained Automatic Execution (PRD #810)', () => {
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: 300000,
     });
+  };
+
+  /**
+   * Run a cleanup command. "Nothing to clean" is the normal case and is
+   * tolerated in both its forms: the resource is absent, or its type is not
+   * even installed (Argo CD is optional infrastructure — SKIP_ARGOCD=true — and
+   * without it there is no Application to leave behind). Every other failure is
+   * raised rather than swallowed the way IntegrationTest.kubectl swallows all
+   * of them: a cleanup that silently failed would hand the next test exactly
+   * the leftovers it was supposed to remove.
+   */
+  const runCleanup = async (command: string): Promise<void> => {
+    try {
+      await run(command);
+    } catch (error: unknown) {
+      const details = [
+        (error as { stdout?: string }).stdout,
+        (error as { stderr?: string }).stderr,
+        (error as { message?: string }).message,
+      ]
+        .filter(Boolean)
+        .join('\n');
+      const nothingToClean =
+        /not\s?found|doesn't have a resource type|could not find the requested resource|no matches for kind/i;
+      if (nothingToClean.test(details)) return;
+      throw new Error(`Suite cleanup failed: \`${command}\`\n${details}`, {
+        cause: error,
+      });
+    }
   };
 
   /** Poll until the restarted server answers and has rediscovered the agentic-tools plugin. */
@@ -1736,6 +1773,23 @@ describe('Constrained Automatic Execution (PRD #810)', () => {
   };
 
   beforeAll(async () => {
+    // A run that dies mid-suite leaves its fixtures behind, and the next run
+    // then fails on them — `helm install` hitting an existing release, an Argo
+    // CD Application still self-healing a broken Deployment back into a
+    // namespace — which reads as a product defect rather than stale state. So
+    // clear what this suite creates before it creates any of it again. The Argo
+    // CD Application goes first: while it exists, automated sync would re-create
+    // the workload in a namespace being deleted.
+    await runCleanup(
+      `kubectl --kubeconfig=${kubeconfig} delete applications.argoproj.io ${constrainedArgoApp} -n argocd --ignore-not-found --wait --timeout=120s`
+    );
+    await runCleanup(
+      `helm --kubeconfig=${kubeconfig} uninstall ${constrainedHelmRelease} -n ${constrainedHelmNamespace} --ignore-not-found --wait --timeout=120s`
+    );
+    await runCleanup(
+      `kubectl --kubeconfig=${kubeconfig} delete namespace ${constrainedNamespaces.join(' ')} --ignore-not-found --wait --timeout=180s`
+    );
+
     await setConstrainedExecution(true);
 
     // The flip is the whole premise of this suite: prove it landed on the
@@ -1922,7 +1976,7 @@ EOF`);
     'should refuse execution in both automatic and manual mode when a remediation action is not expressible as a structured kubectl operation',
     async () => {
       const { execSync } = await import('child_process');
-      const releaseName = 'constrained-nginx';
+      const releaseName = constrainedHelmRelease;
       const chartDir = './tmp/helm-constrained-test-chart';
 
       const runHelm = (cmd: string): string => {
@@ -2177,7 +2231,7 @@ EOF`);
       // cluster, so no string ever reaches a shell. A naive "refuse every
       // action without kubectlAction" gate would break Argo CD and Flux
       // remediation outright; this test is the guard on that regression.
-      const argoAppName = 'constrained-gitops-argocd';
+      const argoAppName = constrainedArgoApp;
       const testRepoUrl = 'https://github.com/vfarcic/dot-ai.git';
       const fixturePath = 'tests/integration/fixtures/gitops/broken-app';
 
