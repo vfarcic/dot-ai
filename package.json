@@ -31,6 +31,7 @@
     "test:integration:bedrock": "AI_PROVIDER=amazon_bedrock AI_MODEL=global.anthropic.claude-sonnet-4-20250514-v1:0 DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "test:integration:custom-endpoint": "AI_PROVIDER=openai DEBUG_DOT_AI=true ./tests/integration/infrastructure/run-integration-tests.sh",
     "eval:comparative": "DEBUG_DOT_AI=true npx tsx src/evaluation/eval-runner.ts",
+    "eval:injection": "npx tsx src/evaluation/injection/run-injection-eval.ts",
     "eval:platform-synthesis": "DEBUG_DOT_AI=true npx tsx src/evaluation/run-platform-synthesis.ts",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run lint",
