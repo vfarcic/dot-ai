@@ -1677,6 +1677,7 @@ describe('Constrained Automatic Execution (PRD #810)', () => {
   const integrationTest = new IntegrationTest();
   const constrainedAutoNamespace = 'remediate-constrained-auto-test';
   const constrainedHelmNamespace = 'remediate-constrained-helm-test';
+  const constrainedGitOpsNamespace = 'remediate-constrained-gitops-test';
   const constrainedEnvVar = 'DOT_AI_REMEDIATION_CONSTRAINED_EXEC';
   const kubeconfig = process.env.KUBECONFIG || './kubeconfig-test.yaml';
 
@@ -2066,4 +2067,228 @@ EOF`);
     },
     1800000
   ); // 30 minute timeout — AI investigation + refusal
+
+  test.concurrent(
+    'should open a pull request for a GitOps-managed resource instead of refusing it when constrained execution is enabled',
+    // `onTestFinished` comes off the test context, not the module import: the
+    // imported one resolves the *currently running* test, which is meaningless
+    // once a concurrent test has awaited and its siblings have interleaved.
+    async ({ onTestFinished }) => {
+      // SETUP: an Argo CD-managed Deployment with a broken image. The fix lives
+      // in Git, not in the cluster, so the remediation carries `gitSource` and
+      // no `kubectlAction` — and it opens a PR rather than touching the
+      // cluster, so no string ever reaches a shell. A naive "refuse every
+      // action without kubectlAction" gate would break Argo CD and Flux
+      // remediation outright; this test is the guard on that regression.
+      const argoAppName = 'constrained-gitops-argocd';
+      const testRepoUrl = 'https://github.com/vfarcic/dot-ai.git';
+      const fixturePath = 'tests/integration/fixtures/gitops/broken-app';
+
+      await integrationTest.kubectl(
+        `create namespace ${constrainedGitOpsNamespace}`
+      );
+      await integrationTest.kubectl(`apply -f - <<'EOF'
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${argoAppName}
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ${testRepoUrl}
+    targetRevision: main
+    path: ${fixturePath}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${constrainedGitOpsNamespace}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+EOF`);
+
+      // Wait for Argo CD to sync the broken deployment into the namespace
+      let deploymentExists = false;
+      const syncDeadline = Date.now() + 120000;
+      while (Date.now() < syncDeadline) {
+        const deployJson = await integrationTest.kubectl(
+          `get deployment gitops-test-app -n ${constrainedGitOpsNamespace} -o json 2>/dev/null`
+        );
+        if (deployJson && deployJson.trim() !== '') {
+          deploymentExists = true;
+          break;
+        }
+        await sleep(5000);
+      }
+      expect(deploymentExists).toBe(true);
+
+      // Wait for pods to enter ImagePullBackOff (image: nginx:v999-nonexistent)
+      let podInErrorState = false;
+      const podDeadline = Date.now() + 120000;
+      while (Date.now() < podDeadline) {
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${constrainedGitOpsNamespace} -l app=gitops-test-app -o json`
+        );
+        if (podsJson && podsJson.trim() !== '') {
+          const podsData = JSON.parse(podsJson);
+          for (const pod of podsData.items) {
+            for (const cs of pod.status?.containerStatuses || []) {
+              const waitReason = cs.state?.waiting?.reason;
+              if (
+                waitReason === 'ImagePullBackOff' ||
+                waitReason === 'ErrImagePull'
+              ) {
+                podInErrorState = true;
+                break;
+              }
+            }
+            if (podInErrorState) break;
+          }
+        }
+        if (podInErrorState) break;
+        await sleep(5000);
+      }
+      expect(podInErrorState).toBe(true);
+
+      // ACT: automatic mode with thresholds wide open, so the constraint is the
+      // only thing that could stop execution.
+      const gitOpsResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: `deployment gitops-test-app in ${constrainedGitOpsNamespace} namespace has pods failing with ImagePullBackOff`,
+            mode: 'automatic',
+            confidenceThreshold: 0.1,
+            maxRiskLevel: 'high',
+            interaction_id: 'constrained_gitops_execute',
+          }
+        );
+
+      // Hand the PR back whatever the assertions do — registered BEFORE the
+      // first of them, so even an assertion that fails on a PR that was in fact
+      // opened cannot leave it sitting on the repository.
+      const gitToken = process.env.DOT_AI_GIT_TOKEN;
+      const openedPr = gitOpsResponse.data?.result?.pullRequest;
+      onTestFinished(async () => {
+        if (!gitToken || !openedPr?.number) return;
+        await fetch(
+          `https://api.github.com/repos/vfarcic/dot-ai/pulls/${openedPr.number}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `token ${gitToken}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/vnd.github+json',
+            },
+            body: JSON.stringify({ state: 'closed' }),
+          }
+        );
+        await fetch(
+          `https://api.github.com/repos/vfarcic/dot-ai/git/refs/heads/${openedPr.branch}`,
+          {
+            method: 'DELETE',
+            headers: {
+              Authorization: `token ${gitToken}`,
+              Accept: 'application/vnd.github+json',
+            },
+          }
+        );
+      });
+
+      // KEY VALIDATION: not refused, and the PR path ran.
+      expect(
+        gitOpsResponse,
+        `Expected a GitOps pull request under constrained execution but got: ${JSON.stringify(
+          {
+            error: gitOpsResponse.error,
+            status: gitOpsResponse.data?.result?.status,
+            fallbackReason: gitOpsResponse.data?.result?.fallbackReason,
+            actions: gitOpsResponse.data?.result?.remediation?.actions,
+          },
+          null,
+          2
+        )}`
+      ).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            executed: true,
+            pullRequest: {
+              url: expect.stringMatching(
+                /^https:\/\/github\.com\/vfarcic\/dot-ai\/pull\/\d+$/
+              ),
+              number: expect.any(Number),
+              branch: expect.stringMatching(/^remediate\//),
+            },
+          },
+        },
+      });
+
+      const execResult = gitOpsResponse.data!.result;
+
+      // The refusal shape must be absent: `awaiting_user_approval` carrying a
+      // constraint reason is exactly what this test exists to rule out.
+      expect(execResult.status).not.toBe('awaiting_user_approval');
+      expect(
+        execResult.fallbackReason,
+        `GitOps remediation was refused under constrained execution: ${execResult.fallbackReason}`
+      ).toBeUndefined();
+
+      // ...and it must have been exempted for the right reason: actions that
+      // carry gitSource and NO free-form command. An action carrying both is
+      // not exempt, so proving the exemption means proving that shape.
+      const actions = execResult.remediation.actions;
+      const gitSourceActions = actions.filter(action => action.gitSource);
+      expect(
+        gitSourceActions.length,
+        `Expected gitSource actions but got: ${JSON.stringify(actions, null, 2)}`
+      ).toBeGreaterThan(0);
+      gitSourceActions.forEach((action: RemediationAction) => {
+        expect(
+          action.command,
+          `GitOps action carried a free-form command, which the constraint does not exempt: ${JSON.stringify(action, null, 2)}`
+        ).toBeUndefined();
+      });
+      expect(gitSourceActions[0].gitSource).toMatchObject({
+        repoURL: expect.stringContaining('dot-ai'),
+        files: expect.arrayContaining([
+          expect.objectContaining({
+            path: expect.stringContaining('deployment.yaml'),
+            content: expect.any(String),
+          }),
+        ]),
+      });
+
+      // The PR path ran instead of the structured kubectl path: a 'PR created'
+      // result, and no cluster command among the results.
+      const prCreatedResult = execResult.results.find(result =>
+        result.action?.includes('PR created')
+      );
+      expect(
+        prCreatedResult,
+        `Expected a result with 'PR created' but got: ${JSON.stringify(execResult.results, null, 2)}`
+      ).toBeDefined();
+      expect(prCreatedResult!.success).toBe(true);
+      expect(prCreatedResult!.output).toContain(
+        `PR #${execResult.pullRequest.number}`
+      );
+
+      const kubectlResults = execResult.results.filter(
+        result =>
+          !result.action?.includes('PR created') &&
+          !result.action?.includes('gitSource') &&
+          !result.action?.includes('branch pushed') &&
+          !result.action?.includes('no changes needed')
+      );
+      expect(
+        kubectlResults.length,
+        `Expected no kubectl actions but found: ${JSON.stringify(kubectlResults, null, 2)}`
+      ).toBe(0);
+    },
+    1800000
+  ); // 30 minute timeout — AI investigation + PR creation
 });
