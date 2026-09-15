@@ -29,6 +29,7 @@ import {
   normaliseWhitespace,
   PRODUCTION_RAW_TOOL_RESULT_EXPRESSION,
   PRODUCTION_TOOL_RESULT_SOURCES,
+  REMEDIATE_CONSTRAINED_SYSTEM_PROMPT_PATH,
   REMEDIATE_INVESTIGATION_TOOL_NAMES,
   REMEDIATE_MAX_ITERATIONS,
   REMEDIATE_USER_MESSAGE_TEMPLATE,
@@ -306,6 +307,18 @@ describe('frameToolResult and the production tool-result path', () => {
 
   it.each([
     ['remediate', join('prompts', 'remediate-system.md')],
+    // PRD #810's constrained-execution flag swaps in a different system prompt
+    // for the same loop, the same wrapped executor and the same user message —
+    // so both fences reach it and both have to be named there too. It shipped
+    // with neither, which is what this case exists to stop happening again:
+    // M2's A/B measured the section carrying the whole effect (0/18 non-
+    // compliance with it, 17/20 without it and the fences still applied), so a
+    // constrained run without it is the unprotected configuration, reached by
+    // turning on the flag an operator turns on to be safer.
+    [
+      'remediate (constrained execution)',
+      REMEDIATE_CONSTRAINED_SYSTEM_PROMPT_PATH,
+    ],
     ['operate', join('prompts', 'operate-system.md')],
   ])(
     'still names the delimiter in the %s system prompt',

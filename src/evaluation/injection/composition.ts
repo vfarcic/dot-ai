@@ -41,6 +41,31 @@ export const REMEDIATE_SYSTEM_PROMPT_PATH = join(
 );
 
 /**
+ * The *other* system prompt `remediate` can run with.
+ *
+ * PRD #810 added a second file and a flag that selects it
+ * (`isConstrainedExecutionEnabled()` in `src/tools/remediate.ts`), while PRD
+ * #811 was in flight against a base that could not see it. The two landed with
+ * the constrained prompt carrying none of M2's framing — so with the flag on,
+ * `withUntrustedContentBoundary` still delimited every tool result and nothing
+ * told the model what the tags meant. M2's controlled A/B is the reason that is
+ * a hole and not a cosmetic gap: with the `## Untrusted Content` section
+ * present, compliance was 0/18; with the section removed and the fences still
+ * applied, 17/20. The fences are inert on their own.
+ *
+ * The harness still composes against {@link REMEDIATE_SYSTEM_PROMPT_PATH} — the
+ * corpus exercises the default path, which is what the flag's default gives
+ * every user. This path exists so the constrained prompt is scanned by the same
+ * guards, in {@link PRODUCTION_TOOL_RESULT_SOURCES} and in the tag-naming case
+ * in `composition.test.ts`: the divergence is what caused this, so it is the
+ * divergence that has to fail a test.
+ */
+export const REMEDIATE_CONSTRAINED_SYSTEM_PROMPT_PATH = join(
+  'prompts',
+  'remediate-system-constrained.md'
+);
+
+/**
  * Template `src/tools/remediate.ts` composes the caller's `issue` into when it
  * builds `toolLoop`'s `userMessage`.
  *
@@ -111,8 +136,11 @@ export { buildRemediateUserMessage };
  *
  * `untrusted-content.ts` holds the delimiter and the executor wrapper;
  * `remediate.ts` and `operate-analysis.ts` are where that wrapper is applied to
- * the composed tool executor; the two system prompts are where the model is
- * told what the delimiter means. `composition.test.ts` scans every one of them
+ * the composed tool executor; the system prompts are where the model is told
+ * what the delimiter means. There are three of those, not two: `remediate` picks
+ * between `remediate-system.md` and `remediate-system-constrained.md` at call
+ * time (see {@link REMEDIATE_CONSTRAINED_SYSTEM_PROMPT_PATH}), and a prompt this
+ * list does not name is a prompt that can ship without the framing. `composition.test.ts` scans every one of them
  * for {@link FRAMING_MARKER_PATTERN} and fails if the framing disappears from
  * any — which is the inverse of the M1 guard, and for the same reason: the
  * harness must measure the composition production actually has.
@@ -130,6 +158,7 @@ export const PRODUCTION_TOOL_RESULT_SOURCES = [
   join('src', 'tools', 'remediate.ts'),
   join('src', 'tools', 'operate-analysis.ts'),
   join('prompts', 'remediate-system.md'),
+  REMEDIATE_CONSTRAINED_SYSTEM_PROMPT_PATH,
   join('prompts', 'operate-system.md'),
 ] as const;
 
