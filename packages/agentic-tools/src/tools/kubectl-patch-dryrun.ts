@@ -62,7 +62,7 @@ export const kubectlPatchDryrun: KubectlTool = {
     );
     const patchType = optionalParam<string>(args, 'patchType', 'strategic');
 
-    const cmdArgs = ['patch', resource, '--dry-run=server'];
+    const cmdArgs = ['patch', '--dry-run=server'];
 
     if (namespace) {
       cmdArgs.push('-n', namespace);
@@ -77,6 +77,10 @@ export const kubectlPatchDryrun: KubectlTool = {
     // strategic is default, no flag needed
 
     cmdArgs.push('-p', patch);
+
+    // `--` terminates flag parsing so `resource` can never be read as a flag.
+    // Every flag must already be on cmdArgs at this point.
+    cmdArgs.push('--', resource);
 
     try {
       const output = await executeKubectl(cmdArgs);

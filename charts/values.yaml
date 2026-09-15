@@ -407,6 +407,14 @@ rbac:
   enforcement:
     enabled: false                    # Enable RBAC enforcement (default deny for OAuth users)
 
+# Automatic Remediation Hardening (PRD #810)
+# When enabled, remediation may only execute structured kubectl operations.
+# Free-form shell commands are refused in BOTH manual and automatic mode
+# and downgraded to awaiting_user_approval.
+remediation:
+  constrainedExecution:
+    enabled: false
+
 dex:
   enabled: false                      # Deploy Dex for OAuth authentication (requires HTTPS)
   # REQUIRED when enabled: name of a pre-existing Secret containing:

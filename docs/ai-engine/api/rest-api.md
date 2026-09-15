@@ -191,6 +191,12 @@ GET /readyz
   are informational because a scan can initialize an absent collection. Results are cached
   for 30 seconds, and a dependency that does not answer within 10 seconds produces `503`.
 
+  `collectionAccessible` and `storedCount` are determined independently: `storedCount` is
+  omitted when the count does not answer in time, which leaves `collectionAccessible`
+  unaffected. `collectionAccessible` is `false` only when the collection is genuinely
+  absent or its existence could not be determined — and it is `false` with
+  `"storedCount": 0` in the absent case.
+
 The `/readyz` body is a raw JSON object (not the standard envelope):
 
 ```json

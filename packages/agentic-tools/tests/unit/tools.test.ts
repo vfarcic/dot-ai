@@ -295,14 +295,17 @@ describe('Tool Handlers', () => {
         namespace: 'default',
       });
 
+      // `--` before the positional: flags first, resource last, so a resource
+      // beginning with `-` cannot be parsed as a flag.
       expect(mockExecuteKubectl).toHaveBeenCalledWith([
         'patch',
-        'deployment/my-app',
         '--dry-run=server',
         '-n',
         'default',
         '-p',
         '{"spec":{"replicas":3}}',
+        '--',
+        'deployment/my-app',
       ]);
     });
 
@@ -367,10 +370,11 @@ describe('Tool Handlers', () => {
 
       expect(mockExecuteKubectl).toHaveBeenCalledWith([
         'delete',
-        'pod/my-pod',
         '--dry-run=server',
         '-n',
         'default',
+        '--',
+        'pod/my-pod',
       ]);
     });
   });
@@ -505,6 +509,95 @@ describe('Tool Handlers', () => {
     });
   });
 
+  /**
+   * PRD #810 audit finding B2: kubectl reads a positional beginning with `-` as
+   * a flag. `name: "--all"` on a delete is a well-formed request that empties
+   * the namespace, and an argv array does not stop it — only a `--` separator
+   * does. The MCP-side validator rejects such values too
+   * (`src/core/remediation-constraints.ts`); these are the second stop.
+   */
+  describe('kubectl_patch', () => {
+    it('puts every flag before `--` and the positionals after it', async () => {
+      mockExecuteKubectl.mockResolvedValue('deployment.apps/api patched');
+
+      const handler = TOOL_HANDLERS['kubectl_patch'];
+      await handler({
+        kind: 'Deployment',
+        name: 'api',
+        patch: '{"spec":{"replicas":3}}',
+        patchType: 'merge',
+        namespace: 'prod',
+      });
+
+      expect(mockExecuteKubectl).toHaveBeenCalledWith([
+        'patch',
+        '--patch',
+        '{"spec":{"replicas":3}}',
+        '--type',
+        'merge',
+        '-n',
+        'prod',
+        '--',
+        'Deployment',
+        'api',
+      ]);
+    });
+
+    it('keeps a flag-shaped name a positional rather than a kubectl flag', async () => {
+      mockExecuteKubectl.mockResolvedValue('');
+
+      const handler = TOOL_HANDLERS['kubectl_patch'];
+      await handler({
+        kind: 'Deployment',
+        name: '--kubeconfig=/tmp/evil.yaml',
+        patch: '{}',
+      });
+
+      const argv = mockExecuteKubectl.mock.calls[0][0];
+      expect(argv.indexOf('--')).toBeLessThan(
+        argv.indexOf('--kubeconfig=/tmp/evil.yaml')
+      );
+    });
+  });
+
+  describe('kubectl_delete', () => {
+    it('puts every flag before `--` and the positionals after it', async () => {
+      mockExecuteKubectl.mockResolvedValue('pod "api-1" deleted');
+
+      const handler = TOOL_HANDLERS['kubectl_delete'];
+      await handler({ kind: 'Pod', name: 'api-1', namespace: 'prod' });
+
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(
+        ['delete', '-n', 'prod', '--', 'Pod', 'api-1'],
+        undefined
+      );
+    });
+
+    it('keeps `--all` a resource name rather than the delete-everything flag', async () => {
+      mockExecuteKubectl.mockResolvedValue('');
+
+      const handler = TOOL_HANDLERS['kubectl_delete'];
+      await handler({ kind: 'Pod', name: '--all', namespace: 'prod' });
+
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(
+        ['delete', '-n', 'prod', '--', 'Pod', '--all'],
+        undefined
+      );
+    });
+
+    it('still sends a manifest on stdin, with no separator to confuse `-f -`', async () => {
+      mockExecuteKubectl.mockResolvedValue('configmap "cfg" deleted');
+
+      const handler = TOOL_HANDLERS['kubectl_delete'];
+      await handler({ manifest: 'kind: ConfigMap\n', namespace: 'prod' });
+
+      expect(mockExecuteKubectl).toHaveBeenCalledWith(
+        ['delete', '-f', '-', '-n', 'prod'],
+        { stdin: 'kind: ConfigMap\n' }
+      );
+    });
+  });
+
   describe('Error handling', () => {
     it('should return error result when kubectl fails', async () => {
       mockExecuteKubectl.mockRejectedValue(new Error('connection refused'));
@@ -531,15 +624,27 @@ describe('Base utilities', () => {
       );
     });
 
-    it('should quote strings with special characters', () => {
-      expect(base.escapeShellArg('hello world')).toBe('"hello world"');
+    it('should single-quote strings with special characters', () => {
+      expect(base.escapeShellArg('hello world')).toBe("'hello world'");
       expect(base.escapeShellArg('{"key":"value"}')).toBe(
-        '"{\\"key\\":\\"value\\"}"'
+        '\'{"key":"value"}\''
       );
     });
 
+    it('should neutralise shell metacharacters rather than only quotes', () => {
+      // The previous double-quoted form escaped `"` and `\` and left `$` and
+      // backticks live inside the quotes. Single quotes have no interpolation.
+      expect(base.escapeShellArg('$(id)')).toBe("'$(id)'");
+      expect(base.escapeShellArg('`id`')).toBe("'`id`'");
+      expect(base.escapeShellArg('web$(touch PWNED)')).toBe(
+        "'web$(touch PWNED)'"
+      );
+      // A literal single quote closes, escapes, reopens: 'it'\''s'
+      expect(base.escapeShellArg("it's")).toBe("'it'\\''s'");
+    });
+
     it('should handle empty strings', () => {
-      expect(base.escapeShellArg('')).toBe('""');
+      expect(base.escapeShellArg('')).toBe("''");
     });
   });
 

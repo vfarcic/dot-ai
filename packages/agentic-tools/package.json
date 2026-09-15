@@ -35,8 +35,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "ts-node": "^10.9.0",
     "typescript": "^5.0.0",
-    "vitest": "^3.2.4",
-    "ts-node": "^10.9.0"
+    "vitest": "^4.1.11"
   }
 }
