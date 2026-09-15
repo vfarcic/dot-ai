@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- towncrier release notes start -->
 
+## [2.4.0] - 2026-09-15
+
+### Features
+
+- ## Constrained Execution for Automatic Remediation
+
+  Automatic remediation can now be restricted to structured, shell-free kubectl operations instead of free-form shell commands. This closes off a class of prompt-injection risk where content read during investigation (logs, events, annotations) could otherwise steer the model into proposing an arbitrary shell command that then runs unattended.
+
+  When enabled, `remediate` may only execute `patch`, `apply`, or `delete` operations expressed as discrete typed fields (resource, namespace, payload), routed through the existing structured kubectl tools rather than a shell. Anything that can only be expressed as a free-form command is refused — returned as `awaiting_user_approval` with a `fallbackReason` explaining the constraint — in both automatic and manual mode, and refused all-or-nothing across the whole action set rather than partially downgraded. GitOps-based remediation (which opens a pull request rather than mutating the cluster live) is unaffected.
+
+  Enable it with the new Helm value:
+
+  ```yaml
+  remediation:
+    constrainedExecution:
+      enabled: true
+  ```
+
+  The default remains `false`, and behavior is byte-identical to today when disabled.
+
+  See [Constraining Automatic Execution](https://devopstoolkit.ai/docs/ai-engine/tools/remediate#constraining-automatic-execution) for what the constraint covers, what it deliberately does not, and what the default leaves open. ([#810](https://github.com/vfarcic/dot-ai/issues/810))
+- ## Untrusted-Content Boundary for Investigation Tool Output
+
+  Kubernetes logs, events, and resource annotations are attacker-writable text that re-enters the model's context as part of an investigation — with nothing to distinguish it from an operator's own instruction. Tool output from `kubectl_logs`, `kubectl_events`, `kubectl_describe` annotations, files read from a cloned GitOps repository, and third-party MCP results is now wrapped in explicit `<untrusted_tool_output>` fences when it re-enters context, and the system prompt states plainly that fenced content is data to analyze, never instruction to follow. This applies to every `remediate` and `operate` request — it is not a flag, by design.
+
+  Callers that can separate their own instruction from quoted telemetry at capture time can now say so explicitly: an optional `evidence` field on `remediate` and `operate` composes its content inside the same untrusted fence, kept apart from `issue`/`intent`. Existing callers that omit `evidence` are unaffected — the prompt they send is byte-identical to before.
+
+  A controlled test against a prompt engineered specifically to defeat the boundary measured 0 of 18 attempts getting the model to comply with an injected instruction, versus 17 of 20 when the framing prose was removed and only the fences remained — the prose is what makes the boundary work, not the delimiters alone.
+
+  See [Untrusted Content](https://devopstoolkit.ai/docs/ai-engine/operations/untrusted-content/) for what the boundary covers, what `evidence` is for, and what it does and does not guarantee. ([#811](https://github.com/vfarcic/dot-ai/issues/811))
+
+
 ## [2.3.1] - 2026-09-02
 
 ### Bug Fixes
