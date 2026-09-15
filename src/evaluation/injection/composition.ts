@@ -8,17 +8,22 @@
  * It deliberately reads `prompts/remediate-system.md` from disk rather than
  * copying it, so M2's system-prompt framing is picked up with no harness change.
  *
- * The two things it *does* restate — the user-message template and the
- * investigation tool set — cannot be imported: `src/tools/remediate.ts` keeps
- * both private, and the kubectl tool definitions live in a separate package
- * (`packages/agentic-tools`) that `src/` cannot import under `rootDir: ./src`.
+ * The one thing it still *restates* is the investigation tool set: the kubectl
+ * tool definitions live in a separate package (`packages/agentic-tools`) that
+ * `src/` cannot import under `rootDir: ./src`.
  * `tests/unit/evaluation/injection/composition.test.ts` reads the production
- * source and fails if either drifts from what is restated here.
+ * source and fails if it drifts from what is restated here.
  *
  * **M2 updated this file.** Production now delimits untrusted tool output
  * (`src/core/untrusted-content.ts`), and {@link frameToolResult} applies the
  * production wrapper itself rather than a copy of it — the eval has to measure
  * the composition users actually get, not one that resembles it.
+ *
+ * **M4 updated it again**, and in the same direction: the user-message template
+ * was the last thing restated here, and it is now production's own
+ * {@link buildRemediateUserMessage}, re-exported. Every remaining pin in
+ * `composition.test.ts` is either an import or a source-level assertion about
+ * where production applies something — nothing is a copy waiting to diverge.
  */
 
 import { readFileSync } from 'fs';
@@ -27,6 +32,7 @@ import {
   UNTRUSTED_TOOL_OUTPUT_OPEN,
   wrapUntrustedToolOutput,
 } from '../../core/untrusted-content';
+import { buildRemediateUserMessage } from '../../tools/remediate';
 
 /** Path of the production system prompt this harness exercises. */
 export const REMEDIATE_SYSTEM_PROMPT_PATH = join(
@@ -35,12 +41,17 @@ export const REMEDIATE_SYSTEM_PROMPT_PATH = join(
 );
 
 /**
- * Literal prefix `src/tools/remediate.ts` puts in front of the caller's `issue`
- * when it builds `toolLoop`'s `userMessage`. Channel 2 of the PRD's threat model
- * is exactly this interpolation: no delimiter, no "treat as data" framing.
+ * Template `src/tools/remediate.ts` composes the caller's `issue` into when it
+ * builds `toolLoop`'s `userMessage`.
+ *
+ * Read from disk by the production builder this module re-exports, so the
+ * harness cannot compose a wording production has moved on from. Named here
+ * because `composition.test.ts` asserts production loads this exact file.
  */
-export const REMEDIATE_USER_MESSAGE_PREFIX =
-  'Investigate this Kubernetes issue: ';
+export const REMEDIATE_USER_MESSAGE_TEMPLATE = join(
+  'prompts',
+  'remediate-user.md'
+);
 
 /** `maxIterations` production passes to `toolLoop` for an investigation. */
 export const REMEDIATE_MAX_ITERATIONS = 25;
@@ -76,14 +87,24 @@ export function loadRemediateSystemPrompt(projectRoot = process.cwd()): string {
 }
 
 /**
- * Build the `userMessage` production sends for an investigation.
+ * The `userMessage` production sends for an investigation — production's own
+ * function, not a copy of it.
  *
- * Mirrors `src/tools/remediate.ts`:
- * `userMessage: \`Investigate this Kubernetes issue: ${session.data.issue}\``
+ * Until PRD #811 M4 this restated the interpolation as a template literal, with
+ * `composition.test.ts` pinning the production source against it. That pin was
+ * the weaker construction: it could only fail *after* the two had already
+ * diverged, and it went red on a rename that changed nothing the model sees. M4
+ * moved the composition into `prompts/remediate-user.md` — it now has framing
+ * prose to carry, which belongs in `prompts/` per the project's rules — and
+ * exported the builder, so the harness calls the same code path and there is
+ * nothing left to drift.
+ *
+ * The optional second argument is the caller's `evidence` (PRD #811 Channel 2).
+ * The harness does not pass it: corpus v1's `caller_field` samples predate the
+ * field and compose everything into `issue`, which is exactly the shape M4 must
+ * leave unchanged.
  */
-export function buildRemediateUserMessage(issue: string): string {
-  return `${REMEDIATE_USER_MESSAGE_PREFIX}${issue}`;
-}
+export { buildRemediateUserMessage };
 
 /**
  * Files that carry production's untrusted-content framing, both halves of it.
@@ -160,8 +181,8 @@ export function normaliseWhitespace(source: string): string {
  * The exact expression `PluginManager.createToolExecutor` returns a tool result
  * from, pinned by `composition.test.ts`.
  *
- * This is the Channel 1 counterpart of the `REMEDIATE_USER_MESSAGE_PREFIX` pin:
- * raw command output, no wrapper, no delimiter. Change it in production and the
+ * This is the Channel 1 counterpart of sharing {@link buildRemediateUserMessage}
+ * with production: raw command output, no wrapper, no delimiter. Change it in production and the
  * drift guard fails here rather than silently in M3's numbers.
  *
  * Compared through {@link normaliseWhitespace}, so reformatting is not mistaken

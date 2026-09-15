@@ -40,6 +40,7 @@ DevOps AI Toolkit brings AI-powered intelligence to platform engineering, Kubern
 - Semantic search over organizational documentation
 - Automated repository setup with governance files
 - Shared prompt libraries for consistent workflows
+- [Untrusted-content boundary](https://devopstoolkit.ai/docs/ai-engine/operations/untrusted-content/) separating cluster output from operator instruction in remediation and Day 2 operations
 
 ## Deployment
 

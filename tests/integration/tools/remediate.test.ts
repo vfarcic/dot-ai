@@ -14,6 +14,10 @@ import type {
   PodResource,
   RemediationAction,
 } from '../helpers/api-shapes.js';
+import {
+  observeCallerFieldComposition,
+  readModelPromptCapture,
+} from '../helpers/model-prompt-capture.js';
 
 /**
  * What this file reads off `data`. Fields are declared present because each
@@ -36,7 +40,16 @@ interface RemediatePayload {
     };
     investigation: { dataGathered: string[]; iterations: unknown };
     remediation: { actions: RemediationAction[] };
+    /** PRD #811 M4: the check this engine's own model proposed. */
+    validationIntent: string;
+    /** PRD #811 M4: what the choice-2 guidance hands a client agent. */
+    instructions: {
+      nextSteps: string[];
+      validationCall: { issue: string; evidence: string };
+    };
   };
+  /** PRD #811 M4: the stored session, as `GET /api/v1/sessions/:id` returns it. */
+  data?: { finalAnalysis?: { validationIntent?: string } };
 }
 
 const SSE_BASE_URL = process.env.MCP_BASE_URL || 'http://localhost:3456';
@@ -176,11 +189,12 @@ EOF`);
       });
 
       // PHASE 1: AI Investigation
+      const operatorIssue = `my app in ${testNamespace} namespace is crashing`;
       const investigationResponse =
         await integrationTest.httpClient.post<RemediatePayload>(
           '/api/v1/tools/remediate',
           {
-            issue: `my app in ${testNamespace} namespace is crashing`,
+            issue: operatorIssue,
             interaction_id: 'manual_analyze',
           }
         );
@@ -419,7 +433,79 @@ EOF`);
 
       // NOTE: Visualization endpoint is tested in version.test.ts (fastest tool)
 
-      // PHASE 2: Execute remediation via MCP (choice 1)
+      // PHASE 2: Agent-mediated execution guidance (choice 2) - PRD #811 M4.
+      //
+      // Choice 2 executes nothing. It reads the finished session and returns the
+      // parameters a client agent should send back after running the commands
+      // itself, so asking for it here costs no AI call and leaves the session
+      // untouched for the choice-1 execution below. It is the one validation hop
+      // this engine composes but an agent carries.
+      //
+      // The claim is the split. `validationCall.issue` is the trusted channel, so
+      // it carries the operator's own original words; `validationCall.evidence`
+      // carries `validationIntent`, which this engine's model wrote while reading
+      // framed untrusted tool output and which must not re-enter as instruction.
+      // Before M4 there was no `validationCall`: the agent was told in prose to
+      // send `issue: "<validationIntent>"`, which is the laundering asserted
+      // against here.
+      //
+      // WHAT THIS DOES NOT COVER: the engine half only - what the tool emits.
+      // Whether a client agent actually copies both fields into its follow-up
+      // call is the receiving half, and no client agent runs in this harness, so
+      // that half is not assertable from here at any price.
+      const validationIntent =
+        investigationResponse.data!.result.validationIntent;
+
+      // Non-vacuity: every string contains '', so an empty probe would make the
+      // exclusions below pass without meaning anything.
+      expect(validationIntent.length).toBeGreaterThan(20);
+
+      const agentExecutionResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            executeChoice: 2,
+            sessionId,
+            mode: 'manual',
+            interaction_id: 'manual_execute_via_agent',
+          }
+        );
+
+      expect(agentExecutionResponse).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            sessionId: sessionId,
+            message: 'Ready for agent execution',
+            instructions: {
+              // The agent is pointed at a structured value rather than asked to
+              // parse a parameter out of a prose line.
+              nextSteps: expect.arrayContaining([
+                expect.stringContaining('`validationCall`'),
+              ]),
+              validationCall: {
+                issue: expect.stringContaining(operatorIssue),
+                evidence: expect.stringContaining(validationIntent),
+              },
+            },
+          },
+          tool: 'remediate',
+        },
+      });
+
+      // The exclusion half, which `toMatchObject` cannot state: the model's text
+      // reaches the second loop through `evidence` and through nothing else. The
+      // prose is checked too, because that is exactly where the pre-M4 shape put
+      // it.
+      const validationCall =
+        agentExecutionResponse.data!.result.instructions.validationCall;
+      expect(validationCall.issue).not.toContain(validationIntent);
+      expect(
+        agentExecutionResponse.data!.result.instructions.nextSteps.join('\n')
+      ).not.toContain(validationIntent);
+
+      // PHASE 3: Execute remediation via MCP (choice 1)
       const executionResponse =
         await integrationTest.httpClient.post<RemediatePayload>(
           '/api/v1/tools/remediate',
@@ -485,7 +571,7 @@ EOF`);
         expect(result.success).toBe(true);
       });
 
-      // PHASE 3: Verify ACTUAL cluster remediation ✅ KEY VALIDATION
+      // PHASE 4: Verify ACTUAL cluster remediation ✅ KEY VALIDATION
 
       // Wait for deployment to rollout new pods with updated memory
       await new Promise(resolve => setTimeout(resolve, 10000));
@@ -524,7 +610,7 @@ EOF`);
       const actualMi = isGi ? memValue * 1024 : memValue;
       expect(actualMi).toBeGreaterThan(128); // AI should have increased from 128Mi
 
-      // PHASE 4: Verify SSE events received during remediation (PRD #425)
+      // PHASE 5: Verify SSE events received during remediation (PRD #425)
       const allSSEData = sse.chunks.join('');
 
       // Should have received session-created when investigation started
@@ -690,6 +776,63 @@ EOF`);
         (a: RemediationAction) => a.gitSource
       );
       expect(autoGitSourceActions.length).toBe(0);
+
+      // PRD #811 M4 — the one Channel 2 path M2 sharpened rather than closed.
+      //
+      // `validationIntent` is free text the model *produced from* framed
+      // untrusted tool output. `src/tools/remediate.ts` interpolates it into
+      // `validationIssue`, which becomes the `issue` of a second session and
+      // then that session's user message — the channel both system prompts now
+      // declare authoritative. Text that entered untrusted, was correctly
+      // fenced, and was echoed back by the model re-enters unfenced.
+      //
+      // This assertion rides on the automatic-mode run rather than paying for
+      // an execution of its own: the `validation.success` expectation above
+      // already proves the second session ran, which is the only precondition
+      // the path has (`overallSuccess && executedCommandCount > 0`). The fix
+      // Design Decision #3 leaves open is the structural half — delimit the
+      // re-entered string — so that is what is asserted, with the delimiter
+      // derived from the capture exactly as the Channel 1 tests derive theirs.
+      const autoSessionId = autoResponse.data!.result.sessionId;
+      const storedSession =
+        await integrationTest.httpClient.get<RemediatePayload>(
+          `/api/v1/sessions/${autoSessionId}`
+        );
+
+      expect(storedSession).toMatchObject({
+        success: true,
+        data: {
+          data: {
+            finalAnalysis: {
+              validationIntent: expect.any(String),
+            },
+          },
+        },
+      });
+
+      const echoedValidationIntent =
+        storedSession.data!.data!.finalAnalysis!.validationIntent!;
+      const validationCapture = await readModelPromptCapture(
+        'remediate-validation',
+        autoNamespace
+      );
+
+      // `instruction` is the operator's own issue text, which the validation
+      // message quotes verbatim; `evidence` is the model-echoed string. The
+      // split is the claim: the operator's text stays authoritative, the
+      // echoed text does not.
+      expect(
+        observeCallerFieldComposition(validationCapture, {
+          instruction: `auto-test-app deployment in ${autoNamespace} namespace is crashing`,
+          evidence: echoedValidationIntent,
+        })
+      ).toMatchObject({
+        instructionReachedUserMessage: true,
+        instructionOutsideDelimitedRegion: true,
+        evidenceReachedUserMessage: true,
+        evidenceInsideDelimitedRegion: true,
+        systemPromptFramesDelimitedContentAsData: true,
+      });
 
       // PHASE 2: Verify ACTUAL cluster remediation - outcome-based validation
       await new Promise(resolve => setTimeout(resolve, 15000)); // Wait for new pods to stabilize

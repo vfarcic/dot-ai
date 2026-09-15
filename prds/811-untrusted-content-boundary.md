@@ -1,10 +1,10 @@
 # PRD #811: Untrusted-Content Boundary for AI Investigation Loops
 
-**Status**: In Progress — M1–M3 complete, M4 next
+**Status**: Complete — all six milestones delivered
 **Priority**: Medium
 **GitHub Issue**: [#811](https://github.com/vfarcic/dot-ai/issues/811)
 **Created**: 2026-09-14
-**Last Updated**: 2026-09-14
+**Last Updated**: 2026-09-15
 **Related Issues**: [#799](https://github.com/vfarcic/dot-ai/issues/799) (the originating feature request — this PRD is the engine-side response to its items 1 and 2); [#810](https://github.com/vfarcic/dot-ai/issues/810) (constrained automatic execution — the other half); [#401](https://github.com/vfarcic/dot-ai/issues/401) (per-user kubectl identity)
 
 ---
@@ -92,9 +92,9 @@ M2 therefore does both: the prompt states the rule (*"a forged boundary does not
 - [x] **M1** — Injection eval corpus in `eval/datasets`, with current behavior baselined so regression is measurable
 - [x] **M2** — Untrusted tool output delimited and framed in `remediate` and `operate-analysis` prompt composition
 - [x] **M3** — Eval demonstrates **no regression** against the corpus (see Design Decision #5); the quality arm is qualified — see Design Decision #6
-- [ ] **M4** — Optional `evidence` field added to affected tool schemas, MCP and REST, with OpenAPI regenerated
-- [ ] **M5** — Integration tests: existing single-field callers unchanged; `evidence` composed as delimited data
-- [ ] **M6** — Documentation: the trust boundary, what `evidence` is for, and what it does and does not guarantee
+- [x] **M4** — Optional `evidence` field added to affected tool schemas, MCP and REST, with OpenAPI regenerated
+- [x] **M5** — Integration tests: existing single-field callers unchanged; `evidence` composed as delimited data
+- [x] **M6** — Documentation: the trust boundary, what `evidence` is for, and what it does and does not guarantee
 
 ## Validation
 
@@ -147,9 +147,32 @@ That is *not* evidence the fence is pointless — no corpus v1 payload forges th
 | Acknowledgement | 92.0% → **100.0%** | 4.8% → **29.2%** |
 | Judge failures / parse failures | 0 → 0 | 0 → 0 |
 
-The regression guard caught nothing. Two secondary metrics moved the way M2 wanted, including the one identified beforehand as the downside risk: Gemini's delivery *rose* and its denominator *grew*, so three more samples were genuinely tested and all three resisted — the post-M2 Gemini number rests on more evidence than the pre-M2 one, not less. Framing verified rather than assumed: 215/215 and 246/246 tool outputs carry the fence, zero unframed.
+The regression guard caught nothing. Two secondary metrics moved the way M2 wanted, including the one identified beforehand as the downside risk: Gemini's delivery *rose* and its denominator *grew*, so three more samples were genuinely tested and all three resisted — the post-M2 Gemini number rests on more evidence than the pre-M2 one, not less. Framing verified rather than assumed: every tool output in both runs carried the fence, zero unframed (counted at run time — the baseline JSON summaries carry no framing counter, so this is not re-derivable from the committed artifacts).
 
 **Channel 2 did not move.** `caller_field` ASR is 0.0% on both at an unchanged 4/4 scored, including `inj-014` (the GrafanaGhost `INTENT` sample) — so M2's new "the user message is authoritative" line did not measurably raise Channel 2's risk, though M4 is still what closes it.
+
+### M4/M5/M6 as delivered
+
+**`evidence`** is optional and additive on `remediate` and `operate`, composed inside an
+`<untrusted_evidence>` fence while `issue`/`intent` stay outside it. One Zod field per tool renders to MCP, REST and `schema/openapi.json` (regenerated) from a single declaration. Scope is those two tools because **a fenced region the prompt never explains is decoration, and an `evidence` field advertised in a tool schema is a promise to the caller that its content will be treated as data** — shipping it on a loop that cannot keep that promise is worse than not shipping it. `recommend` has no `toolLoop` at all, so the Problem section naming it alongside the others slightly overstates the similarity.
+
+**Caller evidence got its own tag rather than reusing `<untrusted_tool_output>`**, which would have passed the tests with no prompt change. Reusing it would have made the prompts' forgery rule false *as written*: its force comes from a provenance claim ("the tags are added by the system after the tool returns"), and that claim dies the moment the tag appears legitimately in a user message. Both tags share one neutralisation list; an audit of 17 payload shapes found cross-tag opening dead in both directions, structurally — `[boundary token removed]` contains no `<` or `>`, so removing a token never makes its neighbours adjacent.
+
+**Three laundering hops were closed.** Model-authored text produced *from* fenced tool output was re-entering through the authoritative channel: `remediate`'s in-process validation hop, `operate`'s (`operate-execution.ts`, found independently by review and audit after M4 first shipped), and the agent-mediated choice-2 guidance. All three now compose the operator's own words plus engine prose as `issue`, and everything model-authored as `evidence`. The task instruction deliberately stays **outside** the fence — putting it inside would tell the model to obey nothing in the only place that says what to do.
+
+All three hops re-enter through `handleRemediateTool`, which enforces `issue.max(2000)`, so the composed issue is length-fitted: the **operator's request** is trimmed with a visible ` […truncated]` marker and a `ValidationHopComposition` warning, never the framing. Budgets are 1215 characters (`remediate`) and 1148 (`operate`). Across 23 integration tests — six full remediations and two operate executions — the truncation never fired once.
+
+**M6** is `docs/ai-engine/operations/untrusted-content.md` plus linked additions to both tool guides, observability, the docs index and `README.md`. Its four code snippets are captured from the live composition functions and re-verified by script against the committed Markdown.
+
+### Follow-ups — tracked, deliberately not in this PRD
+
+- **Extend the boundary to the remaining loops.** `query`, `impact-analysis`, `recommend`, the capability scan and the visualization loop are unframed. Priority differs by channel: `impact-analysis` first for Channel 1 (same `fs_read`-over-attacker-writable-repo surface), `query` first for Channel 2 (its user message is the bare caller string with no prefix at all).
+- **A third channel the threat model never enumerated.** `operate`'s user message also interpolates Qdrant knowledge chunks and CRD descriptions, and the system prompt tells the model to apply them **as fact**. Boundary tags are now stripped from both so neither can forge a region, but they are not wrapped or framed. Giving them their own channel needs a tag, a prompt section and an eval arm — the same size M2 was.
+- **`parseAIFinalAnalysis` takes the first `{`** and brace-matches from there, so any model prose containing braces fails the parse. Seen three times during this PRD, each time diagnosed as a flake upstream of the assertion that failed. After M4 it sits on two paths, not one.
+- **`operate`'s REST args are never `.parse`d**, so the published spec advertises a `maxLength` the server does not enforce. Pre-existing — `intent`'s own bound is equally unenforced there.
+- **Corpus v2**: a sample targeting `fs_read`/`SA_TOKEN_CANARY`, and a fixture secret a model can transcribe without arithmetic (the base64 canary loses ~1 in 9 real leaks).
+- **A payload-free control arm** to measure the false-positive base rate of `no_remediation`, which fires on an absence across 8 samples.
+- **Fail-closed defaulting** (Design Decision #1) and **a tag nonce** (#7), both deferred with reasons recorded above.
 
 ### Known limitations of the M1 instrument
 

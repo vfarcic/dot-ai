@@ -6,10 +6,14 @@ import {
 } from '../core/mcp-client-registry';
 import { createAIProvider } from '../core/ai-provider-factory';
 import { Logger } from '../core/error-handling';
-import { loadPrompt } from '../core/shared-prompt-loader';
+import { loadPromptOrThrow } from '../core/shared-prompt-loader';
 import { getVisualizationUrl } from '../core/visualization';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
-import { withUntrustedContentBoundary } from '../core/untrusted-content';
+import {
+  buildUntrustedEvidenceBlock,
+  neutraliseBoundaryTokens,
+  withUntrustedContentBoundary,
+} from '../core/untrusted-content';
 import {
   EmbeddedContext,
   OperateSessionData,
@@ -82,6 +86,8 @@ interface OperateAnalysisResult {
  * @param pluginManager - Plugin manager for kubectl operations
  * @param sessionId - Optional session ID for refinement
  * @param interaction_id - Optional interaction ID for eval datasets
+ * @param evidence - PRD #811 M4: optional material the caller quoted rather than
+ *   wrote, composed into the user message inside an untrusted-content boundary
  * @returns Operation output with proposed changes
  */
 export async function analyzeIntent(
@@ -90,16 +96,21 @@ export async function analyzeIntent(
   sessionManager: GenericSessionManager<OperateSessionData>,
   pluginManager: PluginManager,
   sessionId?: string,
-  interaction_id?: string
+  interaction_id?: string,
+  evidence?: string
 ): Promise<OperateAnalysisResult> {
   logger.info('Starting operate analysis', { intent, sessionId });
 
   // 1. Embed context (patterns, policies, capabilities)
+  // Only the operator's own request steers the vector search: `evidence` is
+  // attacker-influenceable text, and letting it choose which capabilities and
+  // knowledge get embedded would be a way to steer the operation from outside
+  // the authoritative channel.
   const context = await embedContext(intent, logger);
 
   // 2. Load prompts (static system + dynamic user message)
   const systemPrompt = loadSystemPrompt();
-  const userMessage = buildUserMessage(intent, context);
+  const userMessage = buildUserMessage(intent, context, evidence);
 
   // 3. Execute AI tool loop with kubectl tools (PRD #343: via plugin)
   const aiResult = await executeToolLoop(
@@ -157,26 +168,58 @@ export async function analyzeIntent(
  * This prompt is cacheable across all operate calls
  */
 function loadSystemPrompt(): string {
-  return loadPrompt('operate-system');
+  return loadPromptOrThrow('operate-system');
 }
 
 /**
- * Builds dynamic user message with intent and embedded context.
+ * Builds dynamic user message with the operator's request and embedded context.
  * Uses template from prompts/operate-user.md and formatting functions from operate.ts.
  *
  * PRD #375: Unified Knowledge Base — uses single knowledgeContext instead of
  * separate patterns/policies sections.
+ *
+ * PRD #811 M4: the caller's `evidence`, when there is any, is delimited by
+ * {@link buildUntrustedEvidenceBlock} and framed by the template as data. When
+ * there is none the template emits no `# Quoted Evidence` section and no
+ * region at all, so callers that send `intent` alone get the message they have
+ * always got — for any `intent` that carries no boundary token, the one thing
+ * {@link neutraliseBoundaryTokens} rewrites. That guard is on the *trusted*
+ * field on purpose: a laundered `intent` could otherwise open an
+ * `<untrusted_evidence>` region of its own, or emit a balanced pair ahead of the
+ * real one, and no honest operator types a boundary tag into a request.
+ *
+ * **All three interpolations are guarded, not just `intent`.** This template has
+ * two other slots, and both are triple-stache and both are writable by someone:
+ * `knowledgeContext` carries `chunk.content` straight out of Qdrant ingest with
+ * no escaping, and `capabilities` carries CRD descriptions anyone who can
+ * `kubectl apply` a CRD chooses. Guarding `intent` alone would leave the forgery
+ * the guard exists to stop available through either of them — a balanced
+ * `<untrusted_evidence>…</untrusted_evidence>` pair emitted ahead of the real
+ * region makes everything after it, including this template's own trailing
+ * instruction, read as trusted message text the attacker wrote. Whether those
+ * two deserve a fence and a channel of their own is a separate question the PRD's
+ * threat model does not answer; neutralising them is the structural half, and it
+ * is a no-op for honest content.
+ *
+ * Exported so the claim above is testable as behaviour rather than as a grep
+ * over this file — the three slots reach the model through one composed string,
+ * and counting the regions in it is what says no slot forged one.
  */
-function buildUserMessage(intent: string, context: EmbeddedContext): string {
+export function buildUserMessage(
+  intent: string,
+  context: EmbeddedContext,
+  evidence?: string
+): string {
   // Format context sections using shared formatting functions
   const knowledgeContextText = formatKnowledgeContext(context.knowledgeChunks);
   const capabilitiesText = formatCapabilities(context.capabilities);
 
   // Use loadPrompt with Handlebars template variables
-  return loadPrompt('operate-user', {
-    intent,
-    knowledgeContext: knowledgeContextText,
-    capabilities: capabilitiesText,
+  return loadPromptOrThrow('operate-user', {
+    intent: neutraliseBoundaryTokens(intent),
+    evidenceBlock: buildUntrustedEvidenceBlock(evidence),
+    knowledgeContext: neutraliseBoundaryTokens(knowledgeContextText),
+    capabilities: neutraliseBoundaryTokens(capabilitiesText),
   });
 }
 

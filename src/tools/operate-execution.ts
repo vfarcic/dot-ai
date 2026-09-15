@@ -14,7 +14,33 @@ import {
 import { GenericSessionManager } from '../core/generic-session-manager';
 import { executeCommands } from '../core/command-executor';
 import { OperateSessionData, ExecutionResult, OperateOutput } from './operate';
-import { handleRemediateTool } from './remediate';
+import {
+  buildValidationEvidence,
+  fitToIssueBound,
+  handleRemediateTool,
+} from './remediate';
+import { loadPromptOrThrow } from '../core/shared-prompt-loader';
+
+/**
+ * Compose the trusted half of the post-execution validation request (PRD #811
+ * M4) — engine prose from `prompts/`, carrying the operator's own `intent`.
+ *
+ * Fitted by {@link fitToIssueBound}, because this hop re-enters through
+ * {@link handleRemediateTool}, which validates its input; the sibling half is
+ * fitted inside {@link buildValidationEvidence} for the same reason. Sharing the
+ * fitting with `remediate`'s own builders is what keeps the three hops from
+ * drifting: the two `issue` compositions now differ only in which template they
+ * load, and this one used to be the only one that fitted.
+ */
+export function buildOperateValidationIssue(intent: string): string {
+  return fitToIssueBound(
+    originalIntent =>
+      loadPromptOrThrow('operate-validation-issue', {
+        originalIntent,
+      }).trimEnd(),
+    intent
+  );
+}
 
 /**
  * Executes approved operational changes
@@ -98,8 +124,29 @@ export async function executeOperations(
       try {
         // Call remediate tool internally with validation intent
         // PRD #359: Uses unified plugin registry
+        //
+        // PRD #811 M4 — the third Channel 2 re-entry, and the widest of them.
+        // `validationIntent` is free text the *model* wrote in the operate
+        // analysis loop, which reads framed untrusted tool output; sending it as
+        // the whole `issue` made a model-authored string the entire instruction
+        // of a fresh `remediate` investigation — a loop holding kubectl, the
+        // dry-run verbs, `git_clone`/`fs_list`/`fs_read` and any attached MCP
+        // servers. Emitting such a string is not disobedience by the analysis
+        // loop; it is what the field is for, which is why the fix has to be here
+        // rather than in the prompt.
+        //
+        // Same split as `remediate.ts`'s own validation hop: the operator's
+        // original `intent` and the task this tool is giving the model stay on
+        // the trusted side, and everything the model produced — the proposed
+        // check and the command list — goes through `evidence`, where
+        // `buildRemediateUserMessage` delimits it and `prompts/remediate-user.md`
+        // frames it as a lead rather than an instruction.
         const validationResponse = await handleRemediateTool({
-          issue: session.data.validationIntent,
+          issue: buildOperateValidationIssue(session.data.intent),
+          evidence: buildValidationEvidence(
+            session.data.validationIntent,
+            session.data.commands
+          ),
           executedCommands: session.data.commands,
           interaction_id: session.data.interaction_id,
         });

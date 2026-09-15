@@ -366,3 +366,235 @@ export function observeUntrustedBoundary(
     contextAfterProbe: after.slice(0, 400),
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * Channel 2 — the caller-supplied field (PRD #811, M4/M5)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Where the user turn starts in a capture, and every marker that ends it.
+ *
+ * `debugLogInteraction` renders the conversation as `System: …`, a blank line,
+ * `user: …`, a blank line, `assistant: …`, and so on. The user message is
+ * therefore everything between the `user: ` label and whichever role label
+ * comes next — which is the whole of what a caller's `issue`/`intent` composes
+ * into, and the only region Channel 2 can reach.
+ */
+const USER_TURN_LABEL = '\n\nuser: ';
+const TURN_LABELS = [
+  '\n\nassistant: ',
+  '\n\ntool: ',
+  '\n\nuser: ',
+  '\n\nSystem: ',
+];
+
+/** A delimiter-shaped token and where it sits. */
+interface DelimiterToken {
+  text: string;
+  keyword: string;
+  index: number;
+}
+
+/**
+ * Is this token the *closing* half of a pair?
+ *
+ * Every shape in {@link DELIMITER_SHAPES} closes the same two ways — a slash
+ * (`</x>`, `<<</X>>>`, `[/X]`) or the word END (`--- END X ---`, `END CLUSTER
+ * OUTPUT`) — so this is vocabulary-independent in the same way the shapes are.
+ */
+function isClosingForm(token: string): boolean {
+  return token.includes('/') || /\bEND\b/i.test(token);
+}
+
+/** Every delimiter-shaped token in `text`, with offsets into `text` preserved. */
+function delimiterTokens(text: string): DelimiterToken[] {
+  // Blanked rather than removed, so every index below still points into `text`.
+  const stripped = text.replace(CAPTURE_LABEL, match =>
+    ' '.repeat(match.length)
+  );
+  const tokens: DelimiterToken[] = [];
+  const seen = new Set<string>();
+
+  for (const shape of DELIMITER_SHAPES) {
+    for (const match of stripped.matchAll(shape)) {
+      const keyword = delimiterKeyword(match[0]);
+      if (!keyword || PLACEHOLDER_KEYWORDS.has(keyword.toLowerCase())) continue;
+      const id = `${match.index}:${match[0]}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      tokens.push({ text: match[0], keyword, index: match.index });
+    }
+  }
+
+  return tokens.sort((a, b) => a.index - b.index);
+}
+
+/** One delimited region: the span strictly between an open/close pair. */
+interface DelimitedRegion {
+  open: string;
+  keyword: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Regions of `text` that are fenced by a boundary `systemPrompt` describes.
+ *
+ * Two conditions, and both are needed for this to mean anything:
+ *
+ * 1. **A real pair.** An opening token and a later token that is the *closing
+ *    form of the same keyword* — not merely another token whose keyword
+ *    appears again. Without that the markdown `[Policy]` / `[Pattern]` labels
+ *    `prompts/operate-user.md` prints around knowledge-base entries would read
+ *    as fences, and an unfenced user message would look fenced.
+ * 2. **The system prompt names it.** Identical to the Channel 1 rule in
+ *    {@link observeUntrustedBoundary}, for the identical reason: a fence the
+ *    prompt never mentions is decoration, and it is also how a token that
+ *    coincidentally paired gets rejected.
+ *
+ * Nothing here knows what M4's syntax will be — it is derived from the capture
+ * exactly as M2's was.
+ */
+function delimitedRegions(
+  text: string,
+  systemPrompt: string
+): DelimitedRegion[] {
+  const tokens = delimiterTokens(text);
+  const lowerSystemPrompt = systemPrompt.toLowerCase();
+  const regions: DelimitedRegion[] = [];
+  const consumed = new Set<number>();
+
+  for (let i = 0; i < tokens.length; i++) {
+    const open = tokens[i];
+    if (consumed.has(i) || isClosingForm(open.text)) continue;
+    if (!lowerSystemPrompt.includes(open.keyword.toLowerCase())) continue;
+
+    for (let j = i + 1; j < tokens.length; j++) {
+      const close = tokens[j];
+      if (consumed.has(j)) continue;
+      if (close.text === open.text) continue;
+      if (close.keyword.toLowerCase() !== open.keyword.toLowerCase()) continue;
+      if (!isClosingForm(close.text)) continue;
+
+      consumed.add(i);
+      consumed.add(j);
+      regions.push({
+        open: open.text,
+        keyword: open.keyword,
+        start: open.index + open.text.length,
+        end: close.index,
+      });
+      break;
+    }
+  }
+
+  return regions;
+}
+
+/**
+ * What a capture says about the caller-supplied channel (PRD #811, M4/M5).
+ *
+ * Channel 2 of the PRD's threat model is a single field mixing the operator's
+ * instruction with any evidence the caller pasted in. M4 adds an optional
+ * `evidence` field so the two can be told apart; M5 is the claim that (a)
+ * callers who do not use it are composed exactly as they are today, and (b)
+ * content that arrives through it is composed as delimited data.
+ *
+ * The first five fields are the claim; the rest are diagnostics that ride along
+ * so a failed `toMatchObject` prints why rather than just what.
+ */
+export interface CallerFieldObservation {
+  /** The caller's instruction field reached the user message, verbatim and whole. */
+  instructionReachedUserMessage: boolean;
+  /** …and it is NOT inside a delimited region — it is still the authoritative channel. */
+  instructionOutsideDelimitedRegion: boolean;
+  /** The caller's `evidence` reached the user message, verbatim and whole. */
+  evidenceReachedUserMessage: boolean;
+  /** …and it IS inside a delimited region the system prompt names. */
+  evidenceInsideDelimitedRegion: boolean;
+  /** How many such regions the user message has. Zero is the no-`evidence` claim. */
+  delimitedRegionCount: number;
+
+  /** The system prompt says delimited content is data, not instruction. */
+  systemPromptFramesDelimitedContentAsData: boolean;
+  /** The opening delimiter found around the evidence, verbatim. */
+  delimiter: string | null;
+  /** The word inside it that the system prompt was checked against. */
+  delimiterKeyword: string | null;
+  /** Length of the user message the capture recorded, as a sanity check. */
+  userMessageLength: number;
+  /** Head of the user message, so a failure shows how it was composed. */
+  userMessagePreview: string;
+  /** Head of each delimited region, so a failure shows what was fenced. */
+  delimitedRegionPreviews: string[];
+}
+
+/**
+ * Decide how `capture` composed the caller's fields into the user message.
+ *
+ * `probes.instruction` and `probes.evidence` are the *whole* strings the caller
+ * sent, not markers inside them, so finding one by `indexOf` also proves it
+ * arrived contiguous and unaltered — an implementation that split, re-wrapped
+ * or escaped the caller's text fails rather than passes.
+ */
+export function observeCallerFieldComposition(
+  capture: string,
+  probes: { instruction: string; evidence?: string }
+): CallerFieldObservation {
+  const systemStart = capture.indexOf('System: ');
+  const userStart = capture.indexOf(USER_TURN_LABEL, systemStart);
+  const systemPrompt =
+    systemStart >= 0 && userStart > systemStart
+      ? capture.slice(systemStart + 'System: '.length, userStart)
+      : '';
+
+  const messageStart =
+    userStart >= 0 ? userStart + USER_TURN_LABEL.length : capture.length;
+  const enders = TURN_LABELS.map(label =>
+    capture.indexOf(label, messageStart)
+  ).filter(index => index >= 0);
+  const messageEnd = enders.length > 0 ? Math.min(...enders) : capture.length;
+  const userMessage = capture.slice(messageStart, messageEnd);
+
+  const regions = delimitedRegions(userMessage, systemPrompt);
+  const inAnyRegion = (index: number, length: number) =>
+    regions.some(
+      region => index >= region.start && index + length <= region.end
+    );
+
+  const instructionIndex = userMessage.indexOf(probes.instruction);
+  const evidenceIndex = probes.evidence
+    ? userMessage.indexOf(probes.evidence)
+    : -1;
+
+  const enclosing =
+    evidenceIndex >= 0
+      ? regions.find(
+          region =>
+            evidenceIndex >= region.start &&
+            evidenceIndex + probes.evidence!.length <= region.end
+        )
+      : undefined;
+
+  return {
+    instructionReachedUserMessage: instructionIndex >= 0,
+    instructionOutsideDelimitedRegion:
+      instructionIndex >= 0 &&
+      !inAnyRegion(instructionIndex, probes.instruction.length),
+    evidenceReachedUserMessage: evidenceIndex >= 0,
+    evidenceInsideDelimitedRegion: Boolean(enclosing),
+    delimitedRegionCount: regions.length,
+
+    systemPromptFramesDelimitedContentAsData:
+      DATA_FRAMING_PROSE.test(systemPrompt),
+    delimiter: enclosing?.open ?? regions[0]?.open ?? null,
+    delimiterKeyword: enclosing?.keyword ?? regions[0]?.keyword ?? null,
+    userMessageLength: userMessage.length,
+    // Trimmed to keep a failure message readable while still showing the shape
+    // the caller's fields were composed into.
+    userMessagePreview: userMessage.slice(0, 600),
+    delimitedRegionPreviews: regions.map(region =>
+      userMessage.slice(region.start, Math.min(region.end, region.start + 300))
+    ),
+  };
+}

@@ -3,7 +3,7 @@
   "info": {
     "title": "DevOps AI Toolkit REST API",
     "description": "REST API gateway for DevOps AI Toolkit MCP tools - provides HTTP access to all AI-powered DevOps automation capabilities",
-    "version": "2.3.0",
+    "version": "2.3.1",
     "contact": {
       "name": "Viktor Farcic",
       "url": "https://devopstoolkit.live/",
@@ -361,6 +361,7 @@
               },
               "example": {
                 "intent": "deploy web application with PostgreSQL database",
+                "evidence": "example evidence",
                 "sessionId": "example sessionId",
                 "executeChoice": 42,
                 "refinedIntent": "deploy web application with PostgreSQL database",
@@ -644,6 +645,7 @@
               },
               "example": {
                 "issue": "example issue",
+                "evidence": "example evidence",
                 "mode": "manual",
                 "confidenceThreshold": 42,
                 "maxRiskLevel": "low",
@@ -2904,10 +2906,15 @@
         "type": "object",
         "properties": {
           "intent": {
-            "description": "User intent for operation: \"update X to Y\", \"scale Z\", \"make W HA\", etc.",
+            "description": "What the operator is asking for, in their own words: \"update X to Y\", \"scale Z\", \"make W HA\", etc. This is the authoritative instruction for the operation. Telemetry, logs or manifests quoted from elsewhere belong in `evidence`, not here.",
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
+          },
+          "evidence": {
+            "description": "OPTIONAL. Supporting material quoted from somewhere else — log lines, events, a manifest, an alert payload — that the caller did not write themselves. It is composed into the prompt inside an untrusted-content boundary and analyzed as data; instructions appearing in it are never followed. Callers that cannot tell instruction from quoted evidence at capture time should keep sending `intent` alone, which behaves exactly as it always has.",
+            "type": "string",
+            "maxLength": 20000
           },
           "sessionId": {
             "description": "Session ID from previous operate call",
@@ -3068,7 +3075,12 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2000,
-            "description": "Issue description that needs to be analyzed and remediated"
+            "description": "What the operator is asking for, in their own words. This is the authoritative instruction for the investigation. Telemetry, logs or manifests quoted from elsewhere belong in `evidence`, not here."
+          },
+          "evidence": {
+            "description": "OPTIONAL. Supporting material quoted from somewhere else — log lines, events, a manifest, an alert payload — that the caller did not write themselves. It is composed into the prompt inside an untrusted-content boundary and analyzed as data; instructions appearing in it are never followed. Callers that cannot tell instruction from quoted evidence at capture time should keep sending `issue` alone, which behaves exactly as it always has.",
+            "type": "string",
+            "maxLength": 20000
           },
           "mode": {
             "default": "manual",

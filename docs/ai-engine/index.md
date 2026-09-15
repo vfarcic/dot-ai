@@ -122,3 +122,4 @@ For individual component installation:
 - **[Policy Management](organizational-data/policies.md)** - Governance and compliance
 - **[Knowledge Base](tools/knowledge-base.md)** - Semantic search over documentation
 - **[Project Setup](tools/project-setup.md)** - Repository governance automation
+- **[Untrusted Content](operations/untrusted-content.md)** - How `remediate` and `operate` separate cluster output from operator instruction

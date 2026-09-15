@@ -68,6 +68,8 @@ The DevOps AI Toolkit automatically traces all operations without requiring code
 - Success/failure status
 - Session IDs for workflow correlation
 
+> **Span payload size**: the `gen_ai.tool.input` attribute carries the entire tool input, serialized as JSON. That includes the optional `evidence` parameter on `remediate` and `operate`, which accepts up to 20000 characters — an order of magnitude larger than any other tool argument. OpenTelemetry applies no value-length limit unless one is configured, so size your collector accordingly or set an attribute-length limit. See [Untrusted Content in `remediate` and `operate`](untrusted-content.md#caller-visible-behavior-worth-knowing).
+
 ### AI Provider Operations
 - **Chat completions**: Claude, OpenAI, Google, xAI, and custom endpoints
 - **Tool loop iterations**: Multi-step AI workflows with per-iteration visibility
