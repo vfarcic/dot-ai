@@ -812,113 +812,212 @@ interface AIFinalAnalysisResponse {
 }
 
 /**
+ * Candidate opening-brace offsets for the final analysis object, best first.
+ *
+ * The prompt asks for a fenced ```json block, so braces inside one are tried
+ * before anything else. Everything else follows in document order, which is what
+ * this parser used to consider exclusively — and why prose such as
+ * "no CPU or memory requests/limits defined (`"resources": {}`)" ahead of the
+ * real block used to hijack the parse.
+ */
+function collectJsonCandidateOffsets(aiResponse: string): number[] {
+  const allBraces: number[] = [];
+  for (let i = 0; i < aiResponse.length; i++) {
+    if (aiResponse[i] === '{') {
+      allBraces.push(i);
+    }
+  }
+
+  // Group 1 is the opening fence, so the content offset can be computed exactly
+  const fenceRegex = /(```json[^\S\r\n]*\r?\n?)([\s\S]*?)```/gi;
+  const fenced = new Set<number>();
+  let match: RegExpExecArray | null;
+  while ((match = fenceRegex.exec(aiResponse)) !== null) {
+    const contentStart = match.index + match[1].length;
+    const contentEnd = contentStart + match[2].length;
+    for (const brace of allBraces) {
+      if (brace >= contentStart && brace < contentEnd) {
+        fenced.add(brace);
+      }
+    }
+  }
+
+  return [
+    ...allBraces.filter(brace => fenced.has(brace)),
+    ...allBraces.filter(brace => !fenced.has(brace)),
+  ];
+}
+
+/**
+ * End (exclusive) of the balanced JSON object starting at `start`, or -1 when
+ * the braces never balance.
+ */
+function findBalancedObjectEnd(text: string, start: number): number {
+  let braceCount = 0;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escapeNext = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === '{') braceCount++;
+    if (char === '}') {
+      braceCount--;
+      if (braceCount === 0) {
+        return i + 1;
+      }
+    }
+  }
+
+  return -1;
+}
+
+/**
+ * The structural check that tells the analysis object apart from every other
+ * object in the response. `{}` parses fine, so a successful `JSON.parse` is not
+ * enough to accept a candidate — this is the same required-field check the
+ * parser has always applied, now used to choose a candidate as well as to
+ * reject one.
+ */
+function hasFinalAnalysisShape(
+  parsed: unknown
+): parsed is AIFinalAnalysisResponse {
+  if (typeof parsed !== 'object' || parsed === null) {
+    return false;
+  }
+
+  const candidate = parsed as Partial<AIFinalAnalysisResponse>;
+
+  return Boolean(
+    candidate.issueStatus &&
+    candidate.rootCause &&
+    candidate.confidence !== undefined &&
+    Array.isArray(candidate.factors) &&
+    candidate.remediation
+  );
+}
+
+/**
+ * Field-level validation of a candidate that already has the analysis shape.
+ * Throws the same errors, with the same messages, as before.
+ */
+function validateFinalAnalysisFields(parsed: AIFinalAnalysisResponse): void {
+  // Validate issueStatus field
+  if (!['active', 'resolved', 'non_existent'].includes(parsed.issueStatus)) {
+    throw new Error(
+      `Invalid issue status: ${parsed.issueStatus}. Must be 'active', 'resolved', or 'non_existent'`
+    );
+  }
+
+  if (
+    !parsed.remediation.summary ||
+    !Array.isArray(parsed.remediation.actions) ||
+    !parsed.remediation.risk
+  ) {
+    throw new Error(
+      'Invalid remediation structure in AI final analysis response'
+    );
+  }
+
+  // Validate each remediation action
+  for (const action of parsed.remediation.actions) {
+    if (!action.description || !action.risk || !action.rationale) {
+      throw new Error('Invalid remediation action structure');
+    }
+    if (!['low', 'medium', 'high'].includes(action.risk)) {
+      throw new Error(`Invalid risk level: ${action.risk}`);
+    }
+  }
+
+  // Validate overall risk level
+  if (!['low', 'medium', 'high'].includes(parsed.remediation.risk)) {
+    throw new Error(`Invalid overall risk level: ${parsed.remediation.risk}`);
+  }
+
+  // Validate confidence is between 0 and 1
+  if (parsed.confidence < 0 || parsed.confidence > 1) {
+    throw new Error(
+      `Invalid confidence value: ${parsed.confidence}. Must be between 0 and 1`
+    );
+  }
+}
+
+/**
  * Parse AI final analysis response
+ *
+ * Models routinely wrap the JSON in prose, and that prose contains braces — a
+ * best-practices list mentioning `"resources": {}` is enough. Starting at the
+ * first brace, full stop, latched onto those, parsed the empty object it found
+ * and then rejected it, never reaching the real block. So candidates are tried
+ * in order (fenced block first) and the first one that parses AND has the
+ * analysis shape wins. When none qualifies, the error is the one the first brace
+ * produced — exactly what this function reported before.
  */
 export function parseAIFinalAnalysis(
   aiResponse: string
 ): AIFinalAnalysisResponse {
   try {
-    // Try to extract JSON from the response
-    // Use non-greedy match and try to parse incrementally to handle extra text after JSON
-    const firstBraceIndex = aiResponse.indexOf('{');
-    if (firstBraceIndex === -1) {
+    const candidates = collectJsonCandidateOffsets(aiResponse);
+    if (candidates.length === 0) {
       throw new Error('No JSON found in AI final analysis response');
     }
 
-    // Try to find the end of the JSON object by tracking brace depth
-    let braceCount = 0;
-    let inString = false;
-    let escapeNext = false;
-    let jsonEndIndex = -1;
+    const firstBraceIndex = aiResponse.indexOf('{');
+    let firstBraceError: Error | undefined;
 
-    for (let i = firstBraceIndex; i < aiResponse.length; i++) {
-      const char = aiResponse[i];
+    for (const start of candidates) {
+      let parsed: unknown;
 
-      if (escapeNext) {
-        escapeNext = false;
-        continue;
-      }
-
-      if (char === '\\') {
-        escapeNext = true;
-        continue;
-      }
-
-      if (char === '"') {
-        inString = !inString;
-        continue;
-      }
-
-      if (inString) continue;
-
-      if (char === '{') braceCount++;
-      if (char === '}') {
-        braceCount--;
-        if (braceCount === 0) {
-          jsonEndIndex = i + 1;
-          break;
+      try {
+        const end = findBalancedObjectEnd(aiResponse, start);
+        if (end === -1) {
+          throw new Error('Could not find complete JSON object in AI response');
         }
+        parsed = JSON.parse(aiResponse.substring(start, end));
+      } catch (error) {
+        if (start === firstBraceIndex) {
+          firstBraceError =
+            error instanceof Error ? error : new Error(String(error));
+        }
+        continue;
       }
-    }
 
-    if (jsonEndIndex === -1) {
-      throw new Error('Could not find complete JSON object in AI response');
-    }
-
-    const jsonString = aiResponse.substring(firstBraceIndex, jsonEndIndex);
-    const parsed = JSON.parse(jsonString) as AIFinalAnalysisResponse;
-
-    // Validate required fields
-    if (
-      !parsed.issueStatus ||
-      !parsed.rootCause ||
-      parsed.confidence === undefined ||
-      !Array.isArray(parsed.factors) ||
-      !parsed.remediation
-    ) {
-      throw new Error('Invalid AI final analysis response structure');
-    }
-
-    // Validate issueStatus field
-    if (!['active', 'resolved', 'non_existent'].includes(parsed.issueStatus)) {
-      throw new Error(
-        `Invalid issue status: ${parsed.issueStatus}. Must be 'active', 'resolved', or 'non_existent'`
-      );
-    }
-
-    if (
-      !parsed.remediation.summary ||
-      !Array.isArray(parsed.remediation.actions) ||
-      !parsed.remediation.risk
-    ) {
-      throw new Error(
-        'Invalid remediation structure in AI final analysis response'
-      );
-    }
-
-    // Validate each remediation action
-    for (const action of parsed.remediation.actions) {
-      if (!action.description || !action.risk || !action.rationale) {
-        throw new Error('Invalid remediation action structure');
+      // Validate required fields
+      if (!hasFinalAnalysisShape(parsed)) {
+        if (start === firstBraceIndex) {
+          firstBraceError = new Error(
+            'Invalid AI final analysis response structure'
+          );
+        }
+        continue;
       }
-      if (!['low', 'medium', 'high'].includes(action.risk)) {
-        throw new Error(`Invalid risk level: ${action.risk}`);
-      }
+
+      validateFinalAnalysisFields(parsed);
+
+      return parsed;
     }
 
-    // Validate overall risk level
-    if (!['low', 'medium', 'high'].includes(parsed.remediation.risk)) {
-      throw new Error(`Invalid overall risk level: ${parsed.remediation.risk}`);
-    }
-
-    // Validate confidence is between 0 and 1
-    if (parsed.confidence < 0 || parsed.confidence > 1) {
-      throw new Error(
-        `Invalid confidence value: ${parsed.confidence}. Must be between 0 and 1`
-      );
-    }
-
-    return parsed;
+    throw (
+      firstBraceError ??
+      new Error('Invalid AI final analysis response structure')
+    );
   } catch (error) {
     // Log the actual AI response content when parsing fails - critical for debugging
     console.error('🚨 JSON PARSING FAILED - AI Response Content:', {
