@@ -5,6 +5,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import type { Readable } from 'node:stream';
 import { ToolDefinition } from '../types';
 
 /**
@@ -154,7 +155,10 @@ export function buildKubectlCommand(
   ].join(' ');
 }
 
-/** Cap on captured stdout, preserving the previous execAsync maxBuffer. */
+/**
+ * Cap on captured output, preserving the previous execAsync maxBuffer. Applied
+ * to stdout and stderr independently, as `maxBuffer` was.
+ */
 const MAX_OUTPUT_BYTES = 100 * 1024 * 1024;
 
 interface RunOptions {
@@ -184,7 +188,6 @@ function runWithoutShell(
   return new Promise((resolve, reject) => {
     let stdout = '';
     let stderr = '';
-    let stdoutBytes = 0;
     let settled = false;
 
     const settle = (action: () => void): void => {
@@ -197,24 +200,42 @@ function runWithoutShell(
 
     const proc = spawn(binary, argv, { timeout: options.timeout });
 
-    proc.stdout.on('data', (data: Buffer) => {
-      stdoutBytes += data.length;
-      if (stdoutBytes > MAX_OUTPUT_BYTES) {
-        proc.kill();
-        settle(() =>
-          reject(
-            new Error(
-              `${options.label} command failed: output exceeded ${MAX_OUTPUT_BYTES} bytes`
+    /**
+     * Accumulate one stream under the byte cap.
+     *
+     * Overflow kills the child and rejects rather than truncating: the captured
+     * stderr is what `isIgnorableStderr` classifies, so silently dropping the
+     * tail of it would change which failures count as ignorable. Rejecting is
+     * also what the `maxBuffer` this replaced did on either stream.
+     */
+    const capture = (
+      stream: Readable,
+      streamLabel: 'stdout' | 'stderr',
+      append: (text: string) => void
+    ): void => {
+      let bytes = 0;
+      stream.on('data', (data: Buffer) => {
+        bytes += data.length;
+        if (bytes > MAX_OUTPUT_BYTES) {
+          proc.kill();
+          settle(() =>
+            reject(
+              new Error(
+                `${options.label} command failed: ${streamLabel} exceeded ${MAX_OUTPUT_BYTES} bytes`
+              )
             )
-          )
-        );
-        return;
-      }
-      stdout += data.toString();
-    });
+          );
+          return;
+        }
+        append(data.toString());
+      });
+    };
 
-    proc.stderr.on('data', (data: Buffer) => {
-      stderr += data.toString();
+    capture(proc.stdout, 'stdout', text => {
+      stdout += text;
+    });
+    capture(proc.stderr, 'stderr', text => {
+      stderr += text;
     });
 
     proc.on('error', (error: NodeJS.ErrnoException) => {

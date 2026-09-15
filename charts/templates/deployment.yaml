@@ -187,7 +187,7 @@ spec:
         - name: DOT_AI_RBAC_ENABLED
           value: "true"
 {{- end }}
-{{- if .Values.remediation.constrainedExecution.enabled }}
+{{- if ((.Values.remediation).constrainedExecution).enabled }}
         # Constrained automatic remediation (PRD #810)
         - name: DOT_AI_REMEDIATION_CONSTRAINED_EXEC
           value: "true"

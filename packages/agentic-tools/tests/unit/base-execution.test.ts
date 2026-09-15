@@ -22,6 +22,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import {
+  mkdirSync,
   mkdtempSync,
   rmSync,
   writeFileSync,
@@ -29,9 +30,14 @@ import {
   existsSync,
 } from 'node:fs';
 import { readdirSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { executeKubectl, executeHelm } from '../../src/tools/base';
+
+/**
+ * Scratch space for the stub binaries. `./tmp` rather than os.tmpdir() is the
+ * project convention (CLAUDE.md); it is gitignored and may not exist yet.
+ */
+const TMP_ROOT = resolve(process.cwd(), 'tmp');
 
 /**
  * A stub that prints one argv element per line, then anything on stdin under a
@@ -50,11 +56,33 @@ fi
 exit 0
 `;
 
+/** Put `script` on PATH as both `kubectl` and `helm` for the duration of `run`. */
+async function withStubBinary<T>(
+  script: string,
+  run: () => Promise<T>
+): Promise<T> {
+  const dir = mkdtempSync(join(TMP_ROOT, 'dot-ai-stub-'));
+  const savedPath = process.env.PATH;
+  try {
+    for (const name of ['kubectl', 'helm']) {
+      const file = join(dir, name);
+      writeFileSync(file, script);
+      chmodSync(file, 0o755);
+    }
+    process.env.PATH = `${dir}:${savedPath ?? ''}`;
+    return await run();
+  } finally {
+    process.env.PATH = savedPath;
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 let binDir: string;
 let originalPath: string | undefined;
 
 beforeAll(() => {
-  binDir = mkdtempSync(join(tmpdir(), 'dot-ai-argv-'));
+  mkdirSync(TMP_ROOT, { recursive: true });
+  binDir = mkdtempSync(join(TMP_ROOT, 'dot-ai-argv-'));
   for (const name of ['kubectl', 'helm']) {
     const file = join(binDir, name);
     writeFileSync(file, STUB);
@@ -204,6 +232,64 @@ describe('executeKubectl runs without a shell', () => {
     } finally {
       process.env.PATH = savedPath;
     }
+  });
+});
+
+/**
+ * The argv rewrite replaced `execAsync`, whose `maxBuffer` capped stdout *and*
+ * stderr. Capping only stdout would let a kubectl or helm process that floods
+ * stderr grow the buffer without limit, so both streams are counted, and both
+ * reject rather than truncate — truncation would silently drop the tail of the
+ * text `isIgnorableStderr` classifies.
+ */
+describe('output is capped on both streams', () => {
+  // Just over the 100 MiB cap in base.ts, so the very first chunk past the
+  // boundary trips it.
+  const FLOOD_BYTES = 110 * 1024 * 1024;
+  const flood = (fd: '1' | '2') => `#!/bin/sh
+head -c ${FLOOD_BYTES} /dev/zero | tr '\\0' 'x' >&${fd}
+exit 0
+`;
+
+  it('rejects rather than buffering unbounded stderr', async () => {
+    await withStubBinary(flood('2'), async () => {
+      await expect(executeKubectl(['get', 'pods'])).rejects.toThrow(
+        /kubectl command failed: stderr exceeded \d+ bytes/
+      );
+    });
+  });
+
+  it('rejects rather than buffering unbounded stdout', async () => {
+    await withStubBinary(flood('1'), async () => {
+      await expect(executeKubectl(['get', 'pods'])).rejects.toThrow(
+        /kubectl command failed: stdout exceeded \d+ bytes/
+      );
+    });
+  });
+
+  it('still treats a warning on stderr as ignorable', async () => {
+    const warn = `#!/bin/sh
+echo 'Warning: v1 Ingress is deprecated' >&2
+echo 'ingress.networking.k8s.io/api patched'
+exit 0
+`;
+    await withStubBinary(warn, async () => {
+      await expect(executeKubectl(['patch', 'ingress', 'api'])).resolves.toBe(
+        'ingress.networking.k8s.io/api patched'
+      );
+    });
+  });
+
+  it('still fails on stderr that is not ignorable', async () => {
+    const noisy = `#!/bin/sh
+echo 'error: the server could not find the requested resource' >&2
+exit 0
+`;
+    await withStubBinary(noisy, async () => {
+      await expect(executeKubectl(['get', 'widgets'])).rejects.toThrow(
+        /kubectl command failed: error: the server could not find/
+      );
+    });
   });
 });
 

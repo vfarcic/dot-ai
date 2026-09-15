@@ -129,7 +129,9 @@ Three verbs are executable. Every field is passed as a discrete value — nothin
 **Common fixes have a patch form — use it:**
 
 - **Scaling** is a replicas patch: `{"verb":"patch","kind":"deployment","name":"api","namespace":"prod","patchType":"merge","patch":"{\"spec\":{\"replicas\":3}}"}`
-- **Restarting a rollout** is a pod-template annotation patch — changing the annotation is what makes the controller roll new pods: `{"verb":"patch","kind":"deployment","name":"api","namespace":"prod","patchType":"merge","patch":"{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"2024-01-01T00:00:00Z\"}}}}}"}`
+- **Restarting a rollout** is a pod-template annotation patch — changing the annotation is what makes the controller roll new pods: `{"verb":"patch","kind":"deployment","name":"api","namespace":"prod","patchType":"merge","patch":"{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"<RFC3339-TIMESTAMP>\"}}}}}"}`
+  - **Generate the timestamp; never copy a literal one from this document.** Replace `<RFC3339-TIMESTAMP>` with the current UTC time in RFC 3339 form — `YYYY-MM-DDTHH:MM:SSZ`
+  - The restart happens **only because the annotation value changes**. If the live pod template already carries a `restartedAt` annotation, read it first and make sure the value you write differs from it — an identical value is a no-op patch that rolls nothing while appearing to succeed
 - **Deleting a stuck pod** so its controller recreates it: `{"verb":"delete","kind":"pod","name":"api-7d9f-x2k","namespace":"prod"}`
 - **Creating a missing resource** (ConfigMap, Secret, Service, PVC): `verb: "apply"` with the full manifest
 
