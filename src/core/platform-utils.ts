@@ -20,6 +20,50 @@ export function getScriptsDir(): string {
 }
 
 /**
+ * Content of the first ```json fence holding a JSON object (`{`) or array
+ * (`[`) — the same match the lazy
+ * ``/```(?:json)?\s*(\{[\s\S]*?\})\s*```/`` that used to sit inline in both
+ * extractors produced, without that regex's quadratic.
+ *
+ * The lazy form rescans to the end of the string from every opener whose block
+ * never closes: 8 000 openers in a 78 KB response cost 112 ms and quadruple per
+ * doubling, so a 640 KB response — well within what a model can be made to emit
+ * by attacker-writable tool output — is seconds of uninterruptible work on the
+ * single-threaded runtime that is also serving every other request. Same
+ * finding class as {@link scanJsonObjectExtents} and
+ * {@link collectJsonFenceRanges}, and fixed the same way: an opener-only regex,
+ * then one search for the closer.
+ *
+ * Stopping at the first opener that has no closer loses nothing, for the same
+ * reason those rescans were wasted: a closing fence sits after every opener
+ * that precedes it, so if the leftmost opener has no closer, no later opener
+ * has one either — which is what the lazy regex concluded, one full rescan per
+ * opener later.
+ *
+ * Exported for the unit test that checks it against the regex it replaces,
+ * the way {@link findBalancedObjectEnd} backs {@link scanJsonObjectExtents}.
+ */
+export function extractFencedJsonBlock(
+  text: string,
+  kind: 'object' | 'array'
+): string | null {
+  // Group-less: each pattern ends on the character that starts the block, so
+  // the block starts where the opener match ends.
+  const opener = kind === 'object' ? /```(?:json)?\s*\{/ : /```(?:json)?\s*\[/;
+  const closer = kind === 'object' ? /\}\s*```/g : /\]\s*```/g;
+
+  const open = opener.exec(text);
+  if (open === null) return null;
+
+  const blockStart = open.index + open[0].length - 1;
+  closer.lastIndex = blockStart + 1;
+  const close = closer.exec(text);
+  if (close === null) return null;
+
+  return text.slice(blockStart, close.index + 1);
+}
+
+/**
  * Extract JSON object from AI response with robust parsing
  * Handles markdown code blocks and finds proper JSON boundaries
  */
@@ -27,11 +71,9 @@ export function extractJsonFromAIResponse(aiResponse: string): unknown {
   let jsonContent = aiResponse;
 
   // First try to find JSON wrapped in code blocks
-  const codeBlockMatch = aiResponse.match(
-    /```(?:json)?\s*(\{[\s\S]*?\})\s*```/
-  );
-  if (codeBlockMatch) {
-    jsonContent = codeBlockMatch[1];
+  const codeBlock = extractFencedJsonBlock(aiResponse, 'object');
+  if (codeBlock !== null) {
+    jsonContent = codeBlock;
   } else {
     // Try to find JSON that starts with { and find the matching closing }
     const startIndex = aiResponse.indexOf('{');
@@ -95,11 +137,9 @@ export function extractJsonArrayFromAIResponse(aiResponse: string): unknown[] {
   let jsonContent = aiResponse;
 
   // First try to find JSON array wrapped in code blocks
-  const codeBlockMatch = aiResponse.match(
-    /```(?:json)?\s*(\[[\s\S]*?\])\s*```/
-  );
-  if (codeBlockMatch) {
-    jsonContent = codeBlockMatch[1];
+  const codeBlock = extractFencedJsonBlock(aiResponse, 'array');
+  if (codeBlock !== null) {
+    jsonContent = codeBlock;
   } else {
     // Try to find JSON array that starts with [ and find the matching closing ]
     const startIndex = aiResponse.indexOf('[');

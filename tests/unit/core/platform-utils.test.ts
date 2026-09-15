@@ -1,10 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import {
+  extractFencedJsonBlock,
+  extractJsonArrayFromAIResponse,
   extractJsonFromAIResponse,
   findBalancedObjectEnd,
   findShapedJsonObject,
   scanJsonObjectExtents,
 } from '../../../src/core/platform-utils';
+
+/**
+ * Deterministic LCG, so a failure is a seed and not a coin toss.
+ */
+function lcg(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
 
 interface Analysis {
   issueStatus: string;
@@ -126,17 +139,6 @@ describe('findShapedJsonObject', () => {
 });
 
 describe('scanJsonObjectExtents', () => {
-  /**
-   * Deterministic LCG, so a failure is a seed and not a coin toss.
-   */
-  function lcg(seed: number): () => number {
-    let state = seed >>> 0;
-    return () => {
-      state = (state * 1664525 + 1013904223) >>> 0;
-      return state / 4294967296;
-    };
-  }
-
   const ALPHABET = ['{', '}', '"', '\\', 'a', ':', ',', ' ', '\n', '1', '`'];
 
   function randomText(rng: () => number, length: number): string {
@@ -285,5 +287,194 @@ describe('findShapedJsonObject - cost on adversarial input', () => {
 
     expect(search.value).toMatchObject({ rootCause: 'bad image tag' });
     expect(search.budgetExhausted).toBeUndefined();
+  });
+});
+
+describe('extractJsonArrayFromAIResponse', () => {
+  it('parses a JSON array inside a ```json code fence', () => {
+    expect(
+      extractJsonArrayFromAIResponse(
+        '```json\n[{"name":"web"},{"name":"db"}]\n```'
+      )
+    ).toEqual([{ name: 'web' }, { name: 'db' }]);
+  });
+
+  it('parses a raw JSON array surrounded by prose (no code fence)', () => {
+    expect(
+      extractJsonArrayFromAIResponse(
+        'Here you go:\n[1, 2, 3]\nHope that helps!'
+      )
+    ).toEqual([1, 2, 3]);
+  });
+
+  it('throws a descriptive error when no JSON array is present', () => {
+    expect(() =>
+      extractJsonArrayFromAIResponse('no array here at all')
+    ).toThrow(/Failed to parse JSON array from AI response/);
+  });
+});
+
+describe('extractFencedJsonBlock', () => {
+  /**
+   * The lazy fence regex both extractors used to carry inline, kept as the
+   * reference the linear opener-plus-`indexOf` form is checked against - the
+   * role findBalancedObjectEnd plays for scanJsonObjectExtents. This is a
+   * performance fix, so the answer has to be the same one, character for
+   * character, including which of several fences wins.
+   */
+  function legacyFenceMatch(
+    text: string,
+    kind: 'object' | 'array'
+  ): string | null {
+    const match =
+      kind === 'object'
+        ? text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
+        : text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+    return match ? match[1] : null;
+  }
+
+  function expectAgreesWithRegex(text: string): void {
+    expect([
+      extractFencedJsonBlock(text, 'object'),
+      extractFencedJsonBlock(text, 'array'),
+    ]).toEqual([
+      legacyFenceMatch(text, 'object'),
+      legacyFenceMatch(text, 'array'),
+    ]);
+  }
+
+  it('agrees with the regex it replaces on hand-picked fences', () => {
+    const cases = [
+      '',
+      '```',
+      '```json',
+      '```json{',
+      '```json{}```',
+      '```json\n{"a":1}\n```',
+      // Four backticks: the match the regex finds starts at the second one.
+      '````json{"a":1}```',
+      '``` {"a":1} ```',
+      // `json` has to be flush against the fence, so this one is not a match.
+      '``` json{"a":1}```',
+      '```jsonx{"a":1}```',
+      '```json   \n\n  {"a":1}\n```',
+      // The first `}` that a fence follows wins, even inside a string.
+      '```json{"a":"}```"}',
+      '```json\n{"a":1}\n```json\n{"b":2}\n```',
+      // An opener with no closing fence is not a match, and neither is a
+      // later one - which is exactly why the walk can stop at the first.
+      '```json\n{\n```json\n{"b":2}\n```',
+      '```json\n{\n```',
+      '```json\n{"a":1}',
+      '```json\n{"a":1}\n``',
+      '```\n[1,2]\n```',
+      '```json []```',
+      '```json\t[1]\t```',
+      '```json\r\n{"a":1}\r\n```',
+      '```json\n[\n```json\n[3]\n```',
+      '{"a":1}```json\n{"b":2}\n```',
+      'no fences {"a":1} at all',
+      '```json\n{"a":1}\n```\n' + '```json\n{\n'.repeat(50),
+      '```json\nnope\n```\n'.repeat(50) + '```json\n{"a":1}\n```',
+      '```json\n{\n'.repeat(50) + '```json\n{"a":1}\n```',
+      '```json\n[\n'.repeat(50) + '```json\n[1,2]\n```',
+    ];
+
+    for (const text of cases) expectAgreesWithRegex(text);
+  });
+
+  it('agrees with the regex it replaces across a generated corpus', () => {
+    const rng = lcg(20260915);
+    const TOKENS = [
+      '```',
+      '`',
+      'json',
+      'JSON',
+      '\n',
+      ' ',
+      '\t',
+      '\r\n',
+      '{',
+      '}',
+      '[',
+      ']',
+      '"',
+      '\\',
+      'a',
+      ':',
+      ',',
+      '1',
+      '{"a":1}',
+      '[1,2]',
+      '```json\n',
+      '\n```',
+      '``` ',
+      'prose text',
+      '{"a":"}```"}',
+    ];
+
+    for (let trial = 0; trial < 20000; trial++) {
+      const tokens = 1 + Math.floor(rng() * 20);
+      let text = '';
+      for (let i = 0; i < tokens; i++) {
+        text += TOKENS[Math.floor(rng() * TOKENS.length)];
+      }
+      expectAgreesWithRegex(text);
+    }
+  });
+});
+
+describe('extractJsonFromAIResponse - cost on adversarial input', () => {
+  /**
+   * CWE-400, the fence half of the same finding: the lazy `[\s\S]*?` rescanned
+   * to the end of the string from every ```json opener whose block never
+   * closed, at 4x per doubling. The 64 000 openers below are 625 KB - a size a
+   * model reaches when its tool output does - and cost 7.2 s each before this
+   * fix, 14.3 s for the pair, with the runtime unable to serve anything else
+   * meanwhile. Both are under 2 ms now, so this budget is slack, not a race.
+   */
+  it('stays bounded when no ```json opener ever closes', () => {
+    const started = Date.now();
+
+    expect(() =>
+      extractJsonFromAIResponse('```json\n{\n'.repeat(64000))
+    ).toThrow(/Failed to parse JSON from AI response/);
+    expect(() =>
+      extractJsonArrayFromAIResponse('```json\n[\n'.repeat(64000))
+    ).toThrow(/Failed to parse JSON array from AI response/);
+
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it('still returns the fenced block when the unclosed openers follow it', () => {
+    const started = Date.now();
+    const openers = 64000;
+
+    expect(
+      extractJsonFromAIResponse(
+        '```json\n{"analysis":"ok"}\n```\n' + '```json\n{\n'.repeat(openers)
+      )
+    ).toEqual({ analysis: 'ok' });
+    expect(
+      extractJsonArrayFromAIResponse(
+        '```json\n["kubectl get pods"]\n```\n' + '```json\n[\n'.repeat(openers)
+      )
+    ).toEqual(['kubectl get pods']);
+
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it('still returns the fenced block behind fences that hold no JSON', () => {
+    const started = Date.now();
+    const decoys = '```json\nnot json at all\n```\n'.repeat(32000);
+
+    expect(
+      extractJsonFromAIResponse(decoys + '```json\n{"analysis":"ok"}\n```')
+    ).toEqual({ analysis: 'ok' });
+    expect(
+      extractJsonArrayFromAIResponse(decoys + '```json\n[1,2]\n```')
+    ).toEqual([1, 2]);
+
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 });
