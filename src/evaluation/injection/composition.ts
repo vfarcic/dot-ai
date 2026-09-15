@@ -15,13 +15,18 @@
  * `tests/unit/evaluation/injection/composition.test.ts` reads the production
  * source and fails if either drifts from what is restated here.
  *
- * **M2 must update this file.** When untrusted tool output starts being
- * delimited in production, `frameToolResult` has to gain the same wrapping, or
- * the eval will measure the old composition and report a fix that never shipped.
+ * **M2 updated this file.** Production now delimits untrusted tool output
+ * (`src/core/untrusted-content.ts`), and {@link frameToolResult} applies the
+ * production wrapper itself rather than a copy of it — the eval has to measure
+ * the composition users actually get, not one that resembles it.
  */
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import {
+  UNTRUSTED_TOOL_OUTPUT_OPEN,
+  wrapUntrustedToolOutput,
+} from '../../core/untrusted-content';
 
 /** Path of the production system prompt this harness exercises. */
 export const REMEDIATE_SYSTEM_PROMPT_PATH = join(
@@ -81,19 +86,30 @@ export function buildRemediateUserMessage(issue: string): string {
 }
 
 /**
- * Files that would have to change for production to start framing tool results.
+ * Files that carry production's untrusted-content framing, both halves of it.
  *
- * `plugin-manager.ts` is where a plugin tool's output becomes the string the
- * model reads; `remediate.ts` is where the executor is composed and the system
- * prompt is chosen; `remediate-system.md` is where the model would be told what
- * a delimiter means. `composition.test.ts` scans all three for
- * {@link FRAMING_MARKER_PATTERN} and fails the moment one of them grows framing,
- * so {@link frameToolResult} cannot stay behind production without a red test.
+ * `untrusted-content.ts` holds the delimiter and the executor wrapper;
+ * `remediate.ts` and `operate-analysis.ts` are where that wrapper is applied to
+ * the composed tool executor; the two system prompts are where the model is
+ * told what the delimiter means. `composition.test.ts` scans every one of them
+ * for {@link FRAMING_MARKER_PATTERN} and fails if the framing disappears from
+ * any — which is the inverse of the M1 guard, and for the same reason: the
+ * harness must measure the composition production actually has.
+ *
+ * The operate pair is listed even though the harness mirrors `remediate` only.
+ * M2 framed both loops, and nothing else would notice an operate-side revert.
+ *
+ * `plugin-manager.ts` is deliberately *not* here. Framing is applied at the
+ * executor seam, so the plugin router still returns raw command output — pinned
+ * separately by {@link PRODUCTION_RAW_TOOL_RESULT_EXPRESSION}, which is what
+ * catches framing being moved down into it.
  */
 export const PRODUCTION_TOOL_RESULT_SOURCES = [
-  join('src', 'core', 'plugin-manager.ts'),
+  join('src', 'core', 'untrusted-content.ts'),
   join('src', 'tools', 'remediate.ts'),
+  join('src', 'tools', 'operate-analysis.ts'),
   join('prompts', 'remediate-system.md'),
+  join('prompts', 'operate-system.md'),
 ] as const;
 
 /**
@@ -158,17 +174,33 @@ export const PRODUCTION_RAW_TOOL_RESULT_EXPRESSION = `return result.success
 /**
  * Frame a tool result before it re-enters model context.
  *
- * Today this is the identity function, because production applies no framing —
- * that is precisely the gap PRD #811 part (1) closes and the state M1 baselines.
- * It exists as a named seam so M2 has one obvious place to mirror its change,
- * and so the difference between the two runs is visible in one diff.
+ * Applies the production wrapper, imported rather than copied: PRD #811 M2
+ * wraps every result of the `remediate` investigation loop in
+ * `<untrusted_tool_output>` at the composed executor
+ * (`src/tools/remediate.ts` → `withUntrustedContentBoundary`), and the
+ * harness's executor does the same at the same point (`fixtures.ts`). Importing
+ * means a change to the delimiter cannot leave the harness measuring the old
+ * composition.
  *
- * **This is not guarded by a comment.** `composition.test.ts` asserts that
- * production still returns tool results unwrapped and that none of
- * {@link PRODUCTION_TOOL_RESULT_SOURCES} contains a framing marker. Those
- * assertions fail on the M2 commit, which is the point: the harness is forced to
- * follow before a comparison can be run.
+ * `toolName` stays in the signature although nothing reads it: production
+ * frames every tool in the loop rather than an allowlisted subset — a list of
+ * "the untrusted ones" goes stale the moment a tool is added without this in
+ * mind — and the parameter is the seam if that ever stops being true.
+ *
+ * `composition.test.ts` asserts this against the production source: that both
+ * investigation loops still apply the wrapper, that both system prompts still
+ * name the tag, and that what the harness hands the model is the framed string.
  */
 export function frameToolResult(_toolName: string, output: string): string {
-  return output;
+  return wrapUntrustedToolOutput(output);
 }
+
+/**
+ * The opening delimiter production emits, re-exported for the drift guard.
+ *
+ * `composition.test.ts` uses it to assert the production system prompts name
+ * the tag their tool results are wrapped in. A fence the prompt never mentions
+ * is decoration, and that is a failure mode a scan for framing *prose* alone
+ * would not catch.
+ */
+export { UNTRUSTED_TOOL_OUTPUT_OPEN };

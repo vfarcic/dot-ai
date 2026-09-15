@@ -9,6 +9,7 @@ import { Logger } from '../core/error-handling';
 import { loadPrompt } from '../core/shared-prompt-loader';
 import { getVisualizationUrl } from '../core/visualization';
 import { extractJsonFromAIResponse } from '../core/platform-utils';
+import { withUntrustedContentBoundary } from '../core/untrusted-content';
 import {
   EmbeddedContext,
   OperateSessionData,
@@ -251,9 +252,15 @@ async function executeToolLoop(
   // PRD #343: Create tool executor that routes through plugin
   // PRD #358: Chain MCP executor with plugin executor as fallback
   const pluginExecutor = pluginManager.createToolExecutor();
-  const toolExecutor = isMcpClientInitialized()
+  const composedExecutor = isMcpClientInitialized()
     ? getMcpClientManager()!.createToolExecutor(pluginExecutor)
     : pluginExecutor;
+
+  // PRD #811: every result of this loop re-enters model context delimited as
+  // untrusted, and `prompts/operate-system.md` tells the model what that
+  // delimiter means. Wrapped around the *composed* executor so plugin output
+  // and attached MCP servers are both covered.
+  const toolExecutor = withUntrustedContentBoundary(composedExecutor);
 
   const aiProvider = createAIProvider();
 

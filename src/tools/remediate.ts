@@ -39,6 +39,7 @@ import {
   GitCreatePrResult,
   cleanupOldClones,
 } from '../core/internal-tools';
+import { withUntrustedContentBoundary } from '../core/untrusted-content';
 
 // Plugin result data structure
 interface PluginResultData {
@@ -327,9 +328,16 @@ async function conductInvestigation(
     // PRD #358: Chain MCP executor with plugin executor as fallback
     const internalExecutor = createInternalToolExecutor(session.sessionId);
     const pluginExecutor = pluginManager.createToolExecutor(internalExecutor);
-    const toolExecutor = isMcpClientInitialized()
+    const composedExecutor = isMcpClientInitialized()
       ? getMcpClientManager()!.createToolExecutor(pluginExecutor)
       : pluginExecutor;
+
+    // PRD #811: every result of this loop re-enters model context delimited as
+    // untrusted, and `prompts/remediate-system.md` tells the model what that
+    // delimiter means. Wrapped here, around the *composed* executor, so all
+    // three sources are covered — kubectl output from the plugin, files
+    // `fs_read` returns from a cloned GitOps repo, and attached MCP servers.
+    const toolExecutor = withUntrustedContentBoundary(composedExecutor);
 
     // Use toolLoop for AI-driven investigation with all tools (kubectl + internal + MCP)
     // System prompt is static (cached), issue description is dynamic (userMessage)

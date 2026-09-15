@@ -123,9 +123,11 @@ jobs:
             tests: operate manage-org-data-patterns manage-knowledge auth readiness rbac
           # injection-eval needs no cluster at all (the injection harness scripts its
           # own), but every integration group brings one up, so it rides along here
-          # rather than paying for a spin-up of its own.
+          # rather than paying for a spin-up of its own. untrusted-content-boundary
+          # (PRD #811, M2) does need a cluster, but only the base one, and it is the
+          # other half of the same guard — it belongs next to injection-eval.
           - name: base-group-2
-            tests: resource-sync openapi plugin project-setup prompts injection-eval
+            tests: resource-sync openapi plugin project-setup prompts injection-eval untrusted-content-boundary
           # Isolated in its own group because its migration seed step recreates and then deletes the legacy `patterns` collection.
           - name: unified-knowledge-base
             tests: unified-knowledge-base
