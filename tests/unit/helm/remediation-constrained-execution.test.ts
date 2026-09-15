@@ -13,7 +13,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as yaml from 'js-yaml';
 
 const ENV_NAME = 'DOT_AI_REMEDIATION_CONSTRAINED_EXEC';
@@ -37,8 +37,17 @@ function mcpServerEnv(setValues: string[] = []): Array<{
   name: string;
   value?: string;
 }> {
-  const setArgs = setValues.map(v => `--set '${v}'`).join(' ');
-  const output = execSync(`helm template test-release ./charts ${setArgs}`, {
+  // No shell: each --set flag and its value is its own argv element, the same
+  // argv discipline runWithoutShell uses in packages/agentic-tools/src/tools/base.ts.
+  // Interpolating the values into a shell string would re-introduce the quoting
+  // hole this PR removes from the kubectl/helm invocations.
+  const args = [
+    'template',
+    'test-release',
+    './charts',
+    ...setValues.flatMap(v => ['--set', v]),
+  ];
+  const output = execFileSync('helm', args, {
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
