@@ -117,6 +117,13 @@ argocd/
 # Evaluation data - exclude large raw datasets but keep analysis reports
 eval/datasets/*.jsonl
 eval/results/*.jsonl
+# PRD #811: hand-authored injection corpora are source, not captured artifacts
+!eval/datasets/injection-corpus-*.jsonl
+# PRD #811: only the committed injection baseline is tracked, not every run.
+# Matched at any depth under eval/analysis, because a run report carries every
+# prompt, tool result and final message and --out used to accept any directory.
+eval/analysis/**/run_*
+eval/analysis/run_*
 .env.vals
 
 # Build artifacts (except Helm subchart dependencies)

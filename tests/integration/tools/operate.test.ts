@@ -9,6 +9,10 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { IntegrationTest } from '../helpers/test-base.js';
 import type { HpaResource, ProposedChange } from '../helpers/api-shapes.js';
+import {
+  observeCallerFieldComposition,
+  readModelPromptCapture,
+} from '../helpers/model-prompt-capture.js';
 
 /**
  * What this file reads off `data`. Fields are declared present because each
@@ -30,6 +34,8 @@ interface OperatePayload {
         update?: ProposedChange[];
         delete?: ProposedChange[];
       };
+      /** Model-authored check for the post-execution validation hop (PRD #811). */
+      validationIntent?: string;
     };
     execution: { results: unknown[]; validation: unknown };
   };
@@ -48,6 +54,18 @@ describe.concurrent('Operate Tool Integration', () => {
   describe('Analysis Workflow', () => {
     test('should complete full workflow: create deployment → analyze update intent → execute approved changes → validate deployment updated', async () => {
       const testId = Date.now();
+
+      /**
+       * Marker that rides in the operator's `intent` (PRD #811 M4).
+       *
+       * `executeOperations` quotes the intent into the `issue` of the second,
+       * validating investigation, so this string lands in that run's capture
+       * and is how the right one is found among whatever else the server
+       * logged. `[A-Za-z0-9_-]` only, because `readModelPromptCapture` greps
+       * for it inside the server container.
+       */
+      const validationHopMarker = `operate-validation-hop-${testId}`;
+      const intent = `update test-api deployment in ${testNamespace} namespace to nginx:1.20 with zero downtime (${validationHopMarker})`;
 
       // SETUP: Create namespace
       await integrationTest.kubectl(`create namespace ${testNamespace}`);
@@ -95,7 +113,7 @@ EOF`);
         await integrationTest.httpClient.post<OperatePayload>(
           '/api/v1/tools/operate',
           {
-            intent: `update test-api deployment in ${testNamespace} namespace to nginx:1.20 with zero downtime`,
+            intent,
             interaction_id: `operate_test_${testId}`,
           }
         );
@@ -214,6 +232,60 @@ EOF`);
       // Verify validation ran (not the placeholder message)
       const validation = executionResponse.data!.result.execution.validation;
       expect(validation).not.toContain('coming in future milestone');
+
+      // PRD #811 M4 — the `operate` → `remediate` validation hop, observed on
+      // the prompt that reached the validating model.
+      //
+      // `validationIntent` is free text the *analysis* model wrote while
+      // reading framed untrusted tool output. Until M4 it was passed straight
+      // in as `remediate.issue` — the channel both system prompts declare
+      // authoritative — with no operator text, no task and no fence, which made
+      // a model-authored string the entire instruction of a fresh investigation
+      // holding kubectl, the dry-run verbs, `git_clone`/`fs_read` and every
+      // attached MCP server. The claim asserted here is the split that closes
+      // it: the operator's own `intent` stays outside the boundary, and the
+      // model-authored check goes inside it.
+      //
+      // This rides on the execution above rather than paying for a run of its
+      // own. The `validation: /Validation successful|Validation completed/`
+      // expectation already proves the hop ran and returned a parsed result
+      // (its failure branch reads "Validation encountered an error"), which is
+      // the only precondition the path has, so the capture is guaranteed to
+      // exist by the time this line runs.
+      //
+      // The delimiter is derived from the capture — see
+      // `observeCallerFieldComposition` — so nothing here names M4's syntax or
+      // the wording of `prompts/operate-validation-issue.md`.
+      const validationIntent =
+        analysisResponse.data!.result.analysis.validationIntent!.trim();
+      // Non-vacuity, for the same reason as the `validationIntent` guard in
+      // `remediate.test.ts`: `observeCallerFieldComposition` locates the
+      // evidence with `indexOf`, and an empty string is found at offset 0 of
+      // any message, so an empty probe would report `evidenceReachedUserMessage`
+      // with nothing having reached anything. The guard is unchanged; only its
+      // shape is.
+      expect({
+        validationIntentIsNonEmpty: validationIntent.length > 0,
+        validationIntent,
+      }).toMatchObject({ validationIntentIsNonEmpty: true });
+
+      const validationCapture = await readModelPromptCapture(
+        'remediate-validation',
+        validationHopMarker
+      );
+
+      expect(
+        observeCallerFieldComposition(validationCapture, {
+          instruction: intent,
+          evidence: validationIntent,
+        })
+      ).toMatchObject({
+        instructionReachedUserMessage: true,
+        instructionOutsideDelimitedRegion: true,
+        evidenceReachedUserMessage: true,
+        evidenceInsideDelimitedRegion: true,
+        systemPromptFramesDelimitedContentAsData: true,
+      });
 
       // PHASE 4: Validate deployment actually updated
       // Wait a moment for k8s to propagate changes

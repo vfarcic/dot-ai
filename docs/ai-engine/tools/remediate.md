@@ -36,6 +36,7 @@ Before using this guide, complete the [Deployment Guide](../setup/deployment.md)
 - **Iterative remediation support** - Handles complex issues requiring multiple sequential fixes
 - **Complete audit trail** - Full investigation history and remediation tracking
 - **MCP server integration** - Augment investigations with tools from external MCP servers (e.g., Prometheus metrics, distributed traces). See [MCP Server Integration](../setup/deployment.md#mcp-server-integration)
+- **Untrusted-content boundary** - Every tool result re-enters the model's context wrapped in explicit delimiters, framed as data to be analyzed rather than instruction to be followed. Always on, nothing to configure. See [Untrusted Content in `remediate` and `operate`](../operations/untrusted-content.md)
 
 **Use when:**
 - Investigating any Kubernetes resource issue — deployments, services, ingresses, storage, networking, and more
@@ -542,6 +543,14 @@ This is a deliberate default, kept so that existing deployments are not changed 
 The issue description that needs analysis and remediation.
 - **User provides**: `"Pod stuck in Pending state"`, `"Database connection failing"`, `"Storage issues in namespace prod"`
 - **Best practices**: Be specific about symptoms, include namespace/resource names when known
+
+#### `evidence` (string, optional)
+Supporting material the caller quoted from somewhere else rather than wrote — log lines, events, a manifest, an alert payload.
+- **Who sets it**: Integrations that can separate their own instruction from quoted telemetry at capture time (a controller, a dashboard, an alerting pipeline). Interactive users do not need it
+- **How it is treated**: Composed into the prompt inside an untrusted-content boundary and analyzed as data; instructions appearing in it are never followed
+- **Omitting it changes nothing**: A call without `evidence` produces the prompt it always produced, byte for byte
+- **Persistence**: On `remediate`, `evidence` is stored on the session and reused for the rest of it (unlike `operate`, which takes it per call)
+- **Details**: [Untrusted Content in `remediate` and `operate`](../operations/untrusted-content.md#the-evidence-parameter)
 
 #### `mode` (string, optional, default: `"manual"`)
 Execution mode determining how remediation actions are handled.

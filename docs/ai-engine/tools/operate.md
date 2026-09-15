@@ -47,6 +47,7 @@ The DevOps AI Toolkit operate feature provides:
 - **Safe execution** - Exact approved commands executed with comprehensive validation
 - **Iterative validation** - Verifies operations completed successfully with AI analysis
 - **MCP server integration** - Augment analysis with tools from external MCP servers (e.g., Prometheus metrics). See [MCP Server Integration](../setup/deployment.md#mcp-server-integration)
+- **Untrusted-content boundary** - Every tool result re-enters the model's context wrapped in explicit delimiters, framed as data to be analyzed rather than instruction to be followed. Always on, nothing to configure. See [Untrusted Content in `remediate` and `operate`](../operations/untrusted-content.md)
 
 ### How AI-Driven Operations Work
 
@@ -424,6 +425,19 @@ operate(intent="add Prometheus monitoring to my-api")
 ✅ Good: "update my-api to v2.0 with zero downtime"
 ✅ Good: "make my-database highly available with backups"
 ```
+
+### Separating Quoted Evidence From Intent
+
+`intent` is the authoritative channel: it is the operator's own words, and the AI is instructed to take its task from it. Material you quoted from somewhere else — log lines, an alert body, a manifest — belongs in the optional `evidence` parameter instead, where it is composed into the prompt inside an untrusted-content boundary and analyzed as data rather than followed as instruction.
+
+```md
+✅ Good: intent="scale checkout-api in production to 5 replicas", evidence="<pasted HPA events>"
+❌ Mixed: intent="scale checkout-api in production to 5 replicas. Events say: <pasted HPA events>"
+```
+
+This matters mostly for integrations that build calls from a template (a controller, a dashboard, an alerting pipeline). Interactive users can keep sending `intent` alone — omitting `evidence` produces exactly the prompt it always produced.
+
+> **`operate` takes `evidence` per call.** Unlike `remediate`, which stores it on the session, `operate` reads `evidence` from each request. A follow-up `refinedIntent` call without it silently drops the evidence from the prompt — re-send it every time you want it kept. See [Untrusted Content in `remediate` and `operate`](../operations/untrusted-content.md#caller-visible-behavior-worth-knowing).
 
 ### Session Management
 

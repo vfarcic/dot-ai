@@ -16,16 +16,40 @@
  */
 
 import { describe, test, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import {
   buildRemediationResponseShape,
   type ExecutionResult,
   type GitOpsWithoutPr,
   type RemediateOutput,
   type RemediationAction,
+  type RemediationResponseShape,
   type RemediationResponseShapeInput,
 } from '../../../src/tools/remediate';
 
-const ROOT_CAUSE = 'Deployment Has A Bad Image Tag';
+const REMEDIATE_SOURCE = readFileSync(
+  join(process.cwd(), 'src', 'tools', 'remediate.ts'),
+  'utf8'
+);
+
+/**
+ * The two verification lines, pinned as literals rather than rebuilt from the
+ * input (PRD #811 M4).
+ *
+ * They used to read `remediate("Verify that <the lower-cased rootCause> has been
+ * resolved")` — an investigation loop's own prose, written while reading framed
+ * untrusted tool output, interpolated inside double quotes inside a tool call an
+ * agent is invited to run. A `rootCause` containing `")` closed the quotes and
+ * wrote the rest of the call itself; short of that, the whole string was offered
+ * as the `issue` of a fresh investigation. `buildRemediationResponseShape` no
+ * longer takes a `rootCause` at all, and that is what these two literals hold:
+ * a line that interpolates nothing cannot be shaped by a log entry.
+ */
+const VERIFY_LINE =
+  'You can verify the fix by running the remediation tool again with your original issue description';
+const REINVESTIGATE_LINE =
+  'You can re-investigate by running the remediation tool again with your original issue description';
 
 function kubectlAction(command: string): RemediationAction {
   return {
@@ -84,7 +108,6 @@ function gitOpsRun(
     gitOpsWithoutPr: [],
     actions: [gitSourceAction()],
     results: [result('action_1: patch the manifest in Git')],
-    rootCause: ROOT_CAUSE,
     validationAttempted: false,
     ...overrides,
   };
@@ -106,7 +129,6 @@ function kubectlRun(
       result('action_1: run kubectl scale deploy/api --replicas=3'),
       result('action_2: run kubectl rollout restart deploy/api'),
     ],
-    rootCause: ROOT_CAUSE,
     validationAttempted: false,
     ...overrides,
   };
@@ -124,8 +146,7 @@ describe('GitOps with a pull request', () => {
     expect(shape.showExecutedCommands).toBe(false);
     expect(shape.showActualKubectlCommands).toBe(false);
     // Pinned exactly, blank separators included: every line is a static literal
-    // or a field of the input, so ordering and spacing cost nothing to hold. The
-    // rootCause is lower-cased into the follow-up call, as it always was.
+    // or a field of the input, so ordering and spacing cost nothing to hold.
     expect(shape.nextSteps).toEqual([
       'Changes have been pushed to a Git branch for GitOps reconciliation:',
       `  PR: ${PR_INFO!.url}`,
@@ -137,7 +158,7 @@ describe('GitOps with a pull request', () => {
       '  2. Wait for Argo CD/Flux to sync the changes',
       '  3. Verify the issue is resolved after reconciliation',
       '',
-      `You can verify the fix by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+      VERIFY_LINE,
     ]);
     // No kubectl ran, so no command list is offered — an invariant of this
     // branch, not just of the wording above.
@@ -192,7 +213,7 @@ describe('GitOps with a pull request', () => {
       '  2. Wait for Argo CD/Flux to sync the changes',
       '  3. Verify the issue is resolved after reconciliation',
       '',
-      `You can verify the fix by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+      VERIFY_LINE,
     ]);
     // Gap 1 stated as its own assertion: the pushed-only branch is absent, and no
     // manual pull request is asked for anywhere.
@@ -236,7 +257,7 @@ describe('GitOps without a pull request (PRD #710 decisions 3 and 7)', () => {
       '  2. Review and merge it',
       '  3. Wait for Argo CD/Flux to sync the changes',
       '',
-      `You can verify the fix by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+      VERIFY_LINE,
     ]);
     // The parser is anchored, so a github.com remote in an unexpected shape lands
     // here too — asserting the repository "is not hosted on GitHub" would then be
@@ -266,7 +287,7 @@ describe('GitOps without a pull request (PRD #710 decisions 3 and 7)', () => {
       '  1. Check whether Argo CD/Flux has actually synced that state to the cluster',
       '  2. If the issue persists, the root cause is elsewhere — investigate again',
       '',
-      `You can re-investigate by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+      REINVESTIGATE_LINE,
     ]);
   });
 
@@ -368,7 +389,7 @@ describe('the kubectl story', () => {
       'The following kubectl commands were executed to remediate the issue:',
       '  1. kubectl scale deploy/api --replicas=3 ✓',
       '  2. kubectl rollout restart deploy/api ✓',
-      `You can verify the fix by running: remediate("Verify that ${ROOT_CAUSE.toLowerCase()} has been resolved")`,
+      VERIFY_LINE,
       'Monitor your cluster to ensure the issue is fully resolved',
     ]);
   });
@@ -398,5 +419,51 @@ describe('the kubectl story', () => {
     expect(shape.nextSteps[0]).toBe(
       'The following kubectl commands were executed to remediate the issue:'
     );
+  });
+});
+
+describe('what nextSteps is allowed to interpolate (PRD #811 M4)', () => {
+  /**
+   * Every branch, so a future line cannot reintroduce the shape in the one
+   * story nobody re-checked. `nextSteps` is prose an agent parses and acts on:
+   * STEP-style lines in the sibling choice-2 output are executed, and a
+   * `remediate("…")` suggestion is a tool call the agent is invited to run. A
+   * quoted call whose argument came from model prose gives a payload two moves
+   * — close the quote and write the rest of the call, or simply become the
+   * `issue` of a fresh investigation.
+   */
+  const everyBranch = (): RemediationResponseShape[] => [
+    buildRemediationResponseShape(gitOpsRun({ pullRequestInfo: PR_INFO })),
+    buildRemediationResponseShape(
+      gitOpsRun({ gitOpsWithoutPr: [PUSHED_WITHOUT_PR] })
+    ),
+    buildRemediationResponseShape(gitOpsRun({ gitOpsWithoutPr: [NO_CHANGES] })),
+    buildRemediationResponseShape(kubectlRun()),
+    buildRemediationResponseShape(kubectlRun({ validationAttempted: true })),
+    buildRemediationResponseShape(kubectlRun({ overallSuccess: false })),
+  ];
+
+  test('no branch offers a quoted remediate() call for an agent to run', () => {
+    for (const shape of everyBranch()) {
+      expect(shape.nextSteps.join('\n')).not.toMatch(/remediate\(/);
+    }
+  });
+
+  test('the verification lines are the only two, and both are fixed literals', () => {
+    const suggestions = everyBranch()
+      .flatMap(shape => shape.nextSteps)
+      .filter(line => /verify the fix|re-investigate/.test(line));
+
+    expect(new Set(suggestions)).toEqual(
+      new Set([VERIFY_LINE, REINVESTIGATE_LINE])
+    );
+  });
+
+  test('the shape takes no rootCause to interpolate in the first place', () => {
+    // The structural half of the same claim: the assertions above are about
+    // wording and could be satisfied by a differently-shaped interpolation, so
+    // this pins that the dangerous string is not an input at all.
+    expect(Object.keys(kubectlRun())).not.toContain('rootCause');
+    expect(REMEDIATE_SOURCE).not.toMatch(/rootCause\.toLowerCase\(\)/);
   });
 });

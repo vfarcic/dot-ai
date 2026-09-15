@@ -481,6 +481,42 @@ export interface RestApiConfig {
 }
 
 /**
+ * Drop the caller-quoted `evidence` from a session record before it is handed to
+ * an unframed model loop (PRD #811 M4).
+ *
+ * `remediate` persists `evidence` on the session, so it travels with the whole
+ * record wherever the record goes. The visualization loop is the one place that
+ * matters today: `primarySession.data` is serialised straight into its *system*
+ * prompt, which has no untrusted-content framing of any kind, and the tool
+ * schema tells callers their evidence is composed "inside an untrusted-content
+ * boundary".
+ *
+ * Applied once, after the per-tool `data` selection rather than inside it, so it
+ * covers every branch, and a new branch is covered by construction. A no-op for
+ * the records that never carry the field (`finalAnalysis`, every `operate`
+ * session — operate takes `evidence` per call and does not persist it).
+ *
+ * **Shallow by design**, and the limit is worth stating rather than implying:
+ * an object with no top-level `evidence` is returned unrecursed, so a record
+ * *nested* under some other key would keep its field. That is complete for every
+ * payload shape that exists today — `evidence` is top-level on every record that
+ * carries one, and arrays are handled — but a future branch that wraps a session
+ * record inside another object would need this taught about the wrapper, not
+ * merely added.
+ */
+function withoutQuotedEvidence(data: unknown): unknown {
+  if (Array.isArray(data)) return data.map(withoutQuotedEvidence);
+  if (data === null || typeof data !== 'object') return data;
+
+  const record = data as Record<string, unknown>;
+  if (!('evidence' in record)) return data;
+
+  const rest = { ...record };
+  delete rest.evidence;
+  return rest;
+}
+
+/**
  * REST API Router for MCP tools
  */
 export class RestApiRouter {
@@ -2635,9 +2671,18 @@ export class RestApiRouter {
           data = primarySession.data.toolCallsExecuted || primarySession.data;
       }
 
+      // PRD #811 M4: the visualization loop is one of the loops this PRD leaves
+      // unframed (see its Residual Exposure section), and this `data` is
+      // interpolated into its *system* prompt. `evidence` is caller-quoted text
+      // this engine promises, in the tool schema, to compose "inside an
+      // untrusted-content boundary" — on the paths where `finalAnalysis` is
+      // absent (investigation failed, still running, `?reload=true`) the whole
+      // session record lands here, so without this the promise would be false
+      // for exactly the field that exists to keep it. Framing the loop is
+      // deferred; keeping the field out of it is one line.
       const promptData = {
         intent,
-        data: JSON.stringify(data, null, 2),
+        data: JSON.stringify(withoutQuotedEvidence(data), null, 2),
         visualizationOutput: loadPrompt('partials/visualization-output'),
       };
 

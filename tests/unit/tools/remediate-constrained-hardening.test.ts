@@ -379,7 +379,6 @@ describe('action display (review R3)', () => {
       gitOpsWithoutPr: [],
       actions: [action],
       results,
-      rootCause: 'Something Is Broken',
       validationAttempted: false,
     }).nextSteps;
   }
@@ -436,8 +435,6 @@ describe('action display (review R3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('flag-off display strings are unchanged', () => {
-  const rootCause = 'Something Is Broken';
-
   function shapeFor(
     actions: RemediationAction[],
     results: ExecutionResult[],
@@ -449,7 +446,6 @@ describe('flag-off display strings are unchanged', () => {
       gitOpsWithoutPr: [],
       actions,
       results,
-      rootCause,
       validationAttempted: false,
     });
   }

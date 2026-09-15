@@ -66,6 +66,15 @@ Handlebars.registerHelper(
 );
 
 /**
+ * Prefix of the string {@link loadPrompt} returns instead of throwing.
+ *
+ * Exported so {@link loadPromptOrThrow} can recognise it without restating it,
+ * and so a caller that needs the fail-fast behaviour has one thing to check
+ * rather than a literal to keep in step with the `catch` below.
+ */
+export const PROMPT_LOAD_ERROR_PREFIX = 'Error loading template: ';
+
+/**
  * Load template from file and replace variables using Handlebars
  *
  * @param templateName - Name of the template file (without extension)
@@ -118,6 +127,38 @@ export function loadPrompt(
     console.error(
       `Failed to load template "${templateName}" from "${baseDir}" (resolved: ${resolvedPath}): ${errorMessage}`
     );
-    return `Error loading template: ${templateName}`;
+    return `${PROMPT_LOAD_ERROR_PREFIX}${templateName}`;
   }
+}
+
+/**
+ * {@link loadPrompt}, but a missing or uncompilable template is an error rather
+ * than a sentence of English handed to a model (PRD #811 M4).
+ *
+ * `loadPrompt` swallows every read and compile failure and returns the string
+ * `Error loading template: <name>`. For a template whose output is shown to a
+ * user that degrades visibly. For one that *is* the model's instructions it does
+ * not: the loop runs with a user message containing neither the operator's
+ * request nor the evidence, the model investigates nothing in particular, and
+ * the tool returns a confident-looking analysis of it.
+ *
+ * Every prompt this engine composes into a `userMessage` goes through here, so a
+ * rename that misses a call site fails loudly the way `conductInvestigation`'s
+ * `fs.readFileSync` of the system prompt always has.
+ */
+export function loadPromptOrThrow(
+  templateName: string,
+  variables: Record<string, unknown> = {},
+  baseDir: string = 'prompts',
+  fileExtension: string = '.md'
+): string {
+  const result = loadPrompt(templateName, variables, baseDir, fileExtension);
+
+  if (result.startsWith(PROMPT_LOAD_ERROR_PREFIX)) {
+    throw new Error(
+      `Prompt template "${templateName}" could not be loaded from "${baseDir}" — see the logged cause above. Refusing to run a model loop without it.`
+    );
+  }
+
+  return result;
 }
