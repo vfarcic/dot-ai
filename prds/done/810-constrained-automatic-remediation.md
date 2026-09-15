@@ -1,10 +1,10 @@
 # PRD #810: Constrained Execution Path for Automatic Remediation
 
-**Status**: Implementation complete, pending merge — M1–M7 landed on `prd-810-constrained-automatic-remediation` via PR [#822](https://github.com/vfarcic/dot-ai/pull/822), with CI green on every check including all eight integration groups. Two blocking security findings (shell reachability through the structured plugin tools, and kubectl flag injection) were found by audit and review and are fixed — see [Security findings during implementation](#security-findings-during-implementation). Design Decision #4 resolved; #3 carried forward as a follow-up.
+**Status**: Complete — merged via PR [#822](https://github.com/vfarcic/dot-ai/pull/822) on 2026-09-15. M1–M7 landed, CI green on every check including all eight integration groups. Two blocking security findings (shell reachability through the structured plugin tools, and kubectl flag injection) were found by audit and review and are fixed — see [Security findings during implementation](#security-findings-during-implementation). Design Decision #4 resolved; #3 carried forward as a follow-up (see [Follow-ups](#follow-ups)).
 **Priority**: High
-**GitHub Issue**: [#810](https://github.com/vfarcic/dot-ai/issues/810)
+**GitHub Issue**: [#810](https://github.com/vfarcic/dot-ai/issues/810) (closed)
 **Created**: 2026-09-14
-**Last Updated**: 2026-09-14
+**Completed**: 2026-09-15
 **Related Issues**: [#799](https://github.com/vfarcic/dot-ai/issues/799) (the feature request whose analysis surfaced this); [#811](https://github.com/vfarcic/dot-ai/issues/811) (untrusted-content boundary — the other half); [#392](https://github.com/vfarcic/dot-ai/issues/392) (tool-level RBAC, the existing `apply`-verb gate); [#401](https://github.com/vfarcic/dot-ai/issues/401) (per-user kubectl identity)
 
 ---
