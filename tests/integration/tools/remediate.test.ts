@@ -6,7 +6,14 @@
  * and actual cluster state fixes.
  */
 
-import { describe, test, expect, beforeAll, onTestFinished } from 'vitest';
+import {
+  describe,
+  test,
+  expect,
+  afterAll,
+  beforeAll,
+  onTestFinished,
+} from 'vitest';
 import * as http from 'http';
 import { IntegrationTest } from '../helpers/test-base.js';
 import type {
@@ -27,6 +34,9 @@ interface RemediatePayload {
     sessionId: string;
     visualizationUrl: string;
     error?: string;
+    executed?: boolean;
+    /** Set when execution was refused — RBAC (PRD #392) or constrained execution (PRD #810). */
+    fallbackReason?: string;
     executionChoices: unknown;
     results: CommandExecutionResult[];
     pullRequest: { number: number; url?: string; branch?: string };
@@ -1633,4 +1643,803 @@ EOF`);
       ).toBeGreaterThan(0);
     }, 1200000); // 20 minute timeout
   });
+});
+
+/** Minimal shape of the `version` tool payload — used to poll for server readiness. */
+interface ServerVersionPayload {
+  result: {
+    system?: {
+      plugins?: {
+        pluginCount?: number;
+      };
+    };
+  };
+}
+
+/**
+ * PRD #810: Constrained execution path for automatic remediation.
+ *
+ * `remediation.constrainedExecution.enabled` is *server-side process state* —
+ * the chart renders it into DOT_AI_REMEDIATION_CONSTRAINED_EXEC — and never a
+ * caller-supplied parameter, since a caller-controlled switch would defeat the
+ * control. So these tests flip the env var on the deployed server, wait for the
+ * rollout, and restore it afterwards.
+ *
+ * Isolation: this suite is a *non-concurrent sibling* of the
+ * `describe.concurrent('Remediate Tool Integration')` block above. Vitest runs
+ * sibling suites in declaration order, so every flag-off test — including the
+ * backward-compatibility proof in 'Automatic Mode Workflow' — has finished
+ * before `beforeAll` here restarts the server with the flag on, and the flag is
+ * removed again in `afterAll`. The cases inside are `test.concurrent` because
+ * they share one flag state and are otherwise independent.
+ */
+describe('Constrained Automatic Execution (PRD #810)', () => {
+  const integrationTest = new IntegrationTest();
+  const constrainedAutoNamespace = 'remediate-constrained-auto-test';
+  const constrainedHelmNamespace = 'remediate-constrained-helm-test';
+  const constrainedGitOpsNamespace = 'remediate-constrained-gitops-test';
+  /** Every namespace/release/app this suite creates, so `beforeAll` can clear a prior run's leftovers. */
+  const constrainedNamespaces = [
+    constrainedAutoNamespace,
+    constrainedHelmNamespace,
+    constrainedGitOpsNamespace,
+  ];
+  const constrainedHelmRelease = 'constrained-nginx';
+  const constrainedArgoApp = 'constrained-gitops-argocd';
+  const constrainedEnvVar = 'DOT_AI_REMEDIATION_CONSTRAINED_EXEC';
+  const kubeconfig = process.env.KUBECONFIG || './kubeconfig-test.yaml';
+
+  const sleep = (ms: number): Promise<void> =>
+    new Promise(resolve => setTimeout(resolve, ms));
+
+  /** Run a host command, surfacing failures (unlike IntegrationTest.kubectl, which swallows them). */
+  const run = async (command: string): Promise<string> => {
+    const { execSync } = await import('child_process');
+    return execSync(command, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 300000,
+    });
+  };
+
+  /**
+   * Run a cleanup command. "Nothing to clean" is the normal case and is
+   * tolerated in both its forms: the resource is absent, or its type is not
+   * even installed (Argo CD is optional infrastructure — SKIP_ARGOCD=true — and
+   * without it there is no Application to leave behind). Every other failure is
+   * raised rather than swallowed the way IntegrationTest.kubectl swallows all
+   * of them: a cleanup that silently failed would hand the next test exactly
+   * the leftovers it was supposed to remove.
+   */
+  const runCleanup = async (command: string): Promise<void> => {
+    try {
+      await run(command);
+    } catch (error: unknown) {
+      const details = [
+        (error as { stdout?: string }).stdout,
+        (error as { stderr?: string }).stderr,
+        (error as { message?: string }).message,
+      ]
+        .filter(Boolean)
+        .join('\n');
+      const nothingToClean =
+        /not\s?found|doesn't have a resource type|could not find the requested resource|no matches for kind/i;
+      if (nothingToClean.test(details)) return;
+      throw new Error(`Suite cleanup failed: \`${command}\`\n${details}`, {
+        cause: error,
+      });
+    }
+  };
+
+  /** Poll until the restarted server answers and has rediscovered the agentic-tools plugin. */
+  const waitForServerReady = async (timeoutMs = 300000): Promise<void> => {
+    const deadline = Date.now() + timeoutMs;
+    let lastSeen = 'no response';
+    while (Date.now() < deadline) {
+      try {
+        const versionResponse =
+          await integrationTest.httpClient.post<ServerVersionPayload>(
+            '/api/v1/tools/version',
+            {}
+          );
+        const pluginCount =
+          versionResponse.data?.result?.system?.plugins?.pluginCount ?? 0;
+        if (versionResponse.success && pluginCount >= 1) {
+          return;
+        }
+        lastSeen = `success=${versionResponse.success} pluginCount=${pluginCount}`;
+      } catch (error: unknown) {
+        lastSeen = String(error);
+      }
+      await sleep(3000);
+    }
+    throw new Error(
+      `MCP server never became ready after restart (last seen: ${lastSeen})`
+    );
+  };
+
+  /** Turn constrained execution on/off on the running server and wait for the new pod. */
+  const setConstrainedExecution = async (enabled: boolean): Promise<void> => {
+    const assignment = enabled
+      ? `${constrainedEnvVar}=true`
+      : `${constrainedEnvVar}-`;
+    await run(
+      `kubectl --kubeconfig=${kubeconfig} set env deployment/dot-ai -n dot-ai ${assignment}`
+    );
+    await run(
+      `kubectl --kubeconfig=${kubeconfig} rollout status deployment/dot-ai -n dot-ai --timeout=300s`
+    );
+    await waitForServerReady();
+  };
+
+  beforeAll(async () => {
+    // A run that dies mid-suite leaves its fixtures behind, and the next run
+    // then fails on them — `helm install` hitting an existing release, an Argo
+    // CD Application still self-healing a broken Deployment back into a
+    // namespace — which reads as a product defect rather than stale state. So
+    // clear what this suite creates before it creates any of it again. The Argo
+    // CD Application goes first: while it exists, automated sync would re-create
+    // the workload in a namespace being deleted.
+    await runCleanup(
+      `kubectl --kubeconfig=${kubeconfig} delete applications.argoproj.io ${constrainedArgoApp} -n argocd --ignore-not-found --wait --timeout=120s`
+    );
+    await runCleanup(
+      `helm --kubeconfig=${kubeconfig} uninstall ${constrainedHelmRelease} -n ${constrainedHelmNamespace} --ignore-not-found --wait --timeout=120s`
+    );
+    await runCleanup(
+      `kubectl --kubeconfig=${kubeconfig} delete namespace ${constrainedNamespaces.join(' ')} --ignore-not-found --wait --timeout=180s`
+    );
+
+    await setConstrainedExecution(true);
+
+    // The flip is the whole premise of this suite: prove it landed on the
+    // pod template before any assertion blames the feature for a harness slip.
+    const renderedEnv = await run(
+      `kubectl --kubeconfig=${kubeconfig} get deployment dot-ai -n dot-ai -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name=='${constrainedEnvVar}')].value}"`
+    );
+    expect(renderedEnv.trim()).toBe('true');
+  }, 600000);
+
+  afterAll(async () => {
+    await setConstrainedExecution(false);
+  }, 600000);
+
+  test('should expose constrained execution as a chart value that renders the env var only when enabled', async () => {
+    const enabledRender = await run(
+      `helm template dot-ai ./charts --set remediation.constrainedExecution.enabled=true`
+    );
+    expect(
+      enabledRender,
+      `helm template with remediation.constrainedExecution.enabled=true did not render ${constrainedEnvVar}`
+    ).toMatch(
+      new RegExp(`name:\\s*${constrainedEnvVar}\\s*\\n\\s*value:\\s*"true"`)
+    );
+
+    // Default render is the backward-compatibility contract: no env var at all.
+    const defaultRender = await run(`helm template dot-ai ./charts`);
+    expect(defaultRender).not.toContain(constrainedEnvVar);
+
+    // CLAUDE.md rule 7: new params are first-class chart values, not bare env vars.
+    const chartValues = await run(`helm show values ./charts`);
+    expect(chartValues).toContain('constrainedExecution:');
+  }, 120000);
+
+  test.concurrent(
+    'should execute structured kubectl actions and fix the cluster when constrained execution is enabled',
+    async () => {
+      // SETUP: OOM-crashing Deployment — the fix (raise the memory limit) is
+      // expressible as a structured kubectl patch, so it must still execute.
+      await integrationTest.kubectl(
+        `create namespace ${constrainedAutoNamespace}`
+      );
+      await integrationTest.kubectl(`apply -n ${constrainedAutoNamespace} -f - <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: constrained-test-app
+  namespace: ${constrainedAutoNamespace}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: constrained-test-app
+  template:
+    metadata:
+      labels:
+        app: constrained-test-app
+    spec:
+      containers:
+      - name: stress
+        image: polinux/stress:1.0.4
+        command: ["stress"]
+        args: ["--vm", "1", "--vm-bytes", "250M", "--vm-hang", "1"]
+        resources:
+          limits:
+            memory: "128Mi"
+          requests:
+            memory: "64Mi"
+EOF`);
+
+      // Wait for the pod to crash at least once
+      let restartCount = 0;
+      const crashDeadline = Date.now() + 90000;
+      while (Date.now() < crashDeadline) {
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${constrainedAutoNamespace} -l app=constrained-test-app -o json`
+        );
+        if (podsJson && podsJson.trim() !== '') {
+          const podsData = JSON.parse(podsJson);
+          const containerStatuses =
+            podsData.items?.[0]?.status?.containerStatuses;
+          if (containerStatuses?.[0]) {
+            restartCount = containerStatuses[0].restartCount;
+            if (restartCount > 0) break;
+          }
+        }
+        await sleep(5000);
+      }
+      expect(restartCount).toBeGreaterThan(0);
+
+      // ACT: automatic mode with thresholds low enough to guarantee execution
+      const autoResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: `constrained-test-app deployment in ${constrainedAutoNamespace} namespace is crashing`,
+            mode: 'automatic',
+            confidenceThreshold: 0.1,
+            maxRiskLevel: 'high',
+            interaction_id: 'constrained_structured_execute',
+          }
+        );
+
+      expect(
+        autoResponse,
+        `Constrained auto mode failed: ${JSON.stringify(autoResponse.error || autoResponse.data?.result?.error || autoResponse.data?.result?.fallbackReason || 'no error field')}`
+      ).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            executed: true,
+            results: expect.arrayContaining([
+              expect.objectContaining({ success: true }),
+            ]),
+            validation: { success: true },
+          },
+        },
+      });
+
+      // KEY VALIDATION: every executed action carried the structured form, so
+      // nothing could have been handed to a shell.
+      const actions = autoResponse.data!.result.remediation?.actions || [];
+      expect(actions.length).toBeGreaterThan(0);
+      actions.forEach((action: RemediationAction) => {
+        expect(
+          action,
+          `Action executed under constrained execution without kubectlAction: ${JSON.stringify(action, null, 2)}`
+        ).toMatchObject({
+          kubectlAction: {
+            verb: expect.stringMatching(/^(patch|apply|delete)$/),
+          },
+        });
+      });
+
+      // The OOM fix mutates the Deployment, so at least one action must be a
+      // patch or an apply — a set of pure deletes would not be this remediation.
+      const verbs = actions.map(
+        (action: RemediationAction) => action.kubectlAction?.verb
+      );
+      expect(
+        verbs.some(verb => verb === 'patch' || verb === 'apply'),
+        `Expected a patch/apply action but got verbs: ${JSON.stringify(verbs)}`
+      ).toBe(true);
+
+      // A patch without a target is not executable — pin the discrete fields.
+      actions
+        .filter(
+          (action: RemediationAction) => action.kubectlAction?.verb === 'patch'
+        )
+        .forEach((action: RemediationAction) => {
+          expect(
+            action.kubectlAction,
+            `Patch action missing target/payload fields: ${JSON.stringify(action, null, 2)}`
+          ).toMatchObject({
+            verb: 'patch',
+            kind: expect.stringMatching(/deployment/i),
+            name: 'constrained-test-app',
+            namespace: constrainedAutoNamespace,
+            patch: expect.any(String),
+          });
+        });
+
+      // ASSERT CLUSTER STATE: outcome-based — the workload stopped crashing
+      await sleep(15000);
+      const afterPodsJson = await integrationTest.kubectl(
+        `get pods -n ${constrainedAutoNamespace} -l app=constrained-test-app -o json`
+      );
+      const afterPodsData = JSON.parse(afterPodsJson);
+      const runningPods = afterPodsData.items.filter(
+        (pod: PodResource) =>
+          pod.status?.phase === 'Running' &&
+          pod.spec?.containers?.some(
+            container => container.image === 'polinux/stress:1.0.4'
+          )
+      );
+      expect(runningPods.length).toBeGreaterThan(0);
+      expect(runningPods[0].status.containerStatuses[0].restartCount).toBe(0);
+    },
+    1800000
+  ); // 30 minute timeout — AI investigation + execution + validation
+
+  test.concurrent(
+    'should refuse execution in both automatic and manual mode when a remediation action is not expressible as a structured kubectl operation',
+    async () => {
+      const { execSync } = await import('child_process');
+      const releaseName = constrainedHelmRelease;
+      const chartDir = './tmp/helm-constrained-test-chart';
+
+      const runHelm = (cmd: string): string => {
+        try {
+          return execSync(`helm --kubeconfig=${kubeconfig} ${cmd}`, {
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 180000,
+          });
+        } catch (error: unknown) {
+          return (error as { stdout?: string }).stdout || '';
+        }
+      };
+
+      // SETUP: break only the Helm *release record*, not the workload.
+      //
+      // A broken workload is the wrong trigger here: a bad image on a
+      // Deployment is repairable with `kubectl patch`, which IS expressible as
+      // a structured action, so the engine would rightly execute it. Instead we
+      // leave the cluster objects healthy and the release stuck in `failed`
+      // with a stored manifest pointing at an image that does not exist. There
+      // is no Kubernetes object left to patch, apply or delete — repairing the
+      // release history means `helm rollback`, a shell command — so constrained
+      // execution must refuse rather than silently downgrade.
+      await integrationTest.kubectl(
+        `create namespace ${constrainedHelmNamespace}`
+      );
+      execSync(`rm -rf ${chartDir}`);
+      execSync(`helm create ${chartDir}`, {
+        encoding: 'utf8',
+        timeout: 30000,
+      });
+      execSync(
+        `helm --kubeconfig=${kubeconfig} install ${releaseName} ${chartDir} -n ${constrainedHelmNamespace} --set image.tag=alpine --wait --timeout=120s`,
+        { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 180000 }
+      );
+
+      // BREAK: upgrade to a non-existent image; --wait fails, release goes "failed"
+      runHelm(
+        `upgrade ${releaseName} ${chartDir} -n ${constrainedHelmNamespace} --set image.repository=nonexistent-registry.invalid/nginx --set image.tag=doesnotexist --wait --timeout=60s`
+      );
+
+      let podInErrorState = false;
+      const errorDeadline = Date.now() + 90000;
+      while (Date.now() < errorDeadline) {
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${constrainedHelmNamespace} -o json`
+        );
+        if (podsJson && podsJson.trim() !== '') {
+          const podsData = JSON.parse(podsJson);
+          for (const pod of podsData.items) {
+            for (const cs of pod.status?.containerStatuses || []) {
+              const waitReason = cs.state?.waiting?.reason;
+              if (
+                waitReason === 'ImagePullBackOff' ||
+                waitReason === 'ErrImagePull'
+              ) {
+                podInErrorState = true;
+                break;
+              }
+            }
+            if (podInErrorState) break;
+          }
+        }
+        if (podInErrorState) break;
+        await sleep(5000);
+      }
+      expect(podInErrorState).toBe(true);
+
+      // REPAIR THE WORKLOAD BY HAND: roll the Deployment back to the working
+      // ReplicaSet. Pods recover; Helm still records revision 2 as failed.
+      const deploymentName = (
+        await integrationTest.kubectl(
+          `get deployments -n ${constrainedHelmNamespace} -l app.kubernetes.io/instance=${releaseName} -o jsonpath="{.items[0].metadata.name}"`
+        )
+      ).trim();
+      expect(deploymentName).not.toBe('');
+      await integrationTest.kubectl(
+        `rollout undo deployment/${deploymentName} -n ${constrainedHelmNamespace}`
+      );
+      await integrationTest.kubectl(
+        `rollout status deployment/${deploymentName} -n ${constrainedHelmNamespace} --timeout=120s`
+      );
+
+      // Precondition: cluster healthy, release record broken. Nothing to patch.
+      const healthyImages = await integrationTest.kubectl(
+        `get deployments -n ${constrainedHelmNamespace} -l app.kubernetes.io/instance=${releaseName} -o jsonpath="{.items[*].spec.template.spec.containers[*].image}"`
+      );
+      expect(healthyImages).not.toContain('nonexistent-registry.invalid');
+      expect(
+        JSON.parse(
+          runHelm(
+            `status ${releaseName} -n ${constrainedHelmNamespace} -o json`
+          )
+        )
+      ).toMatchObject({ info: { status: 'failed' }, version: 2 });
+
+      // One issue text for both modes: the mode is the only variable under test,
+      // so a differently worded prompt would confound the comparison.
+      const brokenReleaseIssue = `helm release ${releaseName} in ${constrainedHelmNamespace} namespace is stuck in a failed state after a bad upgrade: helm reports the release as failed and its stored manifest still references the non-existent image nonexistent-registry.invalid/nginx:doesnotexist, even though the running pods are healthy. The release history needs to be repaired so future helm upgrades work.`;
+
+      // ACT: automatic mode, thresholds wide open — only the constraint should stop it
+      const refusalResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: brokenReleaseIssue,
+            mode: 'automatic',
+            confidenceThreshold: 0.1,
+            maxRiskLevel: 'high',
+            interaction_id: 'constrained_helm_refusal',
+          }
+        );
+
+      // KEY VALIDATION: refused, not downgraded and not executed
+      expect(
+        refusalResponse,
+        `Expected constrained refusal but got: ${JSON.stringify(refusalResponse.data?.result?.remediation?.actions, null, 2)}`
+      ).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'awaiting_user_approval',
+            executed: false,
+            fallbackReason: expect.stringMatching(/constrain/i),
+          },
+        },
+      });
+
+      // The reason must name the constraint, not just any refusal (the RBAC
+      // denial path at src/tools/remediate.ts:1633 also sets fallbackReason).
+      expect(refusalResponse.data!.result.fallbackReason).toMatch(
+        /shell|free-form|command/i
+      );
+
+      // ASSERT NOTHING RAN: a `helm rollback` would have produced revision 3
+      // and a `deployed` status, so an unchanged failed revision 2 is proof
+      // the refusal stopped execution rather than merely reporting it.
+      const releaseStatus = JSON.parse(
+        runHelm(`status ${releaseName} -n ${constrainedHelmNamespace} -o json`)
+      );
+      expect(releaseStatus).toMatchObject({
+        info: { status: 'failed' },
+        version: 2,
+      });
+
+      // MANUAL MODE IS NOT A LOOPHOLE. With the flag on, a free-form
+      // remediation is refused whether the caller asked for automatic
+      // execution or approved it by hand: a command string this server will
+      // never run is not a command, and offering it for approval would
+      // reinstate the path the flag exists to remove. Same fixture, same
+      // unexpressible fix — the mode is the only thing that changes.
+      const manualInvestigation =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: brokenReleaseIssue,
+            mode: 'manual',
+            interaction_id: 'constrained_helm_manual_analyze',
+          }
+        );
+
+      expect(
+        manualInvestigation,
+        `Manual investigation failed: ${JSON.stringify(manualInvestigation.error || manualInvestigation.data?.result?.error || 'no error field')}`
+      ).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'awaiting_user_approval',
+            sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
+            executed: false,
+          },
+        },
+      });
+
+      // The investigation itself is not gated — the refusal belongs at
+      // execution. An analysis refused here would prove nothing about choice 1.
+      expect(manualInvestigation.data!.result.fallbackReason).toBeUndefined();
+
+      const manualSessionId = manualInvestigation.data!.result.sessionId;
+
+      // ACT: approve execution by hand. `executeChoice` reaches execution
+      // through a different entry point than `mode: 'automatic'` does, so this
+      // is a second, independent way in — not a re-test of the same gate.
+      const manualRefusal =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            executeChoice: 1,
+            sessionId: manualSessionId,
+            mode: 'manual',
+            interaction_id: 'constrained_helm_manual_refusal',
+          }
+        );
+
+      expect(
+        manualRefusal,
+        `Expected a constrained refusal of choice 1 in manual mode but got: ${JSON.stringify(
+          {
+            error: manualRefusal.error,
+            status: manualRefusal.data?.result?.status,
+            executed: manualRefusal.data?.result?.executed,
+            fallbackReason: manualRefusal.data?.result?.fallbackReason,
+            results: manualRefusal.data?.result?.results,
+          },
+          null,
+          2
+        )}`
+      ).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            sessionId: manualSessionId,
+            status: 'awaiting_user_approval',
+            executed: false,
+            fallbackReason: expect.stringMatching(/constrain/i),
+            // Empty, not merely unsuccessful: refusal happens before any
+            // action runs, so there is no result to report.
+            results: [],
+          },
+        },
+      });
+
+      // Same discrimination as above: name the constraint, not any refusal.
+      expect(manualRefusal.data!.result.fallbackReason).toMatch(
+        /shell|free-form|command/i
+      );
+
+      // ASSERT NOTHING RAN, proven the same honest way — a `helm rollback`
+      // approved by hand would still have moved the release to revision 3.
+      expect(
+        JSON.parse(
+          runHelm(
+            `status ${releaseName} -n ${constrainedHelmNamespace} -o json`
+          )
+        )
+      ).toMatchObject({ info: { status: 'failed' }, version: 2 });
+    },
+    2700000
+  ); // 45 minute timeout — two AI investigations (automatic + manual) + refusals
+
+  test.concurrent(
+    'should open a pull request for a GitOps-managed resource instead of refusing it when constrained execution is enabled',
+    // `onTestFinished` comes off the test context, not the module import: the
+    // imported one resolves the *currently running* test, which is meaningless
+    // once a concurrent test has awaited and its siblings have interleaved.
+    async ({ onTestFinished }) => {
+      // SETUP: an Argo CD-managed Deployment with a broken image. The fix lives
+      // in Git, not in the cluster, so the remediation carries `gitSource` and
+      // no `kubectlAction` — and it opens a PR rather than touching the
+      // cluster, so no string ever reaches a shell. A naive "refuse every
+      // action without kubectlAction" gate would break Argo CD and Flux
+      // remediation outright; this test is the guard on that regression.
+      const argoAppName = constrainedArgoApp;
+      const testRepoUrl = 'https://github.com/vfarcic/dot-ai.git';
+      const fixturePath = 'tests/integration/fixtures/gitops/broken-app';
+
+      await integrationTest.kubectl(
+        `create namespace ${constrainedGitOpsNamespace}`
+      );
+      await integrationTest.kubectl(`apply -f - <<'EOF'
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${argoAppName}
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ${testRepoUrl}
+    targetRevision: main
+    path: ${fixturePath}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${constrainedGitOpsNamespace}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+EOF`);
+
+      // Wait for Argo CD to sync the broken deployment into the namespace
+      let deploymentExists = false;
+      const syncDeadline = Date.now() + 120000;
+      while (Date.now() < syncDeadline) {
+        const deployJson = await integrationTest.kubectl(
+          `get deployment gitops-test-app -n ${constrainedGitOpsNamespace} -o json 2>/dev/null`
+        );
+        if (deployJson && deployJson.trim() !== '') {
+          deploymentExists = true;
+          break;
+        }
+        await sleep(5000);
+      }
+      expect(deploymentExists).toBe(true);
+
+      // Wait for pods to enter ImagePullBackOff (image: nginx:v999-nonexistent)
+      let podInErrorState = false;
+      const podDeadline = Date.now() + 120000;
+      while (Date.now() < podDeadline) {
+        const podsJson = await integrationTest.kubectl(
+          `get pods -n ${constrainedGitOpsNamespace} -l app=gitops-test-app -o json`
+        );
+        if (podsJson && podsJson.trim() !== '') {
+          const podsData = JSON.parse(podsJson);
+          for (const pod of podsData.items) {
+            for (const cs of pod.status?.containerStatuses || []) {
+              const waitReason = cs.state?.waiting?.reason;
+              if (
+                waitReason === 'ImagePullBackOff' ||
+                waitReason === 'ErrImagePull'
+              ) {
+                podInErrorState = true;
+                break;
+              }
+            }
+            if (podInErrorState) break;
+          }
+        }
+        if (podInErrorState) break;
+        await sleep(5000);
+      }
+      expect(podInErrorState).toBe(true);
+
+      // ACT: automatic mode with thresholds wide open, so the constraint is the
+      // only thing that could stop execution.
+      const gitOpsResponse =
+        await integrationTest.httpClient.post<RemediatePayload>(
+          '/api/v1/tools/remediate',
+          {
+            issue: `deployment gitops-test-app in ${constrainedGitOpsNamespace} namespace has pods failing with ImagePullBackOff`,
+            mode: 'automatic',
+            confidenceThreshold: 0.1,
+            maxRiskLevel: 'high',
+            interaction_id: 'constrained_gitops_execute',
+          }
+        );
+
+      // Hand the PR back whatever the assertions do — registered BEFORE the
+      // first of them, so even an assertion that fails on a PR that was in fact
+      // opened cannot leave it sitting on the repository.
+      const gitToken = process.env.DOT_AI_GIT_TOKEN;
+      const openedPr = gitOpsResponse.data?.result?.pullRequest;
+      onTestFinished(async () => {
+        if (!gitToken || !openedPr?.number) return;
+        await fetch(
+          `https://api.github.com/repos/vfarcic/dot-ai/pulls/${openedPr.number}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `token ${gitToken}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/vnd.github+json',
+            },
+            body: JSON.stringify({ state: 'closed' }),
+          }
+        );
+        await fetch(
+          `https://api.github.com/repos/vfarcic/dot-ai/git/refs/heads/${openedPr.branch}`,
+          {
+            method: 'DELETE',
+            headers: {
+              Authorization: `token ${gitToken}`,
+              Accept: 'application/vnd.github+json',
+            },
+          }
+        );
+      });
+
+      // KEY VALIDATION: not refused, and the PR path ran.
+      expect(
+        gitOpsResponse,
+        `Expected a GitOps pull request under constrained execution but got: ${JSON.stringify(
+          {
+            error: gitOpsResponse.error,
+            status: gitOpsResponse.data?.result?.status,
+            fallbackReason: gitOpsResponse.data?.result?.fallbackReason,
+            actions: gitOpsResponse.data?.result?.remediation?.actions,
+          },
+          null,
+          2
+        )}`
+      ).toMatchObject({
+        success: true,
+        data: {
+          result: {
+            status: 'success',
+            executed: true,
+            pullRequest: {
+              url: expect.stringMatching(
+                /^https:\/\/github\.com\/vfarcic\/dot-ai\/pull\/\d+$/
+              ),
+              number: expect.any(Number),
+              branch: expect.stringMatching(/^remediate\//),
+            },
+          },
+        },
+      });
+
+      const execResult = gitOpsResponse.data!.result;
+
+      // The refusal shape must be absent: `awaiting_user_approval` carrying a
+      // constraint reason is exactly what this test exists to rule out.
+      expect(execResult.status).not.toBe('awaiting_user_approval');
+      expect(
+        execResult.fallbackReason,
+        `GitOps remediation was refused under constrained execution: ${execResult.fallbackReason}`
+      ).toBeUndefined();
+
+      // ...and it must have been exempted for the right reason: actions that
+      // carry gitSource and NO free-form command. An action carrying both is
+      // not exempt, so proving the exemption means proving that shape.
+      const actions = execResult.remediation.actions;
+      const gitSourceActions = actions.filter(action => action.gitSource);
+      expect(
+        gitSourceActions.length,
+        `Expected gitSource actions but got: ${JSON.stringify(actions, null, 2)}`
+      ).toBeGreaterThan(0);
+      gitSourceActions.forEach((action: RemediationAction) => {
+        expect(
+          action.command,
+          `GitOps action carried a free-form command, which the constraint does not exempt: ${JSON.stringify(action, null, 2)}`
+        ).toBeUndefined();
+      });
+      expect(gitSourceActions[0].gitSource).toMatchObject({
+        repoURL: expect.stringContaining('dot-ai'),
+        files: expect.arrayContaining([
+          expect.objectContaining({
+            path: expect.stringContaining('deployment.yaml'),
+            content: expect.any(String),
+          }),
+        ]),
+      });
+
+      // The PR path ran instead of the structured kubectl path: a 'PR created'
+      // result, and no cluster command among the results.
+      const prCreatedResult = execResult.results.find(result =>
+        result.action?.includes('PR created')
+      );
+      expect(
+        prCreatedResult,
+        `Expected a result with 'PR created' but got: ${JSON.stringify(execResult.results, null, 2)}`
+      ).toBeDefined();
+      expect(prCreatedResult!.success).toBe(true);
+      expect(prCreatedResult!.output).toContain(
+        `PR #${execResult.pullRequest.number}`
+      );
+
+      const kubectlResults = execResult.results.filter(
+        result =>
+          !result.action?.includes('PR created') &&
+          !result.action?.includes('gitSource') &&
+          !result.action?.includes('branch pushed') &&
+          !result.action?.includes('no changes needed')
+      );
+      expect(
+        kubectlResults.length,
+        `Expected no kubectl actions but found: ${JSON.stringify(kubectlResults, null, 2)}`
+      ).toBe(0);
+    },
+    1800000
+  ); // 30 minute timeout — AI investigation + PR creation
 });

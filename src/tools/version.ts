@@ -480,7 +480,32 @@ export interface CapabilityReadiness {
 
 const READINESS_CACHE_TTL_MS = 30000;
 const READINESS_PROBE_TIMEOUT_MS = 10000;
-const READINESS_COLLECTION_INFO_TIMEOUT_MS = 1000;
+
+/**
+ * Per-call budgets for the two collection probes.
+ *
+ * Each call is bounded on its own rather than sharing one budget. `collectionExists()`
+ * is two Qdrant metadata round trips (list collections, then describe one) and
+ * `getCapabilitiesCount()` is two more (list collections, then an exact count that scans
+ * the collection). A single 1s budget spanning all four made a slow-but-healthy Qdrant
+ * report an existing collection as inaccessible — a false negative on a health signal,
+ * caused by the informational count it happened to be waiting on.
+ *
+ * Worst case 3s + 2s = 5s sits inside READINESS_PROBE_TIMEOUT_MS (10s), leaving 5s for
+ * the `healthCheck()` that precedes them. The embedding probe overlaps the collection
+ * probes, so it adds nothing to this sum. The count gets the smaller share because it is
+ * informational and is the only one of the two whose cost grows with collection size.
+ */
+export interface CollectionProbeBudgets {
+  collectionExistsMs: number;
+  countMs: number;
+}
+
+const DEFAULT_COLLECTION_PROBE_BUDGETS: CollectionProbeBudgets = {
+  collectionExistsMs: 3000,
+  countMs: 2000,
+};
+
 const READINESS_EMBEDDING_INPUT = loadPrompt('readiness-embedding').trim();
 let readinessCache:
   | { value: CapabilityReadiness; expiresAt: number }
@@ -498,7 +523,8 @@ export function resetCapabilityReadinessCache(): void {
 
 export async function getCapabilityReadiness(
   clock: () => number = Date.now,
-  timeoutMs: number = READINESS_PROBE_TIMEOUT_MS
+  timeoutMs: number = READINESS_PROBE_TIMEOUT_MS,
+  collectionBudgets: CollectionProbeBudgets = DEFAULT_COLLECTION_PROBE_BUDGETS
 ): Promise<CapabilityReadiness> {
   if (readinessCache && readinessCache.expiresAt > clock()) {
     return readinessCache.value;
@@ -525,7 +551,7 @@ export async function getCapabilityReadiness(
         );
       });
       const value = await Promise.race([
-        probeCapabilityReadiness(),
+        probeCapabilityReadiness(collectionBudgets),
         timeoutResult,
       ]);
       // Discard the result if the cache was reset while this probe ran, so a
@@ -558,7 +584,37 @@ function failedCapabilityReadiness(error?: string): CapabilityReadiness {
   };
 }
 
-async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
+/**
+ * Run one backend call under its own budget, yielding `fallback` when the call overruns,
+ * rejects, or throws synchronously.
+ *
+ * The underlying promise is left to settle on its own with its rejection swallowed, so a
+ * call we stopped waiting for cannot surface later as an unhandled rejection.
+ */
+async function withBudget<T>(
+  call: () => Promise<T>,
+  budgetMs: number,
+  fallback: T
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const bounded = call().catch(() => fallback);
+    return await Promise.race([
+      bounded,
+      new Promise<T>(resolve => {
+        timer = setTimeout(() => resolve(fallback), budgetMs);
+      }),
+    ]);
+  } catch {
+    return fallback;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function probeCapabilityReadiness(
+  budgets: CollectionProbeBudgets
+): Promise<CapabilityReadiness> {
   const checkedAt = new Date().toISOString();
 
   try {
@@ -580,32 +636,40 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
       };
     }
 
-    const collectionInfo = (async (): Promise<{
+    // Started before the embedding probe so the two overlap. Each call is bounded
+    // separately: whether the collection exists is the health signal, while storedCount
+    // is informational, so an overrunning count degrades the count alone instead of
+    // reporting a reachable collection as inaccessible.
+    const boundedCollectionInfo = (async (): Promise<{
       collectionAccessible: boolean;
       storedCount?: number;
     }> => {
-      try {
-        const collectionAccessible = await capabilityService.collectionExists();
-        const storedCount = collectionAccessible
-          ? await capabilityService.getCapabilitiesCount()
-          : 0;
-        return { collectionAccessible, storedCount };
-      } catch {
+      const existence = await withBudget<'exists' | 'absent' | 'undetermined'>(
+        async () =>
+          (await capabilityService.collectionExists()) ? 'exists' : 'absent',
+        budgets.collectionExistsMs,
+        'undetermined'
+      );
+
+      // Undetermined is not the same as absent: we can neither claim the collection is
+      // accessible nor report a count we never obtained.
+      if (existence === 'undetermined') {
         return { collectionAccessible: false };
       }
+
+      // An absent collection is a healthy fresh-install state holding nothing. No count
+      // call is needed to know that.
+      if (existence === 'absent') {
+        return { collectionAccessible: false, storedCount: 0 };
+      }
+
+      const storedCount = await withBudget<number | undefined>(
+        () => capabilityService.getCapabilitiesCount(),
+        budgets.countMs,
+        undefined
+      );
+      return { collectionAccessible: true, storedCount };
     })();
-    let collectionInfoTimeout: NodeJS.Timeout | undefined;
-    const boundedCollectionInfo = Promise.race([
-      collectionInfo,
-      new Promise<{ collectionAccessible: boolean; storedCount?: number }>(
-        resolve => {
-          collectionInfoTimeout = setTimeout(
-            () => resolve({ collectionAccessible: false }),
-            READINESS_COLLECTION_INFO_TIMEOUT_MS
-          );
-        }
-      ),
-    ]);
 
     let embeddingHealthy = false;
     try {
@@ -622,7 +686,6 @@ async function probeCapabilityReadiness(): Promise<CapabilityReadiness> {
       embeddingHealthy = false;
     }
     const { collectionAccessible, storedCount } = await boundedCollectionInfo;
-    if (collectionInfoTimeout) clearTimeout(collectionInfoTimeout);
 
     return {
       ready: vectorDBHealthy && embeddingHealthy,

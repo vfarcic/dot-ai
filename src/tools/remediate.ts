@@ -33,6 +33,15 @@ import { getCurrentIdentity } from '../interfaces/request-context';
 import { checkToolAccess } from '../core/rbac';
 import { getSessionEventBus, SESSION_EVENTS } from '../core/session-events';
 import {
+  buildStructuredInvocation,
+  checkConstrainedExecution,
+  isConstrainedExecutionEnabled,
+  isGitOpsAction,
+  summarizeKubectlAction,
+  validateKubectlAction,
+  type KubectlAction,
+} from '../core/remediation-constraints';
+import {
   getInternalTools,
   createInternalToolExecutor,
   GitCreatePrInput,
@@ -153,6 +162,11 @@ export type RemediateSession = {
 export interface RemediationAction {
   description: string;
   command?: string;
+  /**
+   * PRD #810: shell-free form of this action. Populated by the hardened prompt
+   * and the only form executed when constrained execution is enabled.
+   */
+  kubectlAction?: KubectlAction;
   risk: 'low' | 'medium' | 'high';
   rationale: string;
   gitSource?: {
@@ -255,6 +269,27 @@ const KUBECTL_INVESTIGATION_TOOL_NAMES = [
 ];
 
 /**
+ * What to show the user for one action.
+ *
+ * A structured action (PRD #810) carries no `command` string, so the places
+ * that used to print one fall back to a rendering of its discrete fields.
+ * Returns undefined when the action carries neither, which is what the
+ * free-form path already produced for gitSource actions.
+ *
+ * Under the constraint the structured form wins, because the structured form is
+ * what runs (PRD #810 review finding R3). Nothing forces the model to emit
+ * exactly one of `command`/`kubectlAction`, so an action carrying both used to
+ * be *displayed* as its `command` and *executed* as its `kubectlAction` — the
+ * user approving a replicas patch while a Secret was deleted. Display follows
+ * execution, in both directions.
+ */
+function describeActionCommand(action: RemediationAction): string | undefined {
+  return isConstrainedExecutionEnabled()
+    ? (summarizeKubectlAction(action.kubectlAction) ?? action.command)
+    : (action.command ?? summarizeKubectlAction(action.kubectlAction));
+}
+
+/**
  * AI-driven investigation - uses toolLoop for single-phase investigation and analysis
  *
  * PRD #343: Kubectl tools are routed through the plugin system.
@@ -284,13 +319,14 @@ async function conductInvestigation(
 
   try {
     // Load investigation system prompt (static, cacheable)
-    const promptPath = path.join(
-      __dirname,
-      '..',
-      '..',
-      'prompts',
-      'remediate-system.md'
-    );
+    // PRD #810: with constrained execution enabled the hardened variant is
+    // loaded instead — it teaches the structured `kubectlAction` form and drops
+    // the heredoc/shell guidance. The default file is left untouched so the
+    // default path is byte-identical to before.
+    const promptFile = isConstrainedExecutionEnabled()
+      ? 'remediate-system-constrained.md'
+      : 'remediate-system.md';
+    const promptPath = path.join(__dirname, '..', '..', 'prompts', promptFile);
     const systemPrompt = fs.readFileSync(promptPath, 'utf8');
 
     // PRD #343: Get kubectl tools from plugin
@@ -408,8 +444,8 @@ async function conductInvestigation(
       // Active issue - generate execution options
       const commandsSummary =
         finalAnalysis.remediation.actions.length === 1
-          ? `The following kubectl command will be executed:\n${finalAnalysis.remediation.actions[0].command}`
-          : `The following ${finalAnalysis.remediation.actions.length} kubectl commands will be executed:\n${finalAnalysis.remediation.actions.map((action, i) => `${i + 1}. ${action.command}`).join('\n')}`;
+          ? `The following kubectl command will be executed:\n${describeActionCommand(finalAnalysis.remediation.actions[0])}`
+          : `The following ${finalAnalysis.remediation.actions.length} kubectl commands will be executed:\n${finalAnalysis.remediation.actions.map((action, i) => `${i + 1}. ${describeActionCommand(action)}`).join('\n')}`;
 
       const highRiskActions = finalAnalysis.remediation.actions.filter(
         a => a.risk === 'high'
@@ -634,8 +670,13 @@ export function parseAIFinalAnalysis(
 /**
  * Execute user choice from previous session
  * PRD #359: Uses unified plugin registry
+ *
+ * Exported for unit testing, like `executeRemediationCommands`: choice 2 routes
+ * actions by shape (gitSource / command / kubectlAction) and that routing is
+ * not observable through the REST-level integration tests, which only see the
+ * response of choice 1.
  */
-async function executeUserChoice(
+export async function executeUserChoice(
   sessionManager: GenericSessionManager<RemediateSessionData>,
   sessionId: string,
   choice: number,
@@ -681,10 +722,22 @@ async function executeUserChoice(
       case 2: {
         // Execute via agent
         const actions = session.data.finalAnalysis.remediation.actions;
-        const gitSourceActions = actions.filter(a => a.gitSource && !a.command);
-        const kubectlActions = actions.filter(a => a.command && !a.gitSource);
+        /**
+         * PRD #810 review finding R5: both filters used to key off `command`,
+         * which a structured action does not carry. A structured patch then
+         * counted as neither a GitOps action nor a cluster action, so a mixed
+         * set took the GitOps-only branch below and the kubectl half of the
+         * remediation was silently dropped from the response.
+         *
+         * `isGitOpsAction` is the same predicate the execution branch and the
+         * constraint gate use, so all three agree on what a GitOps action is.
+         */
+        const gitSourceActions = actions.filter(isGitOpsAction);
+        const clusterActions = actions.filter(
+          a => !isGitOpsAction(a) && (a.command || a.kubectlAction)
+        );
 
-        if (gitSourceActions.length > 0 && kubectlActions.length === 0) {
+        if (gitSourceActions.length > 0 && clusterActions.length === 0) {
           return {
             content: [
               {
@@ -716,6 +769,29 @@ async function executeUserChoice(
           session.data.finalAnalysis.validationIntent ||
           'Check the status of the affected resources to verify the issue has been resolved';
 
+        /**
+         * PRD #810 review finding R5: the old text told the agent to run "the
+         * kubectl commands shown in the remediation section". Under the
+         * constraint there are none — actions carry `kubectlAction` objects —
+         * so the agent invented a command line from the JSON and ran it in its
+         * own shell, reassembling by hand exactly what this PRD removes. Name
+         * the shape that is actually present.
+         */
+        const hasStructuredActions = clusterActions.some(a => a.kubectlAction);
+        const hasCommandActions = clusterActions.some(a => a.command);
+        const executionStep = hasStructuredActions
+          ? hasCommandActions
+            ? 'STEP 1: Apply each action under remediation.actions. An action with a `command` string runs as-is; an action with a `kubectlAction` object describes a kubectl patch/apply/delete by its discrete fields (verb, kind, name, namespace, patch, patchType, manifest) — pass each field as its own kubectl argument instead of interpolating them into a shell string'
+            : 'STEP 1: Apply each action under remediation.actions. Each carries a `kubectlAction` object describing a kubectl patch/apply/delete by its discrete fields (verb, kind, name, namespace, patch, patchType, manifest) — pass each field as its own kubectl argument instead of interpolating them into a shell string'
+          : 'STEP 1: Execute the kubectl commands shown in the remediation section using your Bash tool';
+
+        const gitOpsNote =
+          gitSourceActions.length > 0
+            ? [
+                `NOTE: ${gitSourceActions.length} of these actions are GitOps changes (they carry gitSource) and cannot be applied with kubectl — use choice 1 to open a pull request for those, or apply the files in gitSource.files to your repository yourself`,
+              ]
+            : [];
+
         return {
           content: [
             {
@@ -728,11 +804,12 @@ async function executeUserChoice(
                   remediation: session.data.finalAnalysis.remediation,
                   instructions: {
                     nextSteps: [
-                      'STEP 1: Execute the kubectl commands shown in the remediation section using your Bash tool',
+                      executionStep,
                       'STEP 2: After successful execution, call the remediation tool with validation using these parameters:',
                       `issue: "${validationIntent}"`,
                       `executedCommands: [list of commands you executed]`,
                       'STEP 3: The tool will perform fresh validation to confirm the issue is resolved',
+                      ...gitOpsNote,
                     ],
                   },
                 },
@@ -831,8 +908,10 @@ export interface RemediationResponseShape {
  * - Anything else — kubectl commands ran (possibly alongside gitSource actions),
  *   so the commands and their per-action outcome are the story.
  *
- * Pure by design: this is the part of the response worth pinning in a unit test,
- * and it needs neither a session nor a cluster to do it.
+ * Needs neither a session nor a cluster, which is what makes this the part of
+ * the response worth pinning in a unit test. Its one ambient input is the
+ * constrained-execution flag, read by describeActionCommand() so the listing
+ * names what actually ran (PRD #810 review finding R3).
  */
 export function buildRemediationResponseShape(
   input: RemediationResponseShapeInput
@@ -870,11 +949,14 @@ export function buildRemediationResponseShape(
    */
   const commandLines = (): string[] =>
     actions
-      .map((action, index) => ({ action, result: results[index] }))
-      .filter(({ action }) => action.command)
+      .map((action, index) => ({
+        command: describeActionCommand(action),
+        result: results[index],
+      }))
+      .filter(({ command }) => command)
       .map(
-        ({ action, result }, listIndex) =>
-          `  ${listIndex + 1}. ${action.command} ${result?.success ? '✓' : '✗'}`
+        ({ command, result }, listIndex) =>
+          `  ${listIndex + 1}. ${command} ${result?.success ? '✓' : '✗'}`
       );
 
   let nextSteps: string[];
@@ -967,8 +1049,12 @@ export function buildRemediationResponseShape(
 /**
  * Execute remediation commands via kubectl
  * PRD #359: Uses unified plugin registry
+ *
+ * Exported for unit testing: whether `shell_exec` is reachable (PRD #810) is
+ * not observable through the REST-level integration tests, which can only see
+ * the outcome, so it is pinned directly against this function.
  */
-async function executeRemediationCommands(
+export async function executeRemediationCommands(
   session: RemediateSession,
   sessionManager: GenericSessionManager<RemediateSessionData>,
   logger: Logger,
@@ -988,10 +1074,80 @@ async function executeRemediationCommands(
    */
   const gitOpsWithoutPr: GitOpsWithoutPr[] = [];
 
+  /**
+   * PRD #810: read once for this execution set so every action is judged by the
+   * same flag state, and so the `shell_exec` branch below is selected by a value
+   * that cannot change mid-loop.
+   */
+  const constrainedExecution = isConstrainedExecutionEnabled();
+
+  /**
+   * PRD #810: the SECOND of two gates — refuse the whole set before anything
+   * runs if any action is only expressible as a free-form shell command.
+   * All-or-nothing: executing the expressible half would be the silent
+   * downgrade this control exists to prevent. gitSource actions open a PR and
+   * never reach a shell, so they do not trigger this.
+   *
+   * Not redundant with the gate in handleRemediateTool(): `executeChoice: 1`
+   * arrives here through executeUserChoice() without passing through it, and
+   * conductInvestigation() has already persisted finalAnalysis by then, so this
+   * path is live even after the first gate has refused.
+   */
+  const constraint = checkConstrainedExecution(
+    finalAnalysis.remediation.actions
+  );
+  if (!constraint.allowed) {
+    logger.warn('Refusing remediation execution under constrained execution', {
+      requestId,
+      sessionId: session.sessionId,
+      unexpressible: constraint.unexpressible,
+    });
+
+    /**
+     * PRD #810 review finding R8: the same logical event as the gate in
+     * `handleRemediateTool` — the constraint refused this set — so it returns
+     * the same shape. That one spreads `finalAnalysis` and appends
+     * `visualizationUrl`; hand-building a narrower object here meant the two
+     * refusal sites disagreed on what a refusal looks like.
+     */
+    const refusalVisualizationUrl = getVisualizationUrl(session.sessionId);
+    const refusal = {
+      ...finalAnalysis,
+      sessionId: session.sessionId,
+      status: 'awaiting_user_approval',
+      executed: false,
+      fallbackReason: constraint.reason,
+      results: [],
+      message:
+        'Remediation was not executed: constrained execution allows only structured kubectl operations.',
+      guidance: constraint.reason,
+      ...(refusalVisualizationUrl
+        ? { visualizationUrl: refusalVisualizationUrl }
+        : {}),
+    };
+
+    const refusalContent: Array<{ type: 'text'; text: string }> = [
+      {
+        type: 'text' as const,
+        text: JSON.stringify(refusal, null, 2),
+      },
+    ];
+
+    const refusalDisplayBlock = buildAgentDisplayBlock({
+      visualizationUrl: refusalVisualizationUrl,
+    });
+    if (refusalDisplayBlock) {
+      refusalContent.push(refusalDisplayBlock);
+    }
+
+    return { content: refusalContent };
+  }
+
   logger.info('Starting remediation command execution', {
     requestId,
     sessionId: session.sessionId,
     commandCount: finalAnalysis.remediation.actions.length,
+    constrainedExecution,
   });
 
   // Execute each remediation action
@@ -1000,8 +1156,10 @@ async function executeRemediationCommands(
     const actionId = `action_${i + 1}`;
 
     try {
-      // PRD #408: Handle gitSource actions — create PR instead of kubectl
-      if (action.gitSource && !action.command) {
+      // PRD #408: Handle gitSource actions — create PR instead of kubectl.
+      // PRD #810: shared with checkConstrainedExecution(), which exempts exactly
+      // these actions — they open a pull request and never reach a shell.
+      if (isGitOpsAction(action)) {
         logger.info('Processing gitSource remediation action', {
           requestId,
           sessionId: session.sessionId,
@@ -1105,16 +1263,56 @@ async function executeRemediationCommands(
         sessionId: session.sessionId,
         actionId,
         command: action.command,
+        constrainedExecution,
       });
 
-      // PRD #359: Execute the command via unified plugin registry
-      // Clean up escape sequences that some AI models incorrectly add to JSON parameters
-      let fullCommand = action.command || '';
-      fullCommand = fullCommand.replace(/\\"/g, '"');
+      /**
+       * PRD #810: the two execution paths are mutually exclusive branches of
+       * one condition, so `shell_exec` is unreachable whenever constrained
+       * execution is on — for every action, whatever the model proposed and
+       * whatever content steered it.
+       */
+      let response: Awaited<ReturnType<typeof invokePluginTool>>;
+      if (constrainedExecution) {
+        const validation = validateKubectlAction(action.kubectlAction);
+        if (!validation.valid) {
+          // Not reachable through either caller: checkConstrainedExecution()
+          // above refuses the whole set first. Kept so the guarantee survives a
+          // future caller that forgets the gate — it fails the action rather
+          // than falling through to a shell.
+          throw new Error(
+            `Constrained execution refuses this action: ${validation.reason}. Free-form shell commands are not executed when remediation.constrainedExecution.enabled is set.`
+          );
+        }
 
-      const response = await invokePluginTool('agentic-tools', 'shell_exec', {
-        command: fullCommand,
-      });
+        const invocation = buildStructuredInvocation(validation.action);
+
+        logger.info('Executing structured kubectl action', {
+          requestId,
+          sessionId: session.sessionId,
+          actionId,
+          tool: invocation.toolName,
+          verb: validation.action.verb,
+          kind: validation.action.kind,
+          name: validation.action.name,
+          namespace: validation.action.namespace,
+        });
+
+        response = await invokePluginTool(
+          'agentic-tools',
+          invocation.toolName,
+          invocation.args
+        );
+      } else {
+        // PRD #359: Execute the command via unified plugin registry
+        // Clean up escape sequences that some AI models incorrectly add to JSON parameters
+        let fullCommand = action.command || '';
+        fullCommand = fullCommand.replace(/\\"/g, '"');
+
+        response = await invokePluginTool('agentic-tools', 'shell_exec', {
+          command: fullCommand,
+        });
+      }
 
       if (!response.success) {
         throw new Error(response.error?.message || 'Command execution failed');
@@ -1314,7 +1512,10 @@ IMPORTANT: You MUST respond with the final JSON analysis format as specified in 
         investigation: validationOutput.investigation,
         validationIntent: validationOutput.validationIntent,
         guidance: `✅ REMEDIATION COMPLETE: Issue has been successfully resolved through executed commands.`,
-        agentInstructions: `1. Show user that the issue has been successfully resolved\n2. Display the actual kubectl commands that were executed (from remediation.actions[].command field)\n3. Show execution results with success/failure status for each command\n4. Show the validation results confirming the fix worked\n5. No further action required`,
+        // PRD #810 review finding R5: `remediation.actions[].command` is absent
+        // under the constraint, where an action carries `kubectlAction` instead.
+        // Point at both, so the agent shows what actually ran either way.
+        agentInstructions: `1. Show user that the issue has been successfully resolved\n2. Display the kubectl operations that were executed — remediation.actions[].command when present, otherwise the fields of remediation.actions[].kubectlAction\n3. Show execution results with success/failure status for each action\n4. Show the validation results confirming the fix worked\n5. No further action required`,
         message: `Issue successfully resolved. Executed ${results.length} remediation actions and validated the fix.`,
         validation: {
           success: true,
@@ -1608,8 +1809,9 @@ export async function handleRemediateTool(
           {
             id: 2,
             label: 'Execute via agent',
-            description:
-              'STEP 1: Execute the kubectl commands using your Bash tool\nSTEP 2: Call the remediate tool again for validation with the provided validation message\n',
+            description: isConstrainedExecutionEnabled()
+              ? 'STEP 1: Apply each action under remediation.actions yourself — each carries a kubectlAction object whose fields map to one kubectl patch/apply/delete\nSTEP 2: Call the remediate tool again for validation with the provided validation message\n'
+              : 'STEP 1: Execute the kubectl commands using your Bash tool\nSTEP 2: Call the remediate tool again for validation with the provided validation message\n',
             risk: finalAnalysis.remediation.risk,
           },
         ];
@@ -1626,12 +1828,31 @@ export async function handleRemediateTool(
         toolName: 'remediate',
         verb: 'apply',
       });
+      // PRD #810: the FIRST of two gates — automatic mode, evaluated before
+      // anything runs. The second is in executeRemediationCommands(), which
+      // `executeChoice: 1` reaches without passing through here.
+      const constraintCheck = checkConstrainedExecution(
+        finalAnalysis.remediation.actions
+      );
       if (!rbacResult.allowed) {
         // Downgrade to awaiting_user_approval with explanation
         finalResult.status = 'awaiting_user_approval';
         finalResult.executed = false;
         finalResult.fallbackReason = `Automatic execution blocked: 'apply' permission on 'remediate' is required. You can review the proposed remediation but applying fixes requires additional authorization.`;
         // Don't offer execution choices since user can't execute
+      } else if (!constraintCheck.allowed) {
+        // PRD #810: constrained execution is on and at least one action is only
+        // expressible as a free-form shell command. Refuse the whole set — the
+        // same downgrade shape as the RBAC denial above, with a reason that
+        // names the constraint rather than a missing permission.
+        logger.warn('Automatic execution refused by constrained execution', {
+          requestId,
+          sessionId: session.sessionId,
+          unexpressible: constraintCheck.unexpressible,
+        });
+        finalResult.status = 'awaiting_user_approval';
+        finalResult.executed = false;
+        finalResult.fallbackReason = constraintCheck.reason;
       } else {
         // Update session object with final analysis for execution
         session.data.finalAnalysis = finalAnalysis;

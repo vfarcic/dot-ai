@@ -62,7 +62,7 @@ export const kubectlPatch: KubectlTool = {
     );
     const patchType = optionalParam<string>(args, 'patchType', 'strategic');
 
-    const cmdArgs = ['patch', kind, name, '--patch', patch];
+    const cmdArgs = ['patch', '--patch', patch];
 
     // Map patch type to kubectl flag
     const patchTypeFlag =
@@ -76,6 +76,12 @@ export const kubectlPatch: KubectlTool = {
     if (namespace) {
       cmdArgs.push('-n', namespace);
     }
+
+    // `--` terminates flag parsing, so kind/name can never be read as flags no
+    // matter what the caller put in them. Without it a `name` of `--all` or
+    // `--kubeconfig=/tmp/evil.yaml` is a flag to kubectl, not a resource name.
+    // Every flag must already be on cmdArgs at this point.
+    cmdArgs.push('--', kind, name);
 
     try {
       const output = await executeKubectl(cmdArgs);

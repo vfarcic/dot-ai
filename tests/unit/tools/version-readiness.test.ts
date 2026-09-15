@@ -44,6 +44,11 @@ import {
 } from '../../../src/tools/version';
 
 const validEmbedding = () => new Array(1536).fill(0.1);
+const after = <T>(ms: number, value: T) =>
+  new Promise<T>(resolve => setTimeout(() => resolve(value), ms));
+
+// Tiny per-call budgets keep the timeout tests fast; production defaults are 3s/2s.
+const TIGHT_BUDGETS = { collectionExistsMs: 20, countMs: 20 };
 
 describe('getCapabilityReadiness (PRD #714 M4)', () => {
   beforeEach(() => {
@@ -118,6 +123,88 @@ describe('getCapabilityReadiness (PRD #714 M4)', () => {
       embeddingHealthy: true,
     });
     expect(readiness.storedCount).toBeUndefined();
+  });
+
+  it('keeps the collection accessible when only the informational count overruns its budget', async () => {
+    healthCheck.mockResolvedValue(true);
+    collectionExists.mockResolvedValue(true);
+    getCapabilitiesCount.mockImplementation(() => after(200, 42));
+
+    const readiness = await getCapabilityReadiness(
+      () => 1000,
+      10000,
+      TIGHT_BUDGETS
+    );
+
+    // The collection is reachable and says so. Only storedCount — the optional field the
+    // slow call was for — degrades. Letting the count falsify collectionAccessible made
+    // a healthy deployment report as not scan-ready.
+    expect(readiness).toMatchObject({
+      ready: true,
+      vectorDBHealthy: true,
+      collectionAccessible: true,
+      embeddingsRequired: true,
+      embeddingHealthy: true,
+    });
+    expect(readiness.storedCount).toBeUndefined();
+  });
+
+  it('keeps the collection accessible when the count fails outright', async () => {
+    healthCheck.mockResolvedValue(true);
+    collectionExists.mockResolvedValue(true);
+    getCapabilitiesCount.mockRejectedValue(new Error('vector_count failed'));
+
+    const readiness = await getCapabilityReadiness(() => 1000);
+
+    expect(readiness).toMatchObject({
+      ready: true,
+      collectionAccessible: true,
+      vectorDBHealthy: true,
+    });
+    expect(readiness.storedCount).toBeUndefined();
+  });
+
+  it('budgets each collection call separately rather than sharing one deadline', async () => {
+    healthCheck.mockResolvedValue(true);
+    // Neither call exceeds its own budget, but together they exceed either one. A single
+    // shared budget spanning both is what the /readyz false negative was made of.
+    // mockImplementation, not mockReturnValue: the delay must start when the call is
+    // made, so the two run back to back rather than overlapping.
+    collectionExists.mockImplementation(() => after(15, true));
+    getCapabilitiesCount.mockImplementation(() => after(15, 42));
+
+    const readiness = await getCapabilityReadiness(() => 1000, 10000, {
+      collectionExistsMs: 25,
+      countMs: 25,
+    });
+
+    expect(readiness).toMatchObject({
+      ready: true,
+      collectionAccessible: true,
+      storedCount: 42,
+    });
+  });
+
+  it('reports the collection inaccessible when the existence check itself overruns', async () => {
+    healthCheck.mockResolvedValue(true);
+    collectionExists.mockImplementation(() => after(200, true));
+
+    const readiness = await getCapabilityReadiness(
+      () => 1000,
+      10000,
+      TIGHT_BUDGETS
+    );
+
+    // Existence undetermined is not existence confirmed: claiming true here would be a
+    // worse bug than the false negative it replaces.
+    expect(readiness).toMatchObject({
+      ready: true,
+      vectorDBHealthy: true,
+      collectionAccessible: false,
+    });
+    // Undetermined is also not "absent", so there is no count to report.
+    expect(readiness.storedCount).toBeUndefined();
+    expect(getCapabilitiesCount).not.toHaveBeenCalled();
   });
 
   it('is not ready when Qdrant is unreachable', async () => {

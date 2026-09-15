@@ -68,18 +68,23 @@ export const kubectlDelete: KubectlTool = {
       // Delete from manifest
       cmdArgs = ['delete', '-f', '-'];
       stdinInput = manifest;
+      if (namespace) {
+        cmdArgs.push('-n', namespace);
+      }
     } else if (kind && name) {
-      // Delete by kind and name
-      cmdArgs = ['delete', kind, name];
+      // Delete by kind and name. `--` terminates flag parsing so kind/name can
+      // never be read as flags — without it a `name` of `--all` deletes every
+      // resource of that kind in the namespace. Flags go on before it.
+      cmdArgs = ['delete'];
+      if (namespace) {
+        cmdArgs.push('-n', namespace);
+      }
+      cmdArgs.push('--', kind, name);
     } else {
       return errorResult(
         'Missing required parameters',
         'kubectl_delete requires either manifest OR (kind and name)'
       );
-    }
-
-    if (namespace) {
-      cmdArgs.push('-n', namespace);
     }
 
     try {

@@ -450,6 +450,89 @@ Which option would you prefer? (1 or 2)
 
 ---
 
+## Constraining Automatic Execution
+
+By default, `mode: "automatic"` executes the remediation command the AI proposes by running it in a shell on the server. The investigation that produces that command reads pod logs, events and annotations — text the workloads under investigation write. Text planted there can steer both the command and the confidence/risk scores that authorize it, because the same model output supplies both.
+
+`remediation.constrainedExecution.enabled` closes that path: remediation may then only execute structured kubectl operations, and anything expressible only as a shell command is refused outright — in manual mode as well as automatic. It is **off by default**, so read both "What the constraint does not cover" and "What the default leaves open" below before deciding.
+
+### Enabling it
+
+```yaml
+# values.yaml
+remediation:
+  constrainedExecution:
+    enabled: true
+```
+
+The chart ships it off:
+
+```console
+$ helm show values ./charts | grep -A6 "Automatic Remediation Hardening"
+# Automatic Remediation Hardening (PRD #810)
+# When enabled, remediation may only execute structured kubectl operations.
+# Free-form shell commands are refused in BOTH manual and automatic mode
+# and downgraded to awaiting_user_approval.
+remediation:
+  constrainedExecution:
+    enabled: false
+```
+
+Enabling it renders one environment variable into the server container:
+
+```console
+$ helm template dot-ai ./charts --set remediation.constrainedExecution.enabled=true | grep -A1 DOT_AI_REMEDIATION_CONSTRAINED_EXEC
+        - name: DOT_AI_REMEDIATION_CONSTRAINED_EXEC
+          value: "true"
+```
+
+With the default values the variable is not rendered at all, so nothing about the existing execution path changes:
+
+```console
+$ helm template dot-ai ./charts | grep -c DOT_AI_REMEDIATION_CONSTRAINED_EXEC
+0
+```
+
+It is server-side configuration on purpose — there is no request parameter for it, since a caller-controlled switch would defeat the control.
+
+### What changes when it is on
+
+**Only structured kubectl operations execute.** A remediation action is executed by handing discrete, typed fields to `kubectl patch`, `kubectl apply` or `kubectl delete`. Each field becomes one argument to the kubectl process, which is started directly rather than through a shell, so shell metacharacters, pipes, command substitution and chaining have nothing to interpret them. Resource names are also passed after a `--` separator and rejected if they begin with `-`, so a name cannot turn into a kubectl flag such as `--all`. The AI is given a hardened prompt that teaches this form — including that `kubectl scale` is a replicas patch and `kubectl rollout restart` is a pod-template annotation patch.
+
+> This "no shell" guarantee is scoped to `remediate`. It says nothing about other tools: [`operate`](operate.md), for example, still executes AI-authored command strings through a shell on its own human-approved path. Enabling this flag constrains remediation only.
+
+**Both manual and automatic mode are constrained.** With the flag on, a free-form command is refused in manual mode too — approving it at the prompt does not make the server run it. A command string this server will never execute is not something it should offer for approval, since doing so would reinstate exactly the path the flag exists to remove. In manual mode you still get the full analysis and the proposed action, and you remain free to run the command yourself.
+
+**Anything else is refused, never silently downgraded.** If any action in the remediation cannot be expressed as a patch, apply or delete — a `helm rollback` repairing release history, a `kubectl exec`, anything needing another CLI — the whole remediation is refused. The response comes back with:
+
+- `"status": "awaiting_user_approval"`
+- `"executed": false`
+- `"fallbackReason"` naming the constraint and listing which actions had no structured form
+
+Nothing is executed in that case, not even the actions that *could* have run — a partial remediation would leave the cluster in a state nobody planned. The analysis is still returned in full, so you can apply the fix yourself.
+
+**GitOps remediation is unaffected.** When the resource is managed by Argo CD or Flux, remediation opens a pull request against the source repository instead of touching the cluster, and never involves a shell. Those actions run exactly as before.
+
+### What the constraint does not cover
+
+**It bounds the *form* of what executes, not the *target*.** A structured `delete` of `kind: Namespace, name: kube-system`, or an `apply` of a ClusterRoleBinding granting cluster-admin, are both perfectly well-formed operations and both would execute. The control removes the shell; it does not decide which resources remediation is allowed to touch. That is a per-command authorization question, deliberately out of scope here — it overlaps [per-user kubectl identity (#401)](https://github.com/vfarcic/dot-ai/issues/401), and the server's ServiceAccount permissions remain the real ceiling on blast radius. Scope that ServiceAccount to what remediation actually needs.
+
+**`apply` is the widest surface admitted.** It takes a complete AI-authored YAML manifest, and nothing inspects its contents — not the kind, not RBAC rules inside it, not a `metadata.namespace` that overrides the namespace field. It is genuinely narrower than a shell string: the manifest travels on stdin rather than a command line, and what it can express is bounded by the Kubernetes API rather than by whatever binaries happen to be on `PATH`. But it is still a full cluster-write primitive, and it is the widest thing the constraint permits.
+
+**The AI still scores its own proposal.** Automatic execution remains gated by the `confidenceThreshold` and `maxRiskLevel` you pass, compared against confidence and risk values the same AI response supplies. Constraining *what* may execute does not change *who* authorizes it. Planted text that steers the analysis still steers those scores — it simply can no longer steer a shell command.
+
+### What the default leaves open
+
+The flag is off unless you turn it on, and that default is worth stating plainly rather than leaving between the lines.
+
+With `remediation.constrainedExecution.enabled` unset — the default — `mode: "automatic"` behaves exactly as documented in [Automatic Mode Example](#automatic-mode-example): the AI writes a free-form command string, and the server runs it in a shell with no allowlist, no restriction to kubectl, and full interpretation of shell metacharacters. The only gate is the confidence and risk thresholds — and those values come from the same AI response that wrote the command. The investigation that produced both reads pod logs, Kubernetes events and resource annotations, all of which are written by the workloads being investigated. Text planted in any of them can steer the command *and* the scores that authorize it.
+
+Tool-level RBAC (the `apply` verb on `remediate`, see the [authorization guide](../setup/authorization.md)) controls *who* may trigger automatic remediation, but not *what* the resulting command may do. A user authorized to remediate at all inherits the whole arbitrary-command surface.
+
+This is a deliberate default, kept so that existing deployments are not changed by an upgrade — not an oversight, and not something the constraint fixes unless you enable it. If you run `mode: "automatic"` against clusters whose workloads you do not fully control, enable the constraint.
+
+---
+
 ## Tool Parameter Reference
 
 ### User-Defined Parameters
@@ -466,6 +549,7 @@ Execution mode determining how remediation actions are handled.
 - **User examples**: 
   - `"fix this automatically"` → agent sets `"automatic"`
   - `"show me options first"` → agent sets `"manual"`
+- **Note**: when the server runs with [constrained execution](#constraining-automatic-execution) enabled, both modes are restricted to structured kubectl operations — a free-form command is refused in manual mode too, not offered for approval
 
 #### `confidenceThreshold` (number, optional, default: 0.8)
 Minimum AI confidence required for automatic execution (automatic mode only).

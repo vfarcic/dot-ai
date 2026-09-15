@@ -164,6 +164,23 @@ export interface RemediationAction {
     repoURL: string;
     files: Array<{ path: string; content: string }>;
   };
+  /**
+   * Structured, shell-free form of the action (PRD #810). Present when the
+   * action is expressible as a kubectl patch/apply/delete, which is the only
+   * form `remediation.constrainedExecution.enabled=true` will execute.
+   */
+  kubectlAction?: {
+    verb: 'patch' | 'apply' | 'delete';
+    kind?: string;
+    name?: string;
+    namespace?: string;
+    /** verb: 'patch' */
+    patch?: string;
+    /** verb: 'patch' */
+    patchType?: 'strategic' | 'merge' | 'json';
+    /** verb: 'apply', or a delete expressed by manifest */
+    manifest?: string;
+  };
 }
 
 /** One entry in the remediate execution `results` array. */

@@ -50,11 +50,15 @@ export const kubectlDeleteDryrun: KubectlTool = {
       undefined
     );
 
-    const cmdArgs = ['delete', resource, '--dry-run=server'];
+    const cmdArgs = ['delete', '--dry-run=server'];
 
     if (namespace) {
       cmdArgs.push('-n', namespace);
     }
+
+    // `--` terminates flag parsing so `resource` can never be read as a flag.
+    // Every flag must already be on cmdArgs at this point.
+    cmdArgs.push('--', resource);
 
     try {
       const output = await executeKubectl(cmdArgs);
