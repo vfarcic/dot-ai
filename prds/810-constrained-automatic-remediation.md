@@ -1,6 +1,6 @@
 # PRD #810: Constrained Execution Path for Automatic Remediation
 
-**Status**: Implementation complete — M1–M7 landed on `prd-810-constrained-automatic-remediation`, unit-green and integration-verified on the scoped `remediate` group; PR/CI pending. Two blocking security findings (shell reachability through the structured plugin tools, and kubectl flag injection) were found by audit and review and are fixed — see [Security findings during implementation](#security-findings-during-implementation). Design Decision #4 resolved; #3 carried forward as a follow-up.
+**Status**: Implementation complete, pending merge — M1–M7 landed on `prd-810-constrained-automatic-remediation` via PR [#822](https://github.com/vfarcic/dot-ai/pull/822), with CI green on every check including all eight integration groups. Two blocking security findings (shell reachability through the structured plugin tools, and kubectl flag injection) were found by audit and review and are fixed — see [Security findings during implementation](#security-findings-during-implementation). Design Decision #4 resolved; #3 carried forward as a follow-up.
 **Priority**: High
 **GitHub Issue**: [#810](https://github.com/vfarcic/dot-ai/issues/810)
 **Created**: 2026-09-14
@@ -140,6 +140,25 @@ Not applied to the read-only kubectl tools (`kubectl_get`, `kubectl_describe`, `
 - **The approval line hid the payload.** The human-facing summary rendered target and verb but never the patch body or manifest — in the one moment the refusal design leans on a human reading the proposal. A truncated payload preview is now included.
 - **Choice-2 routing misclassified structured actions.** Both filters keyed on `command`, which structured actions do not have, so a mixed set took the GitOps-only branch and silently hid its kubectl half.
 
+### Fixed during automated review on PR #822
+
+Raised by CodeRabbit against the pushed branch and fixed before merge:
+
+- **`runWithoutShell` capped stdout but not stderr** — a regression the argv rewrite itself introduced, since the `execAsync` path it replaced applied `maxBuffer` per-stream to both. Both streams now have independent counters. Overflow **rejects and kills the child** rather than truncating, deliberately: `isIgnorableStderr` classifies by substring, so a silently dropped tail could flip an ignorable stderr into a hard failure or the reverse. Do not "optimise" this into a truncate.
+- **`helm template` nil-pointered on `--set remediation=null`**, now a nil-safe parenthesized lookup. Note this makes the chart inconsistent — see [Follow-ups](#follow-ups).
+- **A new unit test wrote to the system temp dir**, violating the `./tmp` rule in `CLAUDE.md`.
+- **The rollout-restart prompt example hardcoded a `restartedAt` timestamp** a model could copy verbatim, yielding a no-op patch that rolls nothing while reporting success. Now a placeholder plus an instruction to generate the value and confirm it differs from the live one.
+- **A helm unit test interpolated values into an `execSync` command string** — the same pattern this PRD removes from production code. Converted to `execFileSync` with an argv array.
+
+One finding was **declined**: `executeChoice: 2` not being gated, rated Major/CWE-78. It is a documented, deliberate scope decision rather than an oversight — see [Follow-ups](#follow-ups) — and the reasoning is recorded on the [review thread](https://github.com/vfarcic/dot-ai/pull/822#discussion_r4010687324).
+
+### Unrelated fixes carried in the same PR
+
+Both were pre-existing failures on `main`, not caused by this work, fixed here under the standing rule that CI must be green regardless of cause. Recorded so a future reader is not puzzled by their presence in a PRD-810 PR:
+
+- **Dependency audit.** The `Security Analysis` check was failing on 13 advisories in transitive dependencies. Only `fast-uri` needed an override and a major bump — 3.1.5 is the last 3.x ever published, so there is no fixed 3.x — and its ajv compatibility was smoke-tested on the real consumer path. Separately, `packages/agentic-tools` carried 7 advisories of its own including a **high in a production dependency**, because that job only audits the root workspace. See [Follow-ups](#follow-ups).
+- **`/readyz` reported a healthy collection as inaccessible.** `READINESS_COLLECTION_INFO_TIMEOUT_MS = 1000` bounded **four** sequential Qdrant round trips — `collectionExists()` (`getCollections()` + `getCollection()`) and `getCapabilitiesCount()` (`getCollections()` + an `exact: true` count that scans the collection) — under one shared deadline. Worse, the count only feeds the optional `storedCount`, so a slow *count* falsified the *health signal*; the inner `catch` conflated them the same way. Now budgeted independently with a tri-state existence result, so the count decides only `storedCount` while a genuinely absent or undetermined collection still reports `false`. `collectionAccessible` is not part of `ready`, so the endpoint's status code was never affected.
+
 ## Follow-ups
 
 Recorded so they are not lost. **None are implemented by this PRD.**
@@ -149,6 +168,10 @@ Recorded so they are not lost. **None are implemented by this PRD.**
 - **`fallbackReason` echoes model-authored text.** The refusal string embeds `action.description`, which is model output shaped by cluster content, and returns it to the calling agent verbatim. Nothing executes it, so this is a content-boundary concern — it belongs to [#811](https://github.com/vfarcic/dot-ai/issues/811), not here.
 - **Read-only kubectl tools keep a free-form `args: string[]` flag channel.** Deliberate — it is their documented contract — and shell-free after the argv rewrite, so it can no longer reach a shell. But the values are still model-authored, and the channel bounds nothing about which kubectl flags may be passed.
 - **Prompt duplication between `remediate-system.md` and `remediate-system-constrained.md`** (Design Decision #4). Revisit via `prompts/partials/` on the first edit that has to be made twice.
+- **The chart now has one nil-safe value guard and 84 that are not**, across 16 files in `charts/templates/`. Introduced by the fix above. Either sweep them or revert the one — the inconsistency is the problem, not the guard.
+- **`Security Analysis` only audits the root workspace.** It runs `npm ci` at the root, so `packages/agentic-tools` is never audited — which is how a high-severity advisory in one of its production dependencies went unflagged until someone looked by hand.
+- **The remaining 7 files in `tests/unit/helm/` still build shell command strings** for `execSync`. `tests/unit/helm/k8s-doc.ts` is precedent for a shared non-test module in that directory, so a `helm-template.ts` helper would land in an established slot. Two things to settle before freezing a signature: the files disagree on stderr handling (`stdio: ['ignore','pipe','pipe']` vs. `encoding` alone), which changes what a failed render prints while debugging; and `gateway-api.test.ts` and `gitops-allowed-repo-hosts.test.ts` build commands inline across several lines and may carry per-test flags a simple signature would not cover.
+- **`IntegrationTest.kubectl` swallows command failures** (`tests/integration/helpers/test-base.ts`), returning `error.stdout || ''` so every failure looks like empty output. Making it strict is cross-cutting: 65 call sites across 5 test files, and some polling loops *depend* on the swallow — `if (podsJson && podsJson.trim() !== '')` reads empty as "not ready yet" and would start throwing mid-poll. Needs its own full-suite run to validate.
 - **The model intermittently invents `helm rollback --to-revision`, which does not exist** (`helm rollback <RELEASE> [REVISION]` takes the revision positionally). Seen as a non-deterministic integration failure on the flag-off free-form path; `prompts/remediate-system.md` does not mention the flag, and teaching the positional form there is the likely fix. Pre-existing and unrelated to this PRD — noted because it is exactly the class of defect the free-form path produces and the structured path cannot: a hallucinated flag is a shell command that fails, where a hallucinated verb is a refusal.
 
 ## Out of Scope
