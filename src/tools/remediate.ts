@@ -910,13 +910,20 @@ export function parseAIFinalAnalysis(
   aiResponse: string
 ): AIFinalAnalysisResponse {
   try {
-    const { value, candidateCount, firstBraceError } = findShapedJsonObject(
-      aiResponse,
-      hasFinalAnalysisShape
-    );
+    const { value, candidateCount, firstBraceError, budgetExhausted } =
+      findShapedJsonObject(aiResponse, hasFinalAnalysisShape);
 
     if (candidateCount === 0) {
       throw new Error('No JSON found in AI final analysis response');
+    }
+
+    if (!value && budgetExhausted) {
+      // Distinct from the structural failures below: the analysis object may
+      // well be in there, and saying "invalid structure" would blame the model
+      // for a limit we imposed.
+      throw new Error(
+        `AI final analysis response nests too deeply to scan: ${candidateCount} candidate objects in ${aiResponse.length} characters exhausted the JSON parse budget before an analysis object was found`
+      );
     }
 
     if (!value) {

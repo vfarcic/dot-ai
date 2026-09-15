@@ -187,3 +187,43 @@ describe('parseAIFinalAnalysis - failures keep reporting what they did', () => {
     );
   });
 });
+
+describe('parseAIFinalAnalysis - cost on adversarial input', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('reads the analysis out of a response built to be quadratic', () => {
+    // Every `{` is a candidate, and each one used to be brace-matched to the
+    // end of the response: 4.1 s of blocked event loop for this input, on a
+    // runtime that is single-threaded and serving other requests at the time.
+    // Tool output is attacker-writable and the model's response is shaped by
+    // it, so this is reachable, not theoretical.
+    //
+    // Unfenced deliberately — a fenced block is tried first, so fencing it
+    // would let the search finish before it ever touched the braces.
+    const response = ['{'.repeat(64000), VALID_JSON].join('\n');
+
+    const started = Date.now();
+    expect(parseAIFinalAnalysis(response)).toMatchObject({
+      rootCause: VALID_ANALYSIS.rootCause,
+    });
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  test('explains a response it could not scan in full instead of blaming its structure', () => {
+    // 32 000 nested valid objects: the candidates are all parseable and their
+    // lengths sum quadratically, so the scan stops at the parse budget with
+    // candidates left. "Invalid structure" would be a lie — the analysis may
+    // be in there — so the failure says what actually happened.
+    const response = `${'{"a":'.repeat(32000)}1${'}'.repeat(32000)}`;
+
+    expect(() => parseAIFinalAnalysis(response)).toThrow(
+      /nests too deeply to scan: 32000 candidate objects in \d+ characters exhausted the JSON parse budget/
+    );
+  });
+});
