@@ -248,7 +248,14 @@ EOF`);
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
-    expect(restartCount).toBeGreaterThanOrEqual(1);
+    // The crash happened, so there is both a log to read and an event to
+    // describe. Stated as a derived fact rather than a bare numeric comparison
+    // so it reads like every other assertion here, and so a failure prints the
+    // count that never got there.
+    expect({
+      crashedAtLeastOnce: restartCount >= 1,
+      restartCount,
+    }).toMatchObject({ crashedAtLeastOnce: true });
 
     // ACT: a real investigation through the real tool.
     const investigation = await integrationTest.httpClient.post<
@@ -653,9 +660,11 @@ EOF`);
     }
 
     expect(
-      sessionId,
+      { sessionId },
       'no investigating remediate session appeared for this issue'
-    ).toMatch(/^rem-\d+-[a-f0-9]{8}$/);
+    ).toMatchObject({
+      sessionId: expect.stringMatching(/^rem-\d+-[a-f0-9]{8}$/),
+    });
 
     const visualization = await integrationTest.httpClient.get(
       `/api/v1/visualize/${sessionId}`

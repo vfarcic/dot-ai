@@ -54,6 +54,7 @@ import {
   withUntrustedContentBoundary,
 } from '../core/untrusted-content';
 import { loadPromptOrThrow } from '../core/shared-prompt-loader';
+import { findShapedJsonObject } from '../core/platform-utils';
 
 // Plugin result data structure
 interface PluginResultData {
@@ -797,8 +798,11 @@ async function conductInvestigation(
 
 /**
  * AI Final Analysis Response interface matching final analysis prompt format
+ *
+ * Exported alongside {@link hasFinalAnalysisShape} for the injection eval
+ * harness, which scores this same object out of the same final message.
  */
-interface AIFinalAnalysisResponse {
+export interface AIFinalAnalysisResponse {
   issueStatus: 'active' | 'resolved' | 'non_existent';
   rootCause: string;
   confidence: number;
@@ -812,91 +816,18 @@ interface AIFinalAnalysisResponse {
 }
 
 /**
- * Candidate opening-brace offsets for the final analysis object, best first.
- *
- * The prompt asks for a fenced ```json block, so braces inside one are tried
- * before anything else. Everything else follows in document order, which is what
- * this parser used to consider exclusively — and why prose such as
- * "no CPU or memory requests/limits defined (`"resources": {}`)" ahead of the
- * real block used to hijack the parse.
- */
-function collectJsonCandidateOffsets(aiResponse: string): number[] {
-  const allBraces: number[] = [];
-  for (let i = 0; i < aiResponse.length; i++) {
-    if (aiResponse[i] === '{') {
-      allBraces.push(i);
-    }
-  }
-
-  // Group 1 is the opening fence, so the content offset can be computed exactly
-  const fenceRegex = /(```json[^\S\r\n]*\r?\n?)([\s\S]*?)```/gi;
-  const fenced = new Set<number>();
-  let match: RegExpExecArray | null;
-  while ((match = fenceRegex.exec(aiResponse)) !== null) {
-    const contentStart = match.index + match[1].length;
-    const contentEnd = contentStart + match[2].length;
-    for (const brace of allBraces) {
-      if (brace >= contentStart && brace < contentEnd) {
-        fenced.add(brace);
-      }
-    }
-  }
-
-  return [
-    ...allBraces.filter(brace => fenced.has(brace)),
-    ...allBraces.filter(brace => !fenced.has(brace)),
-  ];
-}
-
-/**
- * End (exclusive) of the balanced JSON object starting at `start`, or -1 when
- * the braces never balance.
- */
-function findBalancedObjectEnd(text: string, start: number): number {
-  let braceCount = 0;
-  let inString = false;
-  let escapeNext = false;
-
-  for (let i = start; i < text.length; i++) {
-    const char = text[i];
-
-    if (escapeNext) {
-      escapeNext = false;
-      continue;
-    }
-
-    if (char === '\\') {
-      escapeNext = true;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-
-    if (inString) continue;
-
-    if (char === '{') braceCount++;
-    if (char === '}') {
-      braceCount--;
-      if (braceCount === 0) {
-        return i + 1;
-      }
-    }
-  }
-
-  return -1;
-}
-
-/**
  * The structural check that tells the analysis object apart from every other
  * object in the response. `{}` parses fine, so a successful `JSON.parse` is not
  * enough to accept a candidate — this is the same required-field check the
  * parser has always applied, now used to choose a candidate as well as to
  * reject one.
+ *
+ * Exported because the injection eval harness scores the same final message
+ * (`src/evaluation/injection/detectors.ts`) and must agree with this parser on
+ * which object is the analysis; a looser check there would let the harness score
+ * a surface production never builds.
  */
-function hasFinalAnalysisShape(
+export function hasFinalAnalysisShape(
   parsed: unknown
 ): parsed is AIFinalAnalysisResponse {
   if (typeof parsed !== 'object' || parsed === null) {
@@ -969,55 +900,35 @@ function validateFinalAnalysisFields(parsed: AIFinalAnalysisResponse): void {
  * in order (fenced block first) and the first one that parses AND has the
  * analysis shape wins. When none qualifies, the error is the one the first brace
  * produced — exactly what this function reported before.
+ *
+ * The candidate scan itself lives in `platform-utils` as
+ * {@link findShapedJsonObject}: the injection eval harness had the same
+ * first-brace bug in its own copy of this logic, and one implementation is the
+ * only way the two stay fixed together.
  */
 export function parseAIFinalAnalysis(
   aiResponse: string
 ): AIFinalAnalysisResponse {
   try {
-    const candidates = collectJsonCandidateOffsets(aiResponse);
-    if (candidates.length === 0) {
+    const { value, candidateCount, firstBraceError } = findShapedJsonObject(
+      aiResponse,
+      hasFinalAnalysisShape
+    );
+
+    if (candidateCount === 0) {
       throw new Error('No JSON found in AI final analysis response');
     }
 
-    const firstBraceIndex = aiResponse.indexOf('{');
-    let firstBraceError: Error | undefined;
-
-    for (const start of candidates) {
-      let parsed: unknown;
-
-      try {
-        const end = findBalancedObjectEnd(aiResponse, start);
-        if (end === -1) {
-          throw new Error('Could not find complete JSON object in AI response');
-        }
-        parsed = JSON.parse(aiResponse.substring(start, end));
-      } catch (error) {
-        if (start === firstBraceIndex) {
-          firstBraceError =
-            error instanceof Error ? error : new Error(String(error));
-        }
-        continue;
-      }
-
-      // Validate required fields
-      if (!hasFinalAnalysisShape(parsed)) {
-        if (start === firstBraceIndex) {
-          firstBraceError = new Error(
-            'Invalid AI final analysis response structure'
-          );
-        }
-        continue;
-      }
-
-      validateFinalAnalysisFields(parsed);
-
-      return parsed;
+    if (!value) {
+      throw (
+        firstBraceError ??
+        new Error('Invalid AI final analysis response structure')
+      );
     }
 
-    throw (
-      firstBraceError ??
-      new Error('Invalid AI final analysis response structure')
-    );
+    validateFinalAnalysisFields(value);
+
+    return value;
   } catch (error) {
     // Log the actual AI response content when parsing fails - critical for debugging
     console.error('🚨 JSON PARSING FAILED - AI Response Content:', {

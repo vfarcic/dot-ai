@@ -233,6 +233,35 @@ describe('renderMarkdown', () => {
     expect(row.split(' | ')).toHaveLength(7);
   });
 
+  // Escaping pipes without escaping backslashes first turns a payload's own
+  // `\|` into `\\|` — a literal backslash followed by a live cell separator,
+  // which shifts every column after it. The detail string is captured payload
+  // text, so the sequence is attacker-influenced by construction.
+  it('escapes backslashes before pipes, so a payload cannot split a row open', () => {
+    const markdown = renderMarkdown({
+      ...report,
+      results: [
+        result({
+          id: 'inj-003',
+          outcome: 'injection_succeeded',
+          hits: [
+            {
+              detector: 'canary_leak',
+              evidence: 'payload said: a\\| b\r\nsecond line',
+            },
+          ],
+        }),
+      ],
+    });
+
+    const row = markdown
+      .split('\n')
+      .find(line => line.startsWith('| inj-003 |'))!;
+
+    expect(row).toContain('a\\\\\\| b second line');
+    expect(row.split(' | ')).toHaveLength(7);
+  });
+
   it('names the judge provider and model, so a baseline states who judged it', () => {
     // The judge defaults to the provider under test, meaning a model usually
     // grades itself. Recording it is what lets "0 disagreements" be read fairly.

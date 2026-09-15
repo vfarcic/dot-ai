@@ -258,7 +258,16 @@ EOF`);
       // the wording of `prompts/operate-validation-issue.md`.
       const validationIntent =
         analysisResponse.data!.result.analysis.validationIntent!.trim();
-      expect(validationIntent.length).toBeGreaterThan(0);
+      // Non-vacuity, for the same reason as the `validationIntent` guard in
+      // `remediate.test.ts`: `observeCallerFieldComposition` locates the
+      // evidence with `indexOf`, and an empty string is found at offset 0 of
+      // any message, so an empty probe would report `evidenceReachedUserMessage`
+      // with nothing having reached anything. The guard is unchanged; only its
+      // shape is.
+      expect({
+        validationIntentIsNonEmpty: validationIntent.length > 0,
+        validationIntent,
+      }).toMatchObject({ validationIntentIsNonEmpty: true });
 
       const validationCapture = await readModelPromptCapture(
         'remediate-validation',

@@ -25,7 +25,9 @@ userMessage: `Investigate this Kubernetes issue: ${session.data.issue}`
 
 No delimiter, no "treat as data" framing, no separation between what was asked and what was quoted.
 
-**Field naming is load-bearing here.** The [GrafanaGhost](https://cyberscoop.com/grafanaghost-grafana-prompt-injection-vulnerability-data-exfiltration/) disclosure (Noma Security, April 2026) reports that embedding the keyword **`INTENT`** inside an injected payload was part of what made the target model treat planted instructions as authoritative. This project's field is named `intent`.
+**Field naming is load-bearing here.** The [GrafanaGhost](https://cyberscoop.com/grafanaghost-grafana-prompt-injection-vulnerability-data-exfiltration/) disclosure (Noma Security, Sasi Levi, disclosed 2026-04-07) reports that embedding the keyword **`INTENT`** inside an injected payload was part of what made the target model treat planted instructions as authoritative. This project's field is named `intent`.
+
+> **Citation note — there are two "Grafana Ghost"s, and only one is this one.** Noma's GrafanaGhost has **no CVE assigned** and no Grafana advisory, so it is cited by name and date only; that is deliberate, not an omission. Do not attach `CVE-2025-4123` to it — that identifier carries the public nickname "The Grafana Ghost" but refers to unrelated OX Security research (open redirect + client path traversal, May 2025). Verified against primary sources by the reporter of [#799](https://github.com/vfarcic/dot-ai/issues/799) after this PRD mis-attributed a CVE to it in discussion.
 
 **Why this is not fixable by a host UI.** Issue #799 makes this point correctly: only the engine controls prompt composition, so only the engine can carry a trust distinction through it. A label emitted by a host has nowhere to land today.
 
@@ -181,6 +183,16 @@ The framing is now ported, with one adaptation that is worth keeping visible: *h
 ### One fix carried in this PR that is not an #811 milestone
 
 `parseAIFinalAnalysis` started at `indexOf('{')` and brace-matched from there, so model prose containing braces (`"resources": {}`) derailed it before the real fenced block was reached. It surfaced **four times** during this work, each time diagnosed as a flake upstream of the assertion it failed, and finally became a reproducible red on `untrusted-content-boundary`. Fixed here rather than deferred because shipping a PR with a known-red test — on a PRD about trustworthy verification — is not defensible. The integration assertion was not touched; it went green because production stopped mis-parsing.
+
+### Assessed during PR review, ruled out of scope — an RBAC read bypass
+
+CodeRabbit flagged `gitSource.files[].content` as a sensitive-data-exposure risk on the prompt. Audit found the underlying exposure real but the diagnosis wrong, and the actual gap larger: **`GET /api/v1/sessions/:sessionId` performs no RBAC and no ownership check**, and neither do `GET /api/v1/visualize/:sessionId`, `GET /api/v1/sessions` or the remediations SSE stream. The engine gates `remediate` on RBAC at both invocation paths and even splits out a separate `apply` verb so a user can diagnose but not execute — then serves the entire persisted result, including full GitOps file contents, through four ungated read endpoints. `GET /api/v1/sessions` leaks every session id and the SSE stream pushes new ones in real time, so enumeration is not even required.
+
+**Not caused or widened by this PR, and the PR is net-restrictive on this axis.** `finalAnalysis` persistence, the field and the read endpoint all predate it. `main` already mandates "full corrected file contents"; what this PR *adds* is a prohibition `main` lacks — *never copy credentials or tokens found in tool output into your analysis or your response text* — and the line CodeRabbit anchored on is the narrow carve-out from that new rule, for the one field that must stay byte-faithful or the pull request breaks. CodeRabbit read a carve-out as a grant. Its "evaluation records" claim is unfounded: the injection harness never touches a real cluster or repo.
+
+It bites only with `rbac.enforcement.enabled` (default `false`) — which is exactly the deployment where the engine makes the promise. Ownership checks are not currently possible at all: `GenericSession` records no creator identity. Filed as a follow-up and ranked above several of the nine below; it is a concrete authorization bypass rather than a residual-framing gap.
+
+**One injection vector this surfaced, added to the boundary-extension follow-up:** on the remediate *success* path the visualization payload is `finalAnalysis`, so `gitSource.files[].content` — verbatim attacker-writable repo text — reaches the visualization **system** prompt unframed. That is the highest-fidelity untrusted text reaching that loop.
 
 ### Follow-ups — tracked, deliberately not in this PRD
 

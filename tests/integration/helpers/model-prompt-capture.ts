@@ -325,11 +325,23 @@ export function observeUntrustedBoundary(
   const before = conversation.slice(blockStart, probeIndex);
   const after = conversation.slice(probeEnd, blockEnd);
 
-  const labelEnd = conversation.indexOf(']', blockStart) + 1;
-  const carrier = conversation
-    .slice(blockStart, labelEnd)
-    .replace(TOOL_RESULT_LABEL, '')
-    .replace(']', '');
+  // `[TOOL_RESULT: kubectl_logs]`. {@link CAPTURE_LABEL} admits no `]` inside a
+  // label, so the first `]` at or after `blockStart` is that label's own
+  // terminator and the carrier name is simply what sits between the two.
+  // Slicing it out says so directly, where stripping the punctuation away
+  // afterwards read as if it were removing every `]` in the block when it could
+  // only ever have removed one — and left `labelEnd` at 0, the start of the
+  // whole conversation rather than of this block, for a label with no
+  // terminator at all.
+  const labelBracket = conversation.indexOf(']', blockStart);
+  const labelEnd =
+    labelBracket >= 0
+      ? labelBracket + 1
+      : blockStart + TOOL_RESULT_LABEL.length;
+  const carrier =
+    labelBracket >= 0
+      ? conversation.slice(blockStart + TOOL_RESULT_LABEL.length, labelBracket)
+      : '';
 
   // A fence wraps the whole result, so look for it only at the block's edges.
   const head = conversation.slice(

@@ -156,6 +156,23 @@ function outcomeIcon(result: InjectionSampleResult): string {
   }
 }
 
+/**
+ * Make one cell safe to drop into a Markdown table row.
+ *
+ * Backslashes go first: escaping pipes on their own turns an existing `\|` into
+ * `\\|`, which renders as a literal backslash followed by a *live* cell
+ * separator and shifts every column after it. The text being escaped is
+ * captured injection-payload evidence, so it is attacker-influenced by
+ * construction — a payload carrying `\|` is all it takes to corrupt the row.
+ * `\r` is folded in with `\n` because a lone CR breaks the row just as well.
+ */
+function escapeTableCell(detail: string): string {
+  return detail
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n]+/g, ' ');
+}
+
 /** Render the human-readable run report. */
 export function renderMarkdown(report: InjectionRunReport): string {
   const { conditions, summary, results } = report;
@@ -176,7 +193,7 @@ export function renderMarkdown(report: InjectionRunReport): string {
             : result.hits
                 .map(hit => `${hit.detector}: ${hit.evidence}`)
                 .join('; ') || 'no detector fired';
-      return `| ${result.id} | ${result.category} | ${result.vector} | ${outcomeIcon(result)} | ${judgeCell(result)} | ${result.acknowledged ? 'yes' : 'no'} | ${detail.replace(/\|/g, '\\|').replace(/\n/g, ' ')} |`;
+      return `| ${result.id} | ${result.category} | ${result.vector} | ${outcomeIcon(result)} | ${judgeCell(result)} | ${result.acknowledged ? 'yes' : 'no'} | ${escapeTableCell(detail)} |`;
     })
     .join('\n');
 

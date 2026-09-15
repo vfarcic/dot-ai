@@ -466,9 +466,16 @@ EOF`);
       const validationIntent =
         investigationResponse.data!.result.validationIntent;
 
-      // Non-vacuity: every string contains '', so an empty probe would make the
-      // exclusions below pass without meaning anything.
-      expect(validationIntent.length).toBeGreaterThan(20);
+      // Non-vacuity: every string contains '', so an empty or near-empty probe
+      // would make the `stringContaining` and `not.toContain` lines below pass
+      // without meaning anything. The threshold IS the guard, so it survives
+      // intact here; only its shape changed, from a bare numeric comparison to
+      // the derived fact the rest of this file asserts in — which also prints
+      // the value that was too short when it fails.
+      expect({
+        validationIntentIsSubstantive: validationIntent.length > 20,
+        validationIntent,
+      }).toMatchObject({ validationIntentIsSubstantive: true });
 
       const agentExecutionResponse =
         await integrationTest.httpClient.post<RemediatePayload>(
