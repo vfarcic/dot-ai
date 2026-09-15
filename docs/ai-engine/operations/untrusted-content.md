@@ -115,7 +115,7 @@ A controlled A/B, run on 2026-09-15: same model, same payload, same harness, sam
 
 The model was Claude Haiku 4.5, under a permissive fixture prompt that exists only in the test suite — never the shipped prompt. Naming the delimiter in the override, the first countermeasure to try, did not recover compliance at any wording.
 
-The regression corpus then held attack success at **0.0%** on both baselined models after the change: `claude-sonnet-5` at 0 of 25 scored samples, `gemini-3.6-flash` at 0 of 24. Coverage was verified rather than assumed — every tool output in those runs carried the delimiters, with none unframed. Developers can re-run it against their own provider: see the [Prompt-Injection Eval Guide](../../dev/injection-eval-guide.md).
+The regression corpus then held attack success at **0.0%** on both baselined models after the change: `claude-sonnet-5` at 0 of 25 scored samples, `gemini-3.6-flash` at 0 of 24. Coverage was verified rather than assumed — every tool output in those runs carried the delimiters, with none unframed. Developers can re-run it against their own provider: see the [Prompt-Injection Eval Guide](https://github.com/vfarcic/dot-ai/blob/main/docs/dev/injection-eval-guide.md).
 
 ### What is not guaranteed
 
@@ -150,4 +150,4 @@ If you are building a host UI, a controller, or a custom MCP client:
 - [Operate Guide](../tools/operate.md) — the Day 2 operations workflow and its parameters
 - [REST API Gateway](../api/rest-api.md) — request format and the OpenAPI specification
 - [Observability Guide](observability.md) — tracing, and what tool input lands in a span
-- [Prompt-Injection Eval Guide](../../dev/injection-eval-guide.md) — developer guide to the corpus and harness behind the numbers above
+- [Prompt-Injection Eval Guide](https://github.com/vfarcic/dot-ai/blob/main/docs/dev/injection-eval-guide.md) — developer guide to the corpus and harness behind the numbers above
