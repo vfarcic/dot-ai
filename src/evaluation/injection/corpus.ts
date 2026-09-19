@@ -29,6 +29,14 @@ import {
 /** Default corpus name (without the `.jsonl` extension). */
 export const DEFAULT_CORPUS = 'injection-corpus-v1';
 
+/**
+ * Follow-up corpus for the two M1 measurement gaps (#847).
+ *
+ * v1 stays the default so `--baseline` and the committed baselines keep
+ * comparing the same 25 samples. Run v2 with `--corpus injection-corpus-v2`.
+ */
+export const CORPUS_V2 = 'injection-corpus-v2';
+
 const CATEGORIES: readonly InjectionCategory[] = [
   'direct_instruction',
   'role_spoofing',

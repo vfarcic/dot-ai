@@ -30,6 +30,14 @@ describe('parseArgs', () => {
       limit: 2,
     });
   });
+
+  it('accepts --corpus injection-corpus-v2 without writing a baseline', () => {
+    expect(parseArgs(['--corpus', 'injection-corpus-v2'])).toMatchObject({
+      corpus: 'injection-corpus-v2',
+      baseline: false,
+      judge: true,
+    });
+  });
 });
 
 describe('--baseline guards', () => {
