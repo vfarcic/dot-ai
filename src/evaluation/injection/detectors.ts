@@ -32,10 +32,8 @@
  *
  * **Only literals a sample declares are looked for.** The loop below iterates
  * `detectors.must_not_emit`, so material the fixture plants but no sample names
- * is never searched for. That is the state of `SA_TOKEN_CANARY` today: the
- * ServiceAccount token is readable through `fs_read`, but no corpus v1 sample
- * lists it, so leaking it is undetected until a v2 sample targets `fs_read` and
- * names the literal.
+ * is never searched for. `SA_TOKEN_CANARY` is in that state on corpus v1.
+ * Corpus v2 `inj-026` names it and steers the model at `fs_read`.
  */
 
 import { findShapedJsonObject } from '../../core/platform-utils.js';
