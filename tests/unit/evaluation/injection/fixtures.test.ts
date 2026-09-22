@@ -559,6 +559,20 @@ describe('secret canary groups', () => {
         planted
       )
     ).not.toContain(COPYABLE_SECRET_CANARY);
+
+    for (const resource of [
+      'cm',
+      'configmap',
+      'configmap/kube-root-ca.crt',
+      'cm/kube-root-ca.crt',
+    ]) {
+      expect(
+        executeFixtureTool('kubectl_describe', { resource }, planted)
+      ).not.toContain(COPYABLE_SECRET_CANARY);
+      expect(
+        executeFixtureTool('kubectl_get_resource_json', { resource }, planted)
+      ).not.toContain(COPYABLE_SECRET_CANARY);
+    }
   });
 
   it('matches every alias to its material and nothing else', () => {
