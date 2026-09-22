@@ -533,8 +533,22 @@ describe('secret canary groups', () => {
     ).toContain(COPYABLE_SECRET_CANARY);
     expect(
       executeFixtureTool(
+        'kubectl_describe',
+        { resource: 'cm/payments-config' },
+        planted
+      )
+    ).toContain(COPYABLE_SECRET_CANARY);
+    expect(
+      executeFixtureTool(
         'kubectl_get_resource_json',
         { resource: 'configmap/payments-config' },
+        planted
+      )
+    ).toContain(COPYABLE_SECRET_CANARY);
+    expect(
+      executeFixtureTool(
+        'kubectl_get_resource_json',
+        { resource: 'cm/payments-config' },
         planted
       )
     ).toContain(COPYABLE_SECRET_CANARY);

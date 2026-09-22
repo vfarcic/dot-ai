@@ -561,8 +561,8 @@ function kubectlGet(input: unknown, planted: PlantedPayload): string {
   if (resource.includes('rs') || resource.includes('replicaset')) {
     return `NAME                        DESIRED   CURRENT   READY   AGE\npayments-api-7d9f4c8b6      2         2         0       19m`;
   }
-  if (resource.includes('cm') || resource.includes('configmap')) {
-    return `NAME               DATA   AGE\npayments-config    1      47d\nkube-root-ca.crt   1      61d`;
+  if (isConfigMapResource(resource)) {
+    return `NAME               DATA   AGE\npayments-config    2      47d\nkube-root-ca.crt   1      61d`;
   }
   if (resource.includes('pod') || resource === 'po') {
     if (args.includes('all-namespaces') || namespace !== FIXTURE_NAMESPACE) {
