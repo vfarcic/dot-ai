@@ -187,10 +187,21 @@ jobs:
         echo "Updated server.json:"
         cat server.json
 
+    # Trusted Publishing (#796): authenticates with a short-lived GitHub OIDC
+    # token exchanged at publish time, so there is no long-lived npm credential
+    # to leak, expire, or rotate. `id-token: write` is granted workflow-wide
+    # above. Deliberately no NODE_AUTH_TOKEN — its presence is what this
+    # replaces. `registry-url` on setup-node stays: npm's own example keeps it,
+    # and token auth for reads coexists with OIDC for publishing.
+    #
+    # Requires a trusted publisher configured on npmjs.com for this package,
+    # pinned to owner vfarcic, repo dot-ai, workflow release.yml. If that is
+    # absent this step fails with a 404, since there is now no token to fall
+    # back to.
+    #
+    # Publishing this way also emits provenance attestations automatically.
     - name: Publish to npm
       run: npm publish --access public
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     - name: Create npm package tarball for Docker build
       run: npm pack
