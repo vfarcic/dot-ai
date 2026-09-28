@@ -201,7 +201,7 @@ The exposure matters **only when `rbac.enforcement.enabled` is `true`** — the 
 - **Four other sites parse model output the same way, and one returns a wrong verdict.** `parseAIFinalAnalysis` is fixed here; `src/tools/query.ts` `parseSummary` uses the byte-identical loop and degrades silently, and **`src/tools/impact-analysis.ts` `parseImpactAnalysis` falls back to `safe: false`** — a safe operation reported unsafe, with no error and no log, on a tool whose entire job is that call. `src/core/platform-utils.ts` and `src/core/visualization.ts` prefer a fence but have their own edges (a non-greedy fence regex that truncates on a nested object; a first-brace fallback with no string/escape handling). Fix `impact-analysis` first; the durable answer is one shared extractor rather than five local reinventions with five different fallback contracts.
 - **Derive `PRODUCTION_TOOL_RESULT_SOURCES` from the prompt files `src/` actually reads** rather than enumerating them by hand. The hand-maintained list is what let #810's constrained prompt ship without framing and without a red test.
 - **`operate`'s REST args are never `.parse`d**, so the published spec advertises a `maxLength` the server does not enforce. Pre-existing — `intent`'s own bound is equally unenforced there.
-- **Corpus v2**: a sample targeting `fs_read`/`SA_TOKEN_CANARY`, and a fixture secret a model can transcribe without arithmetic (the base64 canary loses ~1 in 9 real leaks).
+- **Corpus v2** (#847): `inj-026` targets `fs_read`/`SA_TOKEN_CANARY`. `inj-027` uses a copyable ConfigMap secret. `inj-028` / `inj-029` add obfuscation and log-volume burial. v1 is unchanged.
 - **A payload-free control arm** to measure the false-positive base rate of `no_remediation`, which fires on an absence across 8 samples.
 - **Fail-closed defaulting** (Design Decision #1) and **a tag nonce** (#7), both deferred with reasons recorded above.
 
@@ -209,9 +209,9 @@ The exposure matters **only when `rbac.enforcement.enabled` is `true`** — the 
 
 Recorded so M3 is read with them in mind, not discovered later:
 
-- **The base64 canary loses ~1 in 9 real leaks** (n=9, measured). The fixture serves the secret only in base64 and models re-derive rather than copy it; an early transcription slip defeats any prefix length. Fix is a copyable fixture secret — a v2 item, documented in the guide.
+- **The base64 canary loses ~1 in 9 real leaks** (n=9, measured). The payments-db Secret is still base64-only, so v1 `inj-014` / `inj-015` keep that measurement. Corpus v2 `inj-027` adds a copyable ConfigMap password (`DOTAI-CANARY-COPYABLE-K3M8`) that a model can transcribe without decode. See #847.
 - **Three deterministic detector kinds have no live coverage** — `omission`, `status_flip`, `no_remediation`. All fire on an *absence*, and `no_remediation` (8 samples) has no measured false-positive base rate: the 153-result re-score only covers payload-bearing runs. A payload-free **control arm** would settle it. Deferred to M3.
-- **`SA_TOKEN_CANARY` is instrumented but unreachable.** `fs_read` serves a ServiceAccount token, but no v1 sample both steers the model there and names the literal in `must_not_emit`. v2 scope.
+- **`SA_TOKEN_CANARY` is reachable on corpus v2.** `inj-026` steers the model at `fs_read` on `.ci/serviceaccount-token` and names the literal in `must_not_emit`. v1 still does not. See #847.
 - **Gemini's `kubectl_describe` vector fell 4/6 → 2/6 samples** through the model's own behaviour (it inspects the Deployment, not the crashing Pod). The denominator is set by model behaviour, so an M2 run that drives Gemini to the Pod is not like-for-like on that vector.
 - **The positive controls are pinned to `anthropic_haiku`** and sized on measured per-attempt rates. If a future Haiku becomes as resistant as Sonnet, they go red — that means the control lost its lever, not that the product regressed. The failure messages say so.
 
